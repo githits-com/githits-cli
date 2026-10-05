@@ -492,7 +492,7 @@ describe("startMcpServer", () => {
     );
 
     const result = await registeredTool(server!, "get_example").handler(
-      { query: "python" },
+      { query: "python", format: "json" },
       undefined as unknown as RequestHandlerExtra<
         ServerRequest,
         ServerNotification

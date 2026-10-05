@@ -75,3 +75,17 @@ export function renderIndexingEstimates(
     return `${label}: ${formatIndexingEstimate(entry)}`;
   });
 }
+
+/** Compact preparation evidence; the caller retains lifecycle and next-action ownership. */
+export function renderPreparationEstimates(
+  entries: readonly DiscoveryIndexingEstimate[] | undefined,
+  repositoryState = "indexing",
+): string[] {
+  return (entries ?? []).map((entry) => {
+    const state =
+      entry.kind === "DOCUMENTATION"
+        ? "preparing documentation"
+        : repositoryState;
+    return `  - ${entry.targets.map(safe).join(", ")} (${state}, ${formatIndexingEstimate(entry, "compact")})`;
+  });
+}

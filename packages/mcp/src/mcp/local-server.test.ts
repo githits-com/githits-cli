@@ -4,6 +4,7 @@ import type {
   ListService,
   ResolveTargetService,
 } from "@githits/core-internal";
+import { AuthenticationError } from "@githits/core-internal";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import type {
   ServerNotification,
@@ -120,6 +121,59 @@ function serverInstructions(
 }
 
 describe("createLocalMcpServer", () => {
+  it.each([
+    { name: "omitted", format: undefined },
+    { name: "text", format: "text" as const },
+    { name: "json", format: "json" as const },
+  ])(
+    "formats request-scoped provider failures when format is $name",
+    async (mode) => {
+      const hostAuthAction =
+        "Refresh the host authentication token, then retry this tool.";
+      const provider = mock(() =>
+        Promise.reject(
+          new AuthenticationError("Provider token rejected.", "server"),
+        ),
+      );
+      const server = createLocalMcpServer({
+        metadata: { name: "local-githits", version: "0.0.0" },
+        services: provider,
+        authAction: hostAuthAction,
+        policy: { tools: false },
+      });
+      const response = await registeredTools(server).pkg_info!.handler(
+        {
+          target: "npm:express",
+          ...(mode.format === undefined ? {} : { format: mode.format }),
+        },
+        undefined as unknown as RequestHandlerExtra<
+          ServerRequest,
+          ServerNotification
+        >,
+      );
+      const content = response.content[0]?.text ?? "";
+
+      expect(provider).toHaveBeenCalledTimes(1);
+      expect(response.isError).toBe(true);
+      if (mode.format === "json") {
+        expect(JSON.parse(content)).toEqual({
+          error: "Provider token rejected.",
+          code: "AUTH_REQUIRED",
+          retryable: false,
+          details: {
+            authSource: "server",
+            action: hostAuthAction,
+          },
+        });
+        return;
+      }
+
+      expect(content).toContain("Provider token rejected.");
+      expect(content).toContain(hostAuthAction);
+      expect(content).not.toContain('"code":"AUTH_REQUIRED"');
+    },
+  );
+
   it.each([false, true])(
     "classifies every read-only tool's evidence domain with experimental=%s",
     (tools) => {

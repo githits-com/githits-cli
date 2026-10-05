@@ -25,6 +25,7 @@ import {
   toSymbolKind,
   type UnifiedSearchErrorPayload,
   type UnifiedSearchTextOptions,
+  withIndexingRetryAction,
 } from "@githits/mcp/internal";
 import { type Command, Option } from "commander";
 import { recordCliErrorClassification } from "../shared/cli-error-diagnostics.js";
@@ -381,9 +382,23 @@ function handleSearchError(
   json: boolean,
   context: "search" | "status" = "search",
 ): never {
-  const payload = applyCliTermsRemediation(
+  const basePayload = applyCliTermsRemediation(
     buildUnifiedSearchErrorPayload(error),
   );
+  const mapped = withIndexingRetryAction(
+    toMappedError(basePayload),
+    "search",
+    "cli",
+    MAX_DISCOVERY_WAIT_TIMEOUT_MS,
+    false,
+    "seconds",
+  );
+  const payload = {
+    ...basePayload,
+    ...(mapped.details
+      ? { details: mapped.details as Record<string, unknown> }
+      : {}),
+  };
   recordCliErrorClassification("code-nav", error, payload);
 
   if (json) {
@@ -425,7 +440,10 @@ function formatSearchErrorTerminal(
     return formatMappedErrorForTerminal(mapped);
   }
   if (payload.code === "INDEXING") {
-    return formatIndexingError(mapped);
+    return formatIndexingError(mapped, {
+      operation: "search",
+      cliUnit: "seconds",
+    });
   }
   const formatted = formatMappedErrorForTerminal(mapped);
   if (context === "status" && payload.code === "NOT_FOUND") {

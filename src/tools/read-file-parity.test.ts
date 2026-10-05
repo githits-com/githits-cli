@@ -271,7 +271,7 @@ describe("read_file parity", () => {
     expect(mcpAction).not.toContain("path_prefix");
   });
 
-  it("PARITY-ERROR-ENVELOPE: INDEXING identical on both surfaces", async () => {
+  it("PARITY-ERROR-ENVELOPE: INDEXING retains shared evidence with native recovery", async () => {
     const fn = mock(() =>
       Promise.reject(
         new CodeNavigationIndexingError("Indexing...", "ref_abc", [
@@ -297,10 +297,14 @@ describe("read_file parity", () => {
       fn as never,
     );
     const mcpError = mcp as { details: { action?: string } };
-    expect(mcpError.details.action).toContain(
-      'read target="npm:express" path="src/index.js"',
+    expect(mcpError.details.action).toBe(
+      "Retry this read with wait_timeout_ms=30000.",
+    );
+    expect((cli as { details: { action?: string } }).details.action).toBe(
+      "Retry this request with --wait 30000.",
     );
     delete mcpError.details.action;
+    delete (cli as { details: { action?: string } }).details.action;
     expect(cli).toEqual(mcp);
     expect((cli as { code: string; retryable: boolean }).code).toBe("INDEXING");
   });

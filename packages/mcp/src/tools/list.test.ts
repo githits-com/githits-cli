@@ -439,7 +439,12 @@ describe("createListTool", () => {
     const unusedList = mock(async (_params: ListParams) => listResult());
     const invalidTool = createListTool({ list: unusedList });
     const invalid = await invalidTool.handler(
-      { target: "npm:express", paths: ["  "], after: "opaque-cursor" },
+      {
+        target: "npm:express",
+        paths: ["  "],
+        after: "opaque-cursor",
+        format: "json",
+      },
       {},
     );
 
@@ -456,7 +461,7 @@ describe("createListTool", () => {
       }),
     });
     const cursorResult = await cursorError.handler(
-      { target: "npm:express", after: "opaque-cursor" },
+      { target: "npm:express", after: "opaque-cursor", format: "json" },
       {},
     );
     expect(errorPayload(cursorResult)).toMatchObject({
@@ -480,4 +485,101 @@ describe("createListTool", () => {
       ),
     ).rejects.toBe(cancellation);
   });
+});
+
+describe("list indexing errors", () => {
+  it.each([undefined, "text", "json"] as const)(
+    "keeps zero-wait timing and cursor recovery in %s format",
+    async (format) => {
+      const indexingEstimate = {
+        lowerSeconds: 33,
+        upperSeconds: 85,
+        elapsedSeconds: 4,
+        sampleCount: 7,
+        source: "same_repository_refs",
+      };
+      const list = mock(async (_params: ListParams): Promise<ListResult> => {
+        throw new ListGraphQLError(
+          "Repository is indexing, internal duration prose.",
+          "PACKAGE_INDEXING",
+          true,
+          "https://github.com/example/example",
+          undefined,
+          "opaque-progress",
+          "Backend preparation hint.",
+          {
+            indexingEstimate,
+            availableVersions: [{ version: "1.0.1", ref: "v1.0.1" }],
+            package: "npm:example",
+          },
+        );
+      });
+      const result = await createListTool({ list }).handler({
+        target: "npm:example@1.0.2",
+        wait_timeout_ms: 0,
+        after: "opaque-cursor",
+        format,
+      });
+      expect(list).toHaveBeenCalledTimes(1);
+      expect(list).toHaveBeenCalledWith(
+        expect.objectContaining({ waitTimeoutMs: 0, after: "opaque-cursor" }),
+      );
+      expect(result.isError).toBe(true);
+      const text = result.content[0]!.text;
+      if (format === "json")
+        expect(JSON.parse(text)).toMatchObject({
+          code: "INDEXING",
+          details: {
+            indexingEstimate,
+            indexingRef: "opaque-progress",
+            action:
+              "Retry this list with wait_timeout_ms=100000. Leave out after.",
+          },
+        });
+      else {
+        expect(text).toContain("No files available yet.");
+        expect(text.replace(/\s+/g, " ")).toContain(
+          "npm:example@1.0.2 (indexing, estimated total: 33-85s, time spent indexing: 4s)",
+        );
+        expect(text).toContain("Indexed versions/refs: 1.0.1");
+        expect(text).toContain("Backend preparation hint.");
+        expect(text).toEndWith(
+          "Retry this list with wait_timeout_ms=100000. Leave out after.",
+        );
+        expect(text).not.toContain("opaque-progress");
+      }
+    },
+  );
+});
+
+describe("hosted list preparation errors", () => {
+  it.each([undefined, "text", "json"] as const)(
+    "keeps hosted preparation distinct from repository timing in %s format",
+    async (format) => {
+      const list = mock(async (_params: ListParams) => {
+        throw new ListGraphQLError("Documentation is preparing.", "INDEXING");
+      });
+      const tool = createListTool({ list });
+      const result = await tool.handler(
+        { target: "site:expressjs.com", wait_timeout_ms: 0, format },
+        {},
+      );
+      expect(list).toHaveBeenCalledTimes(1);
+      expect(result.isError).toBe(true);
+      const text = result.content[0]!.text;
+      if (format === "json") {
+        const payload = JSON.parse(text);
+        expect(payload.code).toBe("INDEXING");
+        expect(payload.details.indexingEstimates).toBeUndefined();
+        expect(payload.details.indexingEstimate).toBeUndefined();
+      } else {
+        expect(text).toContain("No pages available yet.\n\nPreparing:");
+        expect(text).toContain(
+          "site:expressjs.com (preparing documentation, no estimate available)",
+        );
+        expect(text).not.toContain("(indexing,");
+        expect(text).toEndWith("Retry this list with wait_timeout_ms=30000.");
+      }
+    },
+  );
 });

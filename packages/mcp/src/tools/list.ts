@@ -8,6 +8,7 @@ import { mapListError } from "../shared/list-error-map.js";
 import { buildListParams } from "../shared/list-request.js";
 import { projectListResult } from "../shared/list-response.js";
 import { formatListText } from "../shared/list-text.js";
+import { withIndexingRetryAction } from "../shared/mapped-error-text.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
 import {
   OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
@@ -149,7 +150,11 @@ export function createListTool(
         const payload = projectListResult(result);
         if (args.format !== "json") {
           return textResult(
-            formatListText(payload, { useColors: false, syntax: "mcp" }),
+            formatListText(payload, {
+              useColors: false,
+              syntax: "mcp",
+              hasAfter: builtParams.after !== undefined,
+            }),
           );
         }
         return textResult(JSON.stringify(payload));
@@ -158,7 +163,23 @@ export function createListTool(
         const mapped = mapListError(error, {
           hasAfter: builtParams?.after !== undefined,
         });
-        return mcpMappedErrorResult(mapped, context);
+        return mcpMappedErrorResult(
+          withIndexingRetryAction(
+            mapped,
+            "list",
+            "mcp",
+            120000,
+            builtParams?.after !== undefined,
+          ),
+          context,
+          args.format,
+          {
+            indexingTarget: args.target,
+            indexingOutcome: args.target.startsWith("site:")
+              ? "No pages available yet."
+              : "No files available yet.",
+          },
+        );
       }
     },
   };

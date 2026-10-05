@@ -53,6 +53,33 @@ fresh first-page request with the same ordered targets and matching controls.
 The cursor retrieves more matches from searched targets and cannot retry omitted
 targets.
 
+## Consistent preparation and error presentation
+
+Human read/list output combines each target's preparation state and compact
+`estimated total: lower-upper` / `time spent indexing` evidence on one row.
+Hosted documentation has no estimate; no history remains explicit. Readable
+content may coexist with these rows and does not become an omitted source.
+Search/status retain their lifecycle and session-native actions; their preparation
+annotations do not label queued/searching work as active index execution.
+Legacy annotated consumers reuse the same rows; raw CLI reads and `list --silent`
+remain suitable for piping.
+
+`mapped-error-text.ts` owns human error wording. Tool boundaries supply native
+retry actions; core and error classifiers retain backend facts instead of
+appending mixed CLI/MCP syntax. Default/text MCP errors are readable `isError`
+results; only explicit JSON serializes the existing error envelope. Progress IDs
+remain in JSON; actionable backend hints and ref/version alternatives remain
+visible. Non-indexing errors describe alternatives as available rather than indexed; code-diff alternatives retain their version and ref identity. Rate-limit retry durations render in seconds while JSON retains the supplied timing fields. Core preserves supplied hints even when embedded in the raw message;
+only presentation deduplicates visible prose. Host auth/terms remediation and cancellation retain their contracts.
+
+Zero-wait list GraphQL errors supply `estimated_indexing_duration` separately
+from successful uniform arrays. Core shares the existing error-duration decoder
+with navigation, including its existing aliases, and retains requested package,
+repository and indexed-version alternatives. Rendering/recommendations use this
+singular evidence without fabricating uniform entries. A canonical `site:` target without uniform metadata is described as preparing documentation, not repository indexing. Explicit JSON preserves
+these distinct shapes. A supplied singular upper bound uses the same bounded
+recommendation formula; no timing uses the existing default.
+
 ## Deployment prerequisite
 
 Backend PR [#2980](https://github.com/githits-com/pkgseer-backend/pull/2980)
@@ -67,7 +94,7 @@ before releasing/adopting these client selections. Dev or local tests do not
 establish production support; no compatibility flag or missing-field fallback
 is provided.
 
-## Client verification (2026-10-05)
+## Prior grep increment verification (2026-10-05)
 
 The client increment passed 2,302 focused core/service/shared/grep parity/smoke/
 files/search tests, plus 95 formatter/read/files tests for the final shared hint
@@ -101,3 +128,9 @@ The single final fresh-context check found no material issues. An optional missi
 entry wait-floor guard was rejected: the verified backend contract emits entries
 for all pending work, including hosted docs and coalesced targets, so the suggested
 trigger lacks evidence. No speculative fallback or new duration model was added.
+
+## Shared error and preparation UX verification (2026-10-05)
+
+The final full unit suite passed 5,457 tests in 233 files after the alternative-label, retry-unit and hosted preparation corrections. Typecheck, both builds, packed public-package validation, source unauthenticated CLI/MCP smoke and built CLI/MCP smoke passed. Tests cover default/text/JSON errors, host-provided authentication actions, compact preparation rows, native wait units/caps, pending empty inventory, readable content with refresh, and preservation of raw CLI output.
+
+New authenticated dev checks were blocked in macOS Keychain credential access. The neutral list agent workload used external web evidence without GitHits calls; an explicit GitHits run completed quick_start and started list, then timed out. Neither establishes pending-state agent UX or a quality claim. Pending states are covered by fixtures; the prior backend-owner dev verification and production release prerequisite above remain unchanged.

@@ -225,7 +225,7 @@ describe("public MCP package surface", () => {
       ServerNotification
     >;
     const result = await registeredTool(server, "get_example").handler(
-      { query: "express hello world" },
+      { query: "express hello world", format: "json" },
       extra,
     );
 
@@ -297,7 +297,7 @@ describe("public MCP package surface", () => {
     });
 
     const result = await registeredTool(server, "get_example").handler(
-      { query: "express hello world" },
+      { query: "express hello world", format: "json" },
       undefined as unknown as RequestHandlerExtra<
         ServerRequest,
         ServerNotification

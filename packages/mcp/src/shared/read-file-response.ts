@@ -14,7 +14,7 @@ import type {
 } from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
 import { projectIndexingEstimates } from "./indexing-estimates.js";
-import { renderIndexingEstimates } from "./indexing-estimates-text.js";
+import { renderPreparationEstimates } from "./indexing-estimates-text.js";
 import {
   buildTargetResolutionNotes,
   type LeanTargetResolution,
@@ -188,7 +188,7 @@ function formatVerboseBody(
     lines.push("");
     lines.push(dim(envelope.hint, options.useColors));
   }
-  lines.push(...renderIndexingEstimates(envelope.indexingEstimates));
+  lines.push(...renderPreparationEstimates(envelope.indexingEstimates));
   appendTargetResolutionNotes(lines, envelope, options);
   lines.push("");
   return lines.join("\n");

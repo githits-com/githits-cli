@@ -2,7 +2,7 @@
 
 ## Status and expected outcome
 
-**Status: READY.** Planning only; no production changes.
+**Status: IMPLEMENTED; awaiting review.** One PR; no deployment or release.
 Baseline: `origin/main` at `5a95c466ce455ea1b59bcb9cad404f219072f8ad`
 (PR #453, merged 2026-10-05). Worktree branch:
 `jlitola/consistent-indexing-ux-plan`.
@@ -12,6 +12,9 @@ prepared, any advisory indexing estimate, and the next useful action without
 knowing backend field names. CLI and MCP should share wording, with native
 arguments and the existing tool-specific evidence layout. Explicit JSON remains
 structured and preserves backend evidence.
+
+Delivery: **one PR**, with separate coherent commits. The work groups below
+are implementation steps, not PR or merge boundaries.
 
 This is a focused continuation of the per-formatter approach in
 [search-output-ux.md](search-output-ux.md), not a competing general output
@@ -35,7 +38,7 @@ redesign. The prior grep plan is complete and deleted; its durable contract is
 - Assumption: keep existing wait defaults, bounds, budgets, and units. Timing
   remains advisory total repository execution, excluding queue/retry/query/docs
   time; elapsed is observed active execution, never remaining ETA.
-- No new backend fields are needed for the first two phases: successful pending
+- No new backend fields are needed for the read/list work groups: successful pending
   results carry uniform estimates; zero-wait errors already carry a singular
   duration extension. These are distinct contracts, not interchangeable facts.
 
@@ -234,20 +237,20 @@ selection, schema flags, retry automation, deployment/publishing and a redesign
 of all result formatters. Hosted read/symbol-ambiguity branches remain nonwaiting.
 Broader unknown backend variants are not grounds for fallback parsers or guards.
 
-## Ordered increments
+## Commit sequence for the single PR
 
-| Phase | Status | Observable outcome |
+| Work group | Status | Observable outcome |
 | --- | --- | --- |
-| 1 | READY | Read indexing failures become concise and native; all MCP text-mode errors are readable. |
-| 2 | PLANNED; depends on 1 | List distinguishes empty-yet inventory from available pages/refresh and preserves zero-wait timing. |
-| 3 | PLANNED; depends on 2 | Search/search-status put timing beside the relevant pending target without changing session actions or evidence. |
-| 4 | PLANNED; depends on 3 | Remaining legacy waiting annotations reuse the copy contract; already-correct surfaces stay unchanged. |
+| 1 | IMPLEMENTED | Read indexing failures become concise and native; all MCP text-mode errors are readable. |
+| 2 | IMPLEMENTED | List distinguishes empty-yet inventory from available pages/refresh and preserves zero-wait timing. |
+| 3 | IMPLEMENTED | Search/search-status put timing beside the relevant pending target without changing session actions or evidence. |
+| 4 | IMPLEMENTED | Remaining legacy waiting annotations reuse the copy contract; already-correct surfaces stay unchanged. |
 
-Each increment is a bounded shared component or one tool formatter; no phase
-exists solely to collect measurements. Reorient against origin/main after each
-merge, using next-steps before expanding the next detail horizon.
+These work groups share one implementation/review/PR cycle. No intermediate
+merge or release is required. Keep the actual implementation below the project
+review-size limit; propose a concrete split only if that limit is reached.
 
-## Phase 1 — readable error presentation and read preparation
+## Work group 1 — readable error presentation and read preparation
 
 **Expected outcome:** a default read error is readable, with status/timing once
 and one read-native action. Explicit JSON retains the structured evidence.
@@ -292,7 +295,7 @@ Ordered work:
    zero-wait read must not suggest another zero-wait read.
 4. Remove mixed CLI/MCP instructions and default progress IDs. Existing shared
    CLI indexing renderer callers must retain timing/ref recovery and a native
-   millisecond --wait action in Phase 1, including code read/files/grep; search
+   millisecond --wait action in Work group 1, including code read/files/grep; search
    callers must use CLI seconds instead of inheriting the read millisecond
    action; the current shared renderer does not establish that conversion. This
    is shared error integration, not a search result-layout rewrite.
@@ -342,13 +345,13 @@ output. Warm or zero-call runs do not prove pending UX. Authenticated live
 read checks use dev credentials/environment rules; if pending work is not
 observable, report that limit and use verified fixtures for that branch.
 
-## Phase 2 — list preparation without losing inventory
+## Work group 2 — list preparation without losing inventory
 
 **Expected outcome:** users can distinguish pending inventory, an actually empty
 inventory and readable pages during refresh; estimates survive either wait path.
 Assumptions: SDL/error-extension forms above; paths-only mode remains raw.
-Unknown/product decisions: none. Dependency: Phase 1 helper
-and native error-format conventions, reorientation after its merge.
+Unknown/product decisions: none. Dependency: Work group 1 helper
+and native error-format conventions, in the same branch and PR.
 
 Likely files: core `list-service.ts`/`indexing-estimates.ts`, shared list error
 mapper/text, list CLI/MCP boundaries and parity/service tests. Reuse/extract the
@@ -392,25 +395,30 @@ CLI/MCP smoke, typecheck/build/scoped formatting, and authenticated dev source/s
 list when available. Inspect one target agent workload's actual wait/read actions;
 no quality claim follows merely from process success.
 
-## Later phases and reorientation
+## Work groups 3 and 4 — shared preparation copy across existing consumers
 
-Phase 3 assumptions: existing search presentation retains lifecycle and per-target
-readiness; searchRef and search-status are already the correct backend-supported
-wait route. Unknowns: which current estimate placements actually duplicate target
-state after the first two phases, resolved from rendered examples at that merge
-boundary. Acceptance: same compact preparation vocabulary, correct attribution
-for repository/hosted siblings and fallback commits, exactly one session-native
-next action; no JSON/ranking/cursor/state loss. Keep initial/status text parity.
-Detail files and steps only after reorientation; no schema or new polling.
+Expected outcome: search/status and legacy annotated results use compact total/
+elapsed/no-history wording while keeping their current lifecycle, evidence,
+locators and native follow-ups. Dependencies: the shared timing helper from work
+group 1. Assumptions: verified direct consumers below already receive uniform
+metadata. Unknown/product decisions: none.
 
-Phase 4 assumptions: legacy code/docs commands consume the same timing module,
-and shared error callers already inherit Phase 1. Unknowns: which annotations
-still need edits; inspect only direct consumers of renderIndexingEstimates and
-existing wait hints after Phase 3. Acceptance: remaining waiting text uses the
-same total/elapsed/no-history meanings and native actions while preserving raw
-content/path modes. Do not redesign healthy legacy result bodies or add deprecated
-MCP tools. Implement one remaining formatter per increment; unchanged consumers
-need no cosmetic migration. Details are intentionally deferred to reorientation.
+Verified files: unified-search-text.ts appends estimate lines in
+appendPresentationContext after the target groups; replace those full prose lines
+with compact preparation rows in that existing location, preserving the target
+lifecycle above them and every session action. Do not label queued/searching work
+as active execution. Read-file-text/response, list-files-response,
+list-package-docs-response and grep-repo-text directly append the same existing
+helper; use the compact shared preparation renderer there. Grep's approved
+Sources/Omitted anatomy stays unchanged. No ranking, provenance or result-layout
+redesign is needed.
+
+Acceptance: pending target labels and total/elapsed/unavailable timing remain
+visible together; existing searchRef/status actions, cursors, read paths, raw
+CLI body and paths-only modes stay intact. Tests cover queued/searching status,
+multiple scopes and readable content alongside refresh. Run the targeted existing
+consumer tests and CLI/MCP smoke; add focused assertions rather than snapshots of
+entire results. This work is included in the same PR.
 
 ## Cross-cutting limits and completion
 
@@ -426,9 +434,9 @@ need no cosmetic migration. Details are intentionally deferred to reorientation.
   concrete backend metadata rather than parse prose or invent another API.
 - Do not use full-suite reruns or new benchmarks as plan phases. Focused behavioral
   evidence first; CI supplies full supported-platform/package checks.
-- If Phase 1 approaches the project's 1.5-2k implementation-line threshold,
-  stop and propose the existing split: shared format-respecting MCP errors, then
-  read preparation/native CLI actions. Do not add mechanism to keep them together.
+- If Work group 1 approaches the project's 1.5-2k implementation-line threshold,
+  stop and propose a split using the actual diff. Do not pre-allocate four PRs
+  or add mechanism to keep an oversized diff together.
 - No merge, release, publish or deploy is authorized by this planning task.
 - After clean review of the last increment, move durable contracts to permanent
   implementation docs, move any major explicitly deferred work to the backlog,
@@ -445,5 +453,44 @@ Round 2 verified those closures and included one fresh-context final check. Its
 three minor clarifications were applied: name the smoke/audit parser scripts,
 preserve the audit SDK branch, and explicitly inherit existing decoder aliases.
 No code or direction findings remain; round 2 is clean under the review policy.
-The optional Phase 1 split is a size-gate contingency, not an additional phase or
-a user-mandated boundary. Open product decisions: none. No production changes.
+The user subsequently confirmed one PR with separate commits. The original
+phase/merge boundaries were removed; all existing shared preparation consumers
+were inspected and scoped to their current annotation location. Open product decisions: none. No production changes.
+
+## Orchestration slices (one concern each, sequential)
+
+Coordinator owns shared error/timing design, source-list decoding, read/list/search
+presentation and native action decisions. One Luna worker receives only decided
+mechanical transformations and deterministic acceptance commands:
+
+1. Package tool catches: propagate effective format to the shared error helper.
+2. Other tool/early-validation catches: propagate the same format contract.
+3. Server/local research wrappers: format error content without losing metadata.
+4. Smoke/audit callers: explicit JSON for envelope parsing, text error assertions.
+5. Update affected tests against the decided format contract, one tool family per
+   dispatch, using a named test command and behavioral assertion.
+
+No worker designs its own evidence or expands scope. Coordinator runs verification
+between returns; full-access parent permissions also apply to the worker. One
+Luna preflight, internal code review and fresh Claude code review cover the single
+PR. Durable docs and independent change fragments describe each notable outcome.
+
+### Implementation discoveries
+
+Core navigation also authored mixed CLI/MCP wait guidance. Removed that synthetic hint at its source while preserving backend-authored hints and messages; native retry actions belong to tool/CLI presentation boundaries. List duration and indexed-version decoding reuse the existing navigation extension parsers.
+
+Orchestration: package tools verified together; a broader navigation dispatch returned after compaction without verification and was taken back. Remaining mechanical format tests were delegated one tool at a time and verified; coordinator implemented search early paths, timing policy, read/list and local Research semantics.
+
+Core retains a supplied indexing hint even when its raw message contains it: readable indexing output replaces the backend duration prose, so decoder-level deduplication would lose useful guidance. The formatter deduplicates displayed text.
+
+Validation sibling scan also corrected packed public-package runtime probes and hosted/local server tests to explicitly request JSON when parsing envelopes. Built smoke checks must run after package validation, which rebuilds output.
+
+Validation: `bun test` 5,452 pass / 0 fail (233 files, 21,047 assertions); typecheck, both builds, source unauthenticated CLI/MCP smoke, packed public-package validation and built CLI/MCP smoke passed. The public smoke final host-action correction passed its 85-case suite. Authenticated live dev verification is blocked in macOS Keychain credential access; no new pending live coverage is claimed.
+
+Agent evaluation limits: neutral list workload completed using external web evidence with zero GitHits calls. Explicit GitHits workload completed quick_start and started list, then timed out while the local MCP credential path waited on Keychain. Neither run supports a usefulness/quality claim or new authenticated pending-state verification.
+
+Preflight closure: corrected the stale orchestration progress sentence. Pending-state agent evaluation remains unproven because local credential access blocked; the verification section explicitly permits reporting that limit and using verified fixtures. No live or qualitative success is claimed. Plan retirement remains the final commit after clean code review.
+
+Internal code review closure: singular/no-uniform INDEXING rendering assumed repository work. The shared formatter now derives hosted preparation from the supplied canonical `site:` target, including the fallback headline/row and common Preparing heading. Checked read/list CLI/MCP target handoff and uniform documentation rows; no new metadata or options. Hosted list omitted/text/JSON regression and shared read/list suites passed (see current review packet).
+
+Final verification after internal review closure: bun test 5,457 pass / 0 fail (233 files, 21,069 assertions); typecheck and root build passed again. Internal full-delta recheck clean.

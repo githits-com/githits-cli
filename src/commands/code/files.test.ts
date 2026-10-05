@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import {
   AuthenticationError,
   CodeNavigationIndexingError,
@@ -55,14 +55,10 @@ describe("pkgFilesAction", () => {
       const output = formatIndexingError(mapped);
       expect(mapped.message).toBe("Target is indexing.");
       expect(output).toContain(`--wait ${wait}`);
-      expect(output).toContain(`wait_timeout_ms=${wait}`);
+      expect(output).not.toContain("wait_timeout_ms");
       expect(output).not.toContain("60000");
-      expect(output.match(/Retry the same request/g)).toHaveLength(1);
-      expect(
-        output
-          .split("\n")
-          .filter((line) => line.includes("Retry the same request"))[0],
-      ).toStartWith("    ");
+      expect(output.match(/Retry this request/g)).toHaveLength(1);
+      expect(output).toEndWith(`Retry this request with --wait ${wait}.`);
     },
   );
   const mcpUrl = "https://mcp.githits.com";
@@ -604,13 +600,12 @@ describe("pkgFilesAction", () => {
       /* expected */
     }
     const output = errorSpy.mock.calls[0]?.[0] as string;
-    expect(output).toContain("indexing");
-    expect(output).toContain("indexing ref: ref_xyz");
+    expect(output).toContain("Source is being indexed.");
+    expect(output).not.toContain("ref_xyz");
+    expect(output).toContain("Source is being indexed.");
     expect(output.match(/Backend says this ref is queued\./g)).toHaveLength(1);
-    expect(output).toContain(
-      "Estimated indexing time: 7-19s total. Time spent indexing: 3s.",
-    );
-    expect(output).toContain("indexed refs/versions: 4.21.0, 4.20.1");
+    expect(output).toContain("estimated total: 7-19s, time spent indexing: 3s");
+    expect(output).toContain("Indexed versions/refs: 4.21.0, 4.20.1");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
@@ -643,3 +638,6 @@ describe("pkgFilesAction", () => {
     exitSpy.mockRestore();
   });
 });
+
+// Keep a failed output assertion from leaking console/process spies to other tests.
+afterEach(() => mock.restore());

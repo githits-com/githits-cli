@@ -1112,7 +1112,7 @@ describe("CodeNavigationServiceImpl", () => {
       expect(error).toBeInstanceOf(CodeNavigationIndexingError);
       const typed = error as CodeNavigationIndexingError;
       expect(typed.indexingRef).toBe("ref_xyz");
-      expect(typed.message).toContain("--wait 60000");
+      expect(typed.message).toBe("Target is indexing.");
       expect(typed.message).not.toContain("Running for 12 seconds.");
       expect(typed.message).not.toContain("Similar refs usually index");
       expect(typed.indexingEstimate).toEqual({
@@ -3118,8 +3118,8 @@ describe("CodeNavigationServiceImpl", () => {
       expect(typed.hint).toContain(
         "Backend says this ref is queued for indexing.",
       );
-      expect(typed.hint).toContain("--wait 60000");
-      expect(typed.hint).toContain("wait_timeout_ms: 60000");
+      expect(typed.hint).not.toContain("--wait");
+      expect(typed.hint).not.toContain("wait_timeout_ms");
       expect(typed.indexingEstimate).toEqual({
         lowerSeconds: 1,
         upperSeconds: 1,
@@ -3130,7 +3130,7 @@ describe("CodeNavigationServiceImpl", () => {
     }
   });
 
-  it("does not repeat a backend hint already present in the indexing message", async () => {
+  it("preserves a backend hint already present in the indexing message", async () => {
     const backendHint = "Backend says this ref is queued for indexing.";
     mockFetch(() =>
       Promise.resolve(
@@ -3163,11 +3163,8 @@ describe("CodeNavigationServiceImpl", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(CodeNavigationIndexingError);
       const typed = error as CodeNavigationIndexingError;
-      expect(
-        `${typed.message} ${typed.hint}`.match(new RegExp(backendHint, "g")),
-      ).toHaveLength(1);
-      expect(typed.hint).toContain("--wait 60000");
-      expect(typed.hint).not.toContain(backendHint);
+      expect(typed.message).toContain(backendHint);
+      expect(typed.hint).toBe(backendHint);
     }
   });
 
@@ -3225,7 +3222,7 @@ describe("CodeNavigationServiceImpl", () => {
     }
   });
 
-  it("preserves a bare PACKAGE_INDEXING message and supplies wait guidance", async () => {
+  it("preserves a bare PACKAGE_INDEXING message without authoring wait syntax", async () => {
     mockFetch(() =>
       Promise.resolve(
         new Response(
@@ -3258,8 +3255,7 @@ describe("CodeNavigationServiceImpl", () => {
       expect(error).toBeInstanceOf(CodeNavigationIndexingError);
       const typed = error as CodeNavigationIndexingError;
       expect(typed.message).toBe("Target is indexing");
-      expect(typed.hint).toContain("--wait 60000");
-      expect(typed.hint).toContain("wait_timeout_ms: 60000");
+      expect(typed.hint).toBeUndefined();
     }
   });
 

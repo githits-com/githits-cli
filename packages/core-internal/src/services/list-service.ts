@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseAvailableArtifacts } from "../shared/available-artifacts.js";
 import { isFetchTimeoutError } from "../shared/fetch-timeout.js";
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import {
@@ -12,6 +13,7 @@ import {
   isClientUpdateRequiredGraphQLError,
   isGraphQLSchemaMismatchError,
 } from "./client-update-required-error.js";
+import type { AvailableVersion } from "./code-navigation-service.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import {
   AuthenticationError,
@@ -21,7 +23,9 @@ import {
 import {
   type DiscoveryIndexingEstimate,
   INDEXING_ESTIMATES_SELECTION,
+  type IndexingDurationEstimate,
   indexingEstimatesSchema,
+  parseIndexingDurationEstimate,
 } from "./indexing-estimates.js";
 import {
   type ServiceDiagnostics,
@@ -190,6 +194,12 @@ export class ListAccessError extends Error {
   }
 }
 
+export interface ListIndexingErrorMetadata {
+  indexingEstimate?: IndexingDurationEstimate;
+  availableVersions?: AvailableVersion[];
+  package?: string;
+}
+
 export class ListGraphQLError extends Error {
   constructor(
     message: string,
@@ -199,6 +209,7 @@ export class ListGraphQLError extends Error {
     public readonly commitSha?: string,
     public readonly indexingRef?: string,
     public readonly hint?: string,
+    public readonly indexingMetadata?: ListIndexingErrorMetadata,
   ) {
     super(message);
     this.name = "ListGraphQLError";
@@ -691,5 +702,15 @@ function createListGraphQLError(
       ? extensions.indexing_ref
       : undefined,
     typeof extensions?.hint === "string" ? extensions.hint : undefined,
+    {
+      indexingEstimate: parseIndexingDurationEstimate(extensions),
+      availableVersions: parseAvailableArtifacts(
+        extensions?.available_versions ?? extensions?.availableVersions,
+      ),
+      package:
+        typeof extensions?.package === "string"
+          ? extensions.package
+          : undefined,
+    },
   );
 }

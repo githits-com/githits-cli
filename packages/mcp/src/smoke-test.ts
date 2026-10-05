@@ -90,7 +90,7 @@ function assertNotJson(text: string, context: string): void {
   } catch {
     return;
   }
-  throw new Error(`${context}: default response unexpectedly parsed as JSON`);
+  throw new Error(`${context}: text response unexpectedly parsed as JSON`);
 }
 
 function assertRecord(
@@ -745,6 +745,7 @@ async function assertLiveOrAuthRequired(
 ): Promise<boolean> {
   const result = await callTool(caller, "pkg_info", {
     target: "npm:express",
+    format: "json",
   });
   if (result.isError === true) {
     const envelope = assertCleanErrorEnvelope(result, "pkg_info auth probe");
@@ -752,6 +753,33 @@ async function assertLiveOrAuthRequired(
       envelope.code === "AUTH_REQUIRED",
       `auth probe returned unexpected code ${envelope.code}`,
     );
+    const authAction = (
+      envelope as ErrorEnvelope & { details?: { action?: unknown } }
+    ).details?.action;
+    assert(
+      typeof authAction === "string" && authAction.trim().length > 0,
+      "pkg_info auth probe: missing authentication action",
+    );
+    for (const [format, label] of [
+      [undefined, "omitted"],
+      ["text", "text"],
+    ] as const) {
+      const textResult = await callTool(caller, "pkg_info", {
+        target: "npm:express",
+        ...(format === undefined ? {} : { format }),
+      });
+      const context = `pkg_info ${label} auth probe`;
+      assert(
+        textResult.isError === true,
+        `${context}: expected MCP error result`,
+      );
+      const text = resultText(textResult, context);
+      assertNotJson(text, context);
+      assert(
+        text.includes(authAction),
+        `${context}: missing authentication action from JSON probe`,
+      );
+    }
     logger.log("AUTH_REQUIRED: live smoke skipped");
     return false;
   }

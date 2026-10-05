@@ -613,7 +613,10 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler({ target: "npm:express@v4.18.0" }, {});
+    const result = await tool.handler(
+      { target: "npm:express@v4.18.0", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string; error: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -641,7 +644,7 @@ describe("createPackageVulnerabilitiesTool — compact target validation", () =>
         createMockPackageIntelligenceService({ packageVulnerabilities }),
       );
 
-      const result = await tool.handler({ target }, {});
+      const result = await tool.handler({ target, format: "json" }, {});
 
       expect(result.isError).toBe(true);
       expect(parseText(result)).toMatchObject({
@@ -658,7 +661,10 @@ describe("createPackageVulnerabilitiesTool — validation errors via shared pars
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler({ target: "vcpkg:foo" }, {});
+    const result = await tool.handler(
+      { target: "vcpkg:foo", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as {
       code: string;
@@ -676,7 +682,10 @@ describe("createPackageVulnerabilitiesTool — validation errors via shared pars
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler({ target: "cargo:serde" }, {});
+    const result = await tool.handler(
+      { target: "cargo:serde", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string; error: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -687,7 +696,7 @@ describe("createPackageVulnerabilitiesTool — validation errors via shared pars
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler({ target: "npm:" }, {});
+    const result = await tool.handler({ target: "npm:", format: "json" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -704,7 +713,10 @@ describe("createPackageVulnerabilitiesTool — service errors", () => {
       ),
     });
     const tool = createPackageVulnerabilitiesTool(service);
-    const result = await tool.handler({ target: "npm:ghost" }, {});
+    const result = await tool.handler(
+      { target: "npm:ghost", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("NOT_FOUND");
@@ -715,7 +727,10 @@ describe("createPackageVulnerabilitiesTool — service errors", () => {
       packageVulnerabilities: mock(() => Promise.reject(new Error("boom"))),
     });
     const tool = createPackageVulnerabilitiesTool(service);
-    const result = await tool.handler({ target: "npm:express" }, {});
+    const result = await tool.handler(
+      { target: "npm:express", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("UNKNOWN");

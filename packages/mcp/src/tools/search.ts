@@ -8,6 +8,8 @@ import {
   MAX_DISCOVERY_WAIT_TIMEOUT_MS,
 } from "../shared/code-navigation-defaults.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
+import type { MappedError } from "../shared/mapped-error.js";
+import { withIndexingRetryAction } from "../shared/mapped-error-text.js";
 import { buildUnifiedSearchParams } from "../shared/unified-search-request.js";
 import {
   buildUnifiedSearchErrorPayload,
@@ -29,6 +31,7 @@ import {
   errorResult,
   OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
   type ToolDefinition,
+  type ToolExecutionContext,
   type ToolResult,
   textResult,
   type ZodRawShape,
@@ -149,7 +152,7 @@ export function createSearchTool(
           ? undefined
           : args.target;
         const resolvedTarget = effectiveTarget
-          ? resolveSearchTarget(effectiveTarget)
+          ? resolveSearchTarget(effectiveTarget, context, args.format)
           : undefined;
         if (resolvedTarget && "content" in resolvedTarget)
           return resolvedTarget;
@@ -161,7 +164,7 @@ export function createSearchTool(
           ? effectiveTargets
           : undefined;
         const resolvedTargets = nonEmptyTargets?.map((entry) =>
-          resolveSearchTarget(entry),
+          resolveSearchTarget(entry, context, args.format),
         );
         const resolvedTargetsError = resolvedTargets?.find(
           (entry) => "content" in entry,
@@ -204,8 +207,24 @@ export function createSearchTool(
         );
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);
+        const basePayload = buildUnifiedSearchErrorPayload(error);
+        const mapped = withIndexingRetryAction(
+          {
+            code: basePayload.code as MappedError["code"],
+            message: basePayload.error,
+            retryable: basePayload.retryable,
+            details: basePayload.details as MappedError["details"],
+          },
+          "search",
+          "mcp",
+        );
         const payload = addLocalMcpAuthAction(
-          buildUnifiedSearchErrorPayload(error),
+          {
+            ...basePayload,
+            ...(mapped.details
+              ? { details: mapped.details as Record<string, unknown> }
+              : {}),
+          },
           context,
         );
         if (isTextFormat(args.format)) {
@@ -230,12 +249,16 @@ function isResolvedSearchTarget(
   return !("content" in target);
 }
 
-function resolveSearchTarget(target: string): UnifiedSearchTarget | ToolResult {
+function resolveSearchTarget(
+  target: string,
+  context: ToolExecutionContext | undefined,
+  format: SearchArgs["format"],
+): UnifiedSearchTarget | ToolResult {
   try {
     return parseUnifiedSearchTargetSpec(target);
   } catch (error) {
     const mapped = mapCodeNavigationError(error);
-    return mcpMappedErrorResult(mapped);
+    return mcpMappedErrorResult(mapped, context, format);
   }
 }
 

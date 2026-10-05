@@ -717,7 +717,7 @@ describe("unified list CLI", () => {
       ).rejects.toThrow("process.exit");
       const terminalOutput = String(error.mock.calls.at(-1)?.[0]);
       expect(terminalOutput).not.toContain("\u001b");
-      expect(terminalOutput).toContain("Indexing failed");
+      expect(terminalOutput).toContain("No files available yet.");
       expect(terminalOutput).toContain("Refresh the index");
 
       error.mockClear();

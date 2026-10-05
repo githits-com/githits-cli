@@ -160,7 +160,7 @@ describe("toCallableTool", () => {
       };
       const result = await toCallableTool(
         createGetExampleTool(service),
-      ).execute({ query: "hello" });
+      ).execute({ query: "hello", format: "json" });
 
       expect(result).toEqual({
         content: [{ type: "text", text: JSON.stringify(payload) }],

@@ -10,8 +10,10 @@ import {
   LegacyRepositoryRefError,
   parseRepositoryTargetSpec,
 } from "../shared/repository-target.js";
+import { sanitizeTerminalText } from "../shared/terminal-text.js";
 import {
   buildMcpErrorPayload,
+  mcpMappedErrorResult,
   throwIfCallerCancellation,
 } from "../tools/shared.js";
 import {
@@ -79,12 +81,14 @@ export function createLocalResearchTool(
     handler: async (args, context) => {
       const subject = resolveResearchSubject(args);
       if ("error" in subject) {
-        return errorResult(
-          JSON.stringify({
-            error: subject.error,
+        return mcpMappedErrorResult(
+          {
+            message: subject.error,
             code: "INVALID_ARGUMENT",
             retryable: false,
-          }),
+          },
+          context,
+          args.format,
         );
       }
       try {
@@ -117,6 +121,25 @@ export function createLocalResearchTool(
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);
         const failure = mapAgenticAskError(error);
+        if (isTextFormat(args.format)) {
+          const result = mcpMappedErrorResult(
+            failure.mapped,
+            context,
+            args.format,
+          );
+          const locators = [
+            failure.threadId
+              ? `Thread: ${sanitizeTerminalText(failure.threadId)}`
+              : undefined,
+            failure.toolCallId
+              ? `Tool call: ${sanitizeTerminalText(failure.toolCallId)}`
+              : undefined,
+          ].filter(Boolean);
+          const content = result.content[0];
+          if (content?.type === "text" && locators.length)
+            content.text += `\n\n${locators.join("\n")}`;
+          return result;
+        }
         return errorResult(
           JSON.stringify({
             ...buildMcpErrorPayload(failure.mapped, context),

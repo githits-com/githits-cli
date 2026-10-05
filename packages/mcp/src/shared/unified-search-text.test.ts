@@ -2953,7 +2953,7 @@ describe("renderUnifiedSearchSuccess", () => {
 });
 
 describe("renderUnifiedSearchError", () => {
-  it("renders an error without changing the envelope contract", () => {
+  it("renders readable indexing evidence without exposing progress scaffolding", () => {
     const error: UnifiedSearchErrorPayload = {
       error: "Target is indexing.",
       code: "INDEXING",
@@ -2961,23 +2961,21 @@ describe("renderUnifiedSearchError", () => {
       details: { indexingRef: "ref_xyz" },
     };
     const text = renderUnifiedSearchError(error);
-    expect(text).toContain("search | ERROR | code=INDEXING | retryable");
-    expect(text).toContain("Target is indexing.");
-    expect(text).toContain("details:");
-    expect(text).toContain("  indexingRef: ref_xyz");
+    expect(text).toContain("Source is being indexed.");
+    expect(text).toContain("no estimate available");
+    expect(text).not.toContain("ref_xyz");
+    expect(error.details?.indexingRef).toBe("ref_xyz");
   });
 
-  it("omits retryable marker when not set", () => {
+  it("leads with the concrete error message", () => {
     const error: UnifiedSearchErrorPayload = {
       error: "Bad request.",
       code: "INVALID_ARGUMENT",
     };
-    expect(renderUnifiedSearchError(error)).toBe(
-      "search | ERROR | code=INVALID_ARGUMENT\nBad request.",
-    );
+    expect(renderUnifiedSearchError(error)).toBe("Bad request.");
   });
 
-  it("serialises object detail values via JSON", () => {
+  it("renders indexed alternatives as readable text", () => {
     const error: UnifiedSearchErrorPayload = {
       error: "Indexing.",
       code: "INDEXING",
@@ -2985,6 +2983,8 @@ describe("renderUnifiedSearchError", () => {
         availableVersions: [{ version: "4.21.0", ref: "v4.21.0" }],
       },
     };
-    expect(renderUnifiedSearchError(error)).toContain('"version":"4.21.0"');
+    expect(renderUnifiedSearchError(error)).toContain(
+      "Indexed versions/refs: 4.21.0",
+    );
   });
 });

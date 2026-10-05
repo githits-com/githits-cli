@@ -111,7 +111,11 @@ export function createCodeDiffTool(
         return textResult(JSON.stringify(payload));
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);
-        return mcpMappedErrorResult(mapCodeNavigationError(error), context);
+        return mcpMappedErrorResult(
+          mapCodeNavigationError(error),
+          context,
+          args.format,
+        );
       }
     },
   };

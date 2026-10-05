@@ -6,6 +6,7 @@ import {
   MCP_READ_MAX_SPAN,
 } from "../shared/code-navigation-defaults.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
+import { withIndexingRetryAction } from "../shared/mapped-error-text.js";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { InvalidPackageSpecError } from "../shared/package-spec.js";
 import {
@@ -135,7 +136,11 @@ export function createReadTool(
           throw new InvalidPackageSpecError("format must be text or json.");
         }
       } catch (error) {
-        return mcpMappedErrorResult(mapCodeNavigationError(error), context);
+        return mcpMappedErrorResult(
+          mapCodeNavigationError(error),
+          context,
+          args.format,
+        );
       }
       if (
         args.selector !== undefined ||
@@ -170,10 +175,20 @@ export function createReadTool(
           throwIfCallerCancellation(error, context?.signal);
           const docsError = mapPackageIntelligenceError(error);
           return mcpMappedErrorResult(
-            docsError.code !== "UNKNOWN"
-              ? docsError
-              : mapCodeNavigationError(error),
+            withIndexingRetryAction(
+              docsError.code !== "UNKNOWN"
+                ? docsError
+                : mapCodeNavigationError(error),
+              "read",
+              "mcp",
+              60000,
+            ),
             context,
+            args.format,
+            {
+              indexingTarget: args.target,
+              indexingOutcome: "This content is not available yet.",
+            },
           );
         }
       }

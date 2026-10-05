@@ -113,7 +113,7 @@ describe("MCP smoke-test helpers", () => {
 
   it("rejects default text that looks like JSON", () => {
     expect(() => assertDefaultText(textResult('{"ok":true}'), "probe")).toThrow(
-      "default response unexpectedly parsed as JSON",
+      "text response unexpectedly parsed as JSON",
     );
   });
 
@@ -311,19 +311,51 @@ describe("runMcpSmoke", () => {
     ).rejects.toThrow("listTools missing search_status");
   });
 
-  it("skips the live corpus when the auth probe returns AUTH_REQUIRED", async () => {
+  it("checks readable auth errors before skipping the live corpus", async () => {
     const logs: string[] = [];
+    const pkgInfoCalls: Array<Record<string, unknown>> = [];
+    const hostedAuthAction = "Open the hosted authorization page, then retry.";
     const caller = createCaller(async (name, args) => {
       if (name === "quick_start") return smokeResponse(name, {});
       expect(name).toBe("pkg_info");
-      expect(args).toEqual({ target: "npm:express" });
-      return errorResult("AUTH_REQUIRED");
+      pkgInfoCalls.push(args);
+      if (args.format === "json") {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                error: "Authentication required.",
+                code: "AUTH_REQUIRED",
+                retryable: false,
+                details: {
+                  authSource: "server",
+                  action: hostedAuthAction,
+                },
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+      if (args.format === undefined || args.format === "text") {
+        return errorResult(
+          "AUTH_REQUIRED",
+          `Authentication required.\n${hostedAuthAction}`,
+        );
+      }
+      throw new Error(`unexpected pkg_info format: ${String(args.format)}`);
     });
 
     await runMcpSmoke(caller, {
       logger: { log: (message: string) => logs.push(message), error: () => {} },
     });
 
+    expect(pkgInfoCalls).toEqual([
+      { target: "npm:express", format: "json" },
+      { target: "npm:express" },
+      { target: "npm:express", format: "text" },
+    ]);
     expect(logs).toEqual(["AUTH_REQUIRED: live smoke skipped"]);
   });
 

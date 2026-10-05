@@ -34,6 +34,7 @@ export * from "./shared/grep-text.js";
 export {
   formatIndexingDuration,
   renderIndexingEstimates,
+  renderPreparationEstimates,
 } from "./shared/indexing-estimates-text.js";
 export * from "./shared/list-error-map.js";
 export * from "./shared/list-files-request.js";
@@ -43,6 +44,7 @@ export * from "./shared/list-package-docs-response.js";
 export * from "./shared/list-request.js";
 export * from "./shared/list-response.js";
 export * from "./shared/list-text.js";
+export * from "./shared/mapped-error-text.js";
 export * from "./shared/package-changelog-request.js";
 export * from "./shared/package-changelog-response.js";
 export * from "./shared/package-changelog-target.js";

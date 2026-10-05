@@ -15,16 +15,16 @@ import type {
 import {
   buildContainingPathPrefix,
   buildPathPrefixSuggestion,
-  formatIndexingDuration,
+  formatMappedErrorText,
   InvalidPackageSpecError,
   isExactPathAuthorityError,
   looksLikeMissingFileMessage,
   type MappedError,
   parseCodeNavigationTargetSpec,
+  withIndexingRetryAction,
 } from "@githits/mcp/internal";
 import { mapCodeNavigationErrorForCli } from "../../shared/cli-error-diagnostics.js";
 import {
-  appendBackendHint,
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,
 } from "../format-mapped-error.js";
@@ -84,47 +84,36 @@ export function resolveCliCodeNavTarget(
   };
 }
 
-/**
- * Render the `INDEXING` error for terminal output — surfaces
- * `indexingRef` + a sample of `availableVersions` as dimmed
- * detail lines under the error message.
- *
- * Shared by human `search` / `search-status` errors and the indexed
- * `code files` / `code read` / `code grep` commands.
- */
-export function formatIndexingError(mapped: MappedError): string {
-  if (mapped.code === "UPDATE_REQUIRED") {
-    return formatMappedErrorForTerminal(mapped);
-  }
+/** Native CLI retry context shared by indexed code commands and search. */
+export interface IndexingCliTextOptions {
+  target?: string;
+  operation?: string;
+  cliUnit?: "milliseconds" | "seconds";
+}
+
+export function formatIndexingError(
+  mapped: MappedError,
+  options: IndexingCliTextOptions = {},
+): string {
   if (mapped.code !== "INDEXING") return formatMappedErrorForTerminal(mapped);
-  const detail = mapped.details ?? {};
-  const lines = [appendBackendHint(mapped, mapped.message)];
-  if (detail.indexingRef) lines.push(`  indexing ref: ${detail.indexingRef}`);
-  if (!detail.indexingEstimates?.length) {
-    const timing = formatIndexingDuration(detail.indexingEstimate);
-    if (timing) lines.push(`  ${timing}`);
-  }
-  const versions = detail.availableVersions;
-  if (versions && versions.length > 0) {
-    const shown = versions
-      .slice(0, 5)
-      .map((entry) => entry.version ?? entry.ref)
-      .join(", ");
-    const more = versions.length - 5;
-    const suffix = more > 0 ? ` (+${more} more)` : "";
-    lines.push(`  indexed refs/versions: ${shown}${suffix}`);
-  }
-  const refs = detail.availableRefs;
-  if (refs && refs.length > 0) {
-    const shown = refs
-      .slice(0, 5)
-      .map((entry) => entry.ref)
-      .join(", ");
-    const more = refs.length - 5;
-    const suffix = more > 0 ? ` (+${more} more)` : "";
-    lines.push(`  indexed refs: ${shown}${suffix}`);
-  }
-  return lines.join("\n");
+  return formatMappedErrorText(
+    withIndexingRetryAction(
+      mapped,
+      options.operation ?? "request",
+      "cli",
+      options.cliUnit === "seconds" ? 120000 : 60000,
+      false,
+      options.cliUnit,
+    ),
+    {
+      indexingTarget: options.target,
+      indexingOutcome:
+        options.operation === "read"
+          ? "This content is not available yet."
+          : undefined,
+      width: process.stderr.columns,
+    },
+  );
 }
 
 /**
@@ -135,7 +124,10 @@ export function formatIndexingError(mapped: MappedError): string {
  * alone so we don't send users toward path debugging for the wrong
  * class of failure.
  */
-export function formatFileErrorWithFilesHint(mapped: MappedError): string {
+export function formatFileErrorWithFilesHint(
+  mapped: MappedError,
+  options: IndexingCliTextOptions = {},
+): string {
   if (mapped.code === "UPDATE_REQUIRED") {
     return formatMappedErrorForTerminal(mapped);
   }
@@ -170,7 +162,7 @@ export function formatFileErrorWithFilesHint(mapped: MappedError): string {
       : "Narrow the target (path, path-prefix, glob) and retry; if it persists, file an issue.";
     return `${formatMappedErrorForTerminal(mapped)}\n  ${retry}`;
   }
-  return formatIndexingError(mapped);
+  return formatIndexingError(mapped, options);
 }
 
 /** Add CLI-native structured recovery for a missing `code read` path. */
@@ -308,7 +300,12 @@ export function handleCodeNavCommandError(
   exitCode = 1,
   mapMappedError: (mapped: MappedError) => MappedError = (mapped) => mapped,
 ): never {
-  const mapped = mapMappedError(mapCodeNavigationErrorForCli(error));
+  const mapped = withIndexingRetryAction(
+    mapMappedError(mapCodeNavigationErrorForCli(error)),
+    "request",
+    "cli",
+    60000,
+  );
   if (json) {
     // eslint-disable-next-line no-console
     console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));

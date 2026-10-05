@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import {
   CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
@@ -814,9 +814,13 @@ describe("pkgReadAction", () => {
       /* expected */
     }
     const output = errorSpy.mock.calls[0]?.[0] as string;
-    expect(output).toContain("indexing ref: ref_xyz");
-    expect(output).toContain("indexed refs/versions: 4.21.0");
+    expect(output).not.toContain("ref_xyz");
+    expect(output).toContain("Source is being indexed.");
+    expect(output).toContain("Indexed versions/refs: 4.21.0");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
 });
+
+// Keep a failed output assertion from leaking console/process spies to other tests.
+afterEach(() => mock.restore());

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
 import { parseCodeNavigationTargetSpec } from "../shared/code-navigation-target.js";
 import { mcpMappedErrorResult } from "./shared.js";
-import type { ToolResult } from "./types.js";
+import type { ToolExecutionContext, ToolResult } from "./types.js";
 
 // Re-export the wait-timeout default so callers already importing this
 // module keep working; the canonical definition lives in
@@ -19,24 +19,15 @@ export const codeTargetSchema: z.ZodType<CodeTargetArg> = z
 
 export type CodeTargetArg = string;
 
-/**
- * Validates and normalizes a code navigation target.
- *
- * Error results carry a JSON-encoded `{ error, code: "INVALID_ARGUMENT" }`
- * envelope per PARITY-ERROR-ENVELOPE — MCP error text must always be
- * valid JSON regardless of which validation branch fires.
- */
+/** Validate a code target while respecting the caller's error format and remediation. */
 export function resolveCodeTarget(
   target: CodeTargetArg,
+  context?: ToolExecutionContext,
+  format?: "text" | "json",
 ): CodeNavigationTarget | ToolResult {
   try {
     return parseCodeNavigationTargetSpec(target);
   } catch (error) {
-    return mappedInvalidTargetResult(error);
+    return mcpMappedErrorResult(mapCodeNavigationError(error), context, format);
   }
-}
-
-function mappedInvalidTargetResult(error: unknown): ToolResult {
-  const mapped = mapCodeNavigationError(error);
-  return mcpMappedErrorResult(mapped);
 }

@@ -22,6 +22,71 @@ function setup(): {
 }
 
 describe("unified read contract", () => {
+  it.each([undefined, "text", "json"] as const)(
+    "presents read indexing handoff in %s format",
+    async (format) => {
+      const { services, tool } = setup();
+      const indexingEstimates = [
+        {
+          kind: "REPOSITORY" as const,
+          targets: ["npm:example@1.0.2"],
+          repositoryUrl: "https://github.com/example/example",
+          estimate: {
+            lowerSeconds: 33,
+            upperSeconds: 85,
+            elapsedSeconds: 90,
+            sampleCount: 7,
+            source: "same_repository_refs",
+          },
+        },
+      ];
+      services.readService.read = mock(() =>
+        Promise.reject(
+          new CodeNavigationIndexingError(
+            "Backend duration prose",
+            "private-progress",
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            indexingEstimates,
+          ),
+        ),
+      );
+      const result = await tool.handler({
+        target: "npm:example@1.0.2",
+        path: "index.ts",
+        wait_timeout_ms: 0,
+        format,
+      });
+      const text = result.content[0]!.text;
+      expect(services.readService.read).toHaveBeenCalledTimes(1);
+      expect(services.readService.read).toHaveBeenCalledWith(
+        expect.objectContaining({ waitTimeoutMs: 0 }),
+      );
+      expect(result.isError).toBe(true);
+      if (format === "json") {
+        expect(JSON.parse(text)).toMatchObject({
+          code: "INDEXING",
+          details: {
+            indexingEstimates,
+            indexingRef: "private-progress",
+            action: "Retry this read with wait_timeout_ms=60000.",
+          },
+        });
+      } else {
+        expect(text).toContain("This content is not available yet.");
+        expect(text.replace(/\s+/g, " ")).toContain(
+          "npm:example@1.0.2 (indexing, estimated total: 33-85s, time spent indexing: 90s)",
+        );
+        expect(text).toEndWith("Retry this read with wait_timeout_ms=60000.");
+        expect(text).not.toContain("private-progress");
+        expect(text).not.toContain("Backend duration prose");
+      }
+    },
+  );
+
   it.each([undefined, "index.js"])(
     "reads a compact symbol fragment with optional exact path %s",
     async (path) => {
@@ -338,11 +403,17 @@ describe("unified read contract", () => {
     { target: "docs-id", format: "yaml" },
   ])("rejects malformed request before either service: %j", async (args) => {
     const { services, tool } = setup();
-    const result = await tool.handler(args as ReadArgs);
+    const result = await tool.handler({
+      ...args,
+      ...(args.format === "yaml" ? {} : { format: "json" }),
+    } as ReadArgs);
     expect(result.isError).toBe(true);
-    expect(JSON.parse(result.content[0]!.text)).toMatchObject({
-      code: "INVALID_ARGUMENT",
-    });
+    if (args.format === "yaml")
+      expect(result.content[0]!.text).toBe("format must be text or json.");
+    else
+      expect(JSON.parse(result.content[0]!.text)).toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
     expect(services.readService.read).not.toHaveBeenCalled();
   });
 
@@ -354,6 +425,7 @@ describe("unified read contract", () => {
     const result = await tool.handler({
       target: "npm:example",
       path: "index.ts",
+      format: "json",
       wait_timeout_ms: 0,
     });
     expect(services.readService.read).toHaveBeenCalledWith(
@@ -361,8 +433,8 @@ describe("unified read contract", () => {
     );
     const error = JSON.parse(result.content[0]!.text);
     expect(error).toMatchObject({ code: "INDEXING", retryable: true });
-    expect(error.details.action).toContain(
-      'read target="npm:example" path="index.ts"',
+    expect(error.details.action).toBe(
+      "Retry this read with wait_timeout_ms=30000.",
     );
     expect(error.details.indexingRef).toBe("ref_1");
     expect(services.readService.read).toHaveBeenCalledTimes(1);
@@ -390,6 +462,7 @@ describe("unified read contract", () => {
     const result = await tool.handler({
       target: "npm:express",
       path: "src/index.js",
+      format: "json",
     });
 
     expect(result.isError).toBe(true);

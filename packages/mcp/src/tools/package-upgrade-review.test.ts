@@ -189,7 +189,12 @@ describe("createPackageUpgradeReviewTool", () => {
     );
 
     const result = await tool.handler(
-      { registry: "npm", package_name: "express", current_version: "4.18.0" },
+      {
+        registry: "npm",
+        package_name: "express",
+        current_version: "4.18.0",
+        format: "json",
+      },
       {},
     );
 
@@ -218,6 +223,7 @@ describe("createPackageUpgradeReviewTool", () => {
             target_version: "1.0.1",
           }),
         ),
+        format: "json",
       },
       {},
     );

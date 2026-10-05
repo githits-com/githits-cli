@@ -1,6 +1,6 @@
 import type { ListEntry, ListResult } from "@githits/core-internal";
 import { dim } from "./colors.js";
-import { renderIndexingEstimates } from "./indexing-estimates-text.js";
+import { renderPreparationEstimates } from "./indexing-estimates-text.js";
 import { indexingWaitMs } from "./indexing-wait.js";
 import { shellQuoteExact } from "./shell-quote.js";
 
@@ -8,6 +8,7 @@ export interface FormatListTextOptions {
   useColors?: boolean;
   includeHeader?: boolean;
   syntax?: "cli" | "mcp";
+  hasAfter?: boolean;
 }
 
 /** Render one token-efficient inventory shared by CLI and MCP text surfaces. */
@@ -20,20 +21,25 @@ export function formatListText(
     formatPath(entry, result.inventoryKind),
   );
   if (options.includeHeader === false) return paths.join("\n");
+  const pending = Boolean(
+    result.indexingEstimates?.length || result.codeIndexState === "INDEXING",
+  );
   const lines = [
-    formatHeader(result, siteReadTarget, options.useColors === true),
+    pending && !paths.length
+      ? result.inventoryKind === "SITE"
+        ? "No pages available yet."
+        : "No files available yet."
+      : formatHeader(result, siteReadTarget, options.useColors === true),
     ...paths,
   ];
-  if (result.indexingEstimates?.length) {
-    lines.push(...renderIndexingEstimates(result.indexingEstimates));
-    const work = result.indexingEstimates.every(
-      (entry) => entry.kind === "DOCUMENTATION",
-    )
-      ? "documentation"
-      : "indexing";
-    const after = options.syntax === "mcp" ? "after" : "--after";
+  if (pending) {
+    lines.push("", "Preparing:");
     lines.push(
-      `To wait for ${work}, run list again with ${options.syntax === "mcp" ? `wait_timeout_ms=${indexingWaitMs(result.indexingEstimates)}` : `--wait ${indexingWaitMs(result.indexingEstimates)}`}. Leave out ${after} and keep your other options.`,
+      ...(result.indexingEstimates?.length
+        ? renderPreparationEstimates(result.indexingEstimates)
+        : [
+            `  - ${escapeLineValue(result.requestedTarget)} (indexing, no estimate available)`,
+          ]),
     );
   }
   if (result.nextCursor) {
@@ -49,6 +55,15 @@ export function formatListText(
       "",
       ...continuation.map((line) => dim(line, options.useColors === true)),
     );
+  }
+  if (pending) {
+    const wait = indexingWaitMs(result.indexingEstimates);
+    const argument =
+      options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`;
+    const cursor = options.hasAfter
+      ? ` Leave out ${options.syntax === "mcp" ? "after" : "--after"}.`
+      : "";
+    lines.push("", `Retry this list with ${argument}.${cursor}`);
   }
   return lines.join("\n");
 }

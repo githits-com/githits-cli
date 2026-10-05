@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import {
   CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
@@ -798,7 +798,10 @@ describe("pkgGrepAction", () => {
     } catch {
       /* expected */
     }
-    expect(errorSpy.mock.calls[0]?.[0]).toContain("indexing ref: ref_abc");
+    expect(errorSpy.mock.calls[0]?.[0]).not.toContain("ref_abc");
+    expect(errorSpy.mock.calls[0]?.[0]).toContain(
+      "Retry this request with --wait 30000.",
+    );
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
@@ -1046,3 +1049,6 @@ describe("pkgGrepAction", () => {
     exitSpy.mockRestore();
   });
 });
+
+// Keep a failed output assertion from leaking console/process spies to other tests.
+afterEach(() => mock.restore());

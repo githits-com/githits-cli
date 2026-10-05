@@ -1,6 +1,10 @@
 import { mapGitHitsServiceError } from "../shared/githits-service-error-map.js";
 import type { MappedError } from "../shared/mapped-error.js";
 import {
+  formatMappedErrorText,
+  type MappedErrorTextOptions,
+} from "../shared/mapped-error-text.js";
+import {
   errorResult,
   type ToolExecutionContext,
   type ToolResult,
@@ -18,16 +22,12 @@ export type {
   ToolTermsRemediation,
 } from "./types.js";
 
-/**
- * Wraps a tool handler with the shared structured `{error, code,
- * retryable}` error envelope. Used by always-on tools (`get_example`)
- * so agents can branch on `code`
- * uniformly with code-navigation tools instead of text-parsing.
- */
+/** Catch service failures while honoring the effective requested output format. */
 export async function withErrorHandling<T>(
   operation: string,
   fn: () => Promise<T>,
   context?: ToolExecutionContext,
+  format?: "text" | "json",
 ): Promise<T | ToolResult> {
   try {
     return await fn();
@@ -36,6 +36,7 @@ export async function withErrorHandling<T>(
     return mcpMappedErrorResult(
       mapGitHitsServiceError(operation, error),
       context,
+      format,
     );
   }
 }
@@ -56,8 +57,18 @@ interface MappableErrorPayload {
 export function mcpMappedErrorResult(
   mapped: MappedError,
   context?: ToolExecutionContext,
+  format?: "text" | "json",
+  options?: MappedErrorTextOptions,
 ): ToolResult {
-  return errorResult(JSON.stringify(buildMcpErrorPayload(mapped, context)));
+  const payload = buildMcpErrorPayload(mapped, context);
+  return errorResult(
+    format === "json"
+      ? JSON.stringify(payload)
+      : formatMappedErrorText(
+          { ...mapped, message: payload.error, details: payload.details },
+          options,
+        ),
+  );
 }
 
 export function buildMcpErrorPayload(

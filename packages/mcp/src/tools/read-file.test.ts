@@ -69,6 +69,7 @@ describe("createCodeReadTool — happy path", () => {
     const result = await tool.handler(
       {
         target: " :express",
+        format: "json",
         path: "src/index.js",
       },
       {},
@@ -249,6 +250,7 @@ describe("createCodeReadTool — validation errors", () => {
     const result = await tool.handler(
       {
         target: "npm:express",
+        format: "json",
         path: "src/index.js",
         start_line: 40,
         end_line: 10,
@@ -266,6 +268,7 @@ describe("createCodeReadTool — validation errors", () => {
     const result = await tool.handler(
       {
         target: "npm:express",
+        format: "json",
         path: "src/index.js",
         start_line: 0,
       },
@@ -285,6 +288,7 @@ describe("createCodeReadTool — validation errors", () => {
     const result = await tool.handler(
       {
         target: "npm:express",
+        format: "json",
         path: "lib/",
       },
       {},
@@ -316,6 +320,7 @@ describe("createCodeReadTool — service errors", () => {
     const result = await tool.handler(
       {
         target: "npm:express",
+        format: "json",
         path: "nope.js",
       },
       {},
@@ -355,6 +360,7 @@ describe("createCodeReadTool — service errors", () => {
       const result = await createCodeReadTool(service).handler(
         {
           target: "hex:jason@1.4.4",
+          format: "json",
           path: "bench/data/issue-90.json",
         },
         {},
@@ -388,6 +394,7 @@ describe("createCodeReadTool — service errors", () => {
     const result = await createCodeReadTool(service).handler(
       {
         target: "npm:express",
+        format: "json",
         path: "./lib/internal",
       },
       {},
@@ -413,6 +420,7 @@ describe("createCodeReadTool — service errors", () => {
     const result = await tool.handler(
       {
         target: "npm:express",
+        format: "json",
         path: "lib",
       },
       {},
@@ -440,6 +448,7 @@ describe("createCodeReadTool — service errors", () => {
     const result = await createCodeReadTool(service).handler(
       {
         target: "npm:ghost",
+        format: "json",
         path: "src/index.js",
       },
       {},
@@ -464,6 +473,7 @@ describe("createCodeReadTool — service errors", () => {
     const result = await tool.handler(
       {
         target: "npm:express",
+        format: "json",
         path: "src/index.js",
       },
       {},

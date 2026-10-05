@@ -182,7 +182,7 @@ export function createGrepTool(
               "Retry grep with the same targets, pattern, and other controls; set wait_timeout_ms (up to 300000) to wait for target preparation.",
           };
         }
-        return mcpMappedErrorResult(mapped, context);
+        return mcpMappedErrorResult(mapped, context, args.format);
       }
     },
   };

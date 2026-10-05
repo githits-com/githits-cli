@@ -76,6 +76,47 @@ function createService(
 }
 
 describe("resolve_target MCP adapter", () => {
+  it.each([
+    { name: "omitted", format: undefined },
+    { name: "text", format: "text" as const },
+    { name: "json", format: "json" as const },
+  ])("formats authentication failures when format is $name", async (mode) => {
+    const resolveTarget = mock(() =>
+      Promise.reject(
+        new AuthenticationError("The host token was rejected.", "server"),
+      ),
+    );
+    const tool = createResolveTargetTool(createService(resolveTarget));
+    const response = await invoke(tool, {
+      name: "express",
+      ...(mode.format === undefined ? {} : { format: mode.format }),
+    });
+    const content = response.content[0]?.text ?? "";
+
+    expect(resolveTarget).toHaveBeenCalledTimes(1);
+    expect(response.isError).toBe(true);
+    if (mode.format === "json") {
+      expect(JSON.parse(content)).toEqual({
+        error: "The host token was rejected.",
+        code: "AUTH_REQUIRED",
+        retryable: false,
+        details: {
+          authSource: "server",
+          action:
+            "Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set. If this persists, contact support@githits.com.",
+        },
+      });
+      return;
+    }
+
+    expect(content).toContain("The host token was rejected.");
+    expect(content).toContain(
+      "Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set.",
+    );
+    expect(content).toContain("contact support@githits.com.");
+    expect(content).not.toContain('"code":"AUTH_REQUIRED"');
+  });
+
   it("describes the schema and agent-facing usage boundary", () => {
     const tool = createResolveTargetTool(createService());
     const schema = z.toJSONSchema(z.object(tool.schema));
@@ -711,14 +752,15 @@ describe("resolve_target MCP adapter", () => {
 
     const invalid = await invoke(tool, { name: " ", format: "text" });
     expect(invalid.isError).toBe(true);
-    expect(invalid.content[0]?.text).toContain('"code":"INVALID_ARGUMENT"');
+    expect(invalid.content[0]?.text).toContain("Target name is required.");
 
     const serviceError = await invoke(tool, {
       name: "express",
       format: "text",
     });
     expect(serviceError.isError).toBe(true);
-    expect(serviceError.content[0]?.text).toContain('"code":"UNKNOWN"');
+    expect(serviceError.content[0]?.text).toContain("auth failed");
+    expect(serviceError.content[0]?.text).not.toContain('"code":"UNKNOWN"');
 
     for (const [error, code] of [
       [new AuthenticationError("login required"), "AUTH_REQUIRED"],
@@ -735,7 +777,10 @@ describe("resolve_target MCP adapter", () => {
       const mappedTool = createResolveTargetTool(
         createService(() => Promise.reject(error)),
       );
-      const mapped = await invoke(mappedTool, { name: "express" });
+      const mapped = await invoke(mappedTool, {
+        name: "express",
+        format: "json",
+      });
       expect(mapped.isError).toBe(true);
       expect(parseResult(mapped).code).toBe(code);
     }
@@ -749,7 +794,7 @@ describe("resolve_target MCP adapter", () => {
       { name: "express", limit: 1.5 },
       { name: "express", limit: 21 },
     ]) {
-      const response = await invoke(tool, args);
+      const response = await invoke(tool, { ...args, format: "json" });
       expect(response.isError).toBe(true);
       expect(parseResult(response).code).toBe("INVALID_ARGUMENT");
     }
@@ -757,6 +802,7 @@ describe("resolve_target MCP adapter", () => {
     const preferredKind = await invoke(tool, {
       name: "express",
       preferred_kind: "workspace",
+      format: "json",
     });
     expect(parseResult(preferredKind)).toEqual({
       code: "INVALID_ARGUMENT",

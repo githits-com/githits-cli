@@ -607,3 +607,15 @@ grading was performed. Tests cover monorepo path coordinates, repository-only
 and incomplete locators, semantic preferred-read precedence, and the 300-line
 MCP follow-up cap. Ordinary repo-code JSON follow-ups retain their existing
 addressing; package-doc follow-up consistency does not assert parity for them.
+
+## Preparation errors and refresh annotations
+
+Default/text MCP indexing failures explain that requested content is not available
+yet, show compact preparation/timing rows and one `wait_timeout_ms` retry. CLI
+uses its native millisecond `--wait`; no reply mixes both syntaxes or exposes an
+opaque indexing reference in prose. The recommended wait uses uniform timing
+first and supplied singular timing otherwise, never the just-failed zero wait.
+JSON retains backend messages, hints, timing and indexed alternatives. Annotated
+readable content can show pending refresh; ordinary CLI body output remains raw.
+See [uniform indexing estimates](indexing-estimates.md) for timing semantics and
+the production deployment prerequisite.

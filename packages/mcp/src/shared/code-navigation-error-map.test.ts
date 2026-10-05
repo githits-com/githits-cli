@@ -62,10 +62,8 @@ describe("mapCodeNavigationError", () => {
       "https://github.com/expressjs/express",
     );
     expect(mapped.details?.hint).toContain("Backend guidance.");
-    expect(mapped.details?.hint).toContain(
-      "Estimated indexing time: 38-57s total",
-    );
-    expect(mapped.details?.action).toContain("wait_timeout_ms=60000");
+    expect(mapped.details?.hint).toBe("Backend guidance.");
+    expect(mapped.details?.action).toBeUndefined();
   });
   it("maps terms gating with stable URL remediation", () => {
     expect(

@@ -823,7 +823,7 @@ describe("createPackageDependenciesTool — compact target validation", () => {
         createMockPackageIntelligenceService({ packageDependencies }),
       );
 
-      const result = await tool.handler({ target }, {});
+      const result = await tool.handler({ target, format: "json" }, {});
 
       expect(result.isError).toBe(true);
       expect(parseText(result)).toMatchObject({
@@ -863,7 +863,10 @@ describe("createPackageDependenciesTool — validation errors via in-handler bui
     const tool = createPackageDependenciesTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler({ target: "npm:express@v4.18.0" }, {});
+    const result = await tool.handler(
+      { target: "npm:express@v4.18.0", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string; error: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -875,7 +878,7 @@ describe("createPackageDependenciesTool — validation errors via in-handler bui
       createMockPackageIntelligenceService(),
     );
     const result = await tool.handler(
-      { target: "npm:express", lifecycle: "dev" },
+      { target: "npm:express", lifecycle: "dev", format: "json" },
       {},
     );
     expect(result.isError).toBe(true);
@@ -895,7 +898,10 @@ describe("createPackageDependenciesTool — service errors", () => {
       ),
     });
     const tool = createPackageDependenciesTool(service);
-    const result = await tool.handler({ target: "npm:ghost" }, {});
+    const result = await tool.handler(
+      { target: "npm:ghost", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("NOT_FOUND");
@@ -906,7 +912,10 @@ describe("createPackageDependenciesTool — service errors", () => {
       packageDependencies: mock(() => Promise.reject(new Error("boom"))),
     });
     const tool = createPackageDependenciesTool(service);
-    const result = await tool.handler({ target: "npm:express" }, {});
+    const result = await tool.handler(
+      { target: "npm:express", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("UNKNOWN");

@@ -48,6 +48,69 @@ function invoke(
 }
 
 describe("local research MCP adapter", () => {
+  it.each([undefined, "text", "json"] as const)(
+    "renders research failures in %s format with stable identifiers",
+    async (format) => {
+      const ask = mock(() =>
+        Promise.reject(
+          new AgenticAskHttpError(
+            "RATE_LIMITED",
+            "Research is rate limited.",
+            429,
+            TOOL_CALL_ID,
+            12,
+            true,
+            THREAD_ID,
+          ),
+        ),
+      );
+      const result = await invoke(createLocalResearchTool(createService(ask)), {
+        question: "How?",
+        format,
+      });
+      expect(ask).toHaveBeenCalledTimes(1);
+      expect(result.isError).toBe(true);
+      const text = result.content[0]!.text;
+      if (format === "json")
+        expect(JSON.parse(text)).toMatchObject({
+          code: "RATE_LIMITED",
+          details: { retryAfterSeconds: 12 },
+          thread_id: THREAD_ID,
+          tool_call_id: TOOL_CALL_ID,
+        });
+      else {
+        expect(text).toContain("Research is rate limited.");
+        expect(text).toContain("Try again in 12 seconds.");
+        expect(text).toContain(`Thread: ${THREAD_ID}`);
+        expect(text).toContain(`Tool call: ${TOOL_CALL_ID}`);
+        expect(() => JSON.parse(text)).toThrow();
+      }
+    },
+  );
+
+  it.each([undefined, "text", "json"] as const)(
+    "renders early research validation in %s format without calling the service",
+    async (format) => {
+      const ask = mock(() => Promise.resolve(response()));
+      const result = await invoke(createLocalResearchTool(createService(ask)), {
+        target: "npm:example",
+        thread_id: THREAD_ID,
+        question: "How?",
+        format,
+      });
+      expect(ask).not.toHaveBeenCalled();
+      expect(result.isError).toBe(true);
+      if (format === "json")
+        expect(JSON.parse(result.content[0]!.text).code).toBe(
+          "INVALID_ARGUMENT",
+        );
+      else {
+        expect(result.content[0]!.text).toContain("Provide");
+        expect(() => JSON.parse(result.content[0]!.text)).toThrow();
+      }
+    },
+  );
+
   it("publishes the open-world read-only descriptor and standard format schema", () => {
     const tool = createLocalResearchTool(createService());
     const jsonSchema = z.toJSONSchema(z.object(tool.schema));
@@ -156,7 +219,7 @@ describe("local research MCP adapter", () => {
     ];
 
     for (const args of invalidArgs) {
-      const result = await invoke(tool, args);
+      const result = await invoke(tool, { ...args, format: "json" });
       expect(result.isError).toBe(true);
       expect(JSON.parse(result.content[0]?.text ?? "{}")).toMatchObject({
         code: "INVALID_ARGUMENT",
@@ -171,6 +234,7 @@ describe("local research MCP adapter", () => {
     const result = await invoke(createLocalResearchTool(createService(ask)), {
       target: "github:expressjs/express#main",
       question: "How?",
+      format: "json",
     });
 
     expect(result.isError).toBe(true);
@@ -332,6 +396,7 @@ describe("local research MCP adapter", () => {
     const result = await invoke(createLocalResearchTool(createService(ask)), {
       target: "npm:example",
       question: "How?",
+      format: "json",
     });
 
     expect(result.isError).toBe(true);
@@ -362,6 +427,7 @@ describe("local research MCP adapter", () => {
       const result = await invoke(createLocalResearchTool(createService(ask)), {
         thread_id: THREAD_ID,
         question: "How?",
+        format: "json",
       });
 
       expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
@@ -385,6 +451,7 @@ describe("local research MCP adapter", () => {
     );
     const result = await invoke(createLocalResearchTool(createService(ask)), {
       question: "How does Express routing work?",
+      format: "json",
     });
 
     expect(result.isError).toBe(true);
@@ -404,7 +471,7 @@ describe("local research MCP adapter", () => {
     const ask = mock(() => Promise.reject(new TermsAcceptanceRequiredError()));
     const tool = createLocalResearchTool(createService(ask));
     const result = await tool.handler(
-      { target: "npm:example", question: "How?" },
+      { target: "npm:example", question: "How?", format: "json" },
       {
         termsRemediation: {
           message: "Accept terms with the local CLI, then retry.",
@@ -425,7 +492,7 @@ describe("local research MCP adapter", () => {
     const ask = mock(() => Promise.reject(new AuthenticationError()));
     const tool = createLocalResearchTool(createService(ask));
     const result = await tool.handler(
-      { target: "npm:example", question: "How?" },
+      { target: "npm:example", question: "How?", format: "json" },
       { authAction: "Authenticate locally, then retry." },
     );
 

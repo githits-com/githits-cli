@@ -189,6 +189,14 @@ function graphQLErrorDetails(error: ListGraphQLError): MappedErrorDetails {
   if (isNonempty(error.code)) details.graphqlCode = error.code;
   if (isNonempty(error.indexingRef)) details.indexingRef = error.indexingRef;
   if (isNonempty(error.hint)) details.hint = error.hint;
+  if (isNonempty(error.repoUrl)) details.repoUrl = error.repoUrl;
+  if (isNonempty(error.commitSha)) details.commitSha = error.commitSha;
+  if (error.indexingMetadata?.indexingEstimate)
+    details.indexingEstimate = error.indexingMetadata.indexingEstimate;
+  if (error.indexingMetadata?.availableVersions)
+    details.availableVersions = error.indexingMetadata.availableVersions;
+  if (error.indexingMetadata?.package)
+    details.package = error.indexingMetadata.package;
   return details;
 }
 

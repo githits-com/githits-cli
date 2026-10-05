@@ -1,3 +1,5 @@
+import type { MappedError } from "./mapped-error.js";
+import { formatMappedErrorText } from "./mapped-error-text.js";
 /**
  * Line-oriented text renderer for unified `search` MCP responses.
  *
@@ -16,7 +18,7 @@
  */
 
 import { colors, dim, highlight, highlightRanges } from "./colors.js";
-import { renderIndexingEstimates } from "./indexing-estimates-text.js";
+import { renderPreparationEstimates } from "./indexing-estimates-text.js";
 import { renderReadTarget } from "./read-target-text.js";
 import {
   formatRepositoryTarget,
@@ -305,7 +307,10 @@ function appendPresentationContext(
       appendPresentationTargetGroup(lines, group, options);
     });
   }
-  for (const line of renderIndexingEstimates(presentation.indexingEstimates))
+  for (const line of renderPreparationEstimates(
+    presentation.indexingEstimates,
+    "preparing source",
+  ))
     lines.push(...wrapText(line, options.width));
   appendPresentationWarnings(lines, presentation.warnings, options);
 }
@@ -993,21 +998,12 @@ function capitalize(value: string): string {
 export function renderUnifiedSearchError(
   payload: UnifiedSearchErrorPayload,
 ): string {
-  const lines: string[] = [];
-  const header = `search${SEP}ERROR${SEP}code=${payload.code}${
-    payload.retryable ? `${SEP}retryable` : ""
-  }`;
-  lines.push(header);
-  lines.push(payload.error);
-
-  if (payload.details && Object.keys(payload.details).length > 0) {
-    lines.push("");
-    lines.push("details:");
-    for (const [key, value] of Object.entries(payload.details)) {
-      lines.push(`  ${key}: ${formatDetailValue(value)}`);
-    }
-  }
-  return lines.join("\n");
+  return formatMappedErrorText({
+    code: payload.code as MappedError["code"],
+    message: payload.error,
+    retryable: payload.retryable,
+    details: payload.details as MappedError["details"],
+  });
 }
 
 function appendUnifiedSearchHits(
@@ -1729,14 +1725,6 @@ function formatDocumentationSiteIdentity(
   } catch {
     return undefined;
   }
-}
-
-function formatDetailValue(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean")
-    return String(value);
-  return JSON.stringify(value);
 }
 
 function wrapText(text: string, width = DEFAULT_TEXT_WIDTH): string[] {

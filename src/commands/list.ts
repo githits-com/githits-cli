@@ -2,12 +2,14 @@ import type { ListService } from "@githits/core-internal";
 import {
   buildListParams,
   formatListText,
+  formatMappedErrorText,
   InvalidListRequestError,
   type ListRequestField,
   projectListResult,
   requireAuth,
   sanitizeTerminalText,
   shouldUseColors,
+  withIndexingRetryAction,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
@@ -91,6 +93,7 @@ export async function listAction(
         useColors: shouldUseColors(),
         includeHeader: !options.silent,
         syntax: "cli",
+        hasAfter: params.after !== undefined,
       });
       if (output.length > 0) process.stdout.write(`${output}\n`);
     }
@@ -99,6 +102,7 @@ export async function listAction(
       error,
       options.json === true,
       hasNonemptyAfter(options.after),
+      target,
     );
   }
 }
@@ -116,9 +120,10 @@ function handleListError(
   error: unknown,
   json: boolean,
   hasAfter: boolean,
+  target: string,
 ): never {
   const sharedMapped = mapListErrorForCli(error, { hasAfter });
-  const mapped =
+  const mapped = withIndexingRetryAction(
     error instanceof InvalidListRequestError
       ? {
           ...sharedMapped,
@@ -127,7 +132,12 @@ function handleListError(
             error.field,
           ),
         }
-      : sharedMapped;
+      : sharedMapped,
+    "list",
+    "cli",
+    120000,
+    hasAfter,
+  );
   if (json) {
     console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
   } else {
@@ -143,7 +153,17 @@ function handleListError(
           }
         : {}),
     };
-    console.error(formatMappedErrorForTerminal(safeMapped));
+    console.error(
+      mapped.code === "INDEXING"
+        ? formatMappedErrorText(safeMapped, {
+            indexingTarget: target,
+            indexingOutcome: target.startsWith("site:")
+              ? "No pages available yet."
+              : "No files available yet.",
+            width: process.stderr.columns,
+          })
+        : formatMappedErrorForTerminal(safeMapped),
+    );
   }
   process.exit(1);
 }

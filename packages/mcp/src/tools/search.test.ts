@@ -3,6 +3,7 @@ import type {
   UnifiedSearchOutcome,
   UnifiedSearchParams,
 } from "@githits/core-internal";
+import { AuthenticationError } from "@githits/core-internal";
 import { z } from "zod";
 import { getMcpToolDescriptors } from "../mcp/server.js";
 import {
@@ -565,6 +566,7 @@ describe("searchTool", () => {
       {
         query: "router middleware",
         target: "site:",
+        format: "json",
       },
       {},
     );
@@ -795,4 +797,71 @@ describe("v31 format selection", () => {
       );
     });
   }
+});
+
+describe("search error format", () => {
+  it.each([undefined, "text", "json"] as const)(
+    "renders service authentication in %s format",
+    async (format) => {
+      const operation = mock(() =>
+        Promise.reject(
+          new AuthenticationError("The host token was rejected.", "server"),
+        ),
+      );
+      const result = await createSearchTool(
+        createMockCodeNavigationService({ search: operation }),
+      ).handler(
+        { query: "router", target: "npm:express", format },
+        { authAction: "Reconnect the host, then retry." },
+      );
+      expect(operation).toHaveBeenCalledTimes(1);
+      expect(result.isError).toBe(true);
+      const text = result.content[0]!.text;
+      if (format === "json")
+        expect(JSON.parse(text)).toEqual({
+          error: "The host token was rejected.",
+          code: "AUTH_REQUIRED",
+          retryable: false,
+          details: {
+            authSource: "server",
+            action: "Reconnect the host, then retry.",
+          },
+        });
+      else {
+        expect(text).toContain("The host token was rejected.");
+        expect(text).toEndWith("Reconnect the host, then retry.");
+        expect(() => JSON.parse(text)).toThrow();
+      }
+    },
+  );
+});
+
+describe("search early target errors", () => {
+  it.each([undefined, "text", "json"] as const)(
+    "renders invalid single and multiple targets in %s format",
+    async (format) => {
+      for (const scope of [
+        { target: "github:expressjs/express#main" },
+        { targets: ["npm:express", "github:expressjs/express#main"] },
+      ]) {
+        const search = mock(() => Promise.resolve(defaultUnifiedSearchOutcome));
+        const result = await createSearchTool(
+          createMockCodeNavigationService({ search }),
+        ).handler({ query: "router", ...scope, format });
+        expect(search).not.toHaveBeenCalled();
+        expect(result.isError).toBe(true);
+        if (format === "json")
+          expect(JSON.parse(result.content[0]!.text).code).toBe(
+            "INVALID_ARGUMENT",
+          );
+        else {
+          expect(result.content[0]!.text).toContain("legacy #ref syntax");
+          expect(result.content[0]!.text).toContain(
+            "github:expressjs/express@main",
+          );
+          expect(() => JSON.parse(result.content[0]!.text)).toThrow();
+        }
+      }
+    },
+  );
 });

@@ -213,7 +213,7 @@ describe("createPackageSummaryTool — compact target validation", () => {
         createMockPackageIntelligenceService({ packageSummary }),
       );
 
-      const result = await tool.handler({ target }, {});
+      const result = await tool.handler({ target, format: "json" }, {});
 
       expect(result.isError).toBe(true);
       expect(parseText(result)).toEqual({
@@ -242,7 +242,7 @@ describe("createPackageSummaryTool — compact target validation", () => {
         createMockPackageIntelligenceService({ packageSummary }),
       );
 
-      const result = await tool.handler({ target }, {});
+      const result = await tool.handler({ target, format: "json" }, {});
 
       expect(result.isError).toBe(true);
       expect(parseText(result)).toMatchObject({
@@ -259,7 +259,10 @@ describe("createPackageSummaryTool — validation errors via shared parsing", ()
     const tool = createPackageSummaryTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler({ target: "cargo:serde" }, {});
+    const result = await tool.handler(
+      { target: "cargo:serde", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as {
       code: string;
@@ -275,7 +278,7 @@ describe("createPackageSummaryTool — validation errors via shared parsing", ()
     const tool = createPackageSummaryTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler({ target: "npm:" }, {});
+    const result = await tool.handler({ target: "npm:", format: "json" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -285,7 +288,7 @@ describe("createPackageSummaryTool — validation errors via shared parsing", ()
     const tool = createPackageSummaryTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler({ target: "   " }, {});
+    const result = await tool.handler({ target: "   ", format: "json" }, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -302,7 +305,10 @@ describe("createPackageSummaryTool — service errors", () => {
       ),
     });
     const tool = createPackageSummaryTool(service);
-    const result = await tool.handler({ target: "npm:ghost" }, {});
+    const result = await tool.handler(
+      { target: "npm:ghost", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as {
       code: string;
@@ -319,7 +325,10 @@ describe("createPackageSummaryTool — service errors", () => {
       packageSummary: mock(() => Promise.reject(new Error("boom"))),
     });
     const tool = createPackageSummaryTool(service);
-    const result = await tool.handler({ target: "npm:express" }, {});
+    const result = await tool.handler(
+      { target: "npm:express", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("UNKNOWN");

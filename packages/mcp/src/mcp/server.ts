@@ -233,6 +233,7 @@ export function registerMcpToolsWithFactories<
                 extra: extra as TExtra | undefined,
               }),
             context,
+            args.format === "json" ? "json" : "text",
           );
           if (isToolResult(services)) return services;
           return createTool(services).handler(args, context);
