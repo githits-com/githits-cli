@@ -64,7 +64,7 @@ annotations do not label queued/searching work as active index execution.
 Legacy annotated consumers reuse the same rows; raw CLI reads and `list --silent`
 remain suitable for piping.
 
-`indexing-estimates-text.ts` owns the Preparing section and native retry sentence shared by successful notices and errors. Its rows use terminal-aware hanging indentation and stay separated from file content. `mapped-error-text.ts` owns human error wording. Tool boundaries supply native
+`indexing-estimates-text.ts` owns the Preparing section and native retry sentence shared by successful notices and errors. Its rows use terminal-aware hanging indentation and stay separated from file content. Free prose normalizes word spacing; raw file content and copyable actions bypass prose wrapping. `mapped-error-text.ts` owns human error wording. Tool boundaries supply native
 retry actions; core and error classifiers retain backend facts instead of
 appending mixed CLI/MCP syntax. Default/text MCP errors are readable `isError`
 results; only explicit JSON serializes the existing error envelope. Progress IDs
@@ -134,3 +134,5 @@ trigger lacks evidence. No speculative fallback or new duration model was added.
 The final full unit suite passed 5,477 tests in 233 files after the alternative-label, retry-unit, hosted preparation, annotation-separation and wrapping corrections. Typecheck, both builds, packed public-package validation, source unauthenticated CLI/MCP smoke and built CLI/MCP smoke passed. Tests cover default/text/JSON errors, host-provided authentication actions, compact preparation rows, native wait units/caps, pending empty inventory, readable content with refresh, and preservation of raw CLI output.
 
 New authenticated dev checks were blocked in macOS Keychain credential access. The neutral list agent workload used external web evidence without GitHits calls; an explicit GitHits run completed quick_start and started list, then timed out. Neither establishes pending-state agent UX or a quality claim. Pending states are covered by fixtures; the prior backend-owner dev verification and production release prerequisite above remain unchanged.
+
+Internal review and three external Claude rounds completed with no remaining material findings. The final fresh-context check confirmed format propagation, native wait units/caps, preserved raw output and zero-wait list metadata. Prose spacing normalization was retained as intentional presentation behavior; no source-content formatting or structured evidence changed.
