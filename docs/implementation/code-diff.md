@@ -186,21 +186,30 @@ bounded evidence; eval success does not by itself grade answer usefulness.
 See [GA validation evidence](code-diff-ga-audit.md).
 
 Hosted delivery remains a dependency update and deployment in `remote-mcp`;
-this repository owns no hosted transport or deployment changes. CLI
-code/package Agent Skills are updated in release preparation or after
-publication. The `githits-mcp` guide follows the repository's bounded same-PR
-parity exception. Research and Resolve remain experimental.
+this repository owns no hosted transport or deployment changes. The 0.26.0
+release preparation updates CLI code/package Agent Skills with stable diff
+routing, repository-wide package scope, exact endpoints, and coverage limits.
+The `githits-mcp` guide follows the repository's bounded same-PR parity exception.
+Research and Resolve remain experimental.
+
+The product change merged in PR #448. The requested coordinated minor release
+prepares both packages at 0.26.0, carrying the breaking custom-provider
+requirement in the pre-1.0 minor release. The original fragment's MCP `major`
+impact records that API break; it does not mean the provider remains compatible.
+The changelog and release PR state the required `codeDiff` implementation.
 
 Remaining distribution steps:
 
-1. Merge the product PR only after explicit approval. Prepare package-scoped
-   release versions against current main: the pending change is CLI minor
-   and MCP major because custom MCP providers now require `codeDiff`.
-   Reconcile exact versions with the coordinated minor-alignment policy.
-2. Update public CLI code/package Agent Skills at the release-preparation
-   boundary. Run targeted CLI skills evals for the Express and monorepo
-   workloads with both agents, validate packed exports and generated
-   metadata, consume the change fragments, and open the release PR.
+1. Complete 0.26.0 release PR validation of packed exports, generated metadata,
+   and the updated CLI skills. The release-preparation Express and monorepo
+   skills evals were attempted with both agents: Claude was not logged in,
+   and both Codex diff calls were blocked by unavailable Keychain access.
+   Express fell back to npm evidence; monorepo reported an inconclusive result
+   while preserving repository-scope limits. These runs do not establish successful
+   GitHits skill behavior; retain the successful product MCP evidence in the
+   [GA audit](code-diff-ga-audit.md) as separate evidence.
+2. Before publishing either package, verify deployment of the additive
+   site-wait `status` field to dev and production for the list fix in PR #449.
 3. Obtain separate approval for release merge, tagging or publication as
    applicable. Package publication delivers CLI/public MCP GA to consumers.
 4. In a separately assigned `remote-mcp` lane, adopt the released MCP package,

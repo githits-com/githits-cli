@@ -116,6 +116,13 @@ If no effective actionable IDs remain and at least one supported tool is already
 
 Guidance is installed by default. It adds the `githits-mcp` skill and a short instruction pointer for tools with verified guidance paths. Add `--no-guidance` only when the user explicitly asks for plain MCP without supporting instructions.
 
+Local CLI MCP startup automatically refreshes eligible older `githits-mcp`
+installations. It preserves modified, unrecognized, and newer managed content.
+Users can disable refresh with `skills.auto_update = false` in GitHits config
+or `GITHITS_DISABLE_SKILL_UPDATE=1`. Rerun guided setup to update an existing
+managed GitHits-first instruction block; startup refresh updates the MCP skill,
+not that block. Remote-only integrations do not run this local refresh.
+
 Project-level install:
 
 ```bash

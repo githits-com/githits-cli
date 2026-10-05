@@ -2,6 +2,39 @@
 
 Package target syntax requires an explicit registry: `registry:name@version`, for example `npm:express@5.2.1`; omit `@version` for the latest release. Package targets scope to the package subpath, including within monorepos. Swift package targets use `swift:github.com/<owner>/<repo>` and Zig package targets use `zig:gh/<owner>/<repo>`. Use public repository targets for full repositories or sibling packages. Repository compact targets use `github:org/repo@ref`, `codeberg:owner/repo@ref`, `gitlab:group/subgroup/project@ref`, `github.com/org/repo@ref`, or `https://github.com/org/repo@ref`; omit `@ref` for the backend default branch. Exact standalone documentation sites use `site:<host[/path]>`. Output uses canonical `provider:path@ref` formatting so refs can contain `@` safely. `code` commands also support `--repo-url <url>` with optional `--git-ref <ref>`.
 
+## Source Diff
+
+`githits code diff <unversioned-target> <from>..<to>` compares exact package
+versions or repository refs. Alternatively, use `--repo-url <url>` followed by
+the range. No experimental setting is required. Both forms compare the full
+repository; package addressing resolves versions and commits without discovering
+or filtering to a package subpath. Unlike indexed navigation, diff does not
+require the source index to be ready.
+
+Default output is a bounded patch. Choose exactly one of `--patch`, `--stat`,
+`--name-only`, or `--name-status`. Pass one optional repository-relative glob
+after `--`, for example `-- 'packages/router/**'`, when the relevant path is
+known. Globs support `*`, `?`, and whole-component `**`, without brace
+expansion, character classes, or Git pathspec magic.
+
+`--max-files` accepts 1-300 for every view; `--max-patch-bytes` accepts
+1024-2097152 for patch output only. `--verbose` adds identity and scope
+diagnostics. `--json` retains exact resolutions, scope, completeness, and
+returned patch content. Plain patch output exits 1 and suppresses stdout when
+incomplete or unprojectable evidence makes it unsafe to apply; explicit bounds
+permit their respective truncation only. Use name/stat views or JSON to inspect
+partial evidence. JSON cannot restore content omitted by the backend.
+
+Preserve the requested endpoints. If resolution fails, report the error and
+returned alternatives without silently substituting a version or ref. Report
+repository scope and coverage limits; capped or sibling-only results do not
+prove a package is unchanged. A source diff does not establish compatibility.
+Use the `githits-package` skill for upgrade/advisory assessment.
+
+`githits code diff` maps to MCP `code_diff`; MCP defaults to name-status rather
+than patch output. Hosted availability follows adoption and deployment of the
+released MCP package.
+
 ## Search
 
 `githits search "<query>" --in <target>` searches indexed dependency code, docs, symbols, and exact standalone documentation sites. Repeat `--in` for multiple targets. Use `--source code`, `--source docs`, or `--source symbol` to force a source; omit it for auto-routing. For a standalone site, pass `--source docs --in site:<host[/path]>`.
