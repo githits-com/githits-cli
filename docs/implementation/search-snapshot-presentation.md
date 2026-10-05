@@ -109,9 +109,10 @@ partial/completeness signals, attribution and zero-hit/withheld rules are unchan
 
 **Rollout prerequisite:** confirm production backend schema deployment before
 client release or hosted MCP adoption. This increment was verified against the
-supplied backend dev records, not production. If deployed too early, all `read` requests fail GraphQL validation because
-`ReadService` has no schema fallback and its document includes the field for code
-and docs reads alike. Search/status and legacy navigation instead make sequential
+supplied backend dev records, not production. If deployed too early, all `read`
+requests fail because `ReadService` has no schema fallback: the code fragment
+selects the field, and GraphQL validates the whole document before returning
+either code or docs. Search/status and legacy navigation instead make sequential
 fallback retries before dropping all `targetResolution`, losing served provenance
 and prior-HEAD advice.
 No new fallback is added. The user owns release; hosted clients additionally need
@@ -119,8 +120,8 @@ No new fallback is added. The user owns release; hosted clients additionally nee
 
 Commit-date verification:
 
-- Focused 14-file checks: 668 tests pass, zero failures, 3,258 expectations. Covered shared core
-  search/status transport and progress, exact read transport and JSON, lean
+- Focused 14-file checks: 668 tests pass, zero failures, 3,258 expectations.
+  Covered shared core search/status transport and progress, exact read transport and JSON, lean
   projection, search presentation/text/status/response, tools, CLI commands,
   timing parity and actual CLI/MCP adapter parity. Retained status JSON timestamps are also verified through both adapters.
 - Date cases include both/served/requested/neither known, null/absent wire data,
@@ -292,3 +293,14 @@ scan covered every TARGET_RESOLUTION_SELECTION use, direct/fallback GraphQL
 clients, the separate list/grep queries and projections, rollout wording in the
 plan/change fragment/PR brief, and all added test date assignments. No runtime
 change, new machinery or major deferred finding was needed.
+
+Commit-date review closure is clean at `5b2ba65` after the final minor wording
+correction above. Opus 5.5 reviewed the full delta in two implementation rounds;
+a supplemental task resumed the same fresh-context final-check subagent to
+complete tests/docs/fragment/plan coverage after its initial production-only
+pass. The only final note clarified whole-document GraphQL validation; no code
+issue remains. Internal revised-delta preflight is clean. The 47-test snapshot
+closure run passes with 549 expectations, and the follow-up commit hook passes
+scoped Biome and typecheck. The completed plan is removed after this clean
+review; all relevant contract, evidence and rollout limits are retained here.
+No major deferred item or required refactoring remains.
