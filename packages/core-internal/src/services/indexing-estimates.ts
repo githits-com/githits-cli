@@ -30,7 +30,7 @@ indexingEstimate {
   ${INDEXING_DURATION_ESTIMATE_FIELDS}
 }`;
 
-export const INDEXING_ESTIMATES_SELECTION = `
+export const INDEXING_ESTIMATES_SELECTION: string = `
 indexingEstimates {
   kind
   targets
@@ -42,7 +42,17 @@ indexingEstimates {
   unavailableReason
 }`;
 
-export const indexingDurationEstimateSchema = z
+export const indexingDurationEstimateSchema: z.ZodType<
+  | {
+      lowerSeconds?: number | null;
+      upperSeconds?: number | null;
+      elapsedSeconds?: number | null;
+      sampleCount?: number | null;
+      source?: string | null;
+    }
+  | null
+  | undefined
+> = z
   .object({
     lowerSeconds: z.number().int().nullable().optional(),
     upperSeconds: z.number().int().nullable().optional(),
@@ -84,7 +94,7 @@ export function normaliseIndexingDurationEstimate(
 }
 
 /** Decode one uniform timing envelope without inventing missing duration evidence. */
-export const indexingEstimatesSchema = z
+export const indexingEstimatesSchema: z.ZodType<DiscoveryIndexingEstimate[]> = z
   .array(discoveryIndexingEstimateSchema)
   .transform((entries): DiscoveryIndexingEstimate[] =>
     entries.map((entry) => ({

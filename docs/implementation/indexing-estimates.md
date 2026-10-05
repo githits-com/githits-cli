@@ -42,7 +42,8 @@ Annotated text displays total duration and active elapsed evidence; JSON preserv
 provenance and work identity. Pipe-friendly raw paths and source content remain
 raw. Grep translates verified pending reasons and offers a fresh first-page
 request with the same ordered targets and matching controls, without a cursor.
-Continuation pages available matches and cannot retry omitted targets.
+The cursor retrieves more matches from searched targets and cannot retry omitted
+targets.
 
 ## Deployment prerequisite
 
@@ -76,7 +77,12 @@ changelog bodies and URL-based site root read actions.
 
 The first full local unit run had 5,354 passes and nine failures: one optional
 provider projection defect, corrected here, and subprocess timeouts. All failed
-files passed isolated rechecks (104 tests). CI supplies final full-suite validation.
+files passed isolated rechecks (104 tests). Initial Linux and Windows CI each had
+5,381 passes and one stale list-footer expectation; that expectation and the
+related smoke fixture were corrected. CI's Bun 1.4.2 declaration build also
+required explicit annotations on the new exported selection and schemas. With
+those annotations, the same MCP build passed locally, as did 645 focused
+service/list/smoke tests. The updated CI run supplies final full-suite validation.
 The targeted local-dev grep agent eval completed six calls successfully, with no
 failed calls or isolation violations. It used warm data and did not exercise
 pending indexing; no grading or quality claim is inferred from its final confidence.

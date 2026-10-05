@@ -498,7 +498,7 @@ describe("unified list CLI", () => {
           '# source npm:express@5.2.1 | follow up with "read npm:express@5.2.1 $path" | more results available',
           "src/index.ts",
           "",
-          "More results: reuse the same target, paths, and options with:",
+          "More results: repeat this list, adding:",
           "  --after 'next/%2F cursor'",
         ].join("\n")}\n`,
       );
