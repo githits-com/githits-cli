@@ -93,7 +93,9 @@ describe("unified grep result and text", () => {
     });
     expect(projectGrepResult(page)).toEqual(page);
     const output = formatGrepText(page);
-    expect(output).toContain("inputs 0, 1): not visited in this page");
+    expect(output).toContain("  - site:docs.test (no results on this page)");
+    expect(output).not.toContain("not visited in this page");
+    expect(output).not.toContain("inputs 0, 1");
     expect(output).not.toContain("UNSPECIFIED / RESUMABLE_LIMIT");
     expect(output).toContain("--cursor 'opaque'");
     expect(output).not.toContain("Unavailable input");

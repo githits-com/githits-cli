@@ -108,7 +108,7 @@ describe("uniform indexing evidence presentation", () => {
     const text = formatGrepText(pending({ indexingEstimates: [entry] }), {
       width: 160,
     });
-    expect(text).toContain(`Omitted: ${repository.targets[0]} (indexing)`);
+    expect(text).toContain(`Omitted:\n  - ${repository.targets[0]} (indexing)`);
     expect(
       text.match(
         /No time estimate is available for preparing documentation\./g,
@@ -132,11 +132,39 @@ describe("uniform indexing evidence presentation", () => {
       }),
       { syntax: "mcp", width: 160 },
     );
-    expect(
-      text.split("\n").filter((line) => line.startsWith("Omitted:")),
-    ).toEqual([
-      "Omitted: site:docs.test (documentation is being prepared, no estimate available)",
+    expect(text.split("\n").filter((line) => line.startsWith("  - "))).toEqual([
+      "  - site:docs.test (documentation is being prepared, no estimate available)",
     ]);
+  });
+  it("groups multiple omitted targets under one heading with each explanation on its own line", () => {
+    const first = pending().unavailableTargets[0]!;
+    const result = pending({
+      unavailableTargets: [
+        { ...first, target: "npm:one", inputIndex: 0 },
+        {
+          ...first,
+          target: "site:docs.test",
+          inputIndex: 1,
+          reason: "documentation_publishing",
+        },
+      ],
+      indexingEstimates: [
+        {
+          ...repository,
+          targets: ["npm:one"],
+          estimate: { lowerSeconds: 33, upperSeconds: 85 },
+        },
+        documentation,
+      ],
+    });
+    for (const syntax of ["cli", "mcp"] as const) {
+      const output = formatGrepText(result, { syntax, width: 160 });
+      expect(output).toContain(
+        "Omitted:\n  - npm:one (indexing, estimated total: 33-85s)\n  - site:docs.test (documentation is being prepared, no estimate available)",
+      );
+      expect(output.match(/^Omitted:$/gm)).toHaveLength(1);
+      expect(output).not.toContain("Sources:");
+    }
   });
   it("does not repeat traversal jargon for terminal omissions, while retaining independent failure warnings", () => {
     const result = pending({
@@ -154,7 +182,7 @@ describe("uniform indexing evidence presentation", () => {
     });
     const text = formatGrepText(result);
     expect(text).toContain("coverage is incomplete");
-    expect(text).toContain("Omitted: npm:x");
+    expect(text).toContain("Omitted:\n  - npm:x");
     expect(text).not.toContain("Traversal is incomplete");
     expect(text).not.toContain("No matches yet");
     expect(text).not.toContain("To retry omitted targets");

@@ -246,8 +246,10 @@ describe("grep evidence rendering", () => {
     }
     expect(formatGrepText(page([hit()]))).toContain("[1] github:o/r@sha a.ts");
   });
-  it("leads complete empty pages with only the outcome and makes partial scope coverage readable", () => {
-    expect(formatGrepText(page([]))).toBe("No matches.");
+  it("leads complete empty pages with the outcome and lists searched sources", () => {
+    expect(formatGrepText(page([]))).toBe(
+      "No matches.\n\nSources:\n  - github:o/r@sha (no results)",
+    );
     const text = formatGrepText(
       page([], {
         targets: [
@@ -337,6 +339,8 @@ describe("grep evidence rendering", () => {
       expect(noCursor).not.toContain("--cursor");
       expect(noCursor).not.toContain("cursor=");
     }
-    expect(formatGrepText(page([]))).toBe("No matches.");
+    expect(formatGrepText(page([]))).toBe(
+      "No matches.\n\nSources:\n  - github:o/r@sha (no results)",
+    );
   });
 });

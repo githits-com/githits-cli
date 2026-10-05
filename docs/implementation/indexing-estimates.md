@@ -40,9 +40,12 @@ defaults do not change, and there is no automatic retry, polling or new status A
 
 Annotated text displays total duration and active elapsed evidence; JSON preserves
 provenance and work identity. Pipe-friendly raw paths and source content remain
-raw. Grep identifies only sources that returned matches, followed by `Omitted`
-entries that combine each unavailable requested target's reason and compact
-advisory total estimate. There is no separate partial-data or indexing paragraph.
+raw. Grep lists resolved sources one per line under `Sources:`, marking sources
+without matches on an incomplete search as `(no results on this page)`, or
+`(no results)` when the search is complete. A separate
+`Omitted:` list has one entry per unavailable requested target, combining its
+reason and compact advisory total estimate. There is no separate partial-data or
+indexing paragraph.
 Hosted-site matches do not establish package-version
 provenance. The existing cursor instructions follow the matches; a short final note
 suggests rerunning the original query with the recommended wait. That retry is a

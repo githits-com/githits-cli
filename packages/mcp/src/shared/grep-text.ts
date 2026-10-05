@@ -21,6 +21,12 @@ export interface GrepTextOptions {
   width?: number;
   syntax?: "cli" | "mcp";
 }
+interface SourceSummary {
+  label: string;
+  requested: Set<string>;
+  matched: boolean;
+  hostedDocumentation: boolean;
+}
 interface MatchSpan {
   start: number;
   end: number;
@@ -74,13 +80,17 @@ export function formatGrepText(
       : `${result.totalMatches} match${result.totalMatches === 1 ? "" : "es"} in ${matchingLines} line${matchingLines === 1 ? "" : "s"} across ${groups.length} ${noun}${result.nextCursor ? "; more available" : ""}`,
   );
   if (options.useColors) lines[0] = `${colors.bold}${lines[0]}${colors.reset}`;
-  if (groups.length) {
-    lines.push("");
+  if (result.targets.length) {
+    lines.push("", "Sources:");
     const matchedScopes = new Set(result.hits.map((hit) => hit.targetIndex));
-    prose(
-      `Sources: ${formatSources(result.targets.filter((scope) => matchedScopes.has(scope.targetIndex)))}`,
-    );
+    for (const source of formatSources(
+      result.targets,
+      matchedScopes,
+      isExhaustive(result),
+    ))
+      prose(`  - ${source}`);
   }
+  if (result.unavailableTargets.length) lines.push("Omitted:");
   const combinedEstimates = new Set<DiscoveryIndexingEstimate>();
   for (const omitted of result.unavailableTargets) {
     const kind =
@@ -94,10 +104,10 @@ export function formatGrepText(
     );
     for (const entry of estimates) combinedEstimates.add(entry);
     prose(
-      `Omitted: ${omitted.target}${result.unavailableTargets.filter((target) => target.target === omitted.target).length > 1 ? ` (input ${omitted.inputIndex})` : ""} (${kind === "REPOSITORY" ? "indexing" : grepPreparationReason(omitted.reason)}${estimates.length ? `, ${estimates.map((entry) => formatIndexingEstimate(entry, "compact")).join("; ")}` : ""})`,
+      `  - ${omitted.target}${result.unavailableTargets.filter((target) => target.target === omitted.target).length > 1 ? ` (input ${omitted.inputIndex})` : ""} (${kind === "REPOSITORY" ? "indexing" : grepPreparationReason(omitted.reason)}${estimates.length ? `, ${estimates.map((entry) => formatIndexingEstimate(entry, "compact")).join("; ")}` : ""})`,
     );
     for (const target of omitted.suggestedSiteTargets ?? [])
-      prose(`  Suggested site: ${target}`);
+      prose(`    Suggested site: ${target}`);
   }
   for (const estimate of renderIndexingEstimates(
     result.indexingEstimates?.filter((entry) => !combinedEstimates.has(entry)),
@@ -198,8 +208,8 @@ function renderCoverage(
 ): void {
   const prefix = `${scope.kind === "REPOSITORY" ? "Repository" : "Hosted docs"} ${scope.target} (inputs ${scope.requestedInputIndices.join(", ")})`;
   const notes: string[] = [];
-  if (scope.readiness === "UNSPECIFIED") notes.push("not visited in this page");
-  else if (scope.readiness !== "CURRENT") notes.push(readinessNote(scope));
+  if (scope.readiness !== "UNSPECIFIED" && scope.readiness !== "CURRENT")
+    notes.push(readinessNote(scope));
   if (scope.traversal !== "COMPLETE" && scope.traversal !== "RESUMABLE_LIMIT")
     notes.push(traversalNote(scope));
   if (scope.errorCode) notes.push(scope.errorCode);
@@ -233,7 +243,10 @@ function renderCoverage(
       `${scope.fileIssuesOmitted} additional file issue(s) omitted.`,
     );
   if (notes.length || details.length) {
-    prose(`${prefix}:${notes.length ? ` ${notes.join("; ")}.` : ""}`);
+    const note = notes.join("; ");
+    prose(
+      `${prefix}:${note ? ` ${note}${/[.!?]$/.test(note) ? "" : "."}` : ""}`,
+    );
     for (const detail of details) prose(`  ${detail}`);
   }
 }
@@ -289,13 +302,21 @@ function hasCoverageGap(scope: GrepTargetStatus): boolean {
     )
   );
 }
-function formatSources(scopes: GrepTargetStatus[]): string {
-  const sources = new Set<string>();
+function formatSources(
+  scopes: GrepTargetStatus[],
+  matchedScopes: Set<number>,
+  exhaustive: boolean,
+): string[] {
+  const sources = new Map<string, SourceSummary>();
   for (const scope of scopes) {
-    if (scope.kind === "SITE" && scope.canonicalSite)
-      sources.add(
-        `site:${scope.canonicalSite.replace(/^https?:\/\//i, "").replace(/\/$/, "")} (hosted documentation)`,
-      );
+    let label = scope.target;
+    let identity = JSON.stringify([scope.kind, scope.target]);
+    const hostedDocumentation =
+      scope.kind === "SITE" && Boolean(scope.canonicalSite);
+    if (scope.kind === "SITE" && scope.canonicalSite) {
+      label = `site:${scope.canonicalSite.replace(/^https?:\/\//i, "").replace(/\/$/, "")}`;
+      identity = JSON.stringify([scope.kind, scope.canonicalSite]);
+    }
     if (scope.kind === "REPOSITORY" && scope.repoUrl && scope.commitSha) {
       const corpus =
         scope.corpus === "SOURCE"
@@ -303,28 +324,36 @@ function formatSources(scopes: GrepTargetStatus[]): string {
           : scope.corpus === "DOCUMENTATION"
             ? " (repository docs)"
             : "";
-      // A named ref and a SHA can identify the same snapshot. Compare commit IDs.
-      const requested =
-        scope.requestedRef &&
-        /^[a-f0-9]{40}$/i.test(scope.requestedRef) &&
-        scope.requestedRef.toLowerCase() !== scope.commitSha.toLowerCase()
-          ? ` (requested: ${scope.target})`
-          : "";
-      sources.add(
-        `${formatRepositoryTarget(scope.repoUrl, scope.commitSha.slice(0, 8))}${corpus}${requested}`,
-      );
+      label = `${formatRepositoryTarget(scope.repoUrl, scope.commitSha.slice(0, 8))}${corpus}`;
+      identity = JSON.stringify([
+        scope.kind,
+        scope.repoUrl,
+        scope.commitSha,
+        scope.corpus,
+      ]);
     }
+    const source = sources.get(identity) ?? {
+      label,
+      requested: new Set<string>(),
+      matched: false,
+      hostedDocumentation,
+    };
+    // A named ref and a SHA can identify the same snapshot. Compare commit IDs.
     if (
-      (scope.kind === "SITE" && !scope.canonicalSite) ||
-      (scope.kind === "REPOSITORY" && (!scope.repoUrl || !scope.commitSha))
+      scope.kind === "REPOSITORY" &&
+      scope.commitSha &&
+      scope.requestedRef &&
+      /^[a-f0-9]{40}$/i.test(scope.requestedRef) &&
+      scope.requestedRef.toLowerCase() !== scope.commitSha.toLowerCase()
     )
-      sources.add(scope.target);
+      source.requested.add(scope.target);
+    source.matched ||= matchedScopes.has(scope.targetIndex);
+    sources.set(identity, source);
   }
-  return [...sources]
-    .sort(
-      (a, b) => Number(b.startsWith("site:")) - Number(a.startsWith("site:")),
-    )
-    .join(", ");
+  return [...sources.values()].map(
+    (source) =>
+      `${source.label}${source.requested.size ? ` (requested: ${[...source.requested].join(", ")})` : ""}${!source.matched ? (exhaustive ? " (no results)" : " (no results on this page)") : source.hostedDocumentation ? " (hosted documentation)" : ""}`,
+  );
 }
 
 /** Keep ordinary locators readable and unsafe operands copyable without shell expansion. */
@@ -445,14 +474,15 @@ function escapeControls(value: string, preserveTabs = false): string {
 }
 function wrap(text: string, width: number): string[] {
   const lines: string[] = [];
-  const indent = text.match(/^ */)?.[0] ?? "";
-  let current = indent;
-  for (const word of text.trimStart().split(" ")) {
+  const prefix = text.match(/^ *(?:- )?/)?.[0] ?? "";
+  const indent = " ".repeat(prefix.length);
+  let current = prefix;
+  for (const word of text.slice(prefix.length).split(" ")) {
     const hasWord = current.length > indent.length;
     if (hasWord && terminalWidth(`${current} ${word}`) > width) {
       lines.push(current);
       current = `${indent}${word}`;
-    } else current = hasWord ? `${current} ${word}` : `${indent}${word}`;
+    } else current = hasWord ? `${current} ${word}` : `${current}${word}`;
   }
   if (current) lines.push(current);
   return lines;
