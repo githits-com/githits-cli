@@ -1285,6 +1285,73 @@ as provider billing. Historical local descriptor/full comparisons remain
 diagnostic and are not intent evidence. Current scenario evidence is causal
 only when the isolation metadata and trace validation show a clean run.
 
+## 0.26.0 release comparison - 2026-10-05
+
+Release PR #450 triggered the authenticated `agent-eval` CI matrix at commit
+`0ba8350fa8b2be68ffa71a1b4e625f24518d5659`. All three scenario jobs, the
+summary, and Braintrust export succeeded in
+[run 37281176463](https://github.com/githits-com/githits-cli/actions/runs/37281176463).
+The experiment is
+[`pr-450-r37281176463-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/pr-450-r37281176463-a1)
+(ID `492d7d0e-e088-413e-9b48-2432b179ccf9`).
+
+The release comparison explicitly uses
+[`main-r36843844917-a1`](https://www.braintrust.dev/app/GitHits/p/githits-cli-agent-evals/experiments/main-r36843844917-a1)
+(ID `767747df-2123-4df3-83df-45b8708bf45f`) at the shared 0.25.1 release
+tag commit `c20696e7fe00361f0db62e85af51f070383fb1a1`, rather than the
+candidate's automatically linked latest-main base. All 64 baseline cells are
+present with identical stable inputs, including prompt hashes. Model
+(`gpt-6-luna`), low reasoning effort, reporting/result contracts, intent
+hashes, and experimental-tool policy also match. Codex CLI versions differ:
+0.159.3 for the baseline and 0.160.0 for the candidate.
+
+The candidate has 76 successful harness cells and no isolation violations:
+two discovery cells and 37 each in intent and full guidance. Every shared cell
+has a successful final report. The twelve added cells cover five source-diff
+workloads and the poor-changelog upgrade workload in both evidence scenarios;
+all use `code_diff`. Two new full-guidance finals are inconclusive, correctly
+disclosing unavailable patch content and the intentionally nonexistent ending
+version while still completing the requested recovery comparison. These are
+evidence limits, not harness failures.
+
+Metrics below include only the 64 identical-input cells, excluding the twelve
+new cells. Duration is cumulative agent time, not CI wall time, and cost is a
+base-rate estimate rather than billing.
+
+| Matched metric | 0.25.1 | 0.26.0 candidate | Change |
+| --- | ---: | ---: | ---: |
+| Cumulative agent seconds | 894.955 | 1080.836 | +20.8% |
+| MCP calls | 238 | 246 | +3.4% |
+| CLI calls | 0 | 0 | unchanged |
+| Total tokens | 6,482,839 | 7,032,110 | +8.5% |
+| Estimated cost USD | 0.269760 | 0.282315 | +4.7% |
+| Failed tool lifecycles | 3 | 4 | +1 |
+
+Inspection of matched answers, tool sequences, failed calls, and efficiency
+outliers found no clear product regression. The candidate's failed shared
+calls are missing documentation targets/selectors and a recovered source read;
+finals retain usable evidence. The largest duration outlier is full-guidance
+`global-example`: its `get_example` call takes 81.266 seconds versus 25.210
+in the baseline, with the same two-tool route. Aggregate matched tool time is
+207.292 versus 197.698 seconds. Extra verification reads also occur, notably
+four additional reads for `code-files-listing`. The measured increases remain
+real observations; a single run with a changed Codex CLI and live backend does
+not isolate a release-caused efficiency regression.
+
+Answer quality is not uniformly clean. Both full-guidance
+`list-package-repository` answers misattribute `SECURITY.md` in their comparison
+prose. Raw tool artifacts on both commits contain the same correct inventories:
+`SECURITY.md` and `benchmarks/` appear only in the pinned package snapshot.
+The candidate lists the paths correctly but assigns `SECURITY.md` to the wrong
+snapshot in its summary; the baseline also incorrectly lists it under the
+repository. This is an existing agent-answer accuracy gap, not changed tool
+data. No quality scorer ran, and self-reported confidence is not a quality
+measurement.
+
+This authenticated CI evidence covers local MCP scenarios. It does not resolve
+the separately recorded authentication-blocked CLI skills evals or verify dev
+backend deployment for the additive site-wait `status` field.
+
 ## Security and evidence boundary
 
 Metrics contain validated numeric/provider fields and normalized summaries,
