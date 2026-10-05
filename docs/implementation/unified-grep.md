@@ -127,8 +127,14 @@ One `Sources:` summary identifies sources that returned matches and each
 numbered evidence header begins with a copyable read locator. `[1]`, `[2]` number
 file/page groups in first-appearance order, never sources or backend scopes.
 Multiple pages share one canonical website in the summary. Hosted documentation
-is labeled separately from repository evidence; the queried package appears as
-`requested`, not as a claim that website pages belong to that package version.
+is labeled separately from repository evidence. A `requested` label appears only
+when a backend-reported full requested commit differs from the served commit;
+index freshness alone and a named ref compared to a SHA do not prove that a
+different snapshot was served. Named-ref mismatch needs resolved requested
+identity metadata that grep does not currently expose. Ordinary and hosted
+documentation results carry no requested label.
+Unavailable requested targets appear below the sources as `Omitted`, with their
+reason and compact advisory total indexing estimate when available.
 Dispatched scopes without matches are omitted from the source summary, while
 their coverage status remains visible. The short repository
 SHA is provenance shorthand; each file locator retains the exact opaque
@@ -137,7 +143,7 @@ or substitute any read target, path or ref. A differing hosted display URL is
 secondary `[page: ...]` metadata after the actual read locator.
 
 ```text
-Sources: site:expressjs.com (hosted documentation), github:expressjs/express@dbac741a (requested: npm:express)
+Sources: site:expressjs.com (hosted documentation), github:expressjs/express@dbac741a
 # Read files: read --lines $start-$end -- $target $path
 # Read pages: read --lines $start-$end -- $url
 

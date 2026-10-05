@@ -55,9 +55,8 @@ describe("uniform indexing evidence presentation", () => {
       const before = structuredClone(result);
       const output = formatGrepText(result, { syntax, width: 160 });
       expect(output).toContain("No matches yet.");
-      expect(output).toContain(": indexing.");
-      expect(output).toContain("Estimated indexing time: 38-57s total");
-      expect(output).toContain("Time spent indexing: 90s");
+      expect(output).toContain("(indexing, estimated total: 38-57s");
+      expect(output).toContain("time spent indexing: 90s");
       expect(output).toContain("Rerun the original query");
       expect(output).toContain(
         syntax === "cli" ? "--wait 70000" : "wait_timeout_ms=70000",
@@ -98,8 +97,23 @@ describe("uniform indexing evidence presentation", () => {
     expect(output).toContain("coverage is incomplete");
     expect(output).toContain("Cursor expired");
     expect(output).toContain("unknown_reason");
-    expect(output).not.toContain("Run grep again");
+    expect(output).not.toContain("Rerun the original query");
     expect(output).not.toContain("being indexed");
+  });
+  it("retains unmatched estimate kinds once without assigning them to an omitted repository", () => {
+    const entry: DiscoveryIndexingEstimate = {
+      ...documentation,
+      targets: repository.targets,
+    };
+    const text = formatGrepText(pending({ indexingEstimates: [entry] }), {
+      width: 160,
+    });
+    expect(text).toContain(`Omitted: ${repository.targets[0]} (indexing)`);
+    expect(
+      text.match(
+        /No time estimate is available for preparing documentation\./g,
+      ),
+    ).toHaveLength(1);
   });
   it("renders unknown history and unsupported docs without fabricated durations", () => {
     const entries: DiscoveryIndexingEstimate[] = [

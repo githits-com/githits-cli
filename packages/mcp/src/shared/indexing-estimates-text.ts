@@ -11,6 +11,7 @@ function safe(value: string): string {
 /** Shared total-duration wording for uniform entries and legacy singular evidence. */
 export function formatIndexingDuration(
   estimate: IndexingDurationEstimate | undefined,
+  style: "full" | "compact" = "full",
 ): string | undefined {
   if (!estimate) return undefined;
   const parts: string[] = [];
@@ -19,18 +20,40 @@ export function formatIndexingDuration(
     estimate.upperSeconds !== undefined
   )
     parts.push(
-      `Estimated indexing time: ${estimate.lowerSeconds}-${estimate.upperSeconds}s total`,
+      style === "compact"
+        ? `estimated total: ${estimate.lowerSeconds}-${estimate.upperSeconds}s`
+        : `Estimated indexing time: ${estimate.lowerSeconds}-${estimate.upperSeconds}s total`,
     );
   if (estimate.elapsedSeconds !== undefined)
-    parts.push(`Time spent indexing: ${estimate.elapsedSeconds}s`);
-  return parts.length ? `${parts.join(". ")}.` : undefined;
+    parts.push(
+      style === "compact"
+        ? `time spent indexing: ${estimate.elapsedSeconds}s`
+        : `Time spent indexing: ${estimate.elapsedSeconds}s`,
+    );
+  return parts.length
+    ? style === "compact"
+      ? parts.join(", ")
+      : `${parts.join(". ")}.`
+    : undefined;
 }
 
 /** Timing evidence stays advisory; entries never replace a tool's lifecycle/action. */
 export function formatIndexingEstimate(
   entry: DiscoveryIndexingEstimate,
+  style: "full" | "compact" = "full",
 ): string {
-  const timing = formatIndexingDuration(entry.estimate);
+  const timing = formatIndexingDuration(entry.estimate, style);
+  if (style === "compact") {
+    const missing =
+      entry.unavailableReason === "NO_HISTORY"
+        ? "not enough history for an estimate"
+        : entry.unavailableReason === "UNSUPPORTED_WORK"
+          ? "no estimate available for documentation"
+          : undefined;
+    return (
+      [timing, missing].filter(Boolean).join(", ") || "estimate unavailable"
+    );
+  }
   const missing =
     entry.unavailableReason === "NO_HISTORY"
       ? "Not enough history to estimate indexing time."

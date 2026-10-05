@@ -40,9 +40,10 @@ defaults do not change, and there is no automatic retry, polling or new status A
 
 Annotated text displays total duration and active elapsed evidence; JSON preserves
 provenance and work identity. Pipe-friendly raw paths and source content remain
-raw. Grep combines a pending target's indexing status and estimate in one paragraph,
-labels results as partial when sources were omitted, and identifies only sources
-that returned matches. Hosted-site matches do not establish package-version
+raw. Grep identifies only sources that returned matches, followed by `Omitted`
+entries that combine each unavailable requested target's reason and compact
+advisory total estimate. There is no separate partial-data or indexing paragraph.
+Hosted-site matches do not establish package-version
 provenance. The existing cursor instructions stay at the end; a short final note
 suggests rerunning the original query with the recommended wait. That retry is a
 fresh first-page request with the same ordered targets and matching controls.
@@ -100,10 +101,15 @@ trigger lacks evidence. No speculative fallback or new duration model was added.
 
 The user's subsequent Express 1.0.2 reproduction exposed misleading attribution:
 the matches came from the documentation site while package source was indexing.
-The correction combines target status and timing, marks partial data, shows only
-matched sources, and moves the short wait suggestion to the end. The shared/grep
-regression suite passed 1,587 tests; build, CLI stable/experimental unauthenticated
+The finalized correction shows matched sources followed by omitted requested
+targets and their reason/timing, with the short wait suggestion at the end. A
+requested-ref label is reserved for a backend-reported full requested commit
+that differs from the served commit. A named ref needs resolved identity evidence
+before it can establish a mismatch; freshness alone cannot establish one. The shared/grep
+regression suite passed 1,590 tests, plus 34 focused tests after the final identity
+comparison correction; build, CLI stable/experimental unauthenticated
 smoke and MCP stable/experimental registration smoke passed. Repository request
-label duplication found in review was removed and covered by a regression. The
+label duplication and a vacuous nonretryable assertion found in review were fixed
+and covered by regressions. The
 repeated targeted agent eval completed with zero tool calls, so it supplies no
 evidence for the corrected tool output.

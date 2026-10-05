@@ -12,10 +12,7 @@ import {
   renderIndexingEstimates,
 } from "./indexing-estimates-text.js";
 import { indexingWaitMs } from "./indexing-wait.js";
-import {
-  formatRepositoryTarget,
-  formatRepositoryTargetLabel,
-} from "./repository-target.js";
+import { formatRepositoryTarget } from "./repository-target.js";
 import { shellQuoteExact } from "./shell-quote.js";
 import { terminalWidth } from "./terminal-width.js";
 
@@ -75,7 +72,13 @@ export function formatGrepText(
       : `${result.totalMatches} match${result.totalMatches === 1 ? "" : "es"} in ${matchingLines} line${matchingLines === 1 ? "" : "s"} across ${groups.length} ${noun}${result.nextCursor ? "; more available" : ""}`,
   );
   if (options.useColors) lines[0] = `${colors.bold}${lines[0]}${colors.reset}`;
-  for (const scope of result.targets) renderCoverage(scope, prose);
+  if (groups.length) {
+    lines.push("");
+    const matchedScopes = new Set(result.hits.map((hit) => hit.targetIndex));
+    prose(
+      `Sources: ${formatSources(result.targets.filter((scope) => matchedScopes.has(scope.targetIndex)))}`,
+    );
+  }
   const combinedEstimates = new Set<DiscoveryIndexingEstimate>();
   for (const omitted of result.unavailableTargets) {
     const kind =
@@ -89,7 +92,7 @@ export function formatGrepText(
     );
     for (const entry of estimates) combinedEstimates.add(entry);
     prose(
-      `${omitted.target}${result.unavailableTargets.filter((target) => target.target === omitted.target).length > 1 ? ` (input ${omitted.inputIndex})` : ""}: ${kind === "REPOSITORY" ? "indexing" : grepPreparationReason(omitted.reason)}.${estimates.length ? ` ${estimates.map(formatIndexingEstimate).join(" ")}` : ""}`,
+      `Omitted: ${omitted.target}${result.unavailableTargets.filter((target) => target.target === omitted.target).length > 1 ? ` (input ${omitted.inputIndex})` : ""} (${kind === "REPOSITORY" ? "indexing" : grepPreparationReason(omitted.reason)}${estimates.length ? `, ${estimates.map((entry) => formatIndexingEstimate(entry, "compact")).join("; ")}` : ""})`,
     );
     for (const target of omitted.suggestedSiteTargets ?? [])
       prose(`  Suggested site: ${target}`);
@@ -98,14 +101,9 @@ export function formatGrepText(
     result.indexingEstimates?.filter((entry) => !combinedEstimates.has(entry)),
   ))
     prose(estimate);
+  for (const scope of result.targets) renderCoverage(scope, prose);
 
   if (groups.length) {
-    lines.push("");
-    if (result.unavailableTargets.length) prose("Serving partial data.");
-    const matchedScopes = new Set(result.hits.map((hit) => hit.targetIndex));
-    prose(
-      `Sources: ${formatSources(result.targets.filter((scope) => matchedScopes.has(scope.targetIndex)))}`,
-    );
     if (kinds.has("GrepRepositoryHit"))
       lines.push(
         dim(
@@ -290,12 +288,11 @@ function hasCoverageGap(scope: GrepTargetStatus): boolean {
   );
 }
 function formatSources(scopes: GrepTargetStatus[]): string {
-  const targets = new Map<string, Set<string>>();
+  const sources = new Set<string>();
   for (const scope of scopes) {
-    const sources = targets.get(scope.target) ?? new Set<string>();
     if (scope.kind === "SITE" && scope.canonicalSite)
       sources.add(
-        `site:${scope.canonicalSite.replace(/^https?:\/\//i, "").replace(/\/$/, "")}`,
+        `site:${scope.canonicalSite.replace(/^https?:\/\//i, "").replace(/\/$/, "")} (hosted documentation)`,
       );
     if (scope.kind === "REPOSITORY" && scope.repoUrl && scope.commitSha) {
       const corpus =
@@ -304,31 +301,28 @@ function formatSources(scopes: GrepTargetStatus[]): string {
           : scope.corpus === "DOCUMENTATION"
             ? " (repository docs)"
             : "";
+      // A named ref and a SHA can identify the same snapshot. Compare commit IDs.
+      const requested =
+        scope.requestedRef &&
+        /^[a-f0-9]{40}$/i.test(scope.requestedRef) &&
+        scope.requestedRef.toLowerCase() !== scope.commitSha.toLowerCase()
+          ? ` (requested: ${scope.target})`
+          : "";
       sources.add(
-        `${formatRepositoryTarget(scope.repoUrl, scope.commitSha.slice(0, 8))}${corpus}`,
+        `${formatRepositoryTarget(scope.repoUrl, scope.commitSha.slice(0, 8))}${corpus}${requested}`,
       );
     }
-    targets.set(scope.target, sources);
+    if (
+      (scope.kind === "SITE" && !scope.canonicalSite) ||
+      (scope.kind === "REPOSITORY" && (!scope.repoUrl || !scope.commitSha))
+    )
+      sources.add(scope.target);
   }
-  return [...targets]
-    .map(([target, sources]) => {
-      const identities = [...sources].sort(
-        (a, b) => Number(b.startsWith("site:")) - Number(a.startsWith("site:")),
-      );
-      const requested =
-        sources.has(target) || formatRepositoryTargetLabel(target)
-          ? ""
-          : ` (requested: ${target})`;
-      const serving = identities
-        .map((identity) =>
-          identity.startsWith("site:")
-            ? `${identity} (hosted documentation)`
-            : identity,
-        )
-        .join(", ");
-      return identities.length ? `${serving}${requested}` : target;
-    })
-    .join("; ");
+  return [...sources]
+    .sort(
+      (a, b) => Number(b.startsWith("site:")) - Number(a.startsWith("site:")),
+    )
+    .join(", ");
 }
 
 /** Keep ordinary locators readable and unsafe operands copyable without shell expansion. */
