@@ -816,7 +816,7 @@ describe("pkgReadAction", () => {
     const output = errorSpy.mock.calls[0]?.[0] as string;
     expect(output).not.toContain("ref_xyz");
     expect(output).toContain("Source is being indexed.");
-    expect(output).toContain("Indexed versions/refs: 4.21.0");
+    expect(output).toContain("Indexed alternatives: versions/refs 4.21.0");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });

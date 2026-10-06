@@ -326,3 +326,95 @@ describe("formatListFilesTerminal", () => {
     expect(stderr).toContain("No files match");
   });
 });
+
+describe("legacy file list source rows", () => {
+  const repoUrl = "https://github.com/acme/project";
+  const sha = "1234567890abcdef1234567890abcdef12345678";
+  it("retains an indexed-ref diagnostic without inventing a package version", () => {
+    const value = buildListFilesSuccessPayload(
+      { ...baseResult, indexedVersion: "release-branch" },
+      baseOptions,
+    );
+    const shown = formatListFilesTerminal(value, {
+      verbose: true,
+      useColors: false,
+    }).stdout;
+    expect(shown).not.toContain("Sources:");
+    expect(shown).toContain("indexed at v5.2.1");
+    expect(shown).not.toContain("npm:express@release-branch");
+  });
+  it("uses a dated eight-character pin and removes only covered legacy resolution facts", () => {
+    const value = buildListFilesSuccessPayload(
+      {
+        ...baseResult,
+        indexedVersion: "main",
+        resolution: { resolvedRef: "main", commitSha: sha },
+        targetResolution: {
+          availableVersions: [],
+          availableRefs: [],
+          served: {
+            repoUrl,
+            gitRef: "main",
+            commitSha: sha,
+            committedAt: "2026-01-02T00:00:00Z",
+          },
+          freshness: "current",
+          freshnessReason: "exact_current",
+        },
+      },
+      { ...baseOptions, repoUrl },
+    );
+    const shown = formatListFilesTerminal(value, {
+      verbose: true,
+      useColors: false,
+      width: 200,
+    }).stdout;
+    expect(shown).toContain(
+      "Sources:\n  - github:acme/project@12345678 (committed 2026-01-02, indexed from ref main)",
+    );
+    expect(shown).not.toContain("commit 1234567");
+    expect(shown).not.toContain("indexed at main");
+    const different = formatListFilesTerminal(
+      {
+        ...value,
+        resolution: { resolvedRef: "other", commitSha: "fedcba9876543210" },
+      },
+      { verbose: true, useColors: false },
+    ).stdout;
+    expect(different).toContain("indexed at other");
+    expect(different).toContain("commit fedcba9");
+    expect(formatListFilesTerminal(value, { useColors: false })).toEqual({
+      stdout: "src/index.js\nsrc/lib/app.js\n",
+      stderr: undefined,
+    });
+  });
+  it("keeps empty verbose provenance and deferred recovery while plain output stays empty", () => {
+    const value = buildListFilesSuccessPayload(
+      {
+        ...baseResult,
+        files: [],
+        total: 0,
+        targetResolution: {
+          availableVersions: [],
+          availableRefs: [],
+          served: { repoUrl, gitRef: "main", commitSha: sha },
+          freshness: "fallback_recent",
+          freshnessReason: "ref_resolution_deferred",
+          suggestedRefs: [{ ref: "candidate" }],
+        },
+      },
+      baseOptions,
+    );
+    const shown = formatListFilesTerminal(value, {
+      verbose: true,
+      useColors: false,
+    }).stdout;
+    expect(shown).toContain("Sources:");
+    expect(shown).toContain("older snapshot");
+    expect(shown).toContain("Branch resolution is deferred.");
+    expect(shown).toContain("suggested refs (may need indexing): candidate");
+    expect(formatListFilesTerminal(value, { useColors: false }).stdout).toBe(
+      "",
+    );
+  });
+});

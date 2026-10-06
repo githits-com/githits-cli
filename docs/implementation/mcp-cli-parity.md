@@ -236,8 +236,8 @@ test suite anchors the doc.
 - **MCP arguments** use `snake_case`. They are the wire contract agents
   see; the JSON-schema description is the primary UX.
 - **CLI flags** use `--kebab-case`. They are the user-facing surface.
-  `allow_partial_results` maps to CLI `--allow-partial` because the CLI
-  name reads better as a command flag while preserving the same behaviour.
+  `allow_partial_results` maps to CLI `--allow-partial` (true) and
+  `--no-allow-partial` (false), preserving the shared default true.
   `search_status.wait_timeout_ms` maps to `search-status --wait <seconds>`;
   both default to the shared 30-second bounded wait.
 - **Public enum values** are lowercase strings on both surfaces
@@ -344,11 +344,11 @@ test suite anchors the doc.
   echo. Follow-up `search_status` responses intentionally omit that
   echo and return only backend-known fields:
   `{completed, searchRef?, progress?, result?}`.
-- Unified `search` is complete-by-default (`allowPartialResults: false`).
-  An incomplete response may still carry an atomic interim result when every
-  runnable target/source pair is serveable. `allow_partial_results` /
-  `--allow-partial` additionally permit a serveable subset while other pairs
-  remain unavailable; both forms carry `results` plus the `searchRef`.
+- Unified `search` permits partial results by default (`allowPartialResults: true`).
+  CLI `--no-allow-partial` and MCP `allow_partial_results: false` require atomic
+  evidence across runnable pairs; `--allow-partial` remains accepted. An incomplete
+  response can carry `results` plus `searchRef`; backend `partialResults` remains
+  authoritative. The compact initial query echo omits default true and preserves explicit false.
 - Completed empty search JSON retains zero-result source/target context;
   healthy source status remains suppressed for non-empty success. Text advice
   is renderer-only and never replaces structured JSON.
@@ -362,15 +362,15 @@ wrapping, hit anatomy, and ordering. Callers provide ANSI enablement,
 surface-native action syntax, and an optional output width. CLI supplies its
 current terminal width; MCP uses the formatter's 80-column default. The order is
 an outcome headline carrying count/breakdown, lifecycle, readiness, and
-pagination when applicable; one compact `Sources: <target> - <sources>` row for
-ordinary completed current results, with canonical site locators and compact
-GitHub revision locators; a source identical to its standalone target is written once.
-A sole pinned repository source replaces its less-specific repository target.
-An already-pinned repository target remains beside its resolved commit. Compact repository
-provenance requires both its URL and commit; documentation without concrete provenance uses
-one detailed target block instead. Other non-compact results likewise use one block per
-requested target; target-local state/recovery and global warnings; the separate ranked hit
-list; and at most one final `Next:` action.
+pagination when applicable; shared `Sources:` bullet rows for searched evidence,
+then `Preparing:` rows for actual work before ranked hits. Known repository rows
+use an 8-character display SHA, optional independent date and historical ref;
+current healthy evidence uses the same shape. Documentation rows retain exact
+site scope/corpus and package attribution. Unknown identities retain supplied
+labels. Zero-hit searched sources disclose their scope; unsearched/withheld
+sources retain target-local readiness/recovery instead. Different full SHAs,
+corpora, readiness or coverage remain distinct. Target-local limitations and
+global warnings remain visible, followed by at most one final `Next:` action.
 
 `PENDING`, `INDEXING`, and `SEARCHING` remain distinct. Active empty output uses
 `No results yet | indexing | 0/1 ready`; an active response without a snapshot
@@ -772,7 +772,9 @@ normalization, pagination, actions, errors, and text output.
 - **`list`**: literal paths and globs form a union. Selected directories expose
   immediate children unless `recursive` expands them; glob depth is
   independent. JSON returns backend-authored read/browse actions and an opaque
-  continuation cursor. Text returns only the source line and paths.
+  continuation cursor. Text renders Sources, an exact native read recipe when available, and paths;
+  Preparing and scoped recovery follow the inventory. Silent CLI output contains
+  paths only.
 - **`read` code branch**: envelope uses `path` (not `filePath`) to match
   returned list action/path. Binary files: `isBinary: true` +
   `content` omitted (not `null`). INDEXING details may carry
@@ -796,3 +798,22 @@ normalization, pagination, actions, errors, and text output.
 See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, and GitLab addressing contract and provider-preserving response identity.
 
 See [Unified read](unified-read.md) for backend-owned source resolution, fragment ranges, indexing waits, Ask pointer translation and release migration.
+
+### Shared source and preparation wording
+
+Search/status, public grep/list and annotated reads use the same neutral identity,
+absolute known date, historical ref and preparation timing clauses. Shared source
+and preparation formatters live in MCP shared presentation; callers own evidence
+attribution, placement, width/color and exact native actions. Sources identify
+served content; Preparing identifies actual work. Only exact raw repository/full
+SHA equality plus HEAD/default-branch intent proves `observed HEAD`. Public grep
+has no selected date or HEAD proof and omits them. Requested commits differing
+from actual preparation remain separately labelled. Retained ended searches say
+`indexing when observed` and require a new search for updated results.
+
+List text requests minimal provenance; JSON retains selected full timestamps,
+nulls/omissions and existing metadata/actions. Its read guidance retains the
+package or scoped PAGE action path base independently of pinned display labels.
+Raw CLI reads, non-annotated legacy inventories and silent lists retain their
+pipe-friendly bytes. Human legacy recovery stays visible; structured warning
+projections are not rewritten.

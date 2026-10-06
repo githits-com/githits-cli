@@ -237,9 +237,12 @@ describe("createCodeReadTool — happy path", () => {
     );
 
     const text = result.content[0]?.text ?? "";
+    expect(text).toContain("Sources:");
     expect(text).toContain(
-      "Using recent indexed snapshot while branch resolution is deferred",
+      "github:expressjs/express@abc12378 (indexed from ref main, older snapshot)",
     );
+    expect(text).toContain("Requested: github:expressjs/express@def45678");
+    expect(text).toContain("Branch resolution is deferred.");
     expect(text).toContain("queryable now: refs=main");
   });
 });

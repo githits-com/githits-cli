@@ -54,6 +54,7 @@ export interface ListParams {
   after?: string;
   waitTimeoutMs?: number;
   includeDetailedFields: boolean;
+  includeTargetProvenance?: boolean;
   /** Select exact read actions for compact site text; detailed fields always include them. */
   includeReadActions?: boolean;
 }
@@ -107,13 +108,14 @@ export interface ListResolution {
 }
 
 export interface ListTargetIdentity {
-  kind: string | null;
-  registry: string | null;
-  packageName: string | null;
-  version: string | null;
-  repoUrl: string | null;
+  kind?: string | null;
+  registry?: string | null;
+  packageName?: string | null;
+  version?: string | null;
+  repoUrl?: string | null;
   gitRef: string | null;
-  commitSha: string | null;
+  commitSha?: string | null;
+  committedAt?: string | null;
 }
 
 export interface ListTargetResolution {
@@ -122,10 +124,10 @@ export interface ListTargetResolution {
   served: ListTargetIdentity | null;
   freshness: string | null;
   freshnessReason: string | null;
-  indexingRef: string | null;
-  availableVersions: ListAvailableVersion[] | null;
-  availableRefs: ListAvailableVersion[] | null;
-  suggestedRefs: ListAvailableVersion[] | null;
+  indexingRef?: string | null;
+  availableVersions?: ListAvailableVersion[] | null;
+  availableRefs?: ListAvailableVersion[] | null;
+  suggestedRefs?: ListAvailableVersion[] | null;
 }
 
 export interface ListIndexingEstimate {
@@ -283,13 +285,14 @@ const resolutionSchema = z.object({
 });
 
 const targetIdentitySchema = z.object({
-  kind: nullableString,
-  registry: nullableString,
-  packageName: nullableString,
-  version: nullableString,
-  repoUrl: nullableString,
+  kind: optionalNullableString,
+  registry: optionalNullableString,
+  packageName: optionalNullableString,
+  version: optionalNullableString,
+  repoUrl: optionalNullableString,
   gitRef: nullableString,
-  commitSha: nullableString,
+  commitSha: optionalNullableString,
+  committedAt: optionalNullableString,
 });
 
 const targetResolutionSchema = z.object({
@@ -298,10 +301,10 @@ const targetResolutionSchema = z.object({
   served: targetIdentitySchema.nullable(),
   freshness: nullableString,
   freshnessReason: nullableString,
-  indexingRef: nullableString,
-  availableVersions: z.array(availableVersionSchema).nullable(),
-  availableRefs: z.array(availableVersionSchema).nullable(),
-  suggestedRefs: z.array(availableVersionSchema).nullable(),
+  indexingRef: optionalNullableString,
+  availableVersions: z.array(availableVersionSchema).nullable().optional(),
+  availableRefs: z.array(availableVersionSchema).nullable().optional(),
+  suggestedRefs: z.array(availableVersionSchema).nullable().optional(),
 });
 
 const indexingEstimateSchema = z.object({
@@ -381,6 +384,7 @@ query List(
   $after: String
   $waitTimeoutMs: Int
   $includeDetailedFields: Boolean!
+  $includeTargetProvenance: Boolean!
   $includeReadActions: Boolean!
 ) {
   list(
@@ -426,46 +430,48 @@ query List(
       resolvedRef
       commitSha
     }
-    targetResolution @include(if: $includeDetailedFields) {
+    targetResolution @include(if: $includeTargetProvenance) {
       requested {
         kind
+        gitRef
         registry
         packageName
         version
         repoUrl
-        gitRef
-        commitSha
+        commitSha @include(if: $includeDetailedFields)
       }
       resolvedRequested {
-        kind
-        registry
-        packageName
-        version
         repoUrl
         gitRef
         commitSha
+        committedAt
+        kind @include(if: $includeDetailedFields)
+        registry @include(if: $includeDetailedFields)
+        packageName @include(if: $includeDetailedFields)
+        version @include(if: $includeDetailedFields)
       }
       served {
-        kind
-        registry
-        packageName
-        version
         repoUrl
         gitRef
         commitSha
+        committedAt
+        kind @include(if: $includeDetailedFields)
+        registry @include(if: $includeDetailedFields)
+        packageName @include(if: $includeDetailedFields)
+        version @include(if: $includeDetailedFields)
       }
       freshness
       freshnessReason
-      indexingRef
-      availableVersions {
+      indexingRef @include(if: $includeDetailedFields)
+      availableVersions @include(if: $includeDetailedFields) {
         version
         ref
       }
-      availableRefs {
+      availableRefs @include(if: $includeDetailedFields) {
         version
         ref
       }
-      suggestedRefs {
+      suggestedRefs @include(if: $includeDetailedFields) {
         version
         ref
       }
@@ -597,6 +603,8 @@ function buildListVariables(params: ListParams): Record<string, unknown> {
       ? { waitTimeoutMs: params.waitTimeoutMs }
       : {}),
     includeDetailedFields: params.includeDetailedFields,
+    includeTargetProvenance:
+      params.includeDetailedFields || params.includeTargetProvenance === true,
     includeReadActions:
       params.includeDetailedFields || params.includeReadActions === true,
   };

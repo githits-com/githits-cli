@@ -1663,84 +1663,89 @@ describe("CodeNavigationServiceImpl", () => {
     expect(result.resolution?.resolvedRef).toBe("v5.2.1");
   });
 
-  it("normalises unified search highlight spans", async () => {
-    const fn = mockFetch(() =>
-      Promise.resolve(
-        new Response(
-          JSON.stringify({
-            data: {
-              search: {
-                completed: true,
-                searchRef: "search-ref-123",
-                result: {
-                  query: "router middleware",
-                  queryWarnings: [],
-                  sources: ["CODE"],
-                  results: [
-                    {
-                      readTarget: null,
-                      id: "hit-1",
-                      resultType: "REPOSITORY_CODE",
-                      targetLabel: "npm:express@4.18.2",
-                      title: "router middleware",
-                      summary: "function router(req, res, next) { ... }",
-                      score: 0.92,
-                      highlights: {
-                        title: [[7, 17]],
-                        summary: [[9, 15]],
+  it.each([undefined, true, false])(
+    "normalises unified search highlight spans and partial wire mode %s",
+    async (allowPartialResults) => {
+      const fn = mockFetch(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data: {
+                search: {
+                  completed: true,
+                  searchRef: "search-ref-123",
+                  result: {
+                    query: "router middleware",
+                    queryWarnings: [],
+                    sources: ["CODE"],
+                    results: [
+                      {
+                        readTarget: null,
+                        id: "hit-1",
+                        resultType: "REPOSITORY_CODE",
+                        targetLabel: "npm:express@4.18.2",
+                        title: "router middleware",
+                        summary: "function router(req, res, next) { ... }",
+                        score: 0.92,
+                        highlights: {
+                          title: [[7, 17]],
+                          summary: [[9, 15]],
+                        },
+                        locator: {
+                          registry: "npm",
+                          packageName: "express",
+                          version: "4.18.2",
+                          filePath: "lib/router/index.js",
+                          startLine: 42,
+                          endLine: 57,
+                          language: "javascript",
+                        },
                       },
-                      locator: {
-                        registry: "npm",
-                        packageName: "express",
-                        version: "4.18.2",
-                        filePath: "lib/router/index.js",
-                        startLine: 42,
-                        endLine: 57,
-                        language: "javascript",
-                      },
+                    ],
+                    page: {
+                      offset: 0,
+                      limit: 20,
+                      returned: 1,
+                      hasMore: false,
                     },
-                  ],
-                  page: {
-                    offset: 0,
-                    limit: 20,
-                    returned: 1,
-                    hasMore: false,
+                    partialResults: false,
+                    sourceStatus: [],
                   },
-                  partialResults: false,
-                  sourceStatus: [],
+                  progress: null,
                 },
-                progress: null,
               },
-            },
-          }),
-          { headers: { "Content-Type": "application/json" } },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          ),
         ),
-      ),
-    );
+      );
 
-    const service = new CodeNavigationServiceImpl(
-      BASE_URL,
-      createMockTokenProvider(),
-      globalThis.fetch,
-    );
+      const service = new CodeNavigationServiceImpl(
+        BASE_URL,
+        createMockTokenProvider(),
+        globalThis.fetch,
+      );
 
-    const result = await service.search({
-      targets: [{ registry: "NPM", packageName: "express" }],
-      query: "router middleware",
-      allowPartialResults: true,
-    });
+      const result = await service.search({
+        targets: [{ registry: "NPM", packageName: "express" }],
+        query: "router middleware",
+        allowPartialResults,
+      });
 
-    expect(result.state).toBe("completed");
-    if (result.state !== "completed") {
-      throw new Error("expected completed search outcome");
-    }
-    expect(result.result.results[0]?.highlights).toEqual({
-      title: [[7, 17]],
-    });
-    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
-    const body = JSON.parse(init.body as string);
-    expect(body.variables.allowPartialResults).toBe(true);
-  });
+      expect(result.state).toBe("completed");
+      if (result.state !== "completed") {
+        throw new Error("expected completed search outcome");
+      }
+      expect(result.result.results[0]?.highlights).toEqual({
+        title: [[7, 17]],
+      });
+      const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+      const body = JSON.parse(init.body as string);
+      expect(body.variables.allowPartialResults).toBe(
+        allowPartialResults ?? true,
+      );
+    },
+  );
 
   it("structural search evidence round-trip from search", async () => {
     await assertStructuralSearchRoundTrip(BASE_URL, "search");
@@ -1852,6 +1857,143 @@ describe("CodeNavigationServiceImpl", () => {
           expect(fn).toHaveBeenCalledTimes(1);
         });
       }
+    }
+  });
+
+  describe("search commit dates", () => {
+    for (const operation of ["search", "searchStatus"] as const) {
+      it.each([
+        ["2026-09-01T23:59:59Z", "2026-10-05T00:00:01Z"],
+        [null, "2026-10-05T00:00:01Z"],
+        ["2026-09-01T23:59:59Z", null],
+        [null, null],
+        [undefined, undefined],
+      ])(
+        `selects and preserves independent dates in ${operation} result and progress (%s / %s)`,
+        async (servedDate, requestedDate) => {
+          const targetResolution = {
+            requested: { kind: "repo_default_branch" },
+            resolvedRequested: {
+              repoUrl: "https://github.com/owner/repo",
+              commitSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              committedAt: requestedDate,
+            },
+            served: {
+              repoUrl: "https://github.com/owner/repo",
+              commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              committedAt: servedDate,
+            },
+            freshness: "fallback_recent",
+            availableVersions: [],
+            availableRefs: [],
+          };
+          const result = buildV31EvidenceSearchResult();
+          result.sourceStatus = [
+            {
+              source: "CODE",
+              targetLabel: "github:owner/repo",
+              resultCount: 1,
+              targetResolution,
+              appliedFilters: [],
+              ignoredFilters: [],
+              incompatibleFilters: [],
+              appliedQueryFeatures: [],
+              ignoredQueryFeatures: [],
+              incompatibleQueryFeatures: [],
+              suggestedSiteTargets: [],
+              suggestedSiteTargetsTruncated: false,
+              contributors: [],
+            },
+          ];
+          const progress = {
+            searchRef: "v31-evidence-search-ref",
+            status: "INDEXING",
+            targetsTotal: 1,
+            targetsReady: 1,
+            indexingEstimates: [],
+            elapsedMs: 12,
+            query: result.query,
+            queryWarnings: [],
+            sources: ["CODE"],
+            targets: [{ targetResolution }],
+          };
+          const response =
+            operation === "search"
+              ? {
+                  data: {
+                    search: {
+                      completed: false,
+                      searchRef: progress.searchRef,
+                      result,
+                      progress,
+                    },
+                  },
+                }
+              : {
+                  data: {
+                    discoverySearchProgress: { ...progress, results: result },
+                  },
+                };
+          const fn = mockFetch(() =>
+            Promise.resolve(
+              new Response(JSON.stringify(response), {
+                headers: { "Content-Type": "application/json" },
+              }),
+            ),
+          );
+          const service = new CodeNavigationServiceImpl(
+            BASE_URL,
+            createMockTokenProvider(),
+            globalThis.fetch,
+          );
+          const outcome =
+            operation === "search"
+              ? await service.search({
+                  targets: [{ repoUrl: "https://github.com/owner/repo" }],
+                  query: result.query,
+                  waitTimeoutMs: 0,
+                })
+              : await service.searchStatus(progress.searchRef, 0);
+          expect(outcome.state).toBe("incomplete");
+          if (outcome.state !== "incomplete")
+            throw new Error("expected incomplete result");
+          for (const resolution of [
+            outcome.result?.sourceStatus[0]?.targetResolution,
+            outcome.progress?.targets?.[0]?.targetResolution,
+          ]) {
+            expect(resolution?.served?.committedAt).toBe(
+              servedDate ?? undefined,
+            );
+            expect(resolution?.resolvedRequested?.committedAt).toBe(
+              requestedDate ?? undefined,
+            );
+            expect(resolution?.requested).not.toHaveProperty("committedAt");
+          }
+          expect<unknown>(
+            outcome.result?.results.map(({ readTarget }) => readTarget),
+          ).toEqual(result.results.map(({ readTarget }) => readTarget));
+          expect(fn).toHaveBeenCalledTimes(1);
+          const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+          const { query, variables } = JSON.parse(init.body as string) as {
+            query: string;
+            variables: Record<string, unknown>;
+          };
+          const selections = [
+            ...query.matchAll(
+              /targetResolution\s*\{\s*requested\s*\{([^}]+)\}\s*resolvedRequested\s*\{([^}]+)\}\s*served\s*\{([^}]+)\}/g,
+            ),
+          ];
+          expect(selections).toHaveLength(2); // Source status and progress use the same identity selection.
+          for (const [, requested, resolved, served] of selections) {
+            expect(requested).not.toContain("committedAt");
+            expect(resolved).toContain("committedAt");
+            expect(served).toContain("committedAt");
+          }
+          expect(variables.waitTimeoutMs).toBe(0);
+          if (operation === "searchStatus")
+            expect(variables.includeResults).toBe(true);
+        },
+      );
     }
   });
 

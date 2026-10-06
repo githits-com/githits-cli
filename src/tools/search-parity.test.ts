@@ -5,8 +5,13 @@ import type {
   UnifiedSearchParams,
   UnifiedSearchRepositoryEvidence,
 } from "@githits/core-internal";
+import { Command } from "commander";
 import { resolveAction } from "../commands/resolve.js";
-import { searchAction, searchStatusAction } from "../commands/search.js";
+import {
+  registerSearchCommand,
+  searchAction,
+  searchStatusAction,
+} from "../commands/search.js";
 import {
   createMockCodeNavigationService,
   createMockResolveTargetService,
@@ -697,7 +702,8 @@ describe("usable snapshot presentation parity", () => {
               kind: "REPOSITORY",
               targets: [target],
               repositoryUrl: repoUrl,
-              estimate: { upperSeconds: 120 },
+              commitSha: requestedSha,
+              estimate: { lowerSeconds: 100, upperSeconds: 120 },
             },
           ],
         },
@@ -735,8 +741,18 @@ describe("usable snapshot presentation parity", () => {
               codeIndexState: "STALE",
               targetResolution: {
                 requested: { kind: "repo_default_branch" },
-                resolvedRequested: { gitRef: "HEAD", commitSha: requestedSha },
-                served: { repoUrl, gitRef: "HEAD", commitSha: servedSha },
+                resolvedRequested: {
+                  repoUrl,
+                  gitRef: "HEAD",
+                  commitSha: requestedSha,
+                  committedAt: "2026-10-05T00:00:01Z",
+                },
+                served: {
+                  repoUrl,
+                  gitRef: "HEAD",
+                  commitSha: servedSha,
+                  committedAt: "2026-09-01T23:59:59Z",
+                },
                 freshness: "fallback_recent",
                 freshnessReason: "requested_ref_indexing",
                 availableVersions: [],
@@ -784,7 +800,13 @@ describe("usable snapshot presentation parity", () => {
         cliStatus,
         mcpStatus.content[0]?.text ?? "",
       ]) {
-        expect(text).toContain("commit: github:anomalyco/opencode@bbd72fb8");
+        expect(text).toContain("  - github:anomalyco/opencode@bbd72fb8");
+        expect(text.replace(/\s+/g, " ")).toContain(
+          "committed 2026-09-01, indexed from ref HEAD",
+        );
+        expect(text.replace(/\s+/g, " ")).toContain(
+          "indexing, estimated total: 100-120s, committed 2026-10-05, observed HEAD",
+        );
         expect(text).toContain("Next: use these hits");
         expect(text).not.toContain("Next: search_status");
         expect(text).not.toContain("Next: githits search-status");
@@ -810,14 +832,312 @@ describe("usable snapshot presentation parity", () => {
         sourceStatus: [
           {
             targetResolution: {
-              served: { commitSha: servedSha },
-              resolvedRequested: { commitSha: requestedSha },
+              served: {
+                commitSha: servedSha,
+                committedAt: "2026-09-01T23:59:59Z",
+              },
+              resolvedRequested: {
+                commitSha: requestedSha,
+                committedAt: "2026-10-05T00:00:01Z",
+              },
             },
           },
         ],
       });
+      const statusJson = await statusTool.handler(
+        { search_ref: "snapshot-ref", wait_timeout_ms: 0, format: "json" },
+        {},
+      );
+      const cliLog = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await searchStatusAction(
+          "snapshot-ref",
+          { wait: "0", json: true },
+          {
+            codeNavigationService: service,
+            codeNavigationUrl: "https://nav.example.com",
+            hasValidToken: true,
+            mcpUrl: "https://mcp.example.com",
+          },
+        );
+        const cliStatusJson = JSON.parse(String(cliLog.mock.calls[0]?.[0]));
+        const mcpStatusJson = JSON.parse(statusJson.content[0]?.text ?? "");
+        expect(cliStatusJson).toEqual(mcpStatusJson);
+        expect(mcpStatusJson.result.sourceStatus[0].targetResolution).toEqual(
+          (json as { sourceStatus: Array<{ targetResolution: unknown }> })
+            .sourceStatus[0]!.targetResolution,
+        );
+      } finally {
+        cliLog.mockRestore();
+      }
       // JSON keeps the existing capped follow-up contract; the text's practical
       // example uses the backend selection unchanged.
+    },
+  );
+});
+
+describe("healthy source provenance through actual search adapters", () => {
+  it.each(["code", "repository-docs", "mixed-zero", "no-resolution"])(
+    "preserves healthy source provenance %s through initial/status text and compact JSON",
+    async (mode) => {
+      if (defaultUnifiedSearchOutcome.state !== "completed")
+        throw new Error("expected completed fixture");
+      const original = defaultUnifiedSearchOutcome.result;
+      const repoUrl = "https://github.com/n8n-io/n8n";
+      const sha = "4fdfc9f9db35702b64a8f15044a454044e47f6fc";
+      const target = "npm:n8n@2.36.6";
+      const outcome: UnifiedSearchOutcome = {
+        state: "completed",
+        completed: true,
+        searchRef: "healthy-search",
+        result: {
+          ...original,
+          partialResults: false,
+          results: [
+            {
+              ...original.results[0]!,
+              targetLabel: target,
+              locator: {
+                ...original.results[0]!.locator,
+                repoUrl,
+                commitSha: sha,
+                gitRef: sha,
+              },
+              readTarget: { target, path: "src/index.ts" },
+            },
+          ],
+          sourceStatus: [
+            {
+              ...original.sourceStatus[0]!,
+              source: "CODE",
+              targetLabel: target,
+              codeIndexState: "CURRENT",
+              indexingStatus: "INDEXED",
+              resultCount: 1,
+              targetResolution: {
+                requested: {
+                  kind: "package_exact_version",
+                  registry: "npm",
+                  packageName: "n8n",
+                  version: "2.36.6",
+                },
+                resolvedRequested: {
+                  repoUrl,
+                  gitRef: "n8n@2.36.6",
+                  commitSha: sha,
+                  committedAt: "2026-08-24T00:00:00Z",
+                },
+                served: {
+                  repoUrl,
+                  gitRef: "n8n@2.36.6",
+                  commitSha: sha,
+                  committedAt: "2026-08-24T00:00:00Z",
+                },
+                freshness: "current",
+                freshnessReason: "exact_current",
+                availableVersions: [],
+                availableRefs: [],
+              },
+            },
+          ],
+        },
+      };
+      if (mode === "repository-docs") {
+        const source = outcome.result.sourceStatus[0]!;
+        source.source = "DOCS";
+        source.contributors = [
+          {
+            kind: "REPOSITORY_DOCS",
+            state: "SEARCHED",
+            freshness: "CURRENT",
+            resultCount: 1,
+            repositoryUrl: repoUrl,
+            commitSha: sha,
+          },
+        ];
+        outcome.result.results[0]!.resultType = "REPOSITORY_DOC";
+        outcome.result.results[0]!.locator.pageId = "repository-doc-page";
+      } else if (mode === "mixed-zero") {
+        const zeroSha = "a".repeat(40);
+        outcome.result.sourceStatus.push({
+          ...outcome.result.sourceStatus[0]!,
+          targetLabel: `github:n8n-io/n8n@${zeroSha}`,
+          resultCount: 0,
+          targetResolution: {
+            requested: { kind: "repo_commit", repoUrl, gitRef: zeroSha },
+            served: {
+              repoUrl,
+              commitSha: zeroSha,
+              committedAt: "2026-08-23T00:00:00Z",
+            },
+            freshness: "current",
+            availableVersions: [],
+            availableRefs: [],
+          },
+        });
+        outcome.result.partialResults = true;
+      } else if (mode === "no-resolution") {
+        outcome.result.sourceStatus[0]!.targetResolution = undefined;
+        outcome.result.sourceStatus[0]!.resultCount = 2;
+        outcome.result.results.push({
+          ...outcome.result.results[0]!,
+          id: "second-hit",
+          locator: {
+            ...outcome.result.results[0]!.locator,
+            filePath: "src/other.ts",
+          },
+        });
+        outcome.result.page.returned = 2;
+      }
+      for (const text of [
+        await cliTextForOutcome(outcome),
+        await mcpTextForOutcome(outcome),
+      ]) {
+        expect(text).toContain("Sources:");
+        expect(text).toContain("github:n8n-io/n8n@4fdfc9f9");
+        expect(text.match(/ {2}- github:n8n-io\/n8n@4fdfc9f9/g)).toHaveLength(
+          1,
+        );
+        if (mode === "no-resolution") {
+          expect(text).not.toContain("committed");
+          expect(text).not.toContain("indexed from ref");
+        } else
+          expect(text.replace(/\s+/g, " ")).toContain(
+            "committed 2026-08-24, indexed from ref n8n@2.36.6",
+          );
+        if (mode === "mixed-zero")
+          expect(text.replace(/\s+/g, " ")).toMatch(
+            /github:n8n-io\/n8n@aaaaaaaa \(committed 2026-08-23[^)]*no results\)/,
+          );
+        expect(text).not.toContain("If you need current HEAD");
+        expect(text).not.toContain("sourceStatusForText");
+      }
+      const service = createMockCodeNavigationService({
+        searchStatus: mock(async () => outcome),
+      });
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      let cliStatus = "";
+      try {
+        await searchStatusAction(
+          "healthy-search",
+          { wait: "0" },
+          {
+            codeNavigationService: service,
+            codeNavigationUrl: "https://pkgseer.dev",
+            hasValidToken: true,
+            mcpUrl: "https://mcp.example.com",
+          },
+        );
+        cliStatus = String(log.mock.calls[0]?.[0]);
+      } finally {
+        log.mockRestore();
+      }
+      const statusTool = createParityMcpTool("search_status", {
+        codeNavigationService: service,
+      });
+      const mcpStatus = await statusTool.handler(
+        { search_ref: "healthy-search", wait_timeout_ms: 0 },
+        {},
+      );
+      for (const text of [cliStatus, mcpStatus.content[0]?.text ?? ""]) {
+        expect(text).toContain("Sources:");
+        expect(text).toContain("github:n8n-io/n8n@4fdfc9f9");
+        if (mode === "no-resolution") expect(text).not.toContain("committed");
+        else expect(text).toContain("committed 2026-08-24");
+        if (mode === "mixed-zero")
+          expect(text.replace(/\s+/g, " ")).toMatch(
+            /github:n8n-io\/n8n@aaaaaaaa \(committed 2026-08-23[^)]*no results\)/,
+          );
+        expect(text).not.toContain("sourceStatusForText");
+      }
+      const cli = await cliJsonForOutcome(outcome);
+      const mcp = await mcpJsonForOutcome(outcome);
+      expect(cli).toEqual(mcp);
+      expect(JSON.stringify(cli)).not.toContain("sourceStatusForText");
+      if (mode === "repository-docs")
+        expect(
+          (cli as { sourceStatus: Array<{ targetResolution?: unknown }> })
+            .sourceStatus[0],
+        ).not.toHaveProperty("targetResolution");
+      else expect(cli).not.toHaveProperty("sourceStatus");
+      const jsonStatus = await statusTool.handler(
+        { search_ref: "healthy-search", format: "json" },
+        {},
+      );
+      expect(jsonStatus.content[0]?.text).not.toContain("sourceStatusForText");
+      const statusJson = JSON.parse(jsonStatus.content[0]?.text ?? "{}");
+      if (mode === "repository-docs")
+        expect(statusJson.result.sourceStatus[0]).not.toHaveProperty(
+          "targetResolution",
+        );
+      else expect(statusJson.result).not.toHaveProperty("sourceStatus");
+    },
+  );
+});
+
+describe("partial search default across adapters", () => {
+  it.each([undefined, true, false])(
+    "preserves partial mode %s through CLI and MCP with truthful JSON",
+    async (allowPartial) => {
+      const search = mock((_: UnifiedSearchParams) =>
+        Promise.resolve(defaultUnifiedSearchOutcome),
+      );
+      const service = createMockCodeNavigationService({ search });
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await searchAction(
+          "router",
+          { in: ["npm:express"], json: true, allowPartial },
+          {
+            codeNavigationService: service,
+            codeNavigationUrl: "https://pkgseer.dev",
+            hasValidToken: true,
+            mcpUrl: "https://mcp.example.com",
+          },
+        );
+        const cli = JSON.parse(String(log.mock.calls[0]?.[0]));
+        const result = await createParityMcpTool("search", {
+          codeNavigationService: service,
+        }).handler(
+          {
+            target: "npm:express",
+            query: "router",
+            format: "json",
+            allow_partial_results: allowPartial,
+          },
+          {},
+        );
+        const mcp = JSON.parse(result.content[0]?.text ?? "");
+        expect(search.mock.calls[0]?.[0].allowPartialResults).toBe(
+          allowPartial ?? true,
+        );
+        expect(search.mock.calls[1]?.[0].allowPartialResults).toBe(
+          allowPartial ?? true,
+        );
+        if (allowPartial === false)
+          expect(cli.query.allowPartialResults).toBe(false);
+        else expect(cli.query).not.toHaveProperty("allowPartialResults");
+        expect(mcp).toEqual(cli);
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
+  it.each([undefined, "--allow-partial", "--no-allow-partial"])(
+    "parses the CLI partial control %s",
+    (flag) => {
+      const program = new Command();
+      registerSearchCommand(program);
+      const search = program.commands.find(
+        (command) => command.name() === "search",
+      )!;
+      search.parseOptions([
+        "router",
+        "--in",
+        "npm:express",
+        ...(flag ? [flag] : []),
+      ]);
+      expect(search.opts().allowPartial).toBe(flag !== "--no-allow-partial");
     },
   );
 });

@@ -9,6 +9,8 @@ export interface LeanTargetResolutionIdentity {
   repoUrl?: string;
   gitRef?: string;
   commitSha?: string;
+  /** Verified UTC committer time; absent when unknown. */
+  committedAt?: string;
   site?: string;
 }
 
@@ -232,6 +234,7 @@ function projectIdentity(
   if (identity.repoUrl) out.repoUrl = identity.repoUrl;
   if (identity.gitRef) out.gitRef = identity.gitRef;
   if (identity.commitSha) out.commitSha = identity.commitSha;
+  if (identity.committedAt) out.committedAt = identity.committedAt;
   if (identity.site) out.site = identity.site;
   return out;
 }

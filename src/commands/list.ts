@@ -78,6 +78,7 @@ export async function listAction(
       after: options.after,
       waitTimeoutMs: parseNumericOption(options.wait),
       includeDetailedFields: options.json === true,
+      includeTargetProvenance: !options.silent,
     });
     const spinner =
       deps.createSpinner?.() ??
@@ -95,6 +96,7 @@ export async function listAction(
         includeHeader: !options.silent,
         syntax: "cli",
         hasAfter: params.after !== undefined,
+        width: process.stdout.columns,
       });
       if (output.length > 0) process.stdout.write(`${output}\n`);
     }

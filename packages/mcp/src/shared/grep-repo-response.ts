@@ -9,11 +9,16 @@ import type { GrepContextClamping } from "./grep-repo-request.js";
 import {
   buildEmptyGrepGuidance,
   buildGrepContextClampingNotice,
+  grepRepoSourceFacts,
 } from "./grep-repo-text.js";
 import { projectIndexingEstimates } from "./indexing-estimates.js";
+import { renderPreparationSection } from "./indexing-estimates-text.js";
 import { shellQuote } from "./shell-quote.js";
 import {
-  buildTargetResolutionNotes,
+  renderResolutionDetails,
+  renderSourceSection,
+} from "./source-provenance-text.js";
+import {
   type LeanTargetResolution,
   projectTargetResolution,
 } from "./target-resolution.js";
@@ -279,6 +284,7 @@ function buildFilterBlock(
 }
 
 export interface FormatGrepRepoTerminalOptions {
+  width?: number;
   useColors: boolean;
   verbose?: boolean;
   withContext?: boolean;
@@ -310,7 +316,7 @@ export function formatGrepRepoTerminal(
   if (envelope.matches.length === 0 && !options.verbose) {
     return {
       stdout: "",
-      stderr: formatTerminalNotes(envelope, options.useColors),
+      stderr: formatTerminalNotes(envelope, options.useColors, options.width),
     };
   }
 
@@ -342,7 +348,7 @@ function formatPlain(
 
   return {
     stdout: stdoutLines.join("\n"),
-    stderr: formatTerminalNotes(envelope, options.useColors),
+    stderr: formatTerminalNotes(envelope, options.useColors, options.width),
   };
 }
 
@@ -370,7 +376,7 @@ function formatHeadingPlain(
 
   return {
     stdout: `${lines.join("\n")}`,
-    stderr: formatTerminalNotes(envelope, options.useColors),
+    stderr: formatTerminalNotes(envelope, options.useColors, options.width),
   };
 }
 
@@ -387,7 +393,15 @@ function formatVerbose(
       options.useColors,
     ),
   );
-  if (envelope.indexedVersion) {
+  if (
+    envelope.indexedVersion &&
+    !grepRepoSourceFacts(envelope).some(
+      ({ identity }) =>
+        identity?.gitRef === envelope.indexedVersion ||
+        identity?.version === envelope.indexedVersion ||
+        identity?.commitSha === envelope.indexedVersion,
+    )
+  ) {
     lines.push(dim(`Indexed ${envelope.indexedVersion}`, options.useColors));
   }
   lines.push("");
@@ -412,7 +426,7 @@ function formatVerbose(
 
   return {
     stdout: `${lines.join("\n").trimEnd()}\n`,
-    stderr: formatTerminalNotes(envelope, options.useColors),
+    stderr: formatTerminalNotes(envelope, options.useColors, options.width),
   };
 }
 
@@ -598,11 +612,18 @@ function widestLineNumberInBlocks(blocks: RenderBlock[]): number {
 function formatTerminalNotes(
   envelope: LeanGrepRepoEnvelope,
   useColors: boolean,
+  width?: number,
 ): string | undefined {
-  const lines: string[] = [];
+  const lines: string[] = [
+    ...renderSourceSection(grepRepoSourceFacts(envelope), { width }),
+    ...renderPreparationSection(envelope.indexingEstimates, {
+      width,
+      resolutions: envelope.targetResolution ? [envelope.targetResolution] : [],
+    }),
+  ];
 
   if (envelope.matches.length === 0) {
-    return `${buildEmptyGrepGuidance(envelope, "cli")
+    return `${[...lines, ...buildEmptyGrepGuidance(envelope, "cli", { width })]
       .map((line) => dim(line, useColors))
       .join("\n")}\n`;
   }
@@ -628,7 +649,11 @@ function formatTerminalNotes(
     );
   }
 
-  for (const note of buildTargetResolutionNotes(envelope.targetResolution)) {
+  for (const note of renderResolutionDetails(
+    envelope.targetResolution,
+    envelope.indexingEstimates,
+    { width },
+  )) {
     lines.push(dim(note, useColors));
   }
 

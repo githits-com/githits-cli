@@ -316,3 +316,104 @@ it("reports clamping for matching and empty results in both text surfaces", () =
     }
   }
 });
+
+describe("legacy grep source rows", () => {
+  const repoUrl = "https://github.com/acme/project";
+  const servedSha = "1234567890abcdef1234567890abcdef12345678";
+  const requestedSha = "abcdef1234567890abcdef1234567890abcdef12";
+  const resolution = {
+    requested: { kind: "repo_head", gitRef: "HEAD" },
+    resolvedRequested: {
+      repoUrl,
+      commitSha: requestedSha,
+      gitRef: "HEAD",
+      committedAt: "2026-01-02T00:00:00Z",
+    },
+    served: {
+      repoUrl,
+      commitSha: servedSha,
+      gitRef: "HEAD",
+      committedAt: "2025-12-31T00:00:00Z",
+    },
+    freshness: "fallback_recent",
+    freshnessReason: "requested_ref_indexing",
+    availableVersions: [],
+    availableRefs: [{ ref: "main" }],
+    suggestedRefs: [{ ref: "candidate" }],
+  };
+  it("does not infer a package pin from an indexed Git ref", () => {
+    const value = envelope({
+      registry: "npm",
+      name: "express",
+      indexedVersion: "release-branch",
+    });
+    expect(renderGrepRepoText(value)).not.toContain("Sources:");
+    expect(renderGrepRepoText(value)).toContain(
+      "target: served=release-branch",
+    );
+    expect(
+      formatGrepRepoTerminal(value, { useColors: false }).stderr,
+    ).not.toContain("npm:express@release-branch");
+  });
+  it("shares independently dated served and preparing identities without changing CLI match bytes", () => {
+    const value = envelope({
+      matches: [match()],
+      totalMatches: 1,
+      uniqueFilesMatched: 1,
+      targetResolution: resolution,
+      indexingEstimates: [
+        {
+          kind: "REPOSITORY",
+          repositoryUrl: repoUrl,
+          commitSha: requestedSha,
+          targets: ["github:acme/project@HEAD"],
+          estimate: { lowerSeconds: 30, upperSeconds: 45 },
+        },
+      ],
+    });
+    const mcp = renderGrepRepoText(value, { width: 200 });
+    const cli = formatGrepRepoTerminal(value, { useColors: false, width: 200 });
+    for (const text of [mcp, cli.stderr!]) {
+      expect(text).toContain(
+        "Sources:\n  - github:acme/project@12345678 (committed 2025-12-31, indexed from ref HEAD, older snapshot)",
+      );
+      expect(text).toContain(
+        "Preparing:\n  - github:acme/project@abcdef12 (indexing, estimated total: 30-45s, committed 2026-01-02, observed HEAD)",
+      );
+      expect(text).toContain("queryable now: refs=main");
+      expect(text).toContain("suggested refs (may need indexing): candidate");
+      expect(text).not.toContain("served=");
+    }
+    expect(cli.stdout).toBe(
+      "src/diff/foo.ts:142:export function applyEdit(input: string): string {\n",
+    );
+    expect(mcp.indexOf("Sources:")).toBeLessThan(
+      mcp.indexOf("src/diff/foo.ts (1)"),
+    );
+  });
+  it("retains empty pivots, scoped counts and unavailable recovery without an invented source", () => {
+    const value = envelope({
+      filesScanned: 1,
+      filesInScope: 206,
+      targetResolution: {
+        ...resolution,
+        served: undefined,
+        freshness: "unavailable",
+        freshnessReason: "ref_resolution_deferred",
+      },
+    });
+    for (const text of [
+      renderGrepRepoText(value),
+      formatGrepRepoTerminal(value, { useColors: false }).stderr!,
+    ]) {
+      expect(text).not.toContain("Sources:");
+      expect(text).toContain("Target unavailable.");
+      expect(text).toContain("Branch resolution is deferred.");
+      expect(text).toContain(
+        "206 in scope | 1 content-scanned after index pruning",
+      );
+      expect(text).toContain("Do not repeat this grep unchanged.");
+      expect(text).toContain("queryable now: refs=main");
+    }
+  });
+});

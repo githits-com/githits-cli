@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { ReadFileResult } from "@githits/core-internal";
+import type { ReadFileResult, TargetResolution } from "@githits/core-internal";
 import {
   buildReadFileSuccessPayload,
   formatReadFileTerminal,
@@ -22,6 +22,32 @@ const baseOptions = {
   name: "express",
   requestedFilePath: "src/index.js",
 };
+
+const repositoryUrl = "https://github.com/expressjs/express";
+const servedSha = "1111111111111111111111111111111111111111";
+const requestedSha = "2222222222222222222222222222222222222222";
+
+function targetResolution(
+  overrides: Partial<TargetResolution> = {},
+): TargetResolution {
+  return {
+    availableVersions: [],
+    availableRefs: [],
+    ...overrides,
+  };
+}
+
+function repositoryEstimate(
+  commitSha: string = requestedSha,
+): NonNullable<ReadFileResult["indexingEstimates"]>[number] {
+  return {
+    kind: "REPOSITORY",
+    repositoryUrl,
+    commitSha,
+    targets: ["github:expressjs/express@HEAD"],
+    estimate: { lowerSeconds: 100, upperSeconds: 120 },
+  };
+}
 
 describe("buildReadFileSuccessPayload", () => {
   it("projects basic envelope shape", () => {
@@ -332,6 +358,334 @@ describe("read refresh metadata", () => {
     }
     expect(formatReadFileTerminal(envelope, { useColors: false })).toBe(
       baseResult.content!,
+    );
+  });
+});
+
+describe("read source rows", () => {
+  it("renders a dated current source before MCP and verbose CLI content", () => {
+    const envelope = buildReadFileSuccessPayload(
+      {
+        ...baseResult,
+        targetResolution: targetResolution({
+          requested: {
+            kind: "repo_tag",
+            repoUrl: repositoryUrl,
+            gitRef: "v1.0.0",
+          },
+          resolvedRequested: {
+            kind: "repo_tag",
+            repoUrl: repositoryUrl,
+            gitRef: "v1.0.0",
+            commitSha: servedSha,
+            committedAt: "2099-12-31T23:59:59Z",
+          },
+          served: {
+            kind: "repo_tag",
+            repoUrl: repositoryUrl,
+            gitRef: "v1.0.0",
+            commitSha: servedSha,
+            committedAt: "2099-12-31T23:59:59Z",
+          },
+          freshness: "current",
+          freshnessReason: "exact_current",
+        }),
+      },
+      baseOptions,
+    );
+    const row =
+      "  - github:expressjs/express@11111111 (committed 2099-12-31, indexed from ref v1.0.0)";
+    const body = [
+      "1  // Express entry point",
+      "2  'use strict';",
+      "3  ",
+      "4  module.exports = require('./lib/express');",
+      "5  ",
+    ];
+
+    expect(renderReadFileText(envelope, { width: 200 })).toBe(
+      [
+        "read | src/index.js | javascript | lines 1-5/5",
+        "Sources:",
+        row,
+        "",
+        ...body,
+      ].join("\n"),
+    );
+    expect(
+      formatReadFileTerminal(envelope, {
+        useColors: false,
+        verbose: true,
+        width: 200,
+      }),
+    ).toBe(
+      [
+        "src/index.js · javascript · lines 1-5 of 5",
+        "Sources:",
+        row,
+        "",
+        ...body,
+        "",
+      ].join("\n"),
+    );
+    expect(renderReadFileText(envelope)).not.toContain("Preparing:");
+    expect(
+      formatReadFileTerminal(envelope, { useColors: false, verbose: true }),
+    ).not.toContain("Requested:");
+  });
+
+  it("keeps same-ref requested work and recovery after content on both surfaces", () => {
+    const envelope = buildReadFileSuccessPayload(
+      {
+        ...baseResult,
+        totalLines: 1,
+        startLine: 1,
+        endLine: 1,
+        content: "const value = 1;",
+        indexingEstimates: [repositoryEstimate()],
+        targetResolution: targetResolution({
+          requested: {
+            kind: "repo_head",
+            repoUrl: repositoryUrl,
+            gitRef: "HEAD",
+            commitSha: requestedSha,
+          },
+          resolvedRequested: {
+            kind: "repo_head",
+            repoUrl: repositoryUrl,
+            gitRef: "HEAD",
+            commitSha: requestedSha,
+            committedAt: "2026-01-02T03:04:05Z",
+          },
+          served: {
+            kind: "repo_head",
+            repoUrl: repositoryUrl,
+            gitRef: "HEAD",
+            commitSha: servedSha,
+            committedAt: "2025-12-31T23:59:59Z",
+          },
+          freshness: "fallback_recent",
+          freshnessReason: "requested_ref_indexing",
+          availableRefs: [{ ref: "main" }],
+          suggestedRefs: [{ ref: "candidate" }],
+        }),
+      },
+      baseOptions,
+    );
+    const sourceRow =
+      "  - github:expressjs/express@11111111 (committed 2025-12-31, indexed from ref HEAD, older snapshot)";
+    const preparationRow =
+      "  - github:expressjs/express@22222222 (indexing, estimated total: 100-120s, committed 2026-01-02, observed HEAD)";
+
+    for (const text of [
+      renderReadFileText(envelope, { width: 200 }),
+      formatReadFileTerminal(envelope, {
+        useColors: false,
+        verbose: true,
+        width: 200,
+      }),
+    ]) {
+      expect(text).toContain(sourceRow);
+      expect(text).toContain(preparationRow);
+      expect(text).toContain("queryable now: refs=main");
+      expect(text).toContain("suggested refs (may need indexing): candidate");
+      expect(text.indexOf(sourceRow)).toBeLessThan(
+        text.indexOf("const value = 1;"),
+      );
+      expect(text.indexOf("const value = 1;")).toBeLessThan(
+        text.indexOf("Preparing:"),
+      );
+      expect(text.indexOf("Preparing:")).toBeLessThan(
+        text.indexOf("queryable now: refs=main"),
+      );
+    }
+  });
+
+  it("retains sources, preparation, and recovery on verbose binary and no-content paths", () => {
+    const provenance = targetResolution({
+      requested: {
+        kind: "repo_head",
+        repoUrl: repositoryUrl,
+        gitRef: "HEAD",
+        commitSha: requestedSha,
+      },
+      resolvedRequested: {
+        kind: "repo_head",
+        repoUrl: repositoryUrl,
+        gitRef: "HEAD",
+        commitSha: requestedSha,
+        committedAt: "2026-01-02T03:04:05Z",
+      },
+      served: {
+        kind: "repo_head",
+        repoUrl: repositoryUrl,
+        gitRef: "HEAD",
+        commitSha: servedSha,
+        committedAt: "2025-12-31T23:59:59Z",
+      },
+      freshness: "fallback_recent",
+      freshnessReason: "requested_ref_indexing",
+      availableRefs: [{ ref: "main" }],
+      suggestedRefs: [{ ref: "candidate" }],
+    });
+    const binaryEnvelope = buildReadFileSuccessPayload(
+      {
+        filePath: "assets/logo.png",
+        language: undefined,
+        totalLines: undefined,
+        startLine: undefined,
+        endLine: undefined,
+        content: undefined,
+        isBinary: true,
+        indexingEstimates: [repositoryEstimate()],
+        targetResolution: provenance,
+      },
+      {
+        ...baseOptions,
+        repoUrl: repositoryUrl,
+        gitRef: "HEAD",
+        requestedFilePath: "assets/logo.png",
+      },
+    );
+    const emptyEnvelope = buildReadFileSuccessPayload(
+      {
+        filePath: "src/empty.js",
+        language: undefined,
+        totalLines: undefined,
+        startLine: undefined,
+        endLine: undefined,
+        content: undefined,
+        isBinary: false,
+        indexingEstimates: [repositoryEstimate()],
+        targetResolution: provenance,
+      },
+      {
+        ...baseOptions,
+        repoUrl: repositoryUrl,
+        gitRef: "HEAD",
+        requestedFilePath: "src/empty.js",
+      },
+    );
+
+    for (const { envelope, cliSentinel, mcpSentinel } of [
+      {
+        envelope: binaryEnvelope,
+        cliSentinel: "Binary file — cannot display as text.",
+        mcpSentinel: "Binary file - cannot display as text.",
+      },
+      {
+        envelope: emptyEnvelope,
+        cliSentinel: "(no content returned)",
+        mcpSentinel: "(no content returned)",
+      },
+    ]) {
+      const cli = formatReadFileTerminal(envelope, {
+        useColors: false,
+        verbose: true,
+        width: 200,
+      });
+      const mcp = renderReadFileText(envelope, { width: 200 });
+      for (const [text, sentinel] of [
+        [cli, cliSentinel],
+        [mcp, mcpSentinel],
+      ] as const) {
+        expect(text.indexOf("Sources:")).toBeLessThan(text.indexOf(sentinel));
+        expect(text.indexOf(sentinel)).toBeLessThan(text.indexOf("Preparing:"));
+        expect(text.indexOf("Preparing:")).toBeLessThan(
+          text.indexOf("queryable now: refs=main"),
+        );
+        expect(text).toContain("suggested refs (may need indexing): candidate");
+      }
+    }
+
+    expect(formatReadFileTerminal(binaryEnvelope, { useColors: false })).toBe(
+      "Binary file — cannot display as text.\n",
+    );
+    expect(formatReadFileTerminal(emptyEnvelope, { useColors: false })).toBe(
+      "(no content returned)\n",
+    );
+  });
+
+  it("preserves raw content bytes with provenance supplied", () => {
+    const content = "const value = 1;\n";
+    const envelope = buildReadFileSuccessPayload(
+      {
+        ...baseResult,
+        content,
+        targetResolution: targetResolution({
+          served: {
+            repoUrl: repositoryUrl,
+            gitRef: "main",
+            commitSha: servedSha,
+            committedAt: "2099-12-31T23:59:59Z",
+          },
+          freshness: "current",
+          freshnessReason: "exact_current",
+        }),
+      },
+      baseOptions,
+    );
+
+    expect(formatReadFileTerminal(envelope, { useColors: false })).toBe(
+      content,
+    );
+  });
+
+  it("keeps deferred and unknown resolution notes without inventing Sources", () => {
+    const requested = {
+      kind: "repo_head",
+      repoUrl: repositoryUrl,
+      gitRef: "HEAD",
+      commitSha: requestedSha,
+    };
+    const resolvedRequested = {
+      ...requested,
+      committedAt: "2026-01-02T03:04:05Z",
+    };
+    const unavailable = buildReadFileSuccessPayload(
+      {
+        ...baseResult,
+        targetResolution: targetResolution({
+          requested,
+          resolvedRequested,
+          freshness: "unavailable",
+          freshnessReason: "ref_resolution_deferred",
+          availableRefs: [{ ref: "main" }],
+        }),
+      },
+      { ...baseOptions, repoUrl: repositoryUrl, gitRef: "HEAD" },
+    );
+    const unknown = buildReadFileSuccessPayload(
+      {
+        ...baseResult,
+        targetResolution: targetResolution({
+          requested,
+          resolvedRequested,
+          freshness: "future_state",
+          freshnessReason: "future_reason",
+          availableRefs: [{ ref: "main" }],
+        }),
+      },
+      { ...baseOptions, repoUrl: repositoryUrl, gitRef: "HEAD" },
+    );
+
+    for (const envelope of [unavailable, unknown]) {
+      const texts = [
+        renderReadFileText(envelope),
+        formatReadFileTerminal(envelope, { useColors: false, verbose: true }),
+      ];
+      for (const text of texts) expect(text).not.toContain("Sources:");
+      expect(texts[0]).toContain(
+        "Requested: github:expressjs/express@22222222",
+      );
+      expect(texts[0]).toContain("queryable now: refs=main");
+    }
+    const unavailableMcp = renderReadFileText(unavailable);
+    expect(unavailableMcp).toContain("Target unavailable.");
+    expect(unavailableMcp).toContain("Branch resolution is deferred.");
+    const unknownMcp = renderReadFileText(unknown);
+    expect(unknownMcp).toContain(
+      "Resolution state: future_state; reason: future_reason",
     );
   });
 });

@@ -63,7 +63,7 @@ export interface UnifiedSearchQueryEcho {
     fileIntent?: string;
     publicOnly?: boolean;
   };
-  allowPartialResults?: true;
+  allowPartialResults?: boolean;
   limit?: number;
   offset?: number;
   waitTimeoutMs?: number;
@@ -284,14 +284,20 @@ export interface UnifiedSearchHitPresentation extends UnifiedSearchHitPayload {
 export interface UnifiedSearchCompletedPresentation
   extends Omit<UnifiedSearchCompletedPayload, "results"> {
   results: UnifiedSearchHitPresentation[];
+  /** Selected source facts for text; omitted from public JSON. */
+  sourceStatusForText?: UnifiedSearchSourceStatusPayload[];
 }
 export interface UnifiedSearchIncompletePresentation
   extends Omit<UnifiedSearchIncompletePayload, "results"> {
   results: UnifiedSearchHitPresentation[];
+  /** Selected source facts for text; omitted from public JSON. */
+  sourceStatusForText?: UnifiedSearchSourceStatusPayload[];
 }
 export interface UnifiedSearchStatusResultPresentation
   extends Omit<UnifiedSearchStatusResultPayload, "results"> {
   results: UnifiedSearchHitPresentation[];
+  /** Selected source facts for text; omitted from public JSON. */
+  sourceStatusForText?: UnifiedSearchSourceStatusPayload[];
 }
 export interface UnifiedSearchStatusCompletedPresentation
   extends Omit<UnifiedSearchStatusCompletedPayload, "result"> {
@@ -336,8 +342,10 @@ export function projectUnifiedSearchSuccessPayload(
     | UnifiedSearchCompletedPresentation
     | UnifiedSearchIncompletePresentation,
 ): UnifiedSearchCompletedPayload | UnifiedSearchIncompletePayload {
+  const projected = { ...payload };
+  delete projected.sourceStatusForText;
   return {
-    ...payload,
+    ...projected,
     results: payload.results.map(projectHitPayload),
   };
 }
@@ -345,8 +353,10 @@ export function projectUnifiedSearchSuccessPayload(
 function projectStatusResultPayload(
   payload: UnifiedSearchStatusResultPresentation,
 ): UnifiedSearchStatusResultPayload {
+  const projected = { ...payload };
+  delete projected.sourceStatusForText;
   return {
-    ...payload,
+    ...projected,
     results: payload.results.map(projectHitPayload),
   };
 }
@@ -403,6 +413,11 @@ export function buildUnifiedSearchSuccessPayload(
       completed: false,
     });
     if (sourceStatus) payload.sourceStatus = sourceStatus;
+    const textSourceStatus = compactSourceStatus(result?.sourceStatus, {
+      completed: false,
+      includeHealthy: true,
+    });
+    if (textSourceStatus) payload.sourceStatusForText = textSourceStatus;
     if (result?.evidenceNotice) {
       payload.evidenceNotice = result.evidenceNotice;
     }
@@ -434,6 +449,12 @@ export function buildUnifiedSearchSuccessPayload(
     includeEmptyResultContext: completed.results.length === 0,
   });
   if (sourceStatus) completed.sourceStatus = sourceStatus;
+  const textSourceStatus = compactSourceStatus(outcome.result.sourceStatus, {
+    completed: true,
+    includeEmptyResultContext: completed.results.length === 0,
+    includeHealthy: true,
+  });
+  if (textSourceStatus) completed.sourceStatusForText = textSourceStatus;
   if (outcome.result.evidenceNotice) {
     completed.evidenceNotice = outcome.result.evidenceNotice;
   }
@@ -550,6 +571,12 @@ function buildUnifiedSearchStatusResultPayload(
     includeEmptyResultContext: options.completed && result.results.length === 0,
   });
   if (sourceStatus) payload.sourceStatus = sourceStatus;
+  const textSourceStatus = compactSourceStatus(result.sourceStatus, {
+    ...options,
+    includeEmptyResultContext: options.completed && result.results.length === 0,
+    includeHealthy: true,
+  });
+  if (textSourceStatus) payload.sourceStatusForText = textSourceStatus;
   if (result.evidenceNotice) payload.evidenceNotice = result.evidenceNotice;
   const combinedWarnings = combineWarnings(
     result.queryWarnings,
@@ -612,8 +639,8 @@ function buildQueryEcho(
       filters.publicOnly = params.filters.publicOnly;
     if (Object.keys(filters).length > 0) echo.filters = filters;
   }
-  if (params.allowPartialResults === true) {
-    echo.allowPartialResults = true;
+  if (params.allowPartialResults === false) {
+    echo.allowPartialResults = false;
   }
   if (params.limit !== undefined && params.limit !== DEFAULT_LIMIT) {
     echo.limit = params.limit;
@@ -1228,6 +1255,7 @@ function compactSourceStatus(
   options: {
     completed?: boolean;
     includeEmptyResultContext?: boolean;
+    includeHealthy?: boolean;
   } = {},
 ): UnifiedSearchSourceStatusPayload[] | undefined {
   if (!sourceStatus || sourceStatus.length === 0) return undefined;
@@ -1244,6 +1272,7 @@ function compactSourceStatusEntry(
   options: {
     completed?: boolean;
     includeEmptyResultContext?: boolean;
+    includeHealthy?: boolean;
   },
 ): UnifiedSearchSourceStatusPayload | undefined {
   const payload: UnifiedSearchSourceStatusPayload = {
@@ -1359,6 +1388,7 @@ function compactSourceStatusEntry(
         !(targetResolution.freshness === "indexing" && options.completed)) ||
       (targetResolution.freshness === "current" && hasRetryCandidates);
     if (
+      options.includeHealthy ||
       !contributors ||
       targetResolutionCarriesNotes ||
       targetResolutionIsInteresting
@@ -1407,7 +1437,7 @@ function compactSourceStatusEntry(
     !contributors &&
     !options.includeEmptyResultContext &&
     typeof entry.resultCount === "number" &&
-    entry.resultCount > 0
+    (entry.resultCount > 0 || options.includeHealthy)
   ) {
     payload.resultCount = entry.resultCount;
   }
@@ -1446,7 +1476,7 @@ function compactSourceStatusEntry(
     interesting = true;
   }
 
-  return interesting ? payload : undefined;
+  return interesting || options.includeHealthy ? payload : undefined;
 }
 
 function projectDocumentationContributors(

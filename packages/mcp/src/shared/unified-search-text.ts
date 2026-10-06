@@ -20,10 +20,14 @@ import { renderPreparationSection } from "./indexing-estimates-text.js";
 import type { MappedError } from "./mapped-error.js";
 import { formatMappedErrorText } from "./mapped-error-text.js";
 import { renderReadTarget } from "./read-target-text.js";
+import { parseRepositoryTargetSpec } from "./repository-target.js";
 import {
-  formatRepositoryTarget,
-  parseRepositoryTargetSpec,
-} from "./repository-target.js";
+  formatProvenanceRow,
+  formatRequestedIndexingExplanation,
+  formatRequestedProvenance,
+  renderSourceSection,
+} from "./source-provenance-text.js";
+import { wrapTerminalProse } from "./terminal-text.js";
 import {
   projectUnifiedSearchPresentation,
   targetDisplayFamilyKey,
@@ -297,135 +301,111 @@ function appendPresentationContext(
   presentation: UnifiedSearchPresentation,
   options: NormalizedTextOptions,
 ): void {
-  if (shouldRenderCompactSources(presentation)) {
-    lines.push("");
-    appendCompactSources(lines, presentation.targetGroups, options);
-  } else if (presentation.targetGroups.length > 0) {
-    lines.push("");
-    presentation.targetGroups.forEach((group, index) => {
-      if (index > 0) lines.push("");
-      appendPresentationTargetGroup(lines, group, options);
+  const sources = presentation.provenance.flatMap((record) => record.sources);
+  if (sources.length)
+    lines.push("", ...renderSourceSection(sources, { width: options.width }));
+  const historical = presentation.lifecycle.kind !== "active";
+  const indexedAlternatives = presentation.targetGroups.flatMap((group) => {
+    const alternatives = group.alternatives;
+    if (!alternatives?.target || group.recovery) return [];
+    const summary = formatTargetAlternatives({
+      ...alternatives,
+      suggestedRefs: [],
     });
-  }
+    return summary ? [{ target: alternatives.target, summary }] : [];
+  });
   lines.push(
     ...renderPreparationSection(presentation.indexingEstimates, {
-      repositoryState: "preparing source",
+      indexedAlternatives,
+      repositoryState: historical ? "indexing when observed" : "indexing",
+      resolutions: presentation.provenance.flatMap((record) =>
+        record.resolution ? [record.resolution] : [],
+      ),
       width: options.width,
     }),
   );
-  appendPresentationWarnings(lines, presentation.warnings, options);
-}
-
-function shouldRenderCompactSources(
-  presentation: UnifiedSearchPresentation,
-): boolean {
-  if (
-    presentation.lifecycle.kind !== "completed" ||
-    presentation.availability.resultCount === 0 ||
-    presentation.targetGroups.length === 0
-  ) {
-    return false;
-  }
-  return presentation.targetGroups.every(
-    (group) =>
-      group.alternatives === undefined &&
-      group.siteSuggestions.length === 0 &&
-      group.trustLimits.length === 0 &&
-      group.recovery === undefined &&
-      (group.freshnessKind === undefined ||
-        group.freshnessKind === "current") &&
-      group.sources.every((source) =>
-        source.entries.every(
-          (entry) =>
-            entry.state === "searched" &&
-            formatCompactSource(source.kind, entry) !== undefined,
-        ),
-      ),
-  );
-}
-
-function appendCompactSources(
-  lines: string[],
-  groups: UnifiedSearchTargetGroup[],
-  options: NormalizedTextOptions,
-): void {
-  const values = groups.flatMap((group) => {
-    const identity =
-      group.identity.served ?? group.identity.fresh ?? group.identity.requested;
-    if (!identity) return [];
-    const sources = group.sources
-      .flatMap((source) =>
-        source.entries
-          .filter((entry) => entry.state === "searched")
-          .flatMap((entry) => {
-            const value = formatCompactSource(source.kind, entry);
-            return value
-              ? [{ rank: compactSourceRank(source.kind), value }]
-              : [];
-          }),
-      )
-      .sort((left, right) => left.rank - right.rank)
-      .map((source) => source.value);
-    const uniqueSources = [...new Set(sources)];
-    const distinctSources = uniqueSources.filter(
-      (source) => source !== identity,
+  const resolutionDetails = [
+    ...new Set(
+      presentation.provenance.flatMap((record) => {
+        return [
+          formatRequestedProvenance(
+            record.resolution,
+            presentation.indexingEstimates,
+          ),
+          formatRequestedIndexingExplanation(
+            record.resolution,
+            presentation.indexingEstimates,
+            historical ? "indexing when observed" : "indexing",
+          ),
+        ].filter((fact): fact is string => Boolean(fact));
+      }),
+    ),
+  ];
+  for (const fact of resolutionDetails)
+    lines.push(...wrapTerminalProse(fact, options.width, "  "));
+  for (const group of presentation.targetGroups) {
+    const renderedSources = presentation.provenance.some(
+      (record) =>
+        record.sources.length &&
+        [
+          group.identity.requested,
+          group.identity.served,
+          group.identity.fresh,
+          ...group.sources.flatMap((source) =>
+            source.entries.flatMap((entry) => [
+              entry.searchTarget,
+              entry.requestedTarget,
+            ]),
+          ),
+        ].includes(record.target),
     );
-    if (distinctSources.length === 0) return [identity];
     if (
-      uniqueSources.length === 1 &&
-      !hasRepositoryRevision(identity) &&
-      targetDisplayFamilyKey(distinctSources[0]) ===
-        targetDisplayFamilyKey(identity)
+      renderedSources &&
+      !group.trustLimits.some(
+        (limit) => limit.kind === "repository_snapshot",
+      ) &&
+      group.identity.fresh &&
+      group.identity.fresh !== group.identity.served &&
+      formatUsingSegment(group)
     ) {
-      return distinctSources;
+      lines.push(
+        ...wrapTerminalProse(
+          `Requested: ${formatProvenanceRow(group.identity.fresh, [historical ? "indexing when observed" : "indexing"])}`,
+          options.width,
+          "  ",
+        ),
+      );
     }
-    return [`${identity} - ${distinctSources.join(", ")}`];
-  });
-  const unique = [...new Set(values)];
-  if (unique.length === 0) return;
-  const wrapped = wrapText(
-    unique.join("; "),
-    Math.max(1, options.width - "Sources: ".length),
-  );
-  lines.push(
-    `Sources: ${wrapped[0] ?? ""}`,
-    ...wrapped.slice(1).map((line) => `  ${line}`),
-  );
-}
-
-function compactSourceRank(kind: UnifiedSearchSourceKind): number {
-  switch (kind) {
-    case "code":
-      return 0;
-    case "symbols":
-      return 1;
-    case "site_docs":
-      return 2;
-    case "repository_docs":
-      return 3;
-    case "docs":
-      return 4;
-  }
-}
-
-function formatCompactSource(
-  kind: UnifiedSearchSourceKind,
-  entry: UnifiedSearchSourceEntry,
-): string | undefined {
-  if (kind === "code") return "code";
-  if (kind === "symbols") return "symbols";
-  if (kind === "repository_docs" && entry.repositoryUrl && entry.commitSha) {
-    return formatRepositoryTarget(
-      entry.repositoryUrl,
-      entry.commitSha.slice(0, 8),
+    const preparingGroup =
+      presentation.indexingEstimates?.some((entry) =>
+        entry.targets.some((target) =>
+          [
+            group.identity.requested,
+            group.identity.served,
+            group.identity.fresh,
+            ...group.sources.flatMap((source) =>
+              source.entries.flatMap((entry) => [
+                entry.target,
+                entry.searchTarget,
+                ...(entry.targetAliases ?? []),
+              ]),
+            ),
+          ].includes(target),
+        ),
+      ) ?? false;
+    appendPresentationTargetGroup(
+      lines,
+      group,
+      options,
+      renderedSources,
+      preparingGroup,
+      historical,
+      presentation.indexingEstimates?.some((entry) =>
+        entry.targets.includes(group.alternatives?.target ?? ""),
+      ) ?? false,
     );
   }
-  if (kind === "site_docs") {
-    const siteIdentity = formatDocumentationSiteIdentity(entry.siteUrl);
-    if (siteIdentity) return `site:${siteIdentity}`;
-    if (entry.target.startsWith("site:")) return entry.target;
-  }
-  return undefined;
+  appendPresentationWarnings(lines, presentation.warnings, options);
 }
 
 function sourceKindRank(kind: UnifiedSearchSourceKind): number {
@@ -447,20 +427,23 @@ function appendPresentationTargetGroup(
   lines: string[],
   group: UnifiedSearchTargetGroup,
   options: NormalizedTextOptions,
+  renderedSources: boolean,
+  renderedPreparation: boolean,
+  historical: boolean,
+  renderedAlternatives: boolean,
 ): void {
-  const identity = `- ${formatTargetGroupIdentity(group)}`;
-  lines.push(options.useColors ? highlight(identity, true) : identity);
+  const identity = `- ${renderedSources || renderedPreparation ? (group.identity.requested ?? formatTargetGroupIdentity(group)) : formatTargetGroupIdentity(group)}`;
 
   const details: string[] = [];
-  const using = formatUsingSegment(group);
+  const using = renderedSources ? undefined : formatUsingSegment(group);
   if (using) details.push(using);
   const snapshots = group.trustLimits.filter(
     (limit) => limit.kind === "repository_snapshot",
   );
-  for (const snapshot of snapshots) {
+  for (const snapshot of renderedSources ? [] : snapshots) {
     if (snapshot.requestedCommitDiffers && snapshot.requestedRef) {
       details.push(
-        `requested ${snapshot.requestedRef} resolves to a different commit${snapshot.indexingRequestedRef === snapshot.requestedRef ? " and is indexing" : ""}`,
+        `requested ${snapshot.requestedRef} resolves to a different commit${snapshot.requestedCommitDate ? ` (committed ${snapshot.requestedCommitDate})` : ""}${snapshot.indexingRequestedRef === snapshot.requestedRef ? " and is indexing" : ""}`,
       );
     }
     if (
@@ -473,10 +456,17 @@ function appendPresentationTargetGroup(
       details.push(`${snapshot.indexingRequestedRef} is indexing`);
   }
 
-  const searched = formatSourceStateSegment(group, "searched");
+  const searched = renderedSources
+    ? undefined
+    : formatSourceStateSegment(group, "searched");
   if (searched) details.push(`searched: ${searched}`);
-  const indexing = formatSourceStateSegment(group, "waiting");
-  if (indexing) details.push(`indexing: ${indexing}`);
+  const indexing = renderedPreparation
+    ? undefined
+    : formatSourceStateSegment(group, "waiting");
+  if (indexing)
+    details.push(
+      `${historical ? "indexing when observed" : "indexing"}: ${indexing}`,
+    );
 
   const unavailable = formatUnavailableSegment(group);
   if (unavailable) details.push(unavailable);
@@ -485,17 +475,33 @@ function appendPresentationTargetGroup(
   if (available) details.push(`available: ${available}`);
 
   if (group.recovery === undefined) {
-    const indexed = formatTargetAlternatives(group.alternatives);
+    const indexed = formatTargetAlternatives(
+      renderedAlternatives && group.alternatives
+        ? { ...group.alternatives, versions: [], refs: [] }
+        : group.alternatives,
+    );
     if (indexed) details.push(`indexed: ${indexed}`);
   }
 
   const constraints = formatTargetConstraints(group);
   if (constraints) details.push(constraints);
 
-  if (details.length === 0 && group.freshnessKind !== undefined) {
+  if (
+    !renderedSources &&
+    !renderedPreparation &&
+    details.length === 0 &&
+    group.freshnessKind !== undefined
+  ) {
     details.push(formatTargetStatus(group.freshnessKind));
   }
 
+  if (
+    details.length ||
+    group.recovery ||
+    (!renderedSources && !renderedPreparation)
+  ) {
+    lines.push("", options.useColors ? highlight(identity, true) : identity);
+  }
   if (details.length > 0) {
     lines.push(...wrapHangingText(details.join("; "), "  ", options.width));
   }
@@ -535,10 +541,17 @@ function formatUsingSegment(
   if (snapshots.length > 0) {
     return [
       ...new Set(
-        snapshots.map(
-          (snapshot) =>
-            `commit: ${snapshot.commitTarget}${snapshot.indexedRef ? ` (indexed from ref ${snapshot.indexedRef})` : ""}`,
-        ),
+        snapshots.map((snapshot) => {
+          const provenance = [
+            ...(snapshot.servedCommitDate
+              ? [`committed ${snapshot.servedCommitDate}`]
+              : []),
+            ...(snapshot.indexedRef
+              ? [`indexed from ref ${snapshot.indexedRef}`]
+              : []),
+          ];
+          return `commit: ${snapshot.commitTarget}${provenance.length ? ` (${provenance.join(", ")})` : ""}`;
+        }),
       ),
     ].join("; ");
   }
@@ -805,14 +818,6 @@ function compactRelatedTarget(base: string | undefined, value: string): string {
   const version = value.match(/@([^/@]+)$/)?.[1];
   if (version) return version;
   return value;
-}
-
-function hasRepositoryRevision(value: string): boolean {
-  try {
-    return Boolean(parseRepositoryTargetSpec(value).gitRef);
-  } catch {
-    return false;
-  }
 }
 
 function formatTargetAlternatives(

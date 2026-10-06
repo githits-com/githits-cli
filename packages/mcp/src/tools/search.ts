@@ -95,7 +95,7 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      "Default false keeps hits atomic across runnable target/source pairs, although a complete serveable interim result may accompany searchRef while refresh continues. When true, permits a serveable subset while other pairs remain unavailable and still returns searchRef for continuation. Partial payloads support normal pagination via nextOffset.",
+      "Default true returns a serveable subset while other target/source pairs prepare, with searchRef for continuation. Set false to keep hits atomic across runnable pairs; a complete serveable interim result may still accompany searchRef during refresh. Partial payloads support normal pagination via nextOffset.",
     ),
   limit: z.coerce
     .number()

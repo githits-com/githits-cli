@@ -78,7 +78,7 @@ export function buildUnifiedSearchParams(
       query: compiledQuery,
       sources: input.sources,
       filters,
-      allowPartialResults: input.allowPartialResults,
+      allowPartialResults: input.allowPartialResults ?? true,
       limit,
       offset,
       waitTimeoutMs,

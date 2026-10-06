@@ -655,7 +655,9 @@ describe("pkgFilesAction", () => {
     expect(output).not.toContain("ref_xyz");
     expect(output.match(/Backend says this ref is queued\./g)).toHaveLength(1);
     expect(output).toContain("estimated total: 7-19s, time spent indexing: 3s");
-    expect(output).toContain("Indexed versions/refs: 4.21.0, 4.20.1");
+    expect(output).toContain(
+      "Indexed alternatives: versions/refs 4.21.0, 4.20.1",
+    );
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });

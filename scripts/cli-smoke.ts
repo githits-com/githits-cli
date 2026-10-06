@@ -469,6 +469,21 @@ function assertCleanErrorEnvelope(
   return payload as unknown as ErrorEnvelope;
 }
 
+function listTextFirstFile(text: string, context: string): string {
+  const lines = text.split("\n");
+  assert(
+    lines[0] === "Sources:" && lines[1]?.startsWith("  - "),
+    `${context}: missing Sources row`,
+  );
+  const actionIndex = lines.findIndex((line) =>
+    line.startsWith("Read files: read -- "),
+  );
+  assert(actionIndex > 1, `${context}: missing native read recipe`);
+  const path = lines[actionIndex + 1];
+  assert(path !== undefined && path.length > 0, `${context}: missing path`);
+  return path;
+}
+
 function assertTerminalOutput(result: CommandResult, context: string): string {
   assert(
     result.exitCode === 0,
@@ -2111,8 +2126,8 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "list package terminal",
   );
   assert(
-    packageListText.startsWith(`# source ${SMOKE_PACKAGE_SPEC}`) &&
-      packageListText.split("\n").length >= 2,
+    packageListText.startsWith("Sources:\n  - ") &&
+      packageListText.includes("Read files: read -- "),
     "list package terminal missing source header or paths",
   );
 
@@ -2124,7 +2139,10 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(
     silentPaths.length === 2 &&
       silentPaths.every(
-        (path) => path.length > 0 && !path.startsWith("# source "),
+        (path) =>
+          path.length > 0 &&
+          !path.startsWith("Sources:") &&
+          !path.startsWith("Read files:"),
       ),
     "list package silent must contain only result paths",
   );
@@ -2154,7 +2172,10 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     ),
     "list package first page text missing exact continuation cursor",
   );
-  const firstPackagePath = packageListFirstText.split("\n")[1];
+  const firstPackagePath = listTextFirstFile(
+    packageListFirstText,
+    "list first page",
+  );
   assert(
     typeof firstPackagePath === "string" &&
       firstPackagePath.length > 0 &&
@@ -2173,7 +2194,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     ]),
     "list package continuation text",
   );
-  const nextPackagePath = packageListNext.split("\n")[1];
+  const nextPackagePath = listTextFirstFile(packageListNext, "list next page");
   assert(
     typeof nextPackagePath === "string" &&
       nextPackagePath.length > 0 &&
@@ -2186,7 +2207,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "list site terminal",
   );
   assert(
-    siteListText.startsWith("# source site:expressjs.com") &&
+    siteListText.startsWith("Sources:\n  - site:expressjs.com") &&
       siteListText
         .split("\n")
         .some((line) => line === "/" || line === "https://expressjs.com/"),
@@ -2268,7 +2289,8 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
   const descendantLines = descendantSiteText.trimEnd().split("\n");
   assert(
-    descendantLines[0]?.startsWith(`# source ${descendantSiteTarget}`),
+    descendantLines[0] === "Sources:" &&
+      descendantLines[1]?.startsWith(`  - ${descendantSiteTarget}`),
     "descendant site header must use the requested path base",
   );
   for (const directory of descendantDirectories) {
@@ -2281,7 +2303,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       ? directory.path
       : `${directory.path}/`;
     assert(
-      descendantLines.slice(1).includes(renderedPath),
+      descendantLines.includes(renderedPath),
       "descendant site text must preserve the JSON directory path",
     );
   }

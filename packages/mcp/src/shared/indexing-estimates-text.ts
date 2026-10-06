@@ -2,7 +2,12 @@ import type {
   DiscoveryIndexingEstimate,
   IndexingDurationEstimate,
 } from "@githits/core-internal";
-
+import { formatRepositoryTarget } from "./repository-target.js";
+import {
+  formatProvenanceRow,
+  preparationRequestedFacts,
+  type SourceProvenanceResolution,
+} from "./source-provenance-text.js";
 import { wrapTerminalProse } from "./terminal-text.js";
 
 /** Preserve backend Unicode while making timing/target prose safe on one line. */
@@ -82,19 +87,41 @@ export function renderIndexingEstimates(
 export function renderPreparationEstimates(
   entries: readonly DiscoveryIndexingEstimate[] | undefined,
   repositoryState: string = "indexing",
+  resolutions: readonly SourceProvenanceResolution[] = [],
 ): string[] {
-  return (entries ?? []).map((entry) => {
-    const state =
-      entry.kind === "DOCUMENTATION"
-        ? "preparing documentation"
-        : repositoryState;
-    return `  - ${entry.targets.map(escapePreparationTarget).join(", ")} (${state}, ${formatIndexingEstimate(entry, "compact")})`;
-  });
+  return (entries ?? []).map(
+    (entry) =>
+      `  - ${formatPreparationRow(entry, { repositoryState, resolutions })}`,
+  );
 }
 
 export interface PreparationSectionOptions {
   repositoryState?: string;
   width?: number;
+  resolutions?: readonly SourceProvenanceResolution[];
+  indexedAlternatives?: readonly { target: string; summary: string }[];
+}
+
+/** Exact work identity is independent of the requested branch's observed pointer. */
+export function formatPreparationRow(
+  entry: DiscoveryIndexingEstimate,
+  options: PreparationSectionOptions = {},
+): string {
+  const facts = preparationRequestedFacts(entry, options.resolutions ?? []);
+  const target =
+    entry.kind === "REPOSITORY" && entry.repositoryUrl && entry.commitSha
+      ? formatRepositoryTarget(entry.repositoryUrl, entry.commitSha.slice(0, 8))
+      : entry.targets.map(escapePreparationTarget).join(", ");
+  return formatProvenanceRow(target, [
+    entry.kind === "DOCUMENTATION"
+      ? "preparing documentation"
+      : (options.repositoryState ?? "indexing"),
+    formatIndexingEstimate(entry, "compact"),
+    ...(facts.committedAt
+      ? [`committed ${facts.committedAt.slice(0, 10)}`]
+      : []),
+    ...(facts.observedHead ? ["observed HEAD"] : []),
+  ]);
 }
 
 /** Keep preparation metadata separate from served content in every annotated tool. */
@@ -102,7 +129,35 @@ export function renderPreparationSection(
   entries: readonly DiscoveryIndexingEstimate[] | undefined,
   options: PreparationSectionOptions = {},
 ): string[] {
-  const rows = renderPreparationEstimates(entries, options.repositoryState);
+  const rows = (entries ?? []).flatMap((entry) => {
+    const rows = [`  - ${formatPreparationRow(entry, options)}`];
+    if (
+      entry.kind === "REPOSITORY" &&
+      entry.repositoryUrl &&
+      entry.commitSha &&
+      !(
+        entry.targets.length === 1 &&
+        preparationRequestedFacts(entry, options.resolutions ?? [])
+          .observedHead &&
+        entry.targets.some((target) =>
+          /^(?:github:|gitlab:|codeberg:|https?:\/\/)/.test(target),
+        )
+      )
+    )
+      rows.push(
+        `    Requested: ${entry.targets.map(escapePreparationTarget).join(", ")}`,
+      );
+    for (const alternative of options.indexedAlternatives ?? []) {
+      if (entry.targets.includes(alternative.target))
+        rows.push(
+          formatIndexedAlternatives(
+            alternative.summary,
+            entry.targets.length > 1 ? alternative.target : undefined,
+          ),
+        );
+    }
+    return rows;
+  });
   return rows.length
     ? [
         "",
@@ -110,6 +165,14 @@ export function renderPreparationSection(
         ...rows.flatMap((row) => wrapTerminalProse(row, options.width)),
       ]
     : [];
+}
+
+/** Indexed alternatives are immediately queryable, unlike suggested refs. */
+export function formatIndexedAlternatives(
+  summary: string,
+  target?: string,
+): string {
+  return `    Indexed alternatives${target ? ` for ${escapePreparationTarget(target)}` : ""}: ${summary}`;
 }
 
 export interface PreparationRetryOptions {

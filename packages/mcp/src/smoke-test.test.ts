@@ -1283,15 +1283,14 @@ function smokeListText(args: Record<string, unknown>): string {
   const isSite = result.inventoryKind === "SITE";
   const source = result.canonicalTarget;
   const followUp = isSite
-    ? ' | follow up with "read site:expressjs.com $path"'
-    : "";
-  const more = result.hasMore ? " | more results available" : "";
+    ? 'Read pages: read target="site:expressjs.com" path=$path'
+    : `Read files: read target=${JSON.stringify(source)} path=$path`;
   const entries = result.entries as Array<Record<string, unknown>>;
   const path = entries[0]?.path;
   const continuation = result.nextCursor
     ? `\n\nMore results: repeat this list, adding:\n  after=${JSON.stringify(result.nextCursor)}`
     : "";
-  return `# source ${String(source)}${followUp}${more}\n${path}${continuation}`;
+  return `Sources:\n  - ${String(source)}${isSite ? " (hosted documentation)" : ""}\n${followUp}\n${path}${continuation}`;
 }
 
 function smokeResponse(

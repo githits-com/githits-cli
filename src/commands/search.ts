@@ -202,7 +202,7 @@ Pass the searchRef when githits search explicitly supplies this follow-up for
 active PENDING, INDEXING, or SEARCHING progress and updated results matter.
 Visible hits can be used for lookup now. This can return progress, usable hits
 while background work continues, partial hits from a serveable subset when the
-original request used --allow-partial, or final results. COMPLETED, DEFERRED,
+original request allowed partial results (the default), or final results. COMPLETED, DEFERRED,
 TIMEOUT, and FAILED are terminal; unrecognized statuses are not polled. Follow
 the rendered new-search action instead. By default the command waits up to 30
 seconds for progress before returning the latest status.`;
@@ -270,7 +270,12 @@ export function registerSearchCommand(program: Command) {
     .option("--lang <language>", "Structured language qualifier")
     .option(
       "--allow-partial",
-      "Permit a serveable subset of target/source pairs while others remain unavailable; a searchRef is still returned for continuation",
+      "Return a serveable subset while other target/source pairs prepare (default); a searchRef is still returned for continuation",
+      true,
+    )
+    .option(
+      "--no-allow-partial",
+      "Wait for all runnable target/source pairs before returning hits",
     )
     .option("--limit <n>", "Max results (1-100, default: 10)")
     .option("--offset <n>", "Result offset")

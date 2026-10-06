@@ -3,6 +3,42 @@ import type { ReadResult } from "@githits/core-internal";
 import { formatReadResult } from "./read-result-response.js";
 
 describe("unified read presentation", () => {
+  it("keeps known dates and the served identity in CLI/MCP read JSON", () => {
+    const targetResolution = {
+      requested: { kind: "repo_default_branch" },
+      resolvedRequested: {
+        commitSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        committedAt: "2026-10-05T00:00:01Z",
+      },
+      served: {
+        commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        committedAt: "2026-09-01T23:59:59Z",
+      },
+      freshness: "fallback_recent",
+      availableVersions: [],
+      availableRefs: [],
+      suggestedRefs: [],
+    };
+    const response: ReadResult = {
+      source: "code",
+      result: {
+        filePath: "src/index.ts",
+        content: "const value = 1;",
+        isBinary: false,
+        readTarget: {
+          target: "github:owner/repo@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          path: "src/index.ts",
+        },
+        targetResolution,
+      },
+    };
+    const request = { target: "github:owner/repo", path: "src/index.ts" };
+    const mcp = JSON.parse(formatReadResult(response, request, "mcp-json"));
+    const cli = JSON.parse(formatReadResult(response, request, "cli-json"));
+    expect(mcp).toEqual(cli);
+    expect(mcp.targetResolution).toEqual(targetResolution);
+  });
+
   it("renders an actionable unsupported snapshot without source content", () => {
     const response: ReadResult = {
       source: "symbol_resolution",

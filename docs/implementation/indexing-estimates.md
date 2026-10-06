@@ -35,7 +35,7 @@ and rounds up to ten seconds. Uncovered work adds a 30-second floor; no bounds
 uses the unchanged 30-second default. It never sums work or target labels.
 Discovery and grep/list suggestions cap at 120 seconds; read and legacy navigation
 cap at 60 seconds. These are request budgets, not completion promises. Search CLI
-renders wait seconds; grep/list/read/code CLI and MCP use milliseconds. Request
+renders wait seconds; grep/list/read/code CLI and MCP use milliseconds. Wait
 defaults do not change, and there is no automatic retry, polling or new status API.
 
 Annotated text displays total duration and active elapsed evidence; JSON preserves
@@ -43,9 +43,10 @@ provenance and work identity. Pipe-friendly raw paths and source content remain
 raw. Grep lists resolved sources one per line under `Sources:`, marking sources
 without matches on an incomplete search as `(no results on this page)`, or
 `(no results)` when the search is complete. A separate
-`Omitted:` list has one entry per unavailable requested target, combining its
-reason and compact advisory total estimate. There is no separate partial-data or
-indexing paragraph.
+`Preparing:` block groups actual repository/documentation work and timing once
+per estimate. Duplicate/package requested inputs and their suggestions remain
+attached beneath that work; pending inputs without an estimate keep label-only
+rows. Non-preparation omissions remain under `Omitted:`.
 Hosted-site matches do not establish package-version
 provenance. The existing cursor instructions follow the matches; a short final note
 suggests rerunning the original query with the recommended wait. That retry is a
@@ -64,7 +65,15 @@ annotations do not label queued/searching work as active index execution.
 Legacy annotated consumers reuse the same rows; raw CLI reads and `list --silent`
 remain suitable for piping.
 
-`indexing-estimates-text.ts` owns the Preparing section and native retry sentence shared by successful notices and errors. Its rows use terminal-aware hanging indentation and stay separated from file content. Free prose normalizes word spacing; raw file content and copyable actions bypass prose wrapping. `mapped-error-text.ts` owns human error wording. Tool boundaries supply native
+Preparing repository rows prefer the actual entry's repository/full SHA, rendered
+with an 8-character display SHA. Matching independently dated resolved-requested
+facts may add a date and `observed HEAD`; full raw URL/SHA equality and verified
+HEAD/default-branch intent are required. Ref labels, dates and SHA prefixes are
+not proof. Served dates are never borrowed. Missing job identity keeps the
+supplied labels. Ended search timing says `indexing when observed`; it supplies
+no poll action. `source-provenance-text.ts` owns the common row grammar.
+
+`indexing-estimates-text.ts` owns the Preparing section, Indexed alternatives prefix, and native retry sentence shared by successful notices and errors. Immediately indexed version/ref alternatives stay beneath their matching requested target; suggested refs remain separate advisory facts. Its rows use terminal-aware hanging indentation and stay separated from file content. Free prose normalizes word spacing; raw file content and copyable actions bypass prose wrapping. `mapped-error-text.ts` owns human error wording. Tool boundaries supply native
 retry actions; core and error classifiers retain backend facts instead of
 appending mixed CLI/MCP syntax. Default/text MCP errors are readable `isError`
 results; only explicit JSON serializes the existing error envelope. Progress IDs

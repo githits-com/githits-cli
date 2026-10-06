@@ -267,6 +267,7 @@ describe("ListServiceImpl", () => {
       after: "",
       waitTimeoutMs: 0,
       includeDetailedFields: false,
+      includeTargetProvenance: false,
       includeReadActions: false,
     });
 
@@ -283,6 +284,7 @@ describe("ListServiceImpl", () => {
       after: "",
       waitTimeoutMs: 0,
       includeDetailedFields: false,
+      includeTargetProvenance: false,
       includeReadActions: false,
     });
     expect(request.query).toContain("query List(");
@@ -299,6 +301,254 @@ describe("ListServiceImpl", () => {
     expect(result.entries[0]?.read).toBeUndefined();
     expect(result.canonicalTarget).toBe("npm:express@5.2.1");
     expect(result.entries[1]).toEqual({ kind: "DIRECTORY", path: "src" });
+  });
+
+  it("list provenance wire selects minimal identities and preserves dates and nulls", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse(
+          successBody({
+            targetResolution: {
+              requested: { kind: "git_branch", gitRef: null },
+              resolvedRequested: {
+                repoUrl: null,
+                gitRef: "main",
+                commitSha: "requested-full-sha",
+                committedAt: null,
+              },
+              served: {
+                repoUrl: "https://github.com/acme/project",
+                gitRef: "main",
+                commitSha: "served-full-sha",
+                committedAt: "2025-04-03T02:01:00.123+05:30",
+              },
+              freshness: "stale",
+              freshnessReason: "ref_moved",
+            },
+          }),
+        ),
+      ),
+    );
+    const service = new ListServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.list({
+      target: "github:acme/project@main",
+      includeDetailedFields: false,
+      includeTargetProvenance: true,
+    });
+    const request = readRequest(fetchFn);
+
+    expect(request.variables).toEqual({
+      target: "github:acme/project@main",
+      includeDetailedFields: false,
+      includeTargetProvenance: true,
+      includeReadActions: false,
+    });
+    expect(parseListSelection(request.query)).toEqual(expectedListSelection());
+    expect(result.targetResolution).toEqual({
+      requested: { kind: "git_branch", gitRef: null },
+      resolvedRequested: {
+        repoUrl: null,
+        gitRef: "main",
+        commitSha: "requested-full-sha",
+        committedAt: null,
+      },
+      served: {
+        repoUrl: "https://github.com/acme/project",
+        gitRef: "main",
+        commitSha: "served-full-sha",
+        committedAt: "2025-04-03T02:01:00.123+05:30",
+      },
+      freshness: "stale",
+      freshnessReason: "ref_moved",
+    });
+    expect(result.targetResolution?.requested?.repoUrl).toBeUndefined();
+    expect(
+      result.targetResolution?.resolvedRequested?.registry,
+    ).toBeUndefined();
+    expect(result.targetResolution?.indexingRef).toBeUndefined();
+    expect(result.targetResolution?.availableVersions).toBeUndefined();
+    expect(result.targetResolution?.availableRefs).toBeUndefined();
+    expect(result.targetResolution?.suggestedRefs).toBeUndefined();
+  });
+
+  it("compact unresolved requested identity selects and projects repository and package labels", async () => {
+    const cases = [
+      {
+        target: "github:owner/repo@missing",
+        requested: {
+          kind: "git_branch",
+          repoUrl: "https://github.com/owner/repo",
+          gitRef: "missing",
+        },
+      },
+      {
+        target: "npm:example@missing",
+        requested: {
+          kind: "package_exact_version",
+          registry: "npm",
+          packageName: "example",
+          version: "missing",
+          gitRef: null,
+        },
+      },
+    ];
+
+    for (const { target, requested } of cases) {
+      const fetchFn = mock(() =>
+        Promise.resolve(
+          jsonResponse(
+            successBody({
+              requestedTarget: target,
+              canonicalTarget: target,
+              targetResolution: {
+                requested,
+                resolvedRequested: null,
+                served: null,
+                freshness: "unavailable",
+                freshnessReason: null,
+              },
+            }),
+          ),
+        ),
+      );
+      const service = new ListServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+
+      const result = await service.list({
+        target,
+        includeDetailedFields: false,
+        includeTargetProvenance: true,
+      });
+      const request = readRequest(fetchFn);
+
+      expect(request.variables).toEqual({
+        target,
+        includeDetailedFields: false,
+        includeTargetProvenance: true,
+        includeReadActions: false,
+      });
+      expect(parseListSelection(request.query)).toEqual(
+        expectedListSelection(),
+      );
+      expect(result.targetResolution).toEqual({
+        requested,
+        resolvedRequested: null,
+        served: null,
+        freshness: "unavailable",
+        freshnessReason: null,
+      });
+    }
+  });
+
+  it("list provenance wire omits provenance for default compact calls", async () => {
+    const fetchFn = mock(() => Promise.resolve(jsonResponse(successBody())));
+    const service = new ListServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.list({
+      target: "github:acme/project@main",
+      includeDetailedFields: false,
+    });
+    const request = readRequest(fetchFn);
+
+    expect(request.variables).toEqual({
+      target: "github:acme/project@main",
+      includeDetailedFields: false,
+      includeTargetProvenance: false,
+      includeReadActions: false,
+    });
+    expect(parseListSelection(request.query)).toEqual(expectedListSelection());
+    expect(result.targetResolution).toBeUndefined();
+  });
+
+  it("list provenance wire keeps detailed provenance when explicitly disabled", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse(
+          successBody({
+            targetResolution: {
+              requested: {
+                kind: "git_tag",
+                registry: null,
+                packageName: null,
+                version: null,
+                repoUrl: "https://github.com/acme/project",
+                gitRef: "v1.0.0",
+                commitSha: "requested-sha",
+              },
+              resolvedRequested: {
+                kind: "git_tag",
+                registry: null,
+                packageName: null,
+                version: null,
+                repoUrl: "https://github.com/acme/project",
+                gitRef: "v1.0.0",
+                commitSha: "requested-sha",
+                committedAt: "2025-01-02T03:04:05Z",
+              },
+              served: {
+                kind: "git_tag",
+                registry: null,
+                packageName: null,
+                version: null,
+                repoUrl: "https://github.com/acme/project",
+                gitRef: "v1.0.0",
+                commitSha: "served-sha",
+                committedAt: null,
+              },
+              freshness: "current",
+              freshnessReason: "exact_current",
+              indexingRef: null,
+              availableVersions: [],
+              availableRefs: [],
+              suggestedRefs: [],
+            },
+          }),
+        ),
+      ),
+    );
+    const service = new ListServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+
+    const result = await service.list({
+      target: "github:acme/project@v1.0.0",
+      includeDetailedFields: true,
+      includeTargetProvenance: false,
+    });
+    const request = readRequest(fetchFn);
+
+    expect(request.variables).toEqual({
+      target: "github:acme/project@v1.0.0",
+      includeDetailedFields: true,
+      includeTargetProvenance: true,
+      includeReadActions: true,
+    });
+    expect(parseListSelection(request.query)).toEqual(expectedListSelection());
+    expect(result.targetResolution?.resolvedRequested?.committedAt).toBe(
+      "2025-01-02T03:04:05Z",
+    );
+    expect(result.targetResolution?.served?.committedAt).toBeNull();
+    expect(result.targetResolution?.requested?.repoUrl).toBe(
+      "https://github.com/acme/project",
+    );
+    expect(result.targetResolution?.indexingRef).toBeNull();
+    expect(result.targetResolution?.availableVersions).toEqual([]);
+    expect(result.targetResolution?.availableRefs).toEqual([]);
+    expect(result.targetResolution?.suggestedRefs).toEqual([]);
   });
 
   it("compact site projection selects logical read actions without other details", async () => {
@@ -341,6 +591,7 @@ describe("ListServiceImpl", () => {
     expect(request.variables).toEqual({
       target: "site:docs.example.test",
       includeDetailedFields: false,
+      includeTargetProvenance: false,
       includeReadActions: true,
     });
     expect(request.query).toContain(
@@ -532,6 +783,7 @@ describe("ListServiceImpl", () => {
     expect(request.variables).toEqual({
       target: "site:docs.example.test",
       includeDetailedFields: true,
+      includeTargetProvenance: true,
       includeReadActions: true,
     });
     expect(parseListSelection(request.query)).toEqual(expectedListSelection());
@@ -1088,19 +1340,30 @@ describe("ListServiceImpl", () => {
 
 function expectedListSelection(): SelectionTree {
   const includeDetailed = "@include(if:$includeDetailedFields)";
+  const includeTargetProvenance = "@include(if:$includeTargetProvenance)";
   const includeReadActions = "@include(if:$includeReadActions)";
   const detailed = (selection?: SelectionTree) => ({
     __directive: includeDetailed,
     ...(selection ? { __selection: selection } : {}),
   });
-  const identity = {
+  const requestedIdentity = {
     kind: null,
+    gitRef: null,
     registry: null,
     packageName: null,
     version: null,
     repoUrl: null,
+    commitSha: detailed(),
+  };
+  const servedIdentity = {
+    repoUrl: null,
     gitRef: null,
     commitSha: null,
+    committedAt: null,
+    kind: detailed(),
+    registry: detailed(),
+    packageName: detailed(),
+    version: detailed(),
   };
   return {
     indexingEstimates: {
@@ -1145,17 +1408,20 @@ function expectedListSelection(): SelectionTree {
       resolvedRef: null,
       commitSha: null,
     }),
-    targetResolution: detailed({
-      requested: identity,
-      resolvedRequested: identity,
-      served: identity,
-      freshness: null,
-      freshnessReason: null,
-      indexingRef: null,
-      availableVersions: { version: null, ref: null },
-      availableRefs: { version: null, ref: null },
-      suggestedRefs: { version: null, ref: null },
-    }),
+    targetResolution: {
+      __directive: includeTargetProvenance,
+      __selection: {
+        requested: requestedIdentity,
+        resolvedRequested: servedIdentity,
+        served: servedIdentity,
+        freshness: null,
+        freshnessReason: null,
+        indexingRef: detailed(),
+        availableVersions: detailed({ version: null, ref: null }),
+        availableRefs: detailed({ version: null, ref: null }),
+        suggestedRefs: detailed({ version: null, ref: null }),
+      },
+    },
     codeIndexState: null,
     indexingStatus: null,
     indexingRef: null,

@@ -33,8 +33,15 @@ Selected actions must be present (explicit null is valid); unselected actions
 remain omitted. DIRECTORY entries stay browse-only/null, and SOURCE text retains
 its generic path template without a concrete read descriptor.
 `includeDetailedFields` conditionally selects entry titles, browse
-actions, file metadata, source resolution, available refs and versions, and
-indexing estimates. It does not request content or snippets.
+actions, file metadata, detailed source resolution, available refs and versions,
+and singular indexing estimates. Normal text opts into service-only
+`includeTargetProvenance`; silent text opts out and omitted service callers retain
+the old compact selection. Detailed mode always selects provenance. The minimal
+block contains requested kind/ref and repository/package identity, so unresolved
+requests retain their full target. It also contains resolved-requested and served repo/ref/full SHA/
+nullable `committedAt`, freshness and reason. Recovery arrays and opaque nested
+indexing refs remain detailed-only. Selected nulls and omitted fields stay distinct;
+JSON preserves full timestamps. It does not request content or snippets.
 
 The service models selected nullable fields as nullable values and preserves
 them in its result. Detail fields excluded by the GraphQL directive remain
@@ -55,29 +62,21 @@ response. The backend's opaque cursor is otherwise preserved exactly.
 - `list-response.ts` copies only the selected camelCase `ListResult` fields.
   It preserves meaningful `null`s and omitted conditional details, clones
   nested values, and adds no total, filter echo, or reconstructed action.
-- `list-text.ts` defines the one token-efficient format shared by CLI and MCP:
-  `# source <target>` followed by one path per line. SOURCE headers use the
-  canonical target, falling back to the requested target. SITE headers use the
-  shared PAGE action target or the requested target, preserving the base of
-  emitted relative paths; a broader canonical site owner remains JSON metadata.
-  ` | more results available` means another page exists. When the backend
-  returns a cursor, a dim footer tells CLI callers to rerun with `--after` and
-  MCP callers to repeat the same list with `after`; both preserve the opaque
-  cursor exactly.
-  CLI dims this line when color is enabled; MCP emits the same plain text
-  without ANSI. CLI `--silent` omits the header and emits only path lines for
-  piping; an empty inventory then emits no bytes. Source
-  inventories add `follow up with "read <canonical-target> $path"`. Site
-  inventories use the shared `read.target` from their PAGE actions and render
-  each corresponding `read.path`; `/` denotes the site's landing page.
-  Directory rows preserve their target-relative inventory path and end in `/`;
-  the formatter never strips a presumed host or scope component. Exceptional PAGE
-  actions that cannot use site addressing retain and display their exact URL.
-  If returned logical PAGE actions disagree on their target, the formatter
-  omits site follow-up guidance rather than reconstructing one.
-  Controls and backslashes are escaped to keep every entry on one unambiguous
-  line, while quotes, ordinary Unicode, spaces, and encoded path bytes are
-  retained.
+- `list-text.ts` uses shared `Sources:` rows, then native `Read files:` guidance
+  when SOURCE paths are returned, or shared `Read pages:` guidance for SITE actions,
+  followed by one path per line. Known SOURCE provenance is
+  pinned and dated; its exact read recipe retains canonical/requested path base,
+  which can be a package target rather than the displayed repository SHA. SITE
+  rows and recipes use the shared PAGE action target or requested target, never a
+  broader canonical owner. Disagreeing PAGE targets omit a generic read recipe.
+  Known freshness qualifiers, preparation and recovery remain separate from paths.
+  Empty inventories retain no-files/no-pages outcomes. Preparation follows paths
+  and precedes continuation/retry. The opaque cursor and native wait units stay exact.
+  CLI colors and width affect wrapping; MCP shares plain wording. `--silent`
+  returns only paths, with no bytes for an empty inventory. PAGE read paths remain
+  target-relative, `/` denotes the landing page, and DIRECTORY paths end in `/`.
+  Exceptional URL-only PAGE actions stay exact. Controls/backslashes are escaped;
+  printable Unicode and encoded path bytes survive.
 
 The core service owns the network and backend contract because it is shared by
 both surfaces. The MCP shared modules own input normalization, error and result
@@ -122,7 +121,7 @@ itself does not scan pages or reconstruct inventory client-side.
 SOURCE indexing metadata (`codeIndexState`, `indexingStatus`, `indexingRef`,
 and detailed resolution data) remains distinct from an empty result in JSON.
 SITE `inventoryState`, `crawlStatus`, `coverageState`, `coverageReason`, and
-`preparation` are also preserved there. Completed empty inventories keep their zero-entry header. Pending empty source/
+`preparation` are also preserved there. Completed empty inventories say no files/pages and retain known source provenance. Pending empty source/
 site inventories say “No files/pages available yet”, followed by compact
 preparation rows. Available paths/pages and their cursor remain visible during
 refresh. One native wait recommendation appears after the continuation footer;
@@ -191,9 +190,9 @@ These are UTF-8 output sizes, not tokenizer-specific token counts. The durable
 `bun run bench:list-text` fixture reports current 100-entry source and site
 text sizes without requiring network access. It also compares the prior compact
 entry selection (`kind`, `path`, `title`, `read`, `browse`) with the new
-source `kind`/`path` selection. Compact site text additionally fetches exact
+source `kind`/`path` entry selection; the separate minimal provenance block is now also selected for normal text. Compact site text additionally fetches exact
 `read.target` and `read.path` values. Before the text continuation footer, its
-100-entry source/site cases were 3,613/2,119 bytes. The same cases are now
+100-entry source/site cases were 3,613/2,119 bytes. At continuation-footer delivery, the same cases were
 3,702/2,208 bytes, an 89-byte continuation cost (2.5%/4.2%).
 
 Authenticated live CLI conformance on 2026-09-26 verified that the hosted
@@ -283,8 +282,17 @@ page from a directory.
 | `packages/mcp/src/shared/list-request.ts` | Shared request validation and normalization |
 | `packages/mcp/src/shared/list-error-map.ts` | Mapping list errors into the shared envelope |
 | `packages/mcp/src/shared/list-response.ts` | Allowlisted, null-preserving JSON projection |
-| `packages/mcp/src/shared/list-text.ts` | Shared path-only CLI/MCP text rendering |
+| `packages/mcp/src/shared/list-text.ts` | Shared inventory, provenance and native follow-up rendering |
 | `packages/mcp/src/tools/list.ts` | Stable MCP descriptor, schema, and adapter |
 | `packages/mcp/src/client.ts` | Public service types and concrete client export |
 | `packages/mcp/src/internal.ts` | Workspace-only exports for shared helpers |
 | `pkgseer-backend/priv/graphql/schema.graphql` | Backend `Query.list` schema source |
+
+## Dated provenance rollout prerequisite
+
+Confirm production backend schema support for `TargetResolutionIdentity.committedAt`
+before releasing clients or adopting the MCP package on the hosted server. This
+applies to list text and JSON, including silent/default service calls: GraphQL
+validates the complete query document before evaluating field directives. Dev
+verification does not establish production support. No schema fallback, extra
+metadata request or runtime enrichment was added.

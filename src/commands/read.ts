@@ -185,6 +185,7 @@ export async function readAction(
         else
           process.stdout.write(
             formatReadFileTerminal(payload, {
+              width: process.stdout.columns,
               useColors: shouldUseColors(),
               verbose: options.verbose,
             }),
@@ -195,6 +196,7 @@ export async function readAction(
         response,
         {
           target: locator.target,
+          width: process.stdout.columns,
           selector,
           path: locator.path,
           verbose: options.verbose,

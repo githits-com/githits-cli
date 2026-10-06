@@ -6,12 +6,19 @@ import {
 } from "./indexing-estimates-text.js";
 import { indexingWaitMs } from "./indexing-wait.js";
 import { shellQuoteExact } from "./shell-quote.js";
+import {
+  renderResolutionDetails,
+  renderSourceSection,
+  resolutionSourceFacts,
+} from "./source-provenance-text.js";
+import { wrapTerminalProse } from "./terminal-text.js";
 
 export interface FormatListTextOptions {
   useColors?: boolean;
   includeHeader?: boolean;
   syntax?: "cli" | "mcp";
   hasAfter?: boolean;
+  width?: number;
 }
 
 /** Render one token-efficient inventory shared by CLI and MCP text surfaces. */
@@ -27,24 +34,80 @@ export function formatListText(
   const pending = Boolean(
     result.indexingEstimates?.length || result.codeIndexState === "INDEXING",
   );
-  const lines = [
-    pending && !paths.length
-      ? result.inventoryKind === "SITE"
-        ? "No pages available yet."
-        : "No files available yet."
-      : formatHeader(result, siteReadTarget, options.useColors === true),
-    ...paths,
-  ];
+  const isSource = result.inventoryKind === "SOURCE";
+  const resolution = result.targetResolution;
+  const sourceBase = result.canonicalTarget ?? result.requestedTarget;
+  const sourceRows = isSource ? resolutionSourceFacts(resolution) : [];
+  if (
+    isSource &&
+    !sourceRows.length &&
+    ((!resolution && (!pending || paths.length > 0)) ||
+      resolution?.freshness === "current")
+  ) {
+    sourceRows.push({ target: sourceBase });
+  }
+  const lines = isSource
+    ? [
+        ...(paths.length
+          ? []
+          : [pending ? "No files available yet." : "No files."]),
+        ...renderSourceSection(sourceRows, { width: options.width }),
+        ...(paths.length
+          ? [
+              `Read files: ${formatSourceReadAction(sourceBase, options.syntax)}`,
+            ]
+          : []),
+        ...paths,
+      ]
+    : [
+        ...(paths.length
+          ? []
+          : [pending ? "No pages available yet." : "No pages."]),
+        ...(paths.length || !pending
+          ? renderSourceSection(
+              [
+                {
+                  target: siteReadTarget ?? result.requestedTarget,
+                  qualifiers: ["hosted documentation"],
+                },
+              ],
+              { width: options.width },
+            )
+          : []),
+        ...(siteReadTarget
+          ? [formatSiteReadGuidance(siteReadTarget, options.syntax)]
+          : []),
+        ...paths,
+      ];
   if (pending) {
     lines.push(
       ...(result.indexingEstimates?.length
-        ? renderPreparationSection(result.indexingEstimates)
+        ? renderPreparationSection(
+            result.indexingEstimates,
+            isSource
+              ? {
+                  resolutions: resolution ? [resolution] : [],
+                  width: options.width,
+                }
+              : { width: options.width },
+          )
         : [
             "",
             "Preparing:",
-            `  - ${escapeLineValue(result.requestedTarget)} (indexing, no estimate available)`,
+            ...wrapTerminalProse(
+              `  - ${escapeLineValue(result.requestedTarget)} (indexing, no estimate available)`,
+              options.width,
+            ),
           ]),
     );
+  }
+  if (isSource) {
+    const details = renderResolutionDetails(
+      resolution,
+      result.indexingEstimates,
+      { width: options.width },
+    );
+    if (details.length) lines.push("", ...details);
   }
   if (result.nextCursor) {
     const continuation = [
@@ -74,24 +137,22 @@ export function formatListText(
   return lines.join("\n");
 }
 
-function formatHeader(
-  result: ListResult,
-  siteReadTarget: string | undefined,
-  useColors: boolean,
+function formatSourceReadAction(
+  target: string,
+  syntax: FormatListTextOptions["syntax"],
 ): string {
-  const source =
-    result.inventoryKind === "SITE"
-      ? (siteReadTarget ?? result.requestedTarget)
-      : (result.canonicalTarget ?? result.requestedTarget);
-  const escapedSource = escapeLineValue(source);
-  const followUpTarget =
-    result.inventoryKind === "SOURCE" ? source : siteReadTarget;
-  const followUp =
-    followUpTarget === undefined
-      ? ""
-      : ` | follow up with "read ${escapeLineValue(followUpTarget)} $path"`;
-  const header = `# source ${escapedSource}${followUp}${result.hasMore ? " | more results available" : ""}`;
-  return dim(header, useColors);
+  return syntax === "mcp"
+    ? `read target=${JSON.stringify(target)} path=$path`
+    : `read -- ${shellQuoteExact(target)} $path`;
+}
+
+function formatSiteReadGuidance(
+  target: string,
+  syntax: FormatListTextOptions["syntax"],
+): string {
+  return syntax === "mcp"
+    ? `Read pages: read target=${JSON.stringify(target)} path=$path`
+    : `Read pages: read -- ${shellQuoteExact(target)} $path`;
 }
 
 function formatPath(

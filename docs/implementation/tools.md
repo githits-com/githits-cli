@@ -254,7 +254,7 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Unified `search` query syntax.** The `search.query` field is the backend discovery query syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). MCP callers put these constraints directly in `query`; the backend owns parsing, current enum validation, recovery warnings, and per-source compilation. Per-source support, ignored features, and incompatibilities are reported in `sourceStatus`. CLI users retain `--kind`, `--category`, `--path-prefix`, `--intent`, `--name`, and `--lang`; the shared request builder adapts those human-facing flags to the same backend operation.
 
-**Partial-result truth.** Every result-bearing initial `search` payload and stored `search_status.result` carries the backend's exact `partialResults: boolean`, including `false` for an atomic serveable interim snapshot and `true` for a subset of requested evidence. A progress-only response with no result snapshot omits the field. This additive field is retained unchanged in CLI `--json` and MCP `format: "json"`; text-v1 labels active results as `partial` only when it is true; otherwise the adjacent lifecycle identifies background work.
+**Partial-result truth.** Search defaults to partial results so ready sources can contribute while other target/source pairs prepare. Explicit `allow_partial_results: false` requires atomic evidence across runnable pairs. Every result-bearing initial `search` payload and stored `search_status.result` carries the backend's exact `partialResults: boolean`, including `false` for an atomic serveable interim snapshot and `true` for a subset of requested evidence. A progress-only response with no result snapshot omits the field. This additive field is retained unchanged in CLI `--json` and MCP `format: "json"`; text-v1 labels active results as `partial` only when it is true; otherwise the adjacent lifecycle identifies background work.
 
 **Repository search evidence locators.** Repository code and symbol hits keep the legacy target-relative `locator.filePath` and evidence `startLine` / `endLine` while also exposing the repository-root `repositoryFilePath`, exact served `commitSha`, explicit `evidenceRange`, original `indexedRange`, and optional `symbolContext`. Evidence includes `matchLine`, backend `rangeKind`, and `matchSpansTruncated`; symbol context keeps backend identity/kind plus the fixed lowercase relation `encloses_match` or `associated_with_indexed_chunk`. A proven enclosing relation always has one complete `definitionRange` containing both target-relative and repository-root paths. Associated or identity-only context may omit that range. Malformed partial definition locators invalidate the search response instead of being repaired or dropped.
 
@@ -363,20 +363,18 @@ advisory rather than aliases; the client never selects or retries one automatica
 **Unified target-state output.** MCP `search` and `search_status` text-v1 return one
 outcome-first response. The headline carries result count/type breakdown,
 active/terminal lifecycle, readiness, and pagination when applicable. A completed
-current result set collapses to one `Sources: <target> - <sources>` row; code and
-symbols use lane names while documentation uses a canonical `site:<host[/path]>`
-or `github:<owner>/<repo>@<revision>` locator. A source identical to its standalone
-target is written once; a sole pinned repository source replaces its less-specific
-ref-less repository target, while an already-pinned target remains beside its resolved
-commit. Compact repository provenance requires both the repository URL and commit.
-Documentation without concrete provenance stays in detailed target-state form. Any trust,
-warning, alternative, suggestion, or non-current fact keeps every target in one
-detailed list. Each target row can contain `using`, `searched`, `indexing`, an exact
-terminal reason, `available`, `indexed`, constraints, and at most one inline
-`Fix:`/`Try:` recovery line. Completed-empty and terminal site suggestions remain
-`Try:`-eligible even when the site lane was searched empty. Detailed lane order is
-`code`, `symbols`, `repository docs`, concrete site docs, then docs. Hits remain a
-separate numbered ranked list.
+current result set uses a `Sources:` section with compact served-identity bullets.
+Repository rows prefer an eight-character commit pin with independently known
+UTC dates and historical refs. Documentation retains repository or site locators;
+corpora, request aliases, freshness and coverage remain explicit. `Preparing:`
+identifies actual repository work or documentation preparation, with advisory
+timing and requested aliases. An unresolved requested tag is not repeated when
+its package request already appears under that preparation; independently
+resolved commits remain separate. Target-local state, alternatives, constraints
+and at most one `Fix:`/`Try:` recovery line follow when relevant. Completed-empty
+and terminal site suggestions remain `Try:`-eligible even when the site lane
+was searched empty. Lane order is `code`, `symbols`, `repository docs`, concrete
+site docs, then docs. Hits remain a separate numbered ranked list.
 
 Exact `NOT_FOUND` and `UNRESOLVABLE` reasons are client-owned and lane-specific:
 `package not found: code`, `version unavailable: code`, or
@@ -614,7 +612,7 @@ compatibility. It is not an advertised MCP tool.
 
 **`grep` result**: `GrepResult` is the validated backend result: `{hits, targets, unavailableTargets, traversal, nextCursor, totalMatches}`. `hits` is a repository/site union; each hit retains its physical scope index, line slices and match offsets, safety metadata, and exact backend-authored `read` action. Detailed JSON selection also carries source byte coordinates, line content, and site URL-prefix detail where selected by the query. The MCP `format: "text"` formatter groups this page for reading and prints read templates plus opaque continuation guidance; JSON preserves producer hit order and action values. See [Unified grep](unified-grep.md) for the public controls, coverage semantics, and text contract. The retired MCP `code_grep` envelope and legacy filters are not aliases; those controls remain on the CLI `githits code grep` command.
 
-Where present, `targetResolution` is additive provenance. It explains requested, resolved-requested, and served artifacts plus `freshness` (`current`, `fallback_recent`, `indexing`, `provisional`, or `unavailable`), `freshnessReason`, `indexingRef`, `availableVersions`, `availableRefs`, and `suggestedRefs`. A `provisional` / `exact_provisional` Discovery result is queryable while indexing continues; code-navigation text uses the exact served identity and `indexingRef` and does not substitute a requested ref. Unified search text-v1 instead keeps internal `indexingRef` and reason codes out of default text while retaining the user-meaningful served identity and bounded alternatives. `availableVersions` and `availableRefs` are already-indexed artifacts that can be queried immediately. `suggestedRefs` are fuzzy upstream candidates and may require indexing before use. Existing `indexedVersion`, `resolution`, and locator fields remain served-identity compatibility fields. Text mode renders actionable notes such as `Using recent indexed snapshot`, `Serving an older indexed snapshot; current target is still being indexed`, `Requested ref is being indexed`, `provisional (still indexing)`, `Fresh target is being indexed`, `Target unavailable`, `queryable now`, or `suggested refs`; legacy code-navigation indexing text includes the exact `served=` identity whenever results came from a queryable snapshot. JSON mode carries the structured object. A `current` resolution is authoritative on responses that expose it and suppresses alternative-target remediation; waited search completion is one case where earlier candidates can remain in structured provenance without becoming warnings. Unified `grep` instead returns its own per-scope readiness and traversal fields.
+Where present, `targetResolution` is additive provenance. It explains requested, resolved-requested, and served artifacts plus `freshness` (`current`, `fallback_recent`, `indexing`, `provisional`, or `unavailable`), `freshnessReason`, `indexingRef`, `availableVersions`, `availableRefs`, and `suggestedRefs`. A `provisional` / `exact_provisional` Discovery result is queryable while indexing continues; shared Sources/Preparing text on unified search, annotated read, list and code files uses the exact served identity and keeps internal `indexingRef` and reason codes out of default text, while retaining meaningful preparation state and bounded alternatives. Legacy CLI code grep retains its exact `served=` identity and indexing-ref notes. Neither surface substitutes a requested ref for a served identity. `availableVersions` and `availableRefs` are already-indexed artifacts that can be queried immediately. `suggestedRefs` are fuzzy upstream candidates and may require indexing before use. Existing `indexedVersion`, `resolution`, and locator fields remain served-identity compatibility fields. Text mode renders actionable notes such as `Using recent indexed snapshot`, `Serving an older indexed snapshot; current target is still being indexed`, `Requested ref is being indexed`, `provisional (still indexing)`, `Fresh target is being indexed`, `Target unavailable`, `queryable now`, or `suggested refs`; legacy code-navigation indexing text includes the exact `served=` identity whenever results came from a queryable snapshot. JSON mode carries the structured object. A `current` resolution is authoritative on responses that expose it and suppresses alternative-target remediation; waited search completion is one case where earlier candidates can remain in structured provenance without becoming warnings. Unified `grep` instead returns its own per-scope readiness and traversal fields.
 
 ### Indexing and inventory lifecycle
 
@@ -757,9 +755,8 @@ anatomy, and ordering. The order is:
 
 1. one outcome headline with count/breakdown, lifecycle, readiness, and
    pagination when applicable;
-2. one compact `Sources: <target> - <sources>` row for ordinary completed current
-   results, retaining concrete documentation provenance when available, or one
-   detailed block per target when any state must remain visible;
+2. compact served-identity bullets under `Sources:`, then actual-work bullets
+   under `Preparing:` when present, retaining concrete provenance and aliases;
 3. target-local state and recovery, then query-wide warnings;
 4. the separate numbered ranked hit list; and
 5. at most one session/query-wide `Next:` action.
@@ -773,7 +770,7 @@ those fields. Progress-only responses show only derivable target identity and
 lane-free freshness; they never invent source or contributor facts.
 
 Detailed target rows keep one identity and deterministic segment order:
-`commit`/`using`, `searched`, `indexing`, terminal/unavailable, `available`, `indexed`,
+remaining `using`, `searched`, `indexing`, terminal/unavailable, `available`, `indexed`,
 then target-scoped constraints. Lanes are `code`, `symbols`, `repository docs`,
 concrete site docs, and docs. Exact terminal states use readable client-owned
 reasons (`package not found`, `version unavailable`, or `repository ref

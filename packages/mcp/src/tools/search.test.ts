@@ -228,10 +228,13 @@ describe("searchTool", () => {
       },
       {},
     );
-    expect(text.content[0]?.text).toContain(
-      "indexing: expressjs.com/en/guide docs",
+    const textOutput = text.content[0]?.text ?? "";
+    expect(textOutput).toContain(
+      "indexing when observed: expressjs.com/en/guide docs",
     );
-    expect(text.content[0]?.text).toContain("searched: repository docs");
+    expect(textOutput.replace(/\s+/g, " ")).toContain(
+      "github:expressjs/express@01234567 (repository docs, requested: npm:express@5.1.0, no results)",
+    );
   });
 
   it("forwards trimmed inline qualifiers without constructing structured filters", async () => {

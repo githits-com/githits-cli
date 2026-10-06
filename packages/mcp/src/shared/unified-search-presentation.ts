@@ -4,23 +4,29 @@ import {
   formatRepositoryTarget,
   parseRepositoryTargetSpec,
 } from "./repository-target.js";
+import {
+  type SourceProvenanceIdentity,
+  type SourceProvenanceResolution,
+  type SourceRowFacts,
+  sameRepositoryCommit,
+} from "./source-provenance-text.js";
 import type {
   LeanDocCoverage,
-  UnifiedSearchCompletedPayload,
+  UnifiedSearchCompletedPresentation,
   UnifiedSearchHitPayload,
-  UnifiedSearchIncompletePayload,
+  UnifiedSearchIncompletePresentation,
   UnifiedSearchProgressPayload,
   UnifiedSearchQueryEcho,
   UnifiedSearchSourceStatusPayload,
-  UnifiedSearchStatusCompletedPayload,
-  UnifiedSearchStatusIncompletePayload,
+  UnifiedSearchStatusCompletedPresentation,
+  UnifiedSearchStatusIncompletePresentation,
 } from "./unified-search-response.js";
 
 export type UnifiedSearchPresentationInput =
-  | UnifiedSearchCompletedPayload
-  | UnifiedSearchIncompletePayload
-  | UnifiedSearchStatusCompletedPayload
-  | UnifiedSearchStatusIncompletePayload;
+  | UnifiedSearchCompletedPresentation
+  | UnifiedSearchIncompletePresentation
+  | UnifiedSearchStatusCompletedPresentation
+  | UnifiedSearchStatusIncompletePresentation;
 
 export type UnifiedSearchAvailabilityKind =
   | "no_snapshot"
@@ -216,6 +222,8 @@ export type UnifiedSearchTrustLimit =
       target: string;
       requestedTarget?: string;
       commitTarget: string;
+      servedCommitDate?: string;
+      requestedCommitDate?: string;
       indexedRef?: string;
       requestedRef?: string;
       requestedCommitDiffers: boolean;
@@ -254,7 +262,14 @@ export type UnifiedSearchRewriteKind =
   | "code_grep"
   | "site_shorter_or_broader";
 
+export interface UnifiedSearchProvenance {
+  target: string;
+  sources: SourceRowFacts[];
+  resolution?: SourceProvenanceResolution;
+}
+
 export interface UnifiedSearchPresentation {
+  provenance: UnifiedSearchProvenance[];
   indexingEstimates?: UnifiedSearchProgressPayload["indexingEstimates"];
   availability: UnifiedSearchAvailability;
   lifecycle: UnifiedSearchLifecycle;
@@ -315,6 +330,7 @@ export function projectUnifiedSearchPresentation(
   const warnings = projectWarnings(query, sourceStatus, targetGroups);
 
   return {
+    provenance: projectProvenance(snapshot, progress),
     availability,
     lifecycle,
     query,
@@ -337,7 +353,15 @@ export function projectUnifiedSearchPresentation(
 function extractSnapshot(
   payload: UnifiedSearchPresentationInput,
 ): SnapshotFacts | undefined {
-  if ("result" in payload) return payload.result;
+  if ("result" in payload) {
+    const result = payload.result;
+    return result
+      ? {
+          ...result,
+          sourceStatus: result.sourceStatusForText ?? result.sourceStatus,
+        }
+      : undefined;
+  }
   if (!("partialResults" in payload) || payload.partialResults === undefined) {
     return undefined;
   }
@@ -346,7 +370,7 @@ function extractSnapshot(
     partialResults: payload.partialResults,
     hasMore: payload.hasMore,
     results: payload.results,
-    sourceStatus: payload.sourceStatus,
+    sourceStatus: payload.sourceStatusForText ?? payload.sourceStatus,
     evidenceNotice: payload.evidenceNotice,
   };
 }
@@ -624,6 +648,247 @@ function contributorState(
   return readiness[state];
 }
 
+/** Match each hit to its original request and source lane, never a shared served alias. */
+function repositoryHitsForSource(
+  snapshot: SnapshotFacts | undefined,
+  entry: UnifiedSearchSourceStatusPayload,
+): UnifiedSearchHitPayload[] {
+  const targets = entry.requestedTarget
+    ? [entry.requestedTarget]
+    : [entry.targetLabel, entry.servedTarget];
+  return (snapshot?.results ?? []).filter(
+    (hit) =>
+      hit.type ===
+        (entry.source.toLowerCase() === "symbol"
+          ? "repository_symbol"
+          : entry.source.toLowerCase() === "code"
+            ? "repository_code"
+            : "repository_doc") &&
+      targets.includes(hit.requestedTarget ?? hit.target),
+  );
+}
+
+/** Visible repository hits and searched zero-hit scopes are evidence, not readiness alone. */
+function hasRepositoryEvidence(
+  snapshot: SnapshotFacts | undefined,
+  entry: UnifiedSearchSourceStatusPayload,
+): boolean {
+  const served = entry.targetResolution?.served;
+  return Boolean(
+    served?.repoUrl &&
+      served.commitSha &&
+      entry.resultCount !== 0 &&
+      repositoryHitsForSource(snapshot, entry).some(
+        (hit) =>
+          hit.locator.repoUrl === served.repoUrl &&
+          hit.locator.commitSha === served.commitSha,
+      ),
+  );
+}
+
+/** Attribute selected facts before shared copy renders them; no metadata lookups. */
+function projectProvenance(
+  snapshot: SnapshotFacts | undefined,
+  progress: UnifiedSearchProgressPayload | undefined,
+): UnifiedSearchProvenance[] {
+  const records: UnifiedSearchProvenance[] = [];
+  for (const entry of snapshot?.sourceStatus ?? []) {
+    const resolution = entry.targetResolution;
+    const target = entry.requestedTarget ?? entry.targetLabel;
+    const sources: SourceRowFacts[] = [];
+    const alias =
+      isKnownPackageTarget(target) || explicitRepositoryRef(target)
+        ? [`requested: ${target}`]
+        : [];
+    if (entry.contributors?.length) {
+      for (const contributor of entry.contributors) {
+        if (contributor.state !== "SEARCHED") continue;
+        const identity =
+          contributor.kind === "REPOSITORY_DOCS"
+            ? {
+                site: undefined,
+                repoUrl: contributor.repositoryUrl,
+                commitSha: contributor.commitSha,
+                ...(sameRepositoryCommit(
+                  {
+                    repoUrl: contributor.repositoryUrl,
+                    commitSha: contributor.commitSha,
+                  },
+                  resolution?.served,
+                )
+                  ? {
+                      gitRef: resolution?.served?.gitRef,
+                      committedAt: resolution?.served?.committedAt,
+                    }
+                  : {}),
+              }
+            : {
+                repoUrl: undefined,
+                commitSha: undefined,
+                site: contributor.siteUrl
+                  ? `site:${contributor.siteUrl.replace(/^https?:\/\//i, "").replace(/\/$/, "")}`
+                  : contributor.siteKey
+                    ? `site:${contributor.siteKey}`
+                    : undefined,
+              };
+        sources.push({
+          target,
+          identity,
+          qualifiers: [
+            contributor.kind === "DOCPACK"
+              ? "hosted documentation"
+              : "repository docs",
+            ...(identity.repoUrl || (identity.site && identity.site !== target)
+              ? alias
+              : []),
+            ...(contributor.freshness === "PROVISIONAL"
+              ? ["provisional"]
+              : contributor.freshness === "STALE"
+                ? ["older snapshot"]
+                : []),
+            ...(contributor.coverage?.coverageState &&
+            ["PARTIAL", "CAPPED"].includes(contributor.coverage.coverageState)
+              ? [
+                  `${contributor.coverage.pagesCrawled === undefined ? "" : `${contributor.coverage.pagesCrawled} pages, `}${contributor.coverage.coverageState.toLowerCase()}`,
+                ]
+              : []),
+            ...(contributor.resultCount === 0
+              ? [snapshot?.hasMore ? "no results on this page" : "no results"]
+              : []),
+          ],
+        });
+      }
+    } else if (
+      resolution?.served?.repoUrl && resolution.served.commitSha
+        ? hasRepositoryEvidence(snapshot, entry) ||
+          (sourceState(entry) === "searched" && entry.resultCount === 0)
+        : sourceState(entry) === "searched"
+    ) {
+      const identities: (SourceProvenanceIdentity | undefined)[] =
+        resolution?.served
+          ? [resolution.served]
+          : [
+              ...new Map(
+                repositoryHitsForSource(snapshot, entry)
+                  .filter((hit) => hit.locator.repoUrl && hit.locator.commitSha)
+                  .map((hit) => [
+                    JSON.stringify([
+                      hit.locator.repoUrl,
+                      hit.locator.commitSha,
+                    ]),
+                    {
+                      repoUrl: hit.locator.repoUrl,
+                      commitSha: hit.locator.commitSha,
+                    },
+                  ]),
+              ).values(),
+            ];
+      for (const identity of identities.length ? identities : [undefined])
+        sources.push({
+          target: entry.servedTarget ?? target,
+          identity: isSiteTarget(entry.targetLabel, entry)
+            ? { site: target }
+            : identity,
+          qualifiers: [
+            ...(!["code", "symbol"].includes(entry.source.toLowerCase())
+              ? [
+                  isSiteTarget(entry.targetLabel, entry)
+                    ? "hosted documentation"
+                    : identity?.repoUrl
+                      ? "repository docs"
+                      : "docs",
+                ]
+              : []),
+            ...((new Set(
+              (snapshot?.sourceStatus ?? []).map((source) => source.source),
+            ).size > 1 ||
+              !resolution?.served?.repoUrl) &&
+            ["code", "symbol"].includes(entry.source.toLowerCase())
+              ? [entry.source.toLowerCase() === "symbol" ? "symbols" : "code"]
+              : []),
+            ...(identity?.repoUrl ||
+            (entry.servedTarget && entry.servedTarget !== target)
+              ? alias
+              : []),
+            ...(resolution?.freshness === "fallback_recent" ||
+            entry.codeIndexState === "STALE"
+              ? ["older snapshot"]
+              : []),
+            ...(resolution?.freshness === "provisional" ||
+            entry.codeIndexState === "PROVISIONAL"
+              ? ["provisional"]
+              : []),
+            ...(entry.coverage &&
+            ["PARTIAL", "CAPPED"].includes(entry.coverage.coverageState)
+              ? [
+                  `${entry.coverage.pagesCrawled === undefined ? "" : `${entry.coverage.pagesCrawled} pages, `}${entry.coverage.coverageState.toLowerCase()}`,
+                ]
+              : []),
+            ...(entry.resultCount === 0
+              ? [snapshot?.hasMore ? "no results on this page" : "no results"]
+              : []),
+          ],
+        });
+    }
+    records.push({
+      target,
+      sources,
+      ...(resolution
+        ? { resolution: projectProvenanceResolution(resolution) }
+        : {}),
+    });
+  }
+  for (const target of progress?.targets ?? []) {
+    if (
+      target.targetResolution &&
+      !records.some(
+        (record) => record.target === target.requested && record.resolution,
+      )
+    )
+      records.push({
+        target: target.requested ?? target.served ?? "target",
+        sources: [],
+        resolution: projectProvenanceResolution(target.targetResolution),
+      });
+  }
+  return records;
+}
+
+/** Keep presentation facts free of opaque backend indexing handles. */
+function projectProvenanceResolution(
+  resolution: SourceProvenanceResolution,
+): SourceProvenanceResolution {
+  return {
+    requested: resolution.requested,
+    resolvedRequested: resolution.resolvedRequested,
+    served: resolution.served,
+    freshness: resolution.freshness,
+    // Only known indexing explanations belong in human presentation facts.
+    ...(["requested_ref_indexing", "no_current_fallback"].includes(
+      resolution.freshnessReason ?? "",
+    )
+      ? { freshnessReason: resolution.freshnessReason }
+      : {}),
+  };
+}
+
+function explicitRepositoryRef(target: string): boolean {
+  try {
+    const ref = parseRepositoryTargetSpec(target).gitRef;
+    return Boolean(ref && ref !== "HEAD");
+  } catch {
+    return false;
+  }
+}
+
+function isKnownPackageTarget(target: string): boolean {
+  try {
+    return isKnownRegistry(parsePackageSpec(target).registry);
+  } catch {
+    return false;
+  }
+}
+
 function projectTrustLimits(
   snapshot: SnapshotFacts | undefined,
   sources: UnifiedSearchSourceGroup[],
@@ -681,25 +946,7 @@ function projectTrustLimits(
     const served = resolution?.served;
     const requestedSha = resolution?.resolvedRequested?.commitSha;
     const servedSha = served?.commitSha;
-    const sourceTargets = entry.requestedTarget
-      ? [entry.requestedTarget]
-      : [entry.targetLabel, entry.servedTarget];
-    const hasRepositoryHits = Boolean(
-      servedSha &&
-        served?.repoUrl &&
-        entry.resultCount !== 0 &&
-        snapshot?.results.some(
-          (hit) =>
-            hit.locator.commitSha === servedSha &&
-            hit.type ===
-              (entry.source.toLowerCase() === "symbol"
-                ? "repository_symbol"
-                : entry.source.toLowerCase() === "code"
-                  ? "repository_code"
-                  : "repository_doc") &&
-            sourceTargets.includes(hit.requestedTarget ?? hit.target),
-        ),
-    );
+    const hasRepositoryHits = hasRepositoryEvidence(snapshot, entry);
     // A searched zero-hit pair still discloses what commit was searched.
     // Returned hits are required separately for prior-HEAD use/read advice.
     const searchedRepositorySnapshot =
@@ -732,6 +979,16 @@ function projectTrustLimits(
           served.repoUrl,
           servedSha.slice(0, 8),
         ),
+        // Backend DateTime is UTC; disclose its calendar date without age math.
+        ...(served.committedAt
+          ? { servedCommitDate: served.committedAt.slice(0, 10) }
+          : {}),
+        ...(requestedCommitDiffers && resolution?.resolvedRequested?.committedAt
+          ? {
+              requestedCommitDate:
+                resolution.resolvedRequested.committedAt.slice(0, 10),
+            }
+          : {}),
         ...(served.gitRef && !/^[0-9a-f]{7,40}$/i.test(served.gitRef)
           ? { indexedRef: served.gitRef }
           : {}),

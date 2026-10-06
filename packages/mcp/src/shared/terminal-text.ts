@@ -15,13 +15,17 @@ export function sanitizeTerminalText(value: string): string {
 }
 
 /** Wrap human prose while retaining bullet and continuation indentation. */
-export function wrapTerminalProse(text: string, width: number = 80): string[] {
+export function wrapTerminalProse(
+  text: string,
+  width: number = 80,
+  continuationIndent?: string,
+): string[] {
   return text.split("\n").flatMap((line) => {
     const safe = sanitizeTerminalText(line);
     if (!safe) return [""];
     const bullet = safe.startsWith("  - ");
     const prefix = safe.match(/^\s*/)?.[0] ?? "";
-    const continuation = bullet ? "    " : prefix;
+    const continuation = continuationIndent ?? (bullet ? "    " : prefix);
     const words = safe.trim().split(/\s+/);
     let current = bullet ? "  -" : prefix;
     if (bullet) words.shift();

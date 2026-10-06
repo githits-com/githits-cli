@@ -18,9 +18,13 @@ import type {
 import { renderPreparationSection } from "./indexing-estimates-text.js";
 import { shellQuote } from "./shell-quote.js";
 import {
-  buildTargetResolutionNotes,
-  formatTargetResolutionIdentity,
-} from "./target-resolution.js";
+  renderResolutionDetails,
+  renderSourceSection,
+  resolutionSourceFacts,
+  type SourceRowFacts,
+  type SourceTextOptions,
+} from "./source-provenance-text.js";
+import { formatTargetResolutionIdentity } from "./target-resolution.js";
 
 const SEP = " | ";
 
@@ -35,15 +39,25 @@ interface RenderBlock {
   lines: RenderLine[];
 }
 
-export function renderGrepRepoText(envelope: LeanGrepRepoEnvelope): string {
+export function renderGrepRepoText(
+  envelope: LeanGrepRepoEnvelope,
+  options: SourceTextOptions = {},
+): string {
   const lines: string[] = [];
   lines.push(buildHeader(envelope));
-  lines.push(...renderPreparationSection(envelope.indexingEstimates));
+  lines.push(...renderSourceSection(grepRepoSourceFacts(envelope), options));
+  lines.push(
+    ...renderPreparationSection(envelope.indexingEstimates, {
+      ...options,
+      resolutions: envelope.targetResolution ? [envelope.targetResolution] : [],
+    }),
+  );
   lines.push("");
 
   if (envelope.matches.length === 0) {
     lines.push("No matches.");
-    for (const note of buildEmptyGrepGuidance(envelope)) lines.push(note);
+    for (const note of buildEmptyGrepGuidance(envelope, "mcp", options))
+      lines.push(note);
     return lines.join("\n");
   }
 
@@ -70,7 +84,7 @@ export function renderGrepRepoText(envelope: LeanGrepRepoEnvelope): string {
     });
   }
 
-  const trailer = buildTrailer(envelope);
+  const trailer = buildTrailer(envelope, options);
   if (trailer.length > 0) {
     lines.push("");
     for (const t of trailer) lines.push(t);
@@ -79,19 +93,44 @@ export function renderGrepRepoText(envelope: LeanGrepRepoEnvelope): string {
   return lines.join("\n");
 }
 
+/** Legacy resolution facts identify the returned artifact, never the input echo. */
+export function grepRepoSourceFacts(
+  envelope: LeanGrepRepoEnvelope,
+): SourceRowFacts[] {
+  const supplied = resolutionSourceFacts(envelope.targetResolution);
+  if (supplied.length || envelope.targetResolution) return supplied;
+  if (envelope.repoUrl && envelope.resolution?.commitSha) {
+    return [
+      {
+        identity: {
+          repoUrl: envelope.repoUrl,
+          commitSha: envelope.resolution.commitSha,
+          gitRef: envelope.resolution.resolvedRef ?? envelope.indexedVersion,
+        },
+      },
+    ];
+  }
+  return [];
+}
+
 /** Shared empty-result context used by MCP text and CLI terminal output. */
 export function buildEmptyGrepGuidance(
   envelope: LeanGrepRepoEnvelope,
   surface: "mcp" | "cli" = "mcp",
+  options: SourceTextOptions = {},
 ): string[] {
   const lines = [formatEmptyGrepFileCounts(envelope)];
   const contextNotice = buildGrepContextClampingNotice(envelope, surface);
   if (contextNotice) lines.push(contextNotice);
   const served = formatGrepServedTarget(envelope);
-  if (served) lines.push(served);
-  for (const note of buildTargetResolutionNotes(envelope.targetResolution)) {
-    lines.push(note);
-  }
+  if (served && !grepRepoSourceFacts(envelope).length) lines.push(served);
+  lines.push(
+    ...renderResolutionDetails(
+      envelope.targetResolution,
+      envelope.indexingEstimates,
+      options,
+    ),
+  );
   const skipNotes: string[] = [];
   if (envelope.binaryFilesSkipped) {
     skipNotes.push(`${envelope.binaryFilesSkipped} binary file(s) skipped`);
@@ -227,7 +266,10 @@ function buildHeader(envelope: LeanGrepRepoEnvelope): string {
   return parts.join(SEP);
 }
 
-function buildTrailer(envelope: LeanGrepRepoEnvelope): string[] {
+function buildTrailer(
+  envelope: LeanGrepRepoEnvelope,
+  options: SourceTextOptions,
+): string[] {
   const lines: string[] = [];
 
   if (envelope.truncatedReason) {
@@ -258,9 +300,13 @@ function buildTrailer(envelope: LeanGrepRepoEnvelope): string[] {
     lines.push(`Note: ${skipNotes.join(", ")}.`);
   }
 
-  for (const note of buildTargetResolutionNotes(envelope.targetResolution)) {
-    lines.push(note);
-  }
+  lines.push(
+    ...renderResolutionDetails(
+      envelope.targetResolution,
+      envelope.indexingEstimates,
+      options,
+    ),
+  );
 
   return lines;
 }

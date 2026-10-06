@@ -3,8 +3,8 @@
 Initial `search` and `search_status` use the same semantic projection and text
 formatter in `packages/mcp/src/shared/unified-search-presentation.ts` and
 `unified-search-text.ts`. The former owns evidence and continuation decisions;
-the latter owns wording and surface-native read/status commands. CLI/MCP adapters,
-GraphQL selections, JSON, and explicit user wait options are unchanged. Search
+the latter owns wording and surface-native read/status commands. CLI/MCP adapters
+and explicit user wait options are unchanged; commit-date metadata is described below. Search
 descriptions retain their selection sentences and make continuation conditional
 on needing updated results; completed references are stored, not poll targets.
 
@@ -29,11 +29,11 @@ prior HEAD evidence. Other active results offer an optional wait for updated
 results. The single read example preserves the emitted `readTarget` arguments,
 including target, path, selector and bounds, rather than replacing its pinned
 commit with requested HEAD. Existing per-hit locators and pagination remain.
-Completed current searches keep their compact output. With no hits, active
+Completed current searches use the same source rows, including independently known dates. With no hits, active
 searches retain their status next action. Ended searches needing updated evidence
 require a new search; their stored reference is never offered as a poll target.
 
-Per-target copy discloses `commit: github:owner/repo@<sha>` and, when known,
+Shared `Sources:` rows disclose `github:owner/repo@<8-character SHA>` and, when known,
 `indexed from ref <ref>`. A historical named branch or HEAD alias is never a claim
 about its current pointer. Missing or SHA-valued historical refs omit that clause.
 The resolved requested commit is compared with the served commit using full SHAs;
@@ -61,7 +61,103 @@ Backend #2909 supplied this contract on dev. Production rollout is not establish
 The Q04 Transformers observation motivated the advice fix; its old comparison
 searched a PyPI artifact, so it is not a controlled speed/token comparison.
 
-## Verification for this increment
+## Known commit dates
+
+`TargetResolutionIdentity.committedAt` is the backend-verified nullable UTC
+committer timestamp for the exact `repoUrl` and full `commitSha`. It is not push
+or indexing time, elapsed freshness, current branch membership, distance behind
+HEAD, or ancestry proof. Dates can be future-dated or non-monotonic. Unknown
+historical dates are expected; this client performs no enrichment or backfill.
+
+The shared `TARGET_RESOLUTION_SELECTION` selects `committedAt` on `served` and
+`resolvedRequested`, leaving original `requested` undated. The nullable transport
+schema accepts the returned field; the service normalizer and lean projection
+retain known timestamp strings and omit null, matching sibling identity fields.
+That selection also supplies existing `read`, code-context and legacy CLI
+`code files` / `code grep` responses, so their structured provenance gains known
+dates without new calls. Public `list` now selects minimal dated provenance for normal text and full provenance for JSON; public `grep` still has no commit-date or resolved-requested contract. No mode-specific fetch
+is needed: both compact text and JSON consume these two timestamps.
+
+The root cause of missing dates was omission at every existing shared boundary:
+the GraphQL selection did not request the field; schema parsing, service
+normalization and lean whitelisting discarded it; the snapshot projection/text
+had no date clause. The fix extends those owners rather than adding a lookup.
+The semantic presentation slices the verified UTC timestamp's first ten
+characters into a calendar date, gated by the independently supplied served or requested full identity. The
+requested date never repairs a missing served date. JSON retains the full timestamp.
+
+Example before normal-width wrapping:
+
+```text
+Sources:
+  - github:owner/repo@aaaaaaaa (committed 2026-09-01, indexed from ref HEAD, older snapshot)
+
+Preparing:
+  - github:owner/repo@bbbbbbbb (indexing, estimated total: 100-120s, committed 2026-10-05, observed HEAD)
+```
+
+Preparing uses the actual job's repository and full SHA. Its optional date and
+`observed HEAD` join only independently supplied resolved-requested facts with
+exact raw repository URL and full SHA equality. Explicit branch/tag/SHA/package
+intent never proves observed HEAD. Different coalesced work stays separate;
+`Requested:` retains the independently observed commit/date instead. Missing
+job identity keeps the supplied request label. No metadata lookup occurs.
+Retained ended-search estimates say `indexing when observed` and do not revive
+polling. Empty estimates on provisional results do not fabricate active work.
+
+Known served dates and historical refs appear for healthy current sources too.
+Unknown clauses disappear without placeholders. Requested metadata never repairs
+missing served metadata, even for the same SHA; useful independent requested
+facts remain separately labelled. Old/future dates never affect state or waits.
+The existing exact readTarget, use-hits-now action, conditional wait, lifecycle,
+partial/completeness signals, attribution and zero-hit/withheld rules are unchanged.
+
+**Rollout prerequisite:** confirm production backend schema deployment before
+client release or hosted MCP adoption. This increment was verified against the
+supplied backend dev records, not production. If deployed too early, all `read`
+requests fail because `ReadService` has no schema fallback: the code fragment
+selects the field, and GraphQL validates the whole document before returning
+either code or docs. Public list text and JSON likewise require schema support: its query document includes the date field even when the provenance directive is false. Search/status and legacy navigation instead make sequential
+fallback retries before dropping all `targetResolution`, losing served provenance
+and prior-HEAD advice.
+No new fallback is added. The user owns release; hosted clients additionally need
+`@githits/mcp` release, remote-mcp dependency adoption and deployment.
+
+Original commit-date verification (2026-10-05):
+
+- Focused 14-file checks: 668 tests pass, zero failures, 3,258 expectations.
+  Covered shared core search/status transport and progress, exact read transport and JSON, lean
+  projection, search presentation/text/status/response, tools, CLI commands,
+  timing parity and actual CLI/MCP adapter parity. Retained status JSON timestamps are also verified through both adapters.
+- Date cases include both/served/requested/neither known, null/absent wire data,
+  same/different SHA, future and reversed chronology, current, provisional,
+  searched zero-hit, withheld and terminal retained results. Tests compare
+  date-free/date-bearing actions, lifecycle, availability and emitted read pointers.
+- `bun run typecheck`, `bun run build`, `bun run --cwd packages/mcp build`, and
+  scoped `bunx biome check`, `git diff --check` and `bun run validate:packages` pass. A scratch rendered preview confirmed grammatical
+  copy at the normal width, date attribution and the unchanged read-before-wait order.
+- Required `GITHITS_ENV=dev GITHITS_AUTH_STORAGE=file bun run smoke:cli` and
+  `bun run smoke:mcp` pass with endpoint/token overrides unset. Authenticated
+  cohorts skip with `AUTH_REQUIRED` in isolated homes. A direct dev CLI file-auth
+  search also returned `AUTH_REQUIRED`; the normal auth probe blocked on macOS
+  keychain access and was stopped. No successful live CLI/MCP business response
+  is claimed for this worktree.
+- The supplied 2026-10-05 backend dev search/status/read verification has usable
+  Transformers hits at served SHA `2112ec4e74fdb1225f78e676d4a8b6d28a00378d`
+  with unknown date, independently dated requested SHA
+  `f5ab85619d989359ef47b5efed8a91a15045627b` at `2026-10-05T15:28:19Z`, and
+  byte-identical retained provenance. Its exact served read immediately returned
+  the missing return line. The Jason repository's current HEAD date `2026-05-05T14:33:58Z`
+  remained current. These are upstream evidence, not a new client live run.
+- Targeted `GITHITS_ENV=dev GITHITS_AUTH_STORAGE=file bun run agent:e2e --agent
+  claude --server local --intent-profile githits --workload
+  eval/agentic/workloads/unified-search-investigation.md --timeout 180` failed
+  before tool use: Claude reported `Not logged in · Please run /login`.
+  Run `2026-10-05T17-25-30-431Z` has zero raw tool calls, no final.json and no
+  isolation-violations artifact. Raw stdout/tool calls and metrics were inspected.
+  This is unavailable qualitative evidence, not a UX pass or quality/performance claim.
+
+## Historical read-before-wait verification (2026-10-01)
 
 - `bun test packages/mcp/src/shared/unified-search-presentation.test.ts
   packages/mcp/src/shared/unified-search-text.test.ts
@@ -193,3 +289,212 @@ fixtures/adapters establish prior-snapshot output. No free-discovery, independen
 quality grade or performance comparison is claimed. The eval preceded the final
 minor ref-example/label wording fixes; final focused checks and builds/smokes
 above cover those changes.
+
+Commit-date code review round 1: direction sound and implementation correct.
+Accepted documentation corrections name the no-fallback `read` failure on an
+early rollout and distinguish legacy shared-query navigation from public
+`list`/`grep`; the duplicate test date assignment was removed. The bounded closure
+scan covered every TARGET_RESOLUTION_SELECTION use, direct/fallback GraphQL
+clients, the separate list/grep queries and projections, rollout wording in the
+plan/change fragment/PR brief, and all added test date assignments. No runtime
+change, new machinery or major deferred finding was needed.
+
+Commit-date review closure is clean at `5b2ba65` after the final minor wording
+correction above. Opus 5.5 reviewed the full delta in two implementation rounds;
+a supplemental task resumed the same fresh-context final-check subagent to
+complete tests/docs/fragment/plan coverage after its initial production-only
+pass. The only final note clarified whole-document GraphQL validation; no code
+issue remains. Internal revised-delta preflight is clean. The 47-test snapshot
+closure run passes with 549 expectations, and the follow-up commit hook passes
+scoped Biome and typecheck. The completed plan is removed after this clean
+review; all relevant contract, evidence and rollout limits are retained here.
+No major deferred item or required refactoring remains.
+
+## Shared source/preparation boundary (2026-10-06)
+
+`source-provenance-text.ts` owns common identity/date/ref clauses and source rows;
+`indexing-estimates-text.ts` owns preparation rows and existing timing/retry copy.
+Search's semantic projection still owns actual-hit/zero-hit attribution, corpora,
+coverage, prior-HEAD proof and lifecycle/actions. Recognized requested-ref indexing
+reasons use the shared requested-indexing explanation when no matching preparation
+row conveys them. The explanation concerns the ref, so it never mislabels an
+independently observed SHA as the actual coalesced job. Top-level provenance
+details wrap with hanging indentation. Rows replace repeated commit
+serialization without parsing backend notices. Site scope and package aliases
+remain explicit. Per-tool formatters control placement, width and native actions.
+Annotated read and legacy navigation replace human resolution serialization with
+these facts while retaining deferred/unavailable/provisional/unknown state and
+queryable-versus-suggested recovery. Structured search warnings remain unchanged.
+
+Focused verification after review fixes: 862 tests pass across 30 files with 4,265 assertions;
+parser/repository/row browser closure adds a 184-test check (305 assertions).
+Typecheck, scoped Biome, both builds and packed public-package validation pass.
+The latter caught a registry import through core's service barrel; the parser
+now consumes the same taxonomy through core's existing browser-safe entrypoint.
+No registry copy, new runtime layer or network request was introduced.
+
+Source CLI/MCP and built CLI/MCP smoke commands pass unauthenticated/registration
+checks with dev presets. Live business cohorts skip with AUTH_REQUIRED; this
+smoke run does not prove authenticated client output; the later narrow live
+verification below does. The supplied 2026-10-05 backend
+dev records remain the independent date-contract evidence. Targeted Claude
+unified-search-investigation and grep-mixed-docs evals failed with `Not logged in` before tool use;
+empty tool traces, absent final/isolation artifacts and unknown usage provide
+no agent-quality claim. Exact fixture capture covers 12 date/lifecycle cases
+on both surfaces (24 passing parity checks, 48 assertions); examples and unit
+assertions establish the row wording. Production schema support remains required
+before release or hosted adoption.
+
+Internal review accepted an unresolved compact-list identity gap: original
+repository/package fields had been gated behind detailed metadata, so an
+unresolved repository could render only its ref. Normal list text now selects
+those four existing fields; requested SHA and recovery arrays stay detailed-only.
+Exact wire/projection and repository/package output regressions pass (3 tests,
+10 assertions); the six-file list service/projection/request/CLI/MCP closure passes
+129 tests with 676 assertions. Typecheck and both builds pass after this correction.
+The bounded sibling scan covered list projections and caller selection, full
+read/navigation identity fragments and search provenance. External review evidence
+is recorded after the clean round.
+
+## Live pending-version verification (2026-10-06)
+
+Authenticated dev CLI calls used `npm:n8n@2.36.7` with literal `--wait 1`.
+Search used query `router`, source code and limit 3; grep used literal `router`
+and limit 3; read requested `package.json`, verbose lines 1-10; list used limit 5.
+Search's wait unit is seconds; grep/read/list use milliseconds. No credentials
+were read or displayed. The package remained unindexed throughout both passes;
+all four reported actual work `github:n8n-io/n8n@f09fcad4`, total estimate 52-64s.
+No `Sources` section was shown because no served content was available.
+
+| Call | Captured Preparing metadata after adjustment | Native continuation |
+| --- | --- | --- |
+| search | `indexing, estimated total: 52-64s`; requested package alias | `search-status <ref> --wait 80` |
+| grep | Same pin/estimate, `time spent indexing: 261s`; requested input 0; separate documentation preparation with no estimate | Retry original query `--wait 80000` |
+| read | Same pin/estimate, `time spent indexing: 260s`; requested package alias; unavailable-content INDEXING error (exit 1) | Retry read `--wait 60000` |
+| list | Same pin/estimate/elapsed 260s, independently known `committed 2026-08-25`; requested package alias | Retry list `--wait 80000` |
+
+Dates and elapsed values differ only when the response supplies different facts;
+no missing date is borrowed from list. Estimates remain advisory totals even when
+observed elapsed execution exceeds them. Grep's hosted-documentation preparation
+reflects its broader package scope; the code-only search does not claim that scope.
+Search initially repeated an unresolved repository tag with no SHA/date beneath
+the existing package alias. Shared Requested copy now suppresses duplicated
+intent already represented under Preparing; independently resolved commits and
+coalesced-work differences remain separate. A captured-shape CLI/MCP regression
+passes, and the live CLI rerun confirms the extra row is gone.
+
+A narrow local stdio MCP pass exercised the same four real dev tools, using
+`wait_timeout_ms=1000` for search and 1 for the others to match CLI waits. It
+confirmed the same actual-work pin, shared copy and source omission, with native
+MCP actions; read returned `isError: true` for INDEXING. This verifies local
+MCP package behavior, not published hosted adoption or agent interpretation.
+
+
+The original version became indexed during review. A fresh pending-version pass
+used `npm:n8n@2.36.6` with the same literal waits and query/path options after the
+review fixes. All four calls identified `github:n8n-io/n8n@4fdfc9f9`, estimated total
+437-1044s, and omitted Sources while no artifact was served. Captured elapsed
+values were 0s for the initial list probe, 47s for search, 51s for grep and 53s for
+read. List independently received committed 2026-08-24; the other three omitted
+the unknown date. Grep also prepared documentation. Search disclosed indexed
+version 2.36.7 and ref HEAD; read preserved its indexed-versions/refs recovery
+hint. Native retries remained search 120 seconds, grep/list 120000 milliseconds,
+and read 60000 milliseconds. Empty list no longer offers a Read files recipe.
+
+
+Partial results are now enabled by default in the shared request builder and
+transport, with explicit false preserved (`--no-allow-partial` /
+`allow_partial_results: false`). Sources remains actual searched/served evidence.
+This allows hosted docs to contribute while repository code prepares; it does not
+change backend partialResults, target counts, pagination or continuation rules.
+The compact initial query echo omits default true and retains explicit false. Search/status
+and mapped indexing errors use shared `Indexed alternatives` copy inside Preparing,
+with exact request attribution. Suggested refs remain advisory and separate.
+
+Healthy source status is deliberately omitted from non-empty public JSON. The
+response builder retains selected source facts in its private presentation DTO
+(`sourceStatusForText`) so initial/status text can still disclose known dates.
+Public projection removes that property; no additional network fields or requests
+are introduced. Actual adapter tests cover Sources dates and JSON parity/omission.
+
+
+The default correction was verified against dev using fresh `npm:express@1.0.7`.
+With literal `--wait 1`, search returned one partial docs hit and a
+`site:expressjs.com (hosted documentation)` Source, while Preparing identified
+`github:expressjs/express@8c3ad123` (25-61s) and the requested package.
+Indexed alternatives were versions 1.0.3, 2.0.0, 1.0.0 +7 under that row. Grep
+returned one docs match with the same Source and actual job. Read was INDEXING
+(exit 1) and list returned no files; both identified the same job. Only list
+received the independently matching date 2011-02-07. Elapsed values were 0s,
+2s, 4s and 5s respectively. Live captures are observations at different moments,
+not guarantees of exact timing or order. Alternatives ordering/limits reflect
+the supplied backend facts and each tool's existing selection.
+
+
+Healthy repository-doc contributors retain matching known commit dates and
+historical refs in private text facts even when public JSON omits their healthy
+resolution. A searched zero-hit source retains its explicit zero count in those
+facts beside sources with hits, so its served pin appears with `no results` (or
+`no results on this page` when pagination applies).
+
+When a searched source has no resolution, search presentation attributes exact
+repository/full-SHA pins from that source's returned hits and deduplicates them.
+It does not copy the hit locator's read ref into historical-ref metadata or borrow
+a date from another command. Dev ready search for `npm:n8n@2.36.6` supplied pin
+`4fdfc9f9db35702b64a8f15044a454044e47f6fc` in hits but no resolution/date.
+Both initial and status adapter regressions cover this shape, repository-doc
+provenance, mixed hit/zero-hit scopes, and compact JSON parity/omission.
+
+Grep Requested and coverage prose uses target labels without backend input
+indices. Its read templates follow the matches, before pagination and retries;
+empty results offer no read template. JSON correlation fields remain unchanged.
+
+
+Final integrated validation after the partial-default and grep corrections:
+`bun test` passed 5,595 tests across 234 files, with zero failures and 22,303
+assertions, including the compact query-echo closure. Typecheck, CLI/MCP builds, source/built CLI/MCP smoke suites and public
+package validation passed. The smoke suites validate unauthenticated handling
+and registration; authenticated dev CLI/local MCP captures separately verify the
+four business-query surfaces. Qualitative Claude agent workloads remained blocked
+by provider login before any tool use, so no agent-quality claim follows.
+
+The user approved macOS Keychain access and final authenticated dev captures
+completed on registry-confirmed, initially unindexed Express versions:
+CLI `npm:express@2.3.10` and local stdio MCP `npm:express@2.3.11`.
+The earlier probe used unpublished `1.0.9`; its read/list publication errors
+were test-input errors, not indexing behavior. Package info did not enumerate
+old versions, so the npm registry independently confirmed the replacement pins.
+All four CLI calls used literal `--wait 1`; MCP used `wait_timeout_ms=1000`
+for search and 1 for grep/read/list, matching their existing units.
+
+| Call | Final authenticated metadata |
+| --- | --- |
+| search | One partial docs result; hosted-doc Source; actual repository Preparing pin, 25-61s total, requested alias and indexed alternatives beneath Preparing |
+| grep | One hosted-doc match; same Source and preparation pin/estimate, requested alias without input indices; native read recipe after matches and before cursor/retry |
+| read | INDEXING error with the same actual preparation pin/estimate, requested alias and indexed alternatives; native 60000ms retry |
+| list | No files yet; same actual preparation pin/estimate and requested alias, plus its independently supplied matching commit date; native 80000ms retry |
+
+CLI identified `github:expressjs/express@1bb798d9`; MCP identified
+`github:expressjs/express@e2cdd760`. Only list knew the corresponding dates,
+2011-05-27 and 2011-06-04 respectively; other tools omitted them. Elapsed values
+reflect each response rather than synchronized observations. Fresh ready CLI and
+MCP search for `npm:n8n@2.36.6` also confirmed the hit-derived source pin
+`github:n8n-io/n8n@4fdfc9f9` without an invented date or historical ref.
+No credentials were displayed.
+
+Final external Claude Opus 5.5 review, including its one fresh-context full-delta
+check, was clean after a minor tools-reference wording correction. A fabricated
+cross-version package fallback carrying both package and repository identities
+was investigated: fixtures cover package-only fallback (whose served version is
+retained) and current combined identities, but no verified different-version
+combined fallback. The user-selected canonical repository pin remains the text
+identity; complete package provenance remains in JSON. No code defect, major
+deferred work or required refactoring was established.
+
+The user explicitly requested the partial-results default to become true after
+indexing-state visibility was added. This is a deliberate exception to the
+guideline against default-true agent booleans, preserving the existing
+`allow_partial_results: false` opt-out contract rather than introducing an inverted
+flag. Compact query echo omits true as a default; false remains explicit. The
+parameter/status description changes are in this same user-directed increment;
+qualitative eval authentication limits above remain unchanged.

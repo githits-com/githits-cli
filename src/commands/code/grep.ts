@@ -185,6 +185,7 @@ export async function pkgGrepAction(
     }
 
     const rendered = formatGrepRepoTerminal(payload, {
+      width: process.stderr.columns,
       useColors: shouldUseColors(),
       verbose: options.verbose ?? false,
       headingStyle:

@@ -26,6 +26,7 @@ export function formatReadResult(
     endLine?: number;
     verbose?: boolean;
     useColors?: boolean;
+    width?: number;
   },
   format: "mcp-text" | "mcp-json" | "cli-text" | "cli-json",
 ): string {
@@ -130,6 +131,7 @@ export function formatReadResult(
       ? formatReadFileTerminal(payload, {
           useColors: request.useColors ?? false,
           verbose: request.verbose,
+          width: request.width,
         })
       : renderReadFileText(payload);
   }

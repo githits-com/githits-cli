@@ -138,6 +138,7 @@ export async function pkgReadAction(
 
     process.stdout.write(
       formatReadFileTerminal(payload, {
+        width: process.stdout.columns,
         useColors: shouldUseColors(),
         verbose: options.verbose ?? false,
       }),

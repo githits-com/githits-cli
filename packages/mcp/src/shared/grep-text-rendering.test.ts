@@ -269,11 +269,15 @@ describe("grep evidence rendering", () => {
       text.startsWith("Zero returned matches; coverage is incomplete."),
     ).toBe(true);
     expect(text).toContain("stale snapshot");
-    expect(text).toContain("Served served; requested wanted");
+    expect(text).toContain(
+      "github:o/r@served (older snapshot, no results on this page)",
+    );
+    expect(text).toContain("Requested ref: wanted.");
     expect(text).toContain("Searched 3 of 10 files");
     expect(text).toContain("  Skipped 2 binary file(s)");
     expect(text).toContain("  Skipped 1 oversized file(s)");
-    expect(text.match(/Repository npm:x \(inputs 0\)/g)).toHaveLength(1);
+    expect(text.match(/Repository npm:x:/g)).toHaveLength(1);
+    expect(text).not.toMatch(/\(inputs? \d/);
     expect(text).not.toContain("retryable false");
   });
 
