@@ -363,20 +363,18 @@ advisory rather than aliases; the client never selects or retries one automatica
 **Unified target-state output.** MCP `search` and `search_status` text-v1 return one
 outcome-first response. The headline carries result count/type breakdown,
 active/terminal lifecycle, readiness, and pagination when applicable. A completed
-current result set collapses to one `Sources: <target> - <sources>` row; code and
-symbols use lane names while documentation uses a canonical `site:<host[/path]>`
-or `github:<owner>/<repo>@<revision>` locator. A source identical to its standalone
-target is written once; a sole pinned repository source replaces its less-specific
-ref-less repository target, while an already-pinned target remains beside its resolved
-commit. Compact repository provenance requires both the repository URL and commit.
-Documentation without concrete provenance stays in detailed target-state form. Any trust,
-warning, alternative, suggestion, or non-current fact keeps every target in one
-detailed list. Each target row can contain `using`, `searched`, `indexing`, an exact
-terminal reason, `available`, `indexed`, constraints, and at most one inline
-`Fix:`/`Try:` recovery line. Completed-empty and terminal site suggestions remain
-`Try:`-eligible even when the site lane was searched empty. Detailed lane order is
-`code`, `symbols`, `repository docs`, concrete site docs, then docs. Hits remain a
-separate numbered ranked list.
+current result set uses a `Sources:` section with compact served-identity bullets.
+Repository rows prefer an eight-character commit pin with independently known
+UTC dates and historical refs. Documentation retains repository or site locators;
+corpora, request aliases, freshness and coverage remain explicit. `Preparing:`
+identifies actual repository work or documentation preparation, with advisory
+timing and requested aliases. An unresolved requested tag is not repeated when
+its package request already appears under that preparation; independently
+resolved commits remain separate. Target-local state, alternatives, constraints
+and at most one `Fix:`/`Try:` recovery line follow when relevant. Completed-empty
+and terminal site suggestions remain `Try:`-eligible even when the site lane
+was searched empty. Lane order is `code`, `symbols`, `repository docs`, concrete
+site docs, then docs. Hits remain a separate numbered ranked list.
 
 Exact `NOT_FOUND` and `UNRESOLVABLE` reasons are client-owned and lane-specific:
 `package not found: code`, `version unavailable: code`, or
@@ -757,9 +755,8 @@ anatomy, and ordering. The order is:
 
 1. one outcome headline with count/breakdown, lifecycle, readiness, and
    pagination when applicable;
-2. one compact `Sources: <target> - <sources>` row for ordinary completed current
-   results, retaining concrete documentation provenance when available, or one
-   detailed block per target when any state must remain visible;
+2. compact served-identity bullets under `Sources:`, then actual-work bullets
+   under `Preparing:` when present, retaining concrete provenance and aliases;
 3. target-local state and recovery, then query-wide warnings;
 4. the separate numbered ranked hit list; and
 5. at most one session/query-wide `Next:` action.
@@ -773,7 +770,7 @@ those fields. Progress-only responses show only derivable target identity and
 lane-free freshness; they never invent source or contributor facts.
 
 Detailed target rows keep one identity and deterministic segment order:
-`commit`/`using`, `searched`, `indexing`, terminal/unavailable, `available`, `indexed`,
+remaining `using`, `searched`, `indexing`, terminal/unavailable, `available`, `indexed`,
 then target-scoped constraints. Lanes are `code`, `symbols`, `repository docs`,
 concrete site docs, and docs. Exact terminal states use readable client-owned
 reasons (`package not found`, `version unavailable`, or `repository ref

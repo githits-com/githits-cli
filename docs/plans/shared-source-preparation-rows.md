@@ -9,7 +9,7 @@
   below, canonical `github:` targets, `observed HEAD`, and shared strings with
   caller-specific placement, indentation and width.
 - Dependencies: the existing commit-date increment in draft PR #454, rebased
-  onto `origin/main` at `d425bb4`; existing backend provenance and preparation
+  onto latest `origin/main` at `39fa57d`; existing backend provenance and preparation
   contracts; existing per-tool projections and actions.
 
 When complete, a reader can identify the exact served snapshot and distinguish
@@ -30,7 +30,7 @@ the row text. The preparing SHA is illustrative, not a new live observation.
 
 ## Verified evidence and scope boundaries
 
-Evidence was collected from this checkout on 2026-10-06:
+Pre-implementation evidence was collected from this checkout on 2026-10-06:
 
 - `unified-search-presentation.ts` owns search evidence, source readiness,
   full-SHA comparisons, prior-HEAD qualification, lifecycle and continuations.
@@ -567,7 +567,8 @@ inside PR #454; this is not a separate plan-only PR.
   uses the existing width-aware wrapper. Adapter expectations remain delegated.
 - Intermediate search/grep/shared-row check: 198 cases, 195 pass and 3 outdated
   wrapping assertions; those assertions were corrected to the new compact
-  layout. Final integrated validation is still pending.
+  layout. The final integrated 841-test check passed; the later live package
+  case adds a narrowly scoped duplicate-intent regression.
 
 - Legacy identity check: `indexedVersion` is a backend version/tag/commit, not
   a proved package version. Legacy Sources use explicit targetResolution.served
@@ -581,7 +582,9 @@ inside PR #454; this is not a separate plan-only PR.
 - Latest main check: `git fetch origin main` moved origin/main from `d425bb4`
   to `39fa57d`; the intervening delta is four README lines only, with no output
   strings or project guidance changed. Rebase after the implementation checkpoint
-  commit, before the full implementation review.
+  commit, before the full implementation review. Rebase completed cleanly;
+  `git diff 64645a2 HEAD -- packages src scripts changes docs` is empty, so
+  all supplied implementation validation applies to the rebased tree.
 
 - Packed browser contract finding: new shared preparation rows made the existing
   package parser reachable from @githits/mcp/tools. Its registry constants came
@@ -604,7 +607,7 @@ inside PR #454; this is not a separate plan-only PR.
   experimental cohorts report AUTH_REQUIRED and were skipped; built coverage
   verifies unauthenticated CLI behavior and MCP registration, not business rows.
 - Targeted Claude descriptor/explicit-GitHits evals for unified-search-investigation
-  and grep-mixed-docs failed before any tool events (empty tool-calls.json,
+  and grep-mixed-docs failed with `Not logged in` before any tool events (empty tool-calls.json,
   no final.json or isolation-violations.json). No agent-quality or cost claim.
 - Exact fixture capture: 24 pass, 0 fail, 48 assertions (12 cases x CLI/MCP),
   including known/unknown/future/current/provisional/retained/withheld dates.
@@ -616,3 +619,24 @@ inside PR #454; this is not a separate plan-only PR.
   compaction returned the correction without proof and was followed by a narrow
   proved assertion fix. Judgment-heavy attribution and import-boundary fixes
   remain coordinator-owned; no new infrastructure or major deferred development.
+
+- Fresh Luna implementation pre-flight: direction/conformance/interfaces and
+  acceptance proofs pass; accepted stale documentation in tools.md and
+  cli-commands.md plus stale intermediate-check wording. Bounded sibling scan
+  found a second old Sources description in tools.md; all three now describe the
+  shared sections. Review completion is intentionally pending external review;
+  transient rebase notes are removed with plan retirement.
+- User-requested live `--wait 1` dev calls used newly authenticated Keychain
+  state (no credentials read or displayed). npm:n8n@2.36.7 was verified pending;
+  all four identified actual work github:n8n-io/n8n@f09fcad4 and 52-64s total.
+  List independently had the matching requested date; grep/read/search did not
+  and correctly omitted it. Grep additionally reported documentation preparation
+  and a starting_url_pending omission, reflecting its broader package scope.
+  A resolved package tag without SHA caused search to repeat intent already
+  displayed under Preparing. Shared Requested copy now suppresses that duplicate
+  only when the exact request label is represented and no independent SHA is
+  known. Independent/coalesced commit facts stay separate. Regression: 83 pass, 0 fail, 720 assertions across row/snapshot/status
+  tests; live CLI recheck confirms the duplicate is gone. Narrow local stdio MCP
+  search/grep/read/list calls also verified shared actual-work output and native
+  actions. Final focused suite is now 842 pass, 0 fail, 4,136 assertions. Literal wait1 is seconds for search, milliseconds for the
+  other three; native action units remain unchanged.

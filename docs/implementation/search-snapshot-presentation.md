@@ -322,7 +322,7 @@ Annotated read and legacy navigation replace human resolution serialization with
 these facts while retaining deferred/unavailable/provisional/unknown state and
 queryable-versus-suggested recovery. Structured search warnings remain unchanged.
 
-Focused verification: 841 tests pass across 29 files with 4,122 assertions;
+Focused verification: 842 tests pass across 29 files with 4,136 assertions;
 parser/repository/row browser closure adds a 184-test check (305 assertions).
 Typecheck, scoped Biome, both builds and packed public-package validation pass.
 The latter caught a registry import through core's service barrel; the parser
@@ -331,9 +331,10 @@ No registry copy, new runtime layer or network request was introduced.
 
 Source CLI/MCP and built CLI/MCP smoke commands pass unauthenticated/registration
 checks with dev presets. Live business cohorts skip with AUTH_REQUIRED; this
-run does not prove authenticated client output. The supplied 2026-10-05 backend
+smoke run does not prove authenticated client output; the later narrow live
+verification below does. The supplied 2026-10-05 backend
 dev records remain the independent date-contract evidence. Targeted Claude
-unified-search-investigation and grep-mixed-docs evals failed before tool use;
+unified-search-investigation and grep-mixed-docs evals failed with `Not logged in` before tool use;
 empty tool traces, absent final/isolation artifacts and unknown usage provide
 no agent-quality claim. Exact fixture capture covers 12 date/lifecycle cases
 on both surfaces (24 passing parity checks, 48 assertions); examples and unit
@@ -341,3 +342,37 @@ assertions establish the row wording. Production schema support remains required
 before release or hosted adoption.
 
 Implementation review evidence is recorded after the clean round.
+
+
+## Live pending-version verification (2026-10-06)
+
+Authenticated dev CLI calls used `npm:n8n@2.36.7` with literal `--wait 1`.
+Search used query `router`, source code and limit 3; grep used literal `router`
+and limit 3; read requested `package.json`, verbose lines 1-10; list used limit 5.
+Search's wait unit is seconds; grep/read/list use milliseconds. No credentials
+were read or displayed. The package remained unindexed throughout both passes;
+all four reported actual work `github:n8n-io/n8n@f09fcad4`, total estimate 52-64s.
+No `Sources` section was shown because no served content was available.
+
+| Call | Captured Preparing metadata after adjustment | Native continuation |
+| --- | --- | --- |
+| search | `indexing, estimated total: 52-64s`; requested package alias | `search-status <ref> --wait 80` |
+| grep | Same pin/estimate, `time spent indexing: 261s`; requested input 0; separate documentation preparation with no estimate | Retry original query `--wait 80000` |
+| read | Same pin/estimate, `time spent indexing: 260s`; requested package alias; unavailable-content INDEXING error (exit 1) | Retry read `--wait 60000` |
+| list | Same pin/estimate/elapsed 260s, independently known `committed 2026-08-25`; requested package alias | Retry list `--wait 80000` |
+
+Dates and elapsed values differ only when the response supplies different facts;
+no missing date is borrowed from list. Estimates remain advisory totals even when
+observed elapsed execution exceeds them. Grep's hosted-documentation preparation
+reflects its broader package scope; the code-only search does not claim that scope.
+Search initially repeated an unresolved repository tag with no SHA/date beneath
+the existing package alias. Shared Requested copy now suppresses duplicated
+intent already represented under Preparing; independently resolved commits and
+coalesced-work differences remain separate. A captured-shape CLI/MCP regression
+passes, and the live CLI rerun confirms the extra row is gone.
+
+A narrow local stdio MCP pass exercised the same four real dev tools, using
+`wait_timeout_ms=1000` for search and 1 for the others to match CLI waits. It
+confirmed the same actual-work pin, shared copy and source omission, with native
+MCP actions; read returned `isError: true` for INDEXING. This verifies local
+MCP package behavior, not published hosted adoption or agent interpretation.

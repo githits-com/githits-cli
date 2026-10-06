@@ -427,3 +427,67 @@ describe("search preparation sections", () => {
     },
   );
 });
+
+describe("pending package preparation aliases", () => {
+  it("does not repeat an unresolved package tag beside its actual work on either surface", () => {
+    const target = "npm:n8n@2.36.7";
+    const repoUrl = "https://github.com/n8n-io/n8n";
+    const payload = active({
+      progress: {
+        status: "INDEXING",
+        targetsReady: 0,
+        targetsTotal: 1,
+        elapsedMs: 100,
+        targets: [
+          {
+            requested: target,
+            resolvedRequested: "n8n@2.36.7",
+            freshness: "INDEXING",
+            targetResolution: {
+              requested: {
+                kind: "package_exact_version",
+                registry: "npm",
+                packageName: "n8n",
+                version: "2.36.7",
+              },
+              resolvedRequested: {
+                registry: "npm",
+                packageName: "n8n",
+                version: "2.36.7",
+                repoUrl,
+                gitRef: "n8n@2.36.7",
+              },
+              freshness: "indexing",
+              freshnessReason: "no_current_fallback",
+              availableVersions: [],
+              availableRefs: [],
+            },
+          },
+        ],
+        indexingEstimates: [
+          {
+            kind: "REPOSITORY",
+            repositoryUrl: repoUrl,
+            commitSha: "f09fcad454339ae8d16d88c85e2e4a38f85b1217",
+            targets: [target],
+            estimate: { lowerSeconds: 52, upperSeconds: 64 },
+          },
+        ],
+      },
+    });
+    for (const actionSyntax of ["mcp", "cli"] as const) {
+      const text = renderUnifiedSearchStatusText(payload, { actionSyntax });
+      expect(text).toContain(
+        "  - github:n8n-io/n8n@f09fcad4 (indexing, estimated total: 52-64s)",
+      );
+      expect(text.match(/Requested:/g)).toHaveLength(1);
+      expect(text).toContain(`    Requested: ${target}`);
+      expect(text).not.toContain("github:n8n-io/n8n@n8n@2.36.7");
+      expect(text).not.toContain("committed");
+      expect(text).not.toContain("observed HEAD");
+      expect(text).toContain(
+        actionSyntax === "mcp" ? "wait_timeout_ms=80000" : "--wait 80",
+      );
+    }
+  });
+});

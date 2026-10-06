@@ -262,6 +262,13 @@ export function formatRequestedProvenance(
   if (!resolution || resolution.freshness === "current") return undefined;
   const requested = resolution.resolvedRequested ?? resolution.requested;
   const target = formatSourceIdentity(requested);
+  const requestedLabel = formatSourceIdentity(resolution.requested);
+  if (
+    requestedLabel &&
+    !requested?.commitSha &&
+    preparation?.some((entry) => entry.targets.includes(requestedLabel))
+  )
+    return undefined;
   if (
     !requested ||
     !target ||
