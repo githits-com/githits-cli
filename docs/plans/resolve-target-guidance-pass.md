@@ -1,6 +1,6 @@
 # Resolve-target guidance refinement
 
-Status: implementation and verification complete; internal/external review pending.
+Status: implementation and verification complete; internal review closed; external refinement round 1 findings fixed, round 2 pending.
 
 The user requested one more pass over the tool, public skill, quick_start and
 text output. The first 80 descriptor characters currently hide the vague-name
@@ -42,11 +42,21 @@ separately authorized work; no production verification in this pass.
 
 Measured result: 76-character first sentence; descriptor 1,121→577 bytes, full
 resolver definition 3,342→2,796, guide 7,807→7,557, skill 8,338→8,088. Fixed
-output fixtures EXACT 177→177, MEDIUM 210→170, ambiguous singleton 365→225,
+output fixtures EXACT 177→177, MEDIUM 210→170, ambiguous singleton 365→237,
 empty 257→145, blocked 226→226. No output-size latency claim or token heuristic.
 All four agent runs produced structured answers and zero isolation violations;
 Claude fuzzy used resolver/source, both site runs used resolver/docs and preserved
 MEDIUM uncertainty. Codex fuzzy still used web with no MCP calls. Full-guidance
 runs did not call quick_start. Evidence and limitations are in the implementation
 doc. Full units 5,486/0, type/lint/format/build, plugins and built smokes passed;
-auth dev stable CLI/MCP passed (unchanged Research cohort still running).
+auth dev stable CLI/MCP and unchanged Research cohort passed.
+
+
+Review closure: internal optional wording note restored "an actionable candidate"
+in the guide/skill, with 25 parity/guidance tests passing. External refinement
+round 1 found a small runtime-wording omission: ambiguous continuation lost
+"or filters" while deduplicating the header. Restored filters in the final Next
+action and its regression assertion; fixed fixture size is now 237 bytes.
+159 affected adapter/guide/parity/script-smoke tests passed after the correction.
+Release-note implementation detail and doubled doc blank lines were also removed.
+The formatter owns continuation text; no ownership change or new mechanism.

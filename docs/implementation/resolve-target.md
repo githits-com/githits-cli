@@ -149,7 +149,6 @@ clean under the minor-wording policy. The final help wording was checked through
 `bun run src/cli.ts --help`, and the build passed again. The temporary plan was
 retired in the promotion PR; the rollout checklist above remains authoritative.
 
-
 ## Guidance refinement
 
 The resolver's standalone discovery sentence is 76 characters:
@@ -181,7 +180,7 @@ reports the backend ambiguity reason without asserting multiple visible
 candidates. Fixed formatter fixtures used a CLEAR `npm:express` package with
 one description; variants changed only confidence, ambiguity, empty targets or
 UNKNOWN malicious-content status. Measured bytes were EXACT 177→177,
-MEDIUM 210→170, ambiguous singleton 365→225, empty 257→145 and blocked 226→226.
+MEDIUM 210→170, ambiguous singleton 365→237, empty 257→145 and blocked 226→226.
 Warnings, actionable target locators, JSON, queries and selection gates remain
 unchanged. The singleton wording backlog entry is resolved by this client fix;
 backend ambiguity classification is unchanged.
@@ -205,7 +204,6 @@ Claude adapter token/cost metrics remain unavailable. Codex fuzzy recorded
 33,415 / 153,856 / 1,534. These are whole-run observations. Estimated costs were
 $0.0120 and $0.0056 respectively; fuzzy long-context pricing is not attributable.
 Artifacts are ignored under `.agent-eval/resolve-instructions-2026-10-06/`.
-
 
 Refinement checks passed: full `bun test` (5,486 tests, zero failures, 233 files),
 typecheck, lint (nine existing warnings), format check, plugin generation/check,

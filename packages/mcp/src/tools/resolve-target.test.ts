@@ -705,7 +705,7 @@ describe("resolve_target MCP adapter", () => {
     expect(text.match(/Next:/g)).toHaveLength(1);
     expect(text).toContain("Targets:\n  1. npm:express [low; package]");
     expect(text).toContain(
-      "Next: narrow the name or explicitly choose a candidate",
+      "Next: narrow the name or filters, or explicitly choose a candidate",
     );
     expect(text).not.toContain("Warning:");
     expect(text).not.toContain("Unconfirmed ranked candidates:");

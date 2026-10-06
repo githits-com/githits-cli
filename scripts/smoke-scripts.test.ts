@@ -918,7 +918,7 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
 
   it("requires explicit choice and no automatic selection for ambiguity", () => {
     const text =
-      "Ambiguous: low confidence.\nTargets:\n  1. npm:express [low; package]\nNext: narrow the name or explicitly choose a candidate; pass its exact canonical target to the next MCP tool, never auto-select.\n";
+      "Ambiguous: low confidence.\nTargets:\n  1. npm:express [low; package]\nNext: narrow the name or filters, or explicitly choose a candidate; pass its exact canonical target to the next MCP tool, never auto-select.\n";
     expect(() => assertMcpResolveText(text)).not.toThrow();
     expect(() =>
       assertMcpResolveText(text.replace("never auto-select", "continue")),

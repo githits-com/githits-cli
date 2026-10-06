@@ -212,7 +212,7 @@ export function formatResolveTargetMcpText(
     );
   } else if (result.ambiguous) {
     lines.push(
-      "Next: narrow the name or explicitly choose a candidate; pass its exact canonical target to the next MCP tool, never auto-select.",
+      "Next: narrow the name or filters, or explicitly choose a candidate; pass its exact canonical target to the next MCP tool, never auto-select.",
     );
   } else if (actionable && result.best) {
     const target = sanitizeTerminalText(result.best.canonicalKey);
