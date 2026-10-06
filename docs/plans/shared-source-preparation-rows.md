@@ -99,11 +99,13 @@ own identities; they do not acquire repository provenance.
 Raw CLI reads, non-annotated legacy inventories and `list --silent` preserve
 their pipe-friendly bytes. JSON keeps all existing fields, null/omission
 semantics and exact actions, with additive selected list timestamps. Tool
-descriptors, user-facing input schemas, authentication, backend indexing policy, and published
-agent guidance do not change.
+parameter/status descriptions and CLI partial controls change only for the
+user-requested default correction. Authentication, backend indexing policy and
+published agent guidance do not change.
 
 No backend or remote-mcp edits, enrichment calls, age arithmetic, extra polling,
-new retry behavior, cache, layout framework, flag or dependency. Full date/HEAD
+new retry behavior, cache, layout framework or dependency. CLI partial opt-out is
+the user-requested control; no other product flags are introduced. Full date/HEAD
 metadata for public grep would require a separate backend contract extension;
 it is not required for common wording from the facts grep has today.
 
@@ -683,7 +685,7 @@ from appearing while repository work was pending, unlike grep. The user requires
 partial results by default. Keep explicit false supported in MCP and CLI via
 --no-allow-partial; retain --allow-partial compatibility. The shared request builder
 normalizes the product default and the service sends the same default for direct
-callers. Echo explicit false truthfully as well as true. Existing backend lifecycle,
+callers. Echo explicit false truthfully; omit true as the compact default. Existing backend lifecycle,
 partialResults, pagination, and Sources attribution remain authoritative.
 
 Next mechanical dispatch 13 owns only the shared request default and its named
@@ -758,3 +760,17 @@ asyncinput to approve localOSprompt oruseearliercaptures; no password requested
 inchat. Prior R3authenticatedfourtoolCLI/MCPcaptures remainvalid forunchanged
 source/preparation contracts; newgrepandnoresolutionidentityshapes havecausal
 formatter/adapterproof. Continue independent commit/push/externalreview.
+
+Externalround2: direction row design sound. User-directed partialdefault is a
+deliberate documented exception to default-true agentflag guidance; retaining
+existing allow_partial_results:false avoids breaking an inverted flag change.
+Scope at1981lines below2k; partialdefault explicitly included inPR title/body.
+F1 low JSON noise/defaultcontract accepted: query echo omits normalizedtrue but
+retainsfalse; defaultomission tests now use realrequestbuilder omitted/truecases.
+F2 stale scope line corrected and permanentexceptionrecorded. No new product
+decision/infra needed; userinstructions already settle the two direction notes.
+Final externalround3 follows verified smallfix, with fresh-contextcheckonce.
+
+Latest after round2F1 closure: fullbun5595pass0fail22303expect234files;
+typecheck,bothbuilds,all4smokes,packagevalidator0. Internalfullupdatedreview
+andF1focusclean, nofindings. Currentconservativedelta1981 inclsmokeassertions.

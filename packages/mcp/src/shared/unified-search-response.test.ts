@@ -10,6 +10,7 @@ import {
   type UnifiedSearchRepositoryEvidence,
 } from "@githits/core-internal";
 import { defaultUnifiedSearchOutcome } from "../services/test-helpers.js";
+import { buildUnifiedSearchParams } from "./unified-search-request.js";
 import {
   buildSourceStatusWarnings,
   buildUnifiedSearchStatusPayload as buildStatusPresentation,
@@ -1198,20 +1199,29 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload.results[0]?.target).toBe("github:n8n-io/n8n@n8n@2.26.5");
   });
 
-  it("omits default-valued query echo fields", () => {
-    const payload = buildUnifiedSearchSuccessPayload(
-      params,
-      "router middleware",
-      "router middleware",
-      defaultUnifiedSearchOutcome,
-    );
+  it.each([undefined, true])(
+    "omits default-valued query echo fields %s",
+    (allowPartialResults) => {
+      const built = buildUnifiedSearchParams({
+        query: "router middleware",
+        targets: params.targets,
+        allowPartialResults,
+      });
+      expect(built.params.allowPartialResults).toBe(true);
+      const payload = buildUnifiedSearchSuccessPayload(
+        built.params,
+        "router middleware",
+        "router middleware",
+        defaultUnifiedSearchOutcome,
+      );
 
-    // Default limit/offset/waitTimeoutMs/allowPartialResults all omitted.
-    // No `compiled` because it equals raw. No `warnings` because empty.
-    expect(payload.query).toEqual({
-      raw: "router middleware",
-    });
-  });
+      // Default limit/offset/waitTimeoutMs/allowPartialResults all omitted.
+      // No `compiled` because it equals raw. No `warnings` because empty.
+      expect(payload.query).toEqual({
+        raw: "router middleware",
+      });
+    },
+  );
 
   it("normalises incomplete outcomes without partial results", () => {
     const payload = buildUnifiedSearchSuccessPayload(
@@ -1253,7 +1263,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     expect(payload).not.toHaveProperty("partialResults");
   });
 
-  it("normalises incomplete outcomes with opt-in partial results", () => {
+  it("normalises incomplete outcomes with ready partial results", () => {
     if (defaultUnifiedSearchOutcome.state !== "completed") {
       throw new Error("expected completed outcome fixture");
     }
@@ -1284,7 +1294,7 @@ describe("buildUnifiedSearchSuccessPayload", () => {
     );
 
     expect(payload.completed).toBe(false);
-    expect(payload.query.allowPartialResults).toBe(true);
+    expect(payload.query).not.toHaveProperty("allowPartialResults");
     expect(payload.partialResults).toBe(true);
     expect(payload.results.length).toBe(1);
     expect(payload.results[0]?.target).toBe("npm:express@4.18.2");

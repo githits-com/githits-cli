@@ -1114,7 +1114,9 @@ describe("partial search default across adapters", () => {
         expect(search.mock.calls[1]?.[0].allowPartialResults).toBe(
           allowPartial ?? true,
         );
-        expect(cli.query.allowPartialResults).toBe(allowPartial ?? true);
+        if (allowPartial === false)
+          expect(cli.query.allowPartialResults).toBe(false);
+        else expect(cli.query).not.toHaveProperty("allowPartialResults");
         expect(mcp).toEqual(cli);
       } finally {
         log.mockRestore();

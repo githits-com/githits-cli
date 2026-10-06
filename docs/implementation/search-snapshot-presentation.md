@@ -407,7 +407,7 @@ transport, with explicit false preserved (`--no-allow-partial` /
 `allow_partial_results: false`). Sources remains actual searched/served evidence.
 This allows hosted docs to contribute while repository code prepares; it does not
 change backend partialResults, target counts, pagination or continuation rules.
-The normalized initial query echo retains both Boolean values. Search/status
+The compact initial query echo omits default true and retains explicit false. Search/status
 and mapped indexing errors use shared `Indexed alternatives` copy inside Preparing,
 with exact request attribution. Suggested refs remain advisory and separate.
 
@@ -451,8 +451,8 @@ empty results offer no read template. JSON correlation fields remain unchanged.
 
 
 Final integrated validation after the partial-default and grep corrections:
-`bun test` passed 5,594 tests across 234 files, with zero failures and 22,300
-assertions. Typecheck, CLI/MCP builds, source/built CLI/MCP smoke suites and public
+`bun test` passed 5,595 tests across 234 files, with zero failures and 22,303
+assertions, including the compact query-echo closure. Typecheck, CLI/MCP builds, source/built CLI/MCP smoke suites and public
 package validation passed. The smoke suites validate unauthenticated handling
 and registration; authenticated dev CLI/local MCP captures separately verify the
 four business-query surfaces. Qualitative Claude agent workloads remained blocked
@@ -463,3 +463,11 @@ Keychain before query output; local stdio MCP timed out waiting for authenticati
 Earlier authenticated four-tool dev captures establish source/preparation behavior;
 final grep placement/alias grouping and hit-pin-only provenance are proved by
 actual adapter and formatter regressions above. No credentials were printed.
+
+The user explicitly requested the partial-results default to become true after
+indexing-state visibility was added. This is a deliberate exception to the
+guideline against default-true agent booleans, preserving the existing
+`allow_partial_results: false` opt-out contract rather than introducing an inverted
+flag. Compact query echo omits true as a default; false remains explicit. The
+parameter/status description changes are in this same user-directed increment;
+qualitative eval authentication limits above remain unchanged.

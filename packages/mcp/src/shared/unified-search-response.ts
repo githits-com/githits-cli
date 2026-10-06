@@ -639,8 +639,8 @@ function buildQueryEcho(
       filters.publicOnly = params.filters.publicOnly;
     if (Object.keys(filters).length > 0) echo.filters = filters;
   }
-  if (params.allowPartialResults !== undefined) {
-    echo.allowPartialResults = params.allowPartialResults;
+  if (params.allowPartialResults === false) {
+    echo.allowPartialResults = false;
   }
   if (params.limit !== undefined && params.limit !== DEFAULT_LIMIT) {
     echo.limit = params.limit;

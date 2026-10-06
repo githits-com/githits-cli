@@ -348,7 +348,7 @@ test suite anchors the doc.
   CLI `--no-allow-partial` and MCP `allow_partial_results: false` require atomic
   evidence across runnable pairs; `--allow-partial` remains accepted. An incomplete
   response can carry `results` plus `searchRef`; backend `partialResults` remains
-  authoritative. The normalized initial query echo preserves either Boolean.
+  authoritative. The compact initial query echo omits default true and preserves explicit false.
 - Completed empty search JSON retains zero-result source/target context;
   healthy source status remains suppressed for non-empty success. Text advice
   is renderer-only and never replaces structured JSON.
