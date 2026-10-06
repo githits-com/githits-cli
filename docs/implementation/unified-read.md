@@ -619,3 +619,15 @@ JSON retains backend messages, hints, timing and indexed alternatives. Annotated
 readable content can show pending refresh; ordinary CLI body output remains raw.
 See [uniform indexing estimates](indexing-estimates.md) for timing semantics and
 the production deployment prerequisite.
+
+
+## Annotated code provenance
+
+MCP code reads and verbose CLI code reads place shared `Sources` rows after the
+existing file header and before content. Independently supplied commit dates and
+historical indexed refs belong to the served identity. `Preparing` follows the
+content and describes the concrete job identity, with `observed HEAD` only for
+an exact raw repository/full-SHA match to a resolved HEAD/default-branch request.
+A different requested commit remains separately labelled. Binary and empty
+verbose reads retain the same provenance and recovery facts. Plain CLI content
+and JSON retain their existing contracts.

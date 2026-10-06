@@ -23,7 +23,12 @@ import { projectIndexingEstimates } from "./indexing-estimates.js";
 import { renderPreparationSection } from "./indexing-estimates-text.js";
 import { formatRepositoryTarget } from "./repository-target.js";
 import {
-  buildTargetResolutionNotes,
+  renderResolutionDetails,
+  renderSourceSection,
+  resolutionSourceFacts,
+  type SourceRowFacts,
+} from "./source-provenance-text.js";
+import {
   type LeanTargetResolution,
   projectTargetResolution,
 } from "./target-resolution.js";
@@ -249,6 +254,7 @@ function buildFilterBlock(
 // --------------------------------------------------------------------
 
 export interface FormatListFilesTerminalOptions {
+  width?: number;
   verbose?: boolean;
   useColors: boolean;
 }
@@ -312,11 +318,7 @@ function formatVerbose(
 ): FormattedListFilesTerminal {
   const lines: string[] = [];
   lines.push(buildSummaryHeader(envelope, options));
-  if (envelope.resolution || envelope.indexedVersion) {
-    lines.push(buildResolutionLine(envelope, options));
-  }
-  appendTargetResolutionNotes(lines, envelope, options);
-  lines.push(...renderPreparationSection(envelope.indexingEstimates));
+  appendProvenance(lines, envelope, options);
   lines.push("");
 
   const pathWidth = longestPathLength(envelope.files);
@@ -357,11 +359,7 @@ function formatEmpty(
   }
   const lines: string[] = [];
   lines.push(buildSummaryHeader(envelope, options));
-  if (envelope.resolution || envelope.indexedVersion) {
-    lines.push(buildResolutionLine(envelope, options));
-  }
-  appendTargetResolutionNotes(lines, envelope, options);
-  lines.push(...renderPreparationSection(envelope.indexingEstimates));
+  appendProvenance(lines, envelope, options);
   lines.push("");
   lines.push(dim(hint, options.useColors));
   lines.push("");
@@ -396,13 +394,59 @@ function buildResolutionLine(
   return dim(parts.join(" · "), options.useColors);
 }
 
-function appendTargetResolutionNotes(
+/** Supplied legacy result resolution is artifact evidence; request echoes are not. */
+function listFilesSourceFacts(
+  envelope: LeanListFilesEnvelope,
+): SourceRowFacts[] {
+  const supplied = resolutionSourceFacts(envelope.targetResolution);
+  if (supplied.length || envelope.targetResolution) return supplied;
+  if (envelope.repoUrl && envelope.resolution?.commitSha) {
+    return [
+      {
+        identity: {
+          repoUrl: envelope.repoUrl,
+          commitSha: envelope.resolution.commitSha,
+          gitRef: envelope.resolution.resolvedRef ?? envelope.indexedVersion,
+        },
+      },
+    ];
+  }
+  return [];
+}
+
+function appendProvenance(
   lines: string[],
   envelope: LeanListFilesEnvelope,
   options: FormatListFilesTerminalOptions,
 ): void {
-  const notes = buildTargetResolutionNotes(envelope.targetResolution);
-  for (const note of notes) lines.push(dim(note, options.useColors));
+  const sources = listFilesSourceFacts(envelope);
+  lines.push(...renderSourceSection(sources, options));
+  const oldRef = envelope.resolution?.resolvedRef ?? envelope.indexedVersion;
+  const oldCommit = envelope.resolution?.commitSha;
+  const covered = sources.some(
+    ({ identity }) =>
+      identity &&
+      (!oldCommit || identity.commitSha === oldCommit) &&
+      (!oldRef ||
+        identity.gitRef === oldRef ||
+        identity.commitSha === oldRef ||
+        identity.version === oldRef),
+  );
+  if ((oldRef || oldCommit) && !covered)
+    lines.push(buildResolutionLine(envelope, options));
+  lines.push(
+    ...renderPreparationSection(envelope.indexingEstimates, {
+      width: options.width,
+      resolutions: envelope.targetResolution ? [envelope.targetResolution] : [],
+    }),
+  );
+  lines.push(
+    ...renderResolutionDetails(
+      envelope.targetResolution,
+      envelope.indexingEstimates,
+      options,
+    ),
+  );
 }
 
 function buildIdentityLabel(envelope: LeanListFilesEnvelope): string {

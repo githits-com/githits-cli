@@ -1,5 +1,4 @@
 import type {
-  DiscoveryIndexingEstimate,
   GrepHit,
   GrepLineSlice,
   GrepResult,
@@ -7,13 +6,14 @@ import type {
 } from "@githits/core-internal";
 import { colors, dim, highlightMatch } from "./colors.js";
 import { grepPreparationReason } from "./grep-preparation-text.js";
-import {
-  formatIndexingEstimate,
-  renderIndexingEstimates,
-} from "./indexing-estimates-text.js";
+import { formatPreparationRow } from "./indexing-estimates-text.js";
 import { indexingWaitMs } from "./indexing-wait.js";
-import { formatRepositoryTarget } from "./repository-target.js";
 import { shellQuoteExact } from "./shell-quote.js";
+import {
+  formatProvenanceRow,
+  formatSourceRow,
+  type SourceRowFacts,
+} from "./source-provenance-text.js";
 import { terminalWidth } from "./terminal-width.js";
 
 export interface GrepTextOptions {
@@ -22,7 +22,7 @@ export interface GrepTextOptions {
   syntax?: "cli" | "mcp";
 }
 interface SourceSummary {
-  label: string;
+  facts: SourceRowFacts;
   requested: Set<string>;
   matched: boolean;
   hostedDocumentation: boolean;
@@ -90,29 +90,61 @@ export function formatGrepText(
     ))
       prose(`  - ${source}`);
   }
-  if (result.unavailableTargets.length) lines.push("Omitted:");
-  const combinedEstimates = new Set<DiscoveryIndexingEstimate>();
-  for (const omitted of result.unavailableTargets) {
-    const kind =
-      omitted.reason === "repository_indexing"
-        ? "REPOSITORY"
-        : omitted.reason === "documentation_publishing"
-          ? "DOCUMENTATION"
-          : undefined;
-    const estimates = (result.indexingEstimates ?? []).filter(
-      (entry) => entry.kind === kind && entry.targets.includes(omitted.target),
+  const isPreparing = (reason: string): boolean =>
+    ["repository_indexing", "documentation_publishing"].includes(reason);
+  const pending = result.unavailableTargets.filter((entry) =>
+    isPreparing(entry.reason),
+  );
+  const attached = new Set<(typeof pending)[number]>();
+  if (pending.length || result.indexingEstimates?.length)
+    lines.push("", "Preparing:");
+  for (const entry of result.indexingEstimates ?? []) {
+    prose(`  - ${formatPreparationRow(entry)}`);
+    const inputs = pending.filter(
+      (omitted) =>
+        entry.targets.includes(omitted.target) &&
+        entry.kind ===
+          (omitted.reason === "repository_indexing"
+            ? "REPOSITORY"
+            : "DOCUMENTATION"),
     );
-    for (const entry of estimates) combinedEstimates.add(entry);
+    for (const omitted of inputs) {
+      attached.add(omitted);
+      const needsAlias =
+        inputs.length > 1 ||
+        entry.targets.length > 1 ||
+        Boolean(entry.repositoryUrl && entry.commitSha) ||
+        Boolean(omitted.suggestedSiteTargets?.length);
+      if (needsAlias)
+        prose(`    Requested: ${omitted.target} (input ${omitted.inputIndex})`);
+      for (const target of omitted.suggestedSiteTargets ?? [])
+        prose(`      Suggested site: ${target}`);
+    }
+    if (entry.repositoryUrl && entry.commitSha) {
+      const remaining = entry.targets.filter(
+        (target) => !inputs.some((input) => input.target === target),
+      );
+      if (remaining.length) prose(`    Requested: ${remaining.join(", ")}`);
+    }
+  }
+  for (const omitted of pending.filter((entry) => !attached.has(entry))) {
     prose(
-      `  - ${omitted.target}${result.unavailableTargets.filter((target) => target.target === omitted.target).length > 1 ? ` (input ${omitted.inputIndex})` : ""} (${kind === "REPOSITORY" ? "indexing" : grepPreparationReason(omitted.reason)}${estimates.length ? `, ${estimates.map((entry) => formatIndexingEstimate(entry, "compact")).join("; ")}` : ""})`,
+      `  - ${formatProvenanceRow(omitted.target, [omitted.reason === "repository_indexing" ? "indexing" : "preparing documentation"])}${pending.filter((entry) => entry.target === omitted.target).length > 1 ? ` (input ${omitted.inputIndex})` : ""}`,
     );
     for (const target of omitted.suggestedSiteTargets ?? [])
       prose(`    Suggested site: ${target}`);
   }
-  for (const estimate of renderIndexingEstimates(
-    result.indexingEstimates?.filter((entry) => !combinedEstimates.has(entry)),
-  ))
-    prose(estimate);
+  const otherOmissions = result.unavailableTargets.filter(
+    (entry) => !isPreparing(entry.reason),
+  );
+  if (otherOmissions.length) lines.push("Omitted:");
+  for (const omitted of otherOmissions) {
+    prose(
+      `  - ${omitted.target}${otherOmissions.filter((entry) => entry.target === omitted.target).length > 1 ? ` (input ${omitted.inputIndex})` : ""} (${grepPreparationReason(omitted.reason)})`,
+    );
+    for (const target of omitted.suggestedSiteTargets ?? [])
+      prose(`    Suggested site: ${target}`);
+  }
   for (const scope of result.targets) renderCoverage(scope, prose);
 
   if (groups.length) {
@@ -219,7 +251,13 @@ function renderCoverage(
     if (scope.retryable) notes.push("retryable");
     if (scope.readiness === "STALE" && scope.commitSha)
       details.push(
-        `Served ${scope.commitSha}${scope.requestedRef ? `; requested ${scope.requestedRef}` : ""}.`,
+        ...(scope.repoUrl
+          ? scope.requestedRef
+            ? [`Requested ref: ${scope.requestedRef}.`]
+            : []
+          : [
+              `Served ${scope.commitSha}${scope.requestedRef ? `; requested ${scope.requestedRef}` : ""}.`,
+            ]),
       );
     if (
       scope.filesScanned !== null &&
@@ -309,22 +347,18 @@ function formatSources(
 ): string[] {
   const sources = new Map<string, SourceSummary>();
   for (const scope of scopes) {
-    let label = scope.target;
+    let target = scope.target;
     let identity = JSON.stringify([scope.kind, scope.target]);
     const hostedDocumentation =
       scope.kind === "SITE" && Boolean(scope.canonicalSite);
     if (scope.kind === "SITE" && scope.canonicalSite) {
-      label = `site:${scope.canonicalSite.replace(/^https?:\/\//i, "").replace(/\/$/, "")}`;
+      target = `site:${scope.canonicalSite.replace(/^https?:\/\//i, "").replace(/\/$/, "")}`;
       identity = JSON.stringify([scope.kind, scope.canonicalSite]);
     }
+    const qualifiers: string[] = [];
     if (scope.kind === "REPOSITORY" && scope.repoUrl && scope.commitSha) {
-      const corpus =
-        scope.corpus === "SOURCE"
-          ? " (source files)"
-          : scope.corpus === "DOCUMENTATION"
-            ? " (repository docs)"
-            : "";
-      label = `${formatRepositoryTarget(scope.repoUrl, scope.commitSha.slice(0, 8))}${corpus}`;
+      if (scope.corpus === "SOURCE") qualifiers.push("source files");
+      if (scope.corpus === "DOCUMENTATION") qualifiers.push("repository docs");
       identity = JSON.stringify([
         scope.kind,
         scope.repoUrl,
@@ -332,8 +366,34 @@ function formatSources(
         scope.corpus,
       ]);
     }
+    if (scope.readiness === "STALE") qualifiers.push("older snapshot");
+    const unsearched =
+      !matchedScopes.has(scope.targetIndex) &&
+      scope.filesScanned === 0 &&
+      !["CURRENT", "STALE", "UNSPECIFIED"].includes(scope.readiness);
+    if (unsearched) qualifiers.push("not searched");
+    identity = JSON.stringify([
+      identity,
+      scope.readiness,
+      scope.traversal,
+      scope.filesScanned,
+      scope.filesInScope,
+      scope.errorCode,
+      scope.binaryFilesSkipped,
+      scope.filesTooLargeSkipped,
+      scope.fileIssues,
+      scope.fileIssuesOmitted,
+      scope.urlPrefixes,
+    ]);
     const source = sources.get(identity) ?? {
-      label,
+      facts: {
+        target,
+        identity:
+          scope.kind === "REPOSITORY"
+            ? { repoUrl: scope.repoUrl, commitSha: scope.commitSha }
+            : undefined,
+        qualifiers,
+      },
       requested: new Set<string>(),
       matched: false,
       hostedDocumentation,
@@ -350,9 +410,21 @@ function formatSources(
     source.matched ||= matchedScopes.has(scope.targetIndex);
     sources.set(identity, source);
   }
-  return [...sources.values()].map(
-    (source) =>
-      `${source.label}${source.requested.size ? ` (requested: ${[...source.requested].join(", ")})` : ""}${!source.matched ? (exhaustive ? " (no results)" : " (no results on this page)") : source.hostedDocumentation ? " (hosted documentation)" : ""}`,
+  return [...sources.values()].map((source) =>
+    formatSourceRow({
+      ...source.facts,
+      qualifiers: [
+        ...(source.facts.qualifiers ?? []),
+        ...(source.requested.size
+          ? [`requested: ${[...source.requested].join(", ")}`]
+          : []),
+        ...(!source.matched &&
+        !source.facts.qualifiers?.includes("not searched")
+          ? [exhaustive ? "no results" : "no results on this page"]
+          : []),
+        ...(source.hostedDocumentation ? ["hosted documentation"] : []),
+      ],
+    }),
   );
 }
 

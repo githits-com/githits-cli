@@ -124,13 +124,20 @@ function projectTargetIdentity(
   identity: ListTargetIdentity,
 ): ListTargetIdentity {
   return {
-    kind: identity.kind,
-    registry: identity.registry,
-    packageName: identity.packageName,
-    version: identity.version,
-    repoUrl: identity.repoUrl,
+    ...(identity.kind !== undefined ? { kind: identity.kind } : {}),
+    ...(identity.registry !== undefined ? { registry: identity.registry } : {}),
+    ...(identity.packageName !== undefined
+      ? { packageName: identity.packageName }
+      : {}),
+    ...(identity.version !== undefined ? { version: identity.version } : {}),
+    ...(identity.repoUrl !== undefined ? { repoUrl: identity.repoUrl } : {}),
     gitRef: identity.gitRef,
-    commitSha: identity.commitSha,
+    ...(identity.commitSha !== undefined
+      ? { commitSha: identity.commitSha }
+      : {}),
+    ...(identity.committedAt !== undefined
+      ? { committedAt: identity.committedAt }
+      : {}),
   };
 }
 
@@ -152,19 +159,33 @@ function projectTargetResolution(
         : projectTargetIdentity(resolution.served),
     freshness: resolution.freshness,
     freshnessReason: resolution.freshnessReason,
-    indexingRef: resolution.indexingRef,
-    availableVersions:
-      resolution.availableVersions === null
-        ? null
-        : resolution.availableVersions.map(projectAvailableVersion),
-    availableRefs:
-      resolution.availableRefs === null
-        ? null
-        : resolution.availableRefs.map(projectAvailableVersion),
-    suggestedRefs:
-      resolution.suggestedRefs === null
-        ? null
-        : resolution.suggestedRefs.map(projectAvailableVersion),
+    ...(resolution.indexingRef !== undefined
+      ? { indexingRef: resolution.indexingRef }
+      : {}),
+    ...(resolution.availableVersions !== undefined
+      ? {
+          availableVersions:
+            resolution.availableVersions === null
+              ? null
+              : resolution.availableVersions.map(projectAvailableVersion),
+        }
+      : {}),
+    ...(resolution.availableRefs !== undefined
+      ? {
+          availableRefs:
+            resolution.availableRefs === null
+              ? null
+              : resolution.availableRefs.map(projectAvailableVersion),
+        }
+      : {}),
+    ...(resolution.suggestedRefs !== undefined
+      ? {
+          suggestedRefs:
+            resolution.suggestedRefs === null
+              ? null
+              : resolution.suggestedRefs.map(projectAvailableVersion),
+        }
+      : {}),
   };
 }
 

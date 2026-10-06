@@ -3,8 +3,8 @@
 Initial `search` and `search_status` use the same semantic projection and text
 formatter in `packages/mcp/src/shared/unified-search-presentation.ts` and
 `unified-search-text.ts`. The former owns evidence and continuation decisions;
-the latter owns wording and surface-native read/status commands. CLI/MCP adapters,
-Explicit user wait options are unchanged; commit-date metadata is described below. Search
+the latter owns wording and surface-native read/status commands. CLI/MCP adapters
+and explicit user wait options are unchanged; commit-date metadata is described below. Search
 descriptions retain their selection sentences and make continuation conditional
 on needing updated results; completed references are stored, not poll targets.
 
@@ -29,11 +29,11 @@ prior HEAD evidence. Other active results offer an optional wait for updated
 results. The single read example preserves the emitted `readTarget` arguments,
 including target, path, selector and bounds, rather than replacing its pinned
 commit with requested HEAD. Existing per-hit locators and pagination remain.
-Completed current searches keep their compact output. With no hits, active
+Completed current searches use the same source rows, including independently known dates. With no hits, active
 searches retain their status next action. Ended searches needing updated evidence
 require a new search; their stored reference is never offered as a poll target.
 
-Per-target copy discloses `commit: github:owner/repo@<sha>` and, when known,
+Shared `Sources:` rows disclose `github:owner/repo@<8-character SHA>` and, when known,
 `indexed from ref <ref>`. A historical named branch or HEAD alias is never a claim
 about its current pointer. Missing or SHA-valued historical refs omit that clause.
 The resolved requested commit is compared with the served commit using full SHAs;
@@ -75,8 +75,7 @@ schema accepts the returned field; the service normalizer and lean projection
 retain known timestamp strings and omit null, matching sibling identity fields.
 That selection also supplies existing `read`, code-context and legacy CLI
 `code files` / `code grep` responses, so their structured provenance gains known
-dates without new calls. The separate public `list` and `grep` services have their
-own queries and do not gain dates in this increment. No mode-specific fetch
+dates without new calls. Public `list` now selects minimal dated provenance for normal text and full provenance for JSON; public `grep` still has no commit-date or resolved-requested contract. No mode-specific fetch
 is needed: both compact text and JSON consume these two timestamps.
 
 The root cause of missing dates was omission at every existing shared boundary:
@@ -84,26 +83,32 @@ the GraphQL selection did not request the field; schema parsing, service
 normalization and lean whitelisting discarded it; the snapshot projection/text
 had no date clause. The fix extends those owners rather than adding a lookup.
 The semantic presentation slices the verified UTC timestamp's first ten
-characters into a calendar date, gated by the existing served/full-SHA evidence
-and requested-commit difference checks. JSON retains the full timestamp.
+characters into a calendar date, gated by the independently supplied served or requested full identity. The
+requested date never repairs a missing served date. JSON retains the full timestamp.
 
-Example of the shared compact target details, before normal width wrapping:
-
-```text
-commit: github:owner/repo@aaaaaaaa (committed 2026-09-01, indexed from ref HEAD); requested HEAD resolves to a different commit (committed 2026-10-05) and is indexing; searched: code
-```
-
-With only the requested date known:
+Example before normal-width wrapping:
 
 ```text
-commit: github:owner/repo@aaaaaaaa (indexed from ref HEAD); requested HEAD resolves to a different commit (committed 2026-10-05) and is indexing; searched: code
+Sources:
+  - github:owner/repo@aaaaaaaa (committed 2026-09-01, indexed from ref HEAD, older snapshot)
+
+Preparing:
+  - github:owner/repo@bbbbbbbb (indexing, estimated total: 100-120s, committed 2026-10-05, observed HEAD)
 ```
 
-With no historical ref, a known served date stands alone as
-`(committed 2026-09-01)`. Unknown date clauses disappear without a placeholder.
-Same-SHA snapshots show only their independently known served date; requested
-metadata is never borrowed for it. Healthy current results keep their compact
-text and full dates in JSON. An old current HEAD date does not make it stale.
+Preparing uses the actual job's repository and full SHA. Its optional date and
+`observed HEAD` join only independently supplied resolved-requested facts with
+exact raw repository URL and full SHA equality. Explicit branch/tag/SHA/package
+intent never proves observed HEAD. Different coalesced work stays separate;
+`Requested:` retains the independently observed commit/date instead. Missing
+job identity keeps the supplied request label. No metadata lookup occurs.
+Retained ended-search estimates say `indexing when observed` and do not revive
+polling. Empty estimates on provisional results do not fabricate active work.
+
+Known served dates and historical refs appear for healthy current sources too.
+Unknown clauses disappear without placeholders. Requested metadata never repairs
+missing served metadata, even for the same SHA; useful independent requested
+facts remain separately labelled. Old/future dates never affect state or waits.
 The existing exact readTarget, use-hits-now action, conditional wait, lifecycle,
 partial/completeness signals, attribution and zero-hit/withheld rules are unchanged.
 
@@ -112,13 +117,13 @@ client release or hosted MCP adoption. This increment was verified against the
 supplied backend dev records, not production. If deployed too early, all `read`
 requests fail because `ReadService` has no schema fallback: the code fragment
 selects the field, and GraphQL validates the whole document before returning
-either code or docs. Search/status and legacy navigation instead make sequential
+either code or docs. Public list text and JSON likewise require schema support: its query document includes the date field even when the provenance directive is false. Search/status and legacy navigation instead make sequential
 fallback retries before dropping all `targetResolution`, losing served provenance
 and prior-HEAD advice.
 No new fallback is added. The user owns release; hosted clients additionally need
 `@githits/mcp` release, remote-mcp dependency adoption and deployment.
 
-Commit-date verification:
+Original commit-date verification (2026-10-05):
 
 - Focused 14-file checks: 668 tests pass, zero failures, 3,258 expectations.
   Covered shared core search/status transport and progress, exact read transport and JSON, lean
@@ -152,7 +157,7 @@ Commit-date verification:
   isolation-violations artifact. Raw stdout/tool calls and metrics were inspected.
   This is unavailable qualitative evidence, not a UX pass or quality/performance claim.
 
-## Verification for this increment
+## Historical read-before-wait verification (2026-10-01)
 
 - `bun test packages/mcp/src/shared/unified-search-presentation.test.ts
   packages/mcp/src/shared/unified-search-text.test.ts
@@ -304,3 +309,35 @@ closure run passes with 549 expectations, and the follow-up commit hook passes
 scoped Biome and typecheck. The completed plan is removed after this clean
 review; all relevant contract, evidence and rollout limits are retained here.
 No major deferred item or required refactoring remains.
+
+## Shared source/preparation boundary (2026-10-06)
+
+`source-provenance-text.ts` owns common identity/date/ref clauses and source rows;
+`indexing-estimates-text.ts` owns preparation rows and existing timing/retry copy.
+Search's semantic projection still owns actual-hit/zero-hit attribution, corpora,
+coverage, prior-HEAD proof and lifecycle/actions. Rows replace repeated commit
+serialization without parsing backend notices. Site scope and package aliases
+remain explicit. Per-tool formatters control placement, width and native actions.
+Annotated read and legacy navigation replace human resolution serialization with
+these facts while retaining deferred/unavailable/provisional/unknown state and
+queryable-versus-suggested recovery. Structured search warnings remain unchanged.
+
+Focused verification: 841 tests pass across 29 files with 4,122 assertions;
+parser/repository/row browser closure adds a 184-test check (305 assertions).
+Typecheck, scoped Biome, both builds and packed public-package validation pass.
+The latter caught a registry import through core's service barrel; the parser
+now consumes the same taxonomy through core's existing browser-safe entrypoint.
+No registry copy, new runtime layer or network request was introduced.
+
+Source CLI/MCP and built CLI/MCP smoke commands pass unauthenticated/registration
+checks with dev presets. Live business cohorts skip with AUTH_REQUIRED; this
+run does not prove authenticated client output. The supplied 2026-10-05 backend
+dev records remain the independent date-contract evidence. Targeted Claude
+unified-search-investigation and grep-mixed-docs evals failed before tool use;
+empty tool traces, absent final/isolation artifacts and unknown usage provide
+no agent-quality claim. Exact fixture capture covers 12 date/lifecycle cases
+on both surfaces (24 passing parity checks, 48 assertions); examples and unit
+assertions establish the row wording. Production schema support remains required
+before release or hosted adoption.
+
+Implementation review evidence is recorded after the clean round.

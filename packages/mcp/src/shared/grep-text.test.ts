@@ -215,7 +215,7 @@ describe("grep text formatting", () => {
     for (const syntax of ["cli", "mcp"] as const) {
       const text = formatGrepText(result, { syntax, width: 160 });
       const lines = text.split("\n");
-      const summary = `Sources:\n  - site:expressjs.com (hosted documentation)\nOmitted:\n  - ${target} (indexing, estimated total: 37-85s)`;
+      const summary = `Sources:\n  - site:expressjs.com (hosted documentation)\n\nPreparing:\n  - ${target} (indexing, estimated total: 37-85s)`;
       expect(text).toContain(summary);
       expect(formatGrepText(result, { syntax, width: 80 })).toContain(summary);
       expect(text).not.toContain("Serving partial data.");
@@ -277,7 +277,7 @@ describe("grep text formatting", () => {
     for (const syntax of ["cli", "mcp"] as const) {
       const text = formatGrepText(result, { syntax, width: 80 });
       expect(text).toContain(
-        "Sources:\n  - github:expressjs/express@dbac741a\n  - site:expressjs.com (no results on this page)",
+        "Sources:\n  - github:expressjs/express@dbac741a\n  - site:expressjs.com (no results on this page, hosted documentation)",
       );
       expect(text).not.toContain("Hosted docs npm:");
       expect(text).not.toContain("not visited");
@@ -313,7 +313,7 @@ describe("grep text formatting", () => {
         ...scope,
         targetIndex: 99,
         target: "npm:second-request",
-        readiness: "UNSPECIFIED" as const,
+        readiness: scope.readiness,
       };
       const hits = original.hits.filter(
         (hit) => hit.targetIndex === scope.targetIndex,
@@ -376,7 +376,7 @@ describe("grep text formatting", () => {
           .filter((line) => line.startsWith("  - "));
         expect(bullets).toHaveLength(1);
         expect(bullets[0]).toContain(
-          "github:expressjs/express@dbac741a (requested: npm:older-version)",
+          "github:expressjs/express@dbac741a (requested: npm:older-version",
         );
         expect(bullets[0]!.includes("no results on this page")).toBe(
           pageHits.length === 0,
@@ -421,7 +421,7 @@ describe("grep text formatting", () => {
     for (const syntax of ["cli", "mcp"] as const) {
       const text = formatGrepText(result, { syntax, width: 80 });
       expect(text).toContain(
-        `  - site:${"a".repeat(64)}.test\n    (no results on this page)`,
+        `  - site:${"a".repeat(64)}.test\n    (no results on this page, hosted documentation)`,
       );
       expect(text).toContain(
         `  - ${target} (indexing, estimated total: 33-85s, time spent indexing:\n    90s)`,
@@ -440,7 +440,7 @@ describe("grep text formatting", () => {
         indexingEstimates: [],
       };
       expect(formatGrepText(complete, { syntax })).toContain(
-        "No matches.\n\nSources:\n  - site:expressjs.com (no results)",
+        "No matches.\n\nSources:\n  - site:expressjs.com (no results, hosted documentation)",
       );
       expect(formatGrepText({ ...complete, targets: [] }, { syntax })).toBe(
         "No matches.",
@@ -508,11 +508,138 @@ describe("grep text formatting", () => {
       );
       const sources = text.split("\n").find((line) => line.startsWith("  - "));
       if (showRequested) {
-        expect(sources).toContain(`(requested: ${target})`);
+        expect(sources).toContain(`requested: ${target}`);
       } else {
         expect(sources).not.toContain("(requested:");
       }
     }
+  });
+  it("shared preparing rows attribute duplicate inputs once per actual job", () => {
+    const original = parseGrepResult(mixed100);
+    const pending = [0, 2].map((inputIndex) => ({
+      inputIndex,
+      target: "npm:cold",
+      reason: "repository_indexing",
+      retryable: true,
+      progressRef: "opaque",
+      suggestedSiteTargets:
+        inputIndex === 2 ? ["site:docs.example.test"] : null,
+    }));
+    const result: GrepResult = {
+      ...original,
+      unavailableTargets: pending,
+      indexingEstimates: [
+        {
+          kind: "REPOSITORY",
+          targets: ["npm:cold"],
+          repositoryUrl: "https://github.com/owner/repo",
+          commitSha: "b".repeat(40),
+          estimate: { lowerSeconds: 100, upperSeconds: 120 },
+        },
+      ],
+    };
+    for (const syntax of ["cli", "mcp"] as const) {
+      const text = formatGrepText(result, { syntax, width: 200 });
+      expect(text).toContain(
+        "Preparing:\n  - github:owner/repo@bbbbbbbb (indexing, estimated total: 100-120s)\n    Requested: npm:cold (input 0)\n    Requested: npm:cold (input 2)\n      Suggested site: site:docs.example.test",
+      );
+      expect(text.match(/estimated total: 100-120s/g)).toHaveLength(1);
+      expect(text).not.toContain("observed HEAD");
+      expect(text).not.toContain("opaque");
+      expect(text.indexOf("Preparing:")).toBeLessThan(text.indexOf("[1]"));
+    }
+  });
+  it("shared preparing rows retain a single explicit ref and unmatched job aliases", () => {
+    const original = parseGrepResult(mixed100);
+    const target = "github:owner/repo@release";
+    const value: GrepResult = {
+      ...original,
+      unavailableTargets: [
+        {
+          inputIndex: 2,
+          target,
+          reason: "repository_indexing",
+          retryable: true,
+          progressRef: null,
+          suggestedSiteTargets: null,
+        },
+      ],
+      indexingEstimates: [
+        {
+          kind: "REPOSITORY",
+          targets: [target, "npm:alias"],
+          repositoryUrl: "https://github.com/owner/repo",
+          commitSha: "b".repeat(40),
+          estimate: { lowerSeconds: 100, upperSeconds: 120 },
+        },
+      ],
+    };
+    const text = formatGrepText(value, { width: 200 });
+    expect(text).toContain("Requested: github:owner/repo@release (input 2)");
+    expect(text).toContain("Requested: npm:alias");
+    expect(text.match(/estimated total: 100-120s/g)).toHaveLength(1);
+    expect(text).not.toContain("observed HEAD");
+  });
+  it("shared preparing rows retain label-only pending inputs and non-preparation omissions", () => {
+    const original = parseGrepResult(mixed100);
+    const result: GrepResult = {
+      ...original,
+      indexingEstimates: [],
+      unavailableTargets: [
+        {
+          inputIndex: 0,
+          target: "github:owner/cold",
+          reason: "repository_indexing",
+          retryable: true,
+          progressRef: null,
+          suggestedSiteTargets: null,
+        },
+        {
+          inputIndex: 1,
+          target: "site:missing.example",
+          reason: "site_not_found",
+          retryable: false,
+          progressRef: null,
+          suggestedSiteTargets: ["site:docs.example"],
+        },
+      ],
+    };
+    const text = formatGrepText(result, { width: 200 });
+    expect(text).toContain("Preparing:\n  - github:owner/cold (indexing)");
+    expect(text).toContain("Omitted:\n  - site:missing.example");
+    expect(text).toContain("Suggested site: site:docs.example");
+    expect(text).not.toContain("estimated total:");
+  });
+  it("shared source rows preserve distinct readiness and remove only duplicated served SHA", () => {
+    const original = parseGrepResult(mixed100);
+    const scope = original.targets.find(
+      (entry) => entry.kind === "REPOSITORY",
+    )!;
+    const result: GrepResult = {
+      ...original,
+      targets: [
+        { ...scope, readiness: "CURRENT" },
+        {
+          ...scope,
+          targetIndex: 9,
+          readiness: "STALE",
+          requestedRef: "HEAD",
+          filesScanned: 23,
+          filesInScope: 206,
+        },
+      ],
+      indexingEstimates: [],
+      unavailableTargets: [],
+    };
+    const text = formatGrepText(result, { width: 200 });
+    const section = text.split("Sources:")[1]!.split("Repository")[0]!;
+    expect(section.match(/github:expressjs\/express@dbac741a/g)).toHaveLength(
+      2,
+    );
+    expect(text).toContain("older snapshot");
+    expect(text).toContain("Requested ref: HEAD.");
+    expect(text).toContain("Searched 23 of 206 files.");
+    expect(text).not.toContain(`Served ${scope.commitSha}`);
   });
 });
 

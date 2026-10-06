@@ -99,6 +99,7 @@ describe("unified list CLI", () => {
         fileTypes: ["source", "doc"],
         languages: ["typescript", "rust"],
         includeDetailedFields: true,
+        includeTargetProvenance: true,
         includeReadActions: true,
       });
       expect(stop).toHaveBeenCalledTimes(1);
@@ -171,6 +172,7 @@ describe("unified list CLI", () => {
           target,
           paths,
           includeDetailedFields: true,
+          includeTargetProvenance: true,
         });
         expect(list.mock.calls[0]?.[0]).not.toHaveProperty("limit");
         expect(list.mock.calls[0]?.[0]).not.toHaveProperty("waitTimeoutMs");
@@ -196,6 +198,9 @@ describe("unified list CLI", () => {
         expect.objectContaining({
           target: "site:expressjs.com",
           paths: ["en/resources/"],
+          includeDetailedFields: true,
+          includeTargetProvenance: true,
+          includeReadActions: true,
         }),
       );
     } finally {
@@ -239,6 +244,7 @@ describe("unified list CLI", () => {
         after: " cursor/%2F ",
         waitTimeoutMs: 0,
         includeDetailedFields: false,
+        includeTargetProvenance: true,
         includeReadActions: false,
       });
     } finally {
@@ -247,7 +253,7 @@ describe("unified list CLI", () => {
     }
   });
 
-  it("uses read actions only for JSON and compact site text", async () => {
+  it("list provenance callers enable normal text and JSON but disable silent text", async () => {
     const list = mock((_params: ListParams) =>
       Promise.resolve(defaultListResult),
     );
@@ -275,12 +281,21 @@ describe("unified list CLI", () => {
         {},
         createDeps({ listService: service }),
       );
+      await listAction(
+        "site:docs.example.test",
+        undefined,
+        { silent: true },
+        createDeps({ listService: service }),
+      );
       expect(
         list.mock.calls.map(([params]) => params.includeDetailedFields),
-      ).toEqual([false, true, false]);
+      ).toEqual([false, true, false, false]);
+      expect(
+        list.mock.calls.map(([params]) => params.includeTargetProvenance),
+      ).toEqual([true, true, true, false]);
       expect(
         list.mock.calls.map(([params]) => params.includeReadActions),
-      ).toEqual([false, true, true]);
+      ).toEqual([false, true, true, true]);
     } finally {
       write.mockRestore();
       log.mockRestore();
@@ -311,6 +326,7 @@ describe("unified list CLI", () => {
       expect(list.mock.calls[0]?.[0]).toEqual({
         target: "npm:express",
         includeDetailedFields: false,
+        includeTargetProvenance: true,
         includeReadActions: false,
       });
     } finally {
@@ -422,45 +438,130 @@ describe("unified list CLI", () => {
     "TIMEOUT",
     "FAILED",
     "SUPERSEDED",
-  ])("preserves awaited %s in JSON and keeps compact text", async (outcome) => {
+  ])(
+    "list row adapters preserve awaited %s and render ready empty SITE text",
+    async (outcome) => {
+      const response = listResult({
+        inventoryKind: "SITE",
+        requestedTarget: "site:docs.example.test",
+        canonicalTarget: null,
+        preparation: {
+          selected: 1,
+          enqueued: 0,
+          activeJobs: [],
+          awaited: [{ mode: null, outcome }],
+        },
+      });
+      const service = createMockListService({
+        list: mock(async () => response),
+      });
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      const write = spyOn(process.stdout, "write").mockImplementation(
+        () => true,
+      );
+      try {
+        await listAction(
+          response.requestedTarget,
+          undefined,
+          { json: true },
+          createDeps({ listService: service }),
+        );
+        expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(response);
+        await listAction(
+          response.requestedTarget,
+          undefined,
+          {},
+          createDeps({ listService: service }),
+        );
+        expect(write.mock.calls[0]?.[0]).toBe(
+          "No pages.\nSources:\n  - site:docs.example.test (hosted documentation)\n",
+        );
+      } finally {
+        log.mockRestore();
+        write.mockRestore();
+      }
+    },
+  );
+
+  it("list row adapters omit Sources for pending empty SITE inventories", async () => {
     const response = listResult({
       inventoryKind: "SITE",
       requestedTarget: "site:docs.example.test",
       canonicalTarget: null,
-      preparation: {
-        selected: 1,
-        enqueued: 0,
-        activeJobs: [],
-        awaited: [{ mode: null, outcome }],
-      },
+      codeIndexState: "INDEXING",
     });
-    const service = createMockListService({ list: mock(async () => response) });
-    const log = spyOn(console, "log").mockImplementation(() => {});
-    const write = spyOn(process.stdout, "write").mockImplementation(() => true);
-    try {
-      await listAction(
-        response.requestedTarget,
-        undefined,
-        { json: true },
-        createDeps({ listService: service }),
+    const service = createMockListService({
+      list: mock(async () => response),
+    });
+    const writes: string[] = [];
+    const write = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
       );
-      expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(response);
+      return true;
+    }) as typeof process.stdout.write);
+    try {
       await listAction(
         response.requestedTarget,
         undefined,
         {},
         createDeps({ listService: service }),
       );
-      expect(write.mock.calls[0]?.[0]).toBe(
-        "# source site:docs.example.test\n",
-      );
+
+      const text = writes.join("");
+      expect(text).toStartWith("No pages available yet.");
+      expect(text).toContain("Preparing:");
+      expect(text).not.toContain("Sources:");
+      expect(text).not.toContain("Read pages:");
     } finally {
-      log.mockRestore();
       write.mockRestore();
     }
   });
 
-  it("renders the shared path-only text format", async () => {
+  it("list row adapters render ready empty SOURCE text", async () => {
+    const response = listResult({
+      inventoryKind: "SOURCE",
+      requestedTarget: "npm:express@5.2.1",
+      canonicalTarget: "npm:express@5.2.1",
+      entries: [],
+    });
+    const service = createMockListService({
+      list: mock(async () => response),
+    });
+    const writes: string[] = [];
+    const write = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      writes.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+    try {
+      await listAction(
+        response.requestedTarget,
+        undefined,
+        {},
+        createDeps({ listService: service }),
+      );
+
+      expect(writes.join("")).toBe(
+        [
+          "No files.",
+          "Sources:",
+          "  - npm:express@5.2.1",
+          "Read files: read -- 'npm:express@5.2.1' $path",
+          "",
+        ].join("\n"),
+      );
+    } finally {
+      write.mockRestore();
+    }
+  });
+
+  it("list row adapters render SOURCE guidance and continuation", async () => {
     const result = listResult({
       entries: [
         {
@@ -495,7 +596,9 @@ describe("unified list CLI", () => {
       );
       expect(writes.join("")).toBe(
         `${[
-          '# source npm:express@5.2.1 | follow up with "read npm:express@5.2.1 $path" | more results available',
+          "Sources:",
+          "  - npm:express@5.2.1",
+          "Read files: read -- 'npm:express@5.2.1' $path",
           "src/index.ts",
           "",
           "More results: repeat this list, adding:",
@@ -553,16 +656,17 @@ describe("unified list CLI", () => {
     }
   });
 
-  it("renders site actions as reusable target and path operands", async () => {
+  it("list row adapters render SITE guidance and preserve action paths", async () => {
+    const target = "site:expressjs.com/en/resources";
     const result = listResult({
       inventoryKind: "SITE",
-      requestedTarget: "site:expressjs.com",
+      requestedTarget: target,
       canonicalTarget: "site:expressjs.com",
       entries: [
         {
           kind: "PAGE",
-          path: "en/resources/",
-          read: { target: "site:expressjs.com", path: "en/resources" },
+          path: "overview/",
+          read: { target, path: "overview" },
         },
         {
           kind: "DIRECTORY",
@@ -588,20 +692,27 @@ describe("unified list CLI", () => {
     }) as typeof process.stdout.write);
     try {
       await listAction(
-        "site:expressjs.com",
+        target,
         undefined,
         {},
         createDeps({ listService: service }),
       );
       expect(writes.join("")).toBe(
-        `${['# source site:expressjs.com | follow up with "read site:expressjs.com $path"', "en/resources", "en/guide/"].join("\n")}\n`,
+        [
+          "Sources:",
+          `  - ${target} (hosted documentation)`,
+          `Read pages: read -- '${target}' $path`,
+          "overview",
+          "en/guide/",
+          "",
+        ].join("\n"),
       );
     } finally {
       write.mockRestore();
     }
   });
 
-  it("preserves descendant-site directories and their request base in text and JSON", async () => {
+  it("list row adapters preserve descendant SITE bases and JSON", async () => {
     const target = "site:reference.langchain.com/python/langchain/agents";
     const paths = [
       "_subagent_transformer/",
@@ -638,7 +749,9 @@ describe("unified list CLI", () => {
     try {
       await listAction(target, undefined, {}, deps);
       expect(writes.join("")).toBe(
-        [`# source ${target}`, ...paths, ""].join("\n"),
+        ["Sources:", `  - ${target} (hosted documentation)`, ...paths, ""].join(
+          "\n",
+        ),
       );
       writes.length = 0;
       await listAction(target, undefined, { silent: true }, deps);

@@ -317,7 +317,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "10 results | 5 repo docs, 5 docs pages | next_offset=10",
     );
     expect(text).toContain(
-      "Sources: npm:express@5.2.1 - site:expressjs.com,\n  github:expressjs/express@dbac741a",
+      "Sources:\n  - site:expressjs.com (hosted documentation, requested: npm:express@5.2.1)",
     );
     expect(text).toContain(
       "[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01",
@@ -910,8 +910,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("- npm:express@5.2.1\n  searched: docs");
-    expect(text).not.toContain("Sources:");
+    expect(text).toContain("Sources:\n  - npm:express@5.2.1 (docs)");
   });
 
   it("does not repeat a standalone site identity in compact output", () => {
@@ -934,7 +933,9 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("Sources: site:hono.dev");
+    expect(text).toContain(
+      "Sources:\n  - site:hono.dev (hosted documentation)",
+    );
     expect(text).not.toContain("site:hono.dev - site:hono.dev");
   });
 
@@ -959,7 +960,9 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("Sources: github:axios/axios@fede1d15");
+    expect(text).toContain(
+      "Sources:\n  - github:axios/axios@fede1d15 (repository docs)",
+    );
     expect(text).not.toContain(
       "github:axios/axios - github:axios/axios@fede1d15",
     );
@@ -987,7 +990,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "Sources: github:axios/axios@v1.7.9 - github:axios/axios@b2cb45d5",
+      "Sources:\n  - github:axios/axios@b2cb45d5 (repository docs, requested:",
     );
   });
 
@@ -1012,9 +1015,9 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "- github:axios/axios@main\n  searched: repository docs",
+      "Sources:\n  - github:axios/axios (repository docs, requested:",
     );
-    expect(text).not.toContain("Sources:");
+    expect(text).toContain("Sources:");
   });
 
   it("keeps concrete provenance grouped with each healthy target", () => {
@@ -1057,7 +1060,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "Sources: npm:one@1.0.0 - site:docs.one.example; npm:two@2.0.0 - site:docs.two.example",
+      "Sources:\n  - site:docs.one.example (hosted documentation, requested: npm:one@1.0.0)\n  - site:docs.two.example (hosted documentation, requested: npm:two@2.0.0)",
     );
     expect(text).not.toContain("\n- npm:one@1.0.0");
     expect(text).not.toContain("\n- npm:two@2.0.0");
@@ -1457,7 +1460,9 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(firstLine(text)).toBe("No results");
-    expect(text).toContain("\n- npm:express@5.2.1\n  searched: code");
+    expect(text).toContain(
+      "Sources:\n  - npm:express@5.2.1 (code, no results)",
+    );
     expect(text).toContain(
       'Next: shorten or broaden query; remove restrictive filters; use source="symbol"; use grep.',
     );
@@ -1479,7 +1484,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("searched: symbols");
+    expect(text).toContain("npm:express@4.18.2 (symbols, no results)");
     expect(text).not.toContain("repository docs");
   });
 
@@ -1493,7 +1498,9 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("searched: code, symbols");
+    expect(text).toContain(
+      "Sources:\n  - npm:express@4.18.2 (code)\n  - npm:express@4.18.2 (symbols)",
+    );
   });
 
   it("source and warning provenance renders lane and target attribution", () => {
@@ -1520,7 +1527,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain("ignored filter (docs): fileIntent");
-    expect(text).toContain("ignored query\n  feature (symbol): name");
+    expect(text).toContain("ignored query feature (symbol): name");
     expect(text).toContain("incompatible filter (future-lane): lang");
   });
 
@@ -1668,7 +1675,9 @@ describe("renderUnifiedSearchSuccess", () => {
         }),
       );
 
-      expect(text).toContain("- npm:express@4.18.2\n  searched: docs");
+      expect(text).toContain(
+        "Sources:\n  - npm:express@4.18.2 (docs, no results)",
+      );
       expect(text).not.toContain("repository docs");
     },
   );
@@ -1957,9 +1966,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain(
-      "searched: example.com/reference docs; available: example.com/guide docs",
-    );
+    expect(text).toContain("available: example.com/guide docs");
     expect(text).not.toContain("not searched");
     expect(text).not.toContain("for npm:example@1.0.0");
   });
@@ -1978,7 +1985,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "available: site:docs.example.com,\n  site:api.example.com",
+      "available: site:docs.example.com, site:api.example.com",
     );
     expect(text).toContain(
       'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
@@ -2096,12 +2103,8 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(firstLine(text)).toBe("No results");
-    expect(text).toContain(
-      "- npm:one@1.0.0\n  searched: repository docs, docs.one.example docs; indexing: code",
-    );
-    expect(text).toContain(
-      "- npm:two@2.0.0\n  searched: repository docs, docs.two.example docs; indexing: code",
-    );
+    expect(text).toContain("- npm:one@1.0.0\n  indexing when observed: code");
+    expect(text).toContain("- npm:two@2.0.0\n  indexing when observed: code");
   });
 
   it("does not repeat a standalone site target in its readiness identity", () => {
@@ -2128,10 +2131,8 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("- npm:one@1.0.0\n  indexing: code");
-    expect(text).toContain(
-      "- site:docs.one.example\n  searched: site:docs.one.example docs",
-    );
+    expect(text).toContain("- npm:one@1.0.0\n  indexing when observed: code");
+    expect(text).toContain("  - site:docs.one.example (hosted documentation)");
     expect(text).not.toContain("for site:");
   });
 
@@ -2167,7 +2168,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain(
       "unavailable: code (npm:one@1.0.0) for npm:one@1.0.0",
     );
-    expect(text).toContain("- npm:two@2.0.0\n  searched: code");
+    expect(text).toContain("  - npm:two@2.0.0 (code)");
     expect(text).toContain(
       "- site:docs.one.example\n  available: site:docs.one.example docs",
     );
@@ -2184,7 +2185,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("searched: code; not found: symbols");
+    expect(text).toContain("not found: symbols");
     expect(text).not.toContain("Fix:");
     expect(text).toContain(
       'Next: shorten or broaden query; use source="symbol"; use grep.',
@@ -2217,9 +2218,9 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toBe(
-      "No results | failed | 0/1 ready\n\n" +
+      "No results | failed | 0/1 ready\n\nSources:\n  - npm:express@4.18.2 (code, no results)\n\n" +
         "- npm:express@4.18.2\n" +
-        "  searched: code; not found: symbols\n\n" +
+        "  not found: symbols\n\n" +
         "Next: search again later.",
     );
   });
@@ -2251,11 +2252,11 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toBe(
-      "No results\n\n" +
+      "No results\n\nSources:\n  - npm:one@1.0.0 (code, no results)\n\n" +
         "- npm:one@1.0.0\n" +
-        "  searched: code; unresolved: symbols\n\n" +
+        "  unresolved: symbols\n\n" +
         "- npm:two@2.0.0\n" +
-        "  indexing: code\n\n" +
+        "  indexing when observed: code\n\n" +
         "Next: search again later.",
     );
   });
@@ -2290,9 +2291,9 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toBe(
-      "No results | failed | 0/1 ready\n\n" +
+      "No results | failed | 0/1 ready\n\nSources:\n  - npm:express@4.18.2 (code, no results)\n\n" +
         "- npm:express@4.18.2\n" +
-        "  searched: code; unresolved: symbols; indexed: versions 4.17.0\n\n" +
+        "  unresolved: symbols; indexed: versions 4.17.0\n\n" +
         "Next: search again later.",
     );
   });
@@ -2418,8 +2419,12 @@ describe("renderUnifiedSearchSuccess", () => {
         ],
       }),
     );
-    expect(text).toContain("- npm:express latest");
-    expect(text).toContain("using: 5.1.0 while 5.2.1 indexes; searched: code");
+    expect(text).toContain("requested: npm:express latest");
+    expect(text).toContain(
+      "Requested: npm:express@5.2.1 (indexing when observed)",
+    );
+    expect(text).toContain("older snapshot");
+    expect(text).toContain("provisional");
     expect(text).not.toContain("Evidence:");
     expect(text).not.toContain("idx-hidden");
     expect(text).not.toContain("exact_provisional");
@@ -2453,9 +2458,11 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(firstLine(text)).toBe("1 result | 1 repo code hit");
-    expect(text).toContain("- npm:express latest");
-    expect(text.match(/using:/g)).toHaveLength(1);
-    expect(text).toContain("using: 5.1.0 while 5.2.1 indexes");
+    expect(text).toContain("requested: npm:express latest");
+    expect(text.match(/older snapshot/g)).toHaveLength(1);
+    expect(text).toContain(
+      "Requested: npm:express@5.2.1 (indexing when observed)",
+    );
   });
 
   it("treats indexing hit freshness as stale served evidence", () => {
@@ -2640,7 +2647,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(firstLine(text)).toBe("No results");
     expect(text).toContain("Warnings:");
     expect(text).toContain("kind was ignored by the selected source");
-    expect(text).toContain("incompatible query feature\n  (code): kind");
+    expect(text).toContain("incompatible query feature (code): kind");
     expect(text).toContain("ignored filter (code): category");
     expect(text).not.toContain("duplicated promoted warning");
     expect(text.match(/Warnings:/g)).toHaveLength(1);
@@ -2835,7 +2842,8 @@ describe("renderUnifiedSearchSuccess", () => {
     const summaryLines = lines.filter((line) =>
       /^( {2})?(indexing|searched|available|indexed)/.test(line),
     );
-    expect(summaryLines.length).toBeGreaterThanOrEqual(3);
+    expect(summaryLines.length).toBeGreaterThanOrEqual(2);
+    expect(text).toContain("Sources:");
     expect(summaryLines.every((line) => line.length <= 80)).toBe(true);
     expect(text).toContain(targetOne);
     expect(text).toContain(targetTwo);
@@ -2887,7 +2895,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
     expect(text).toContain(
-      "searched: docs.example.com docs (120 pages; partial)",
+      "site:docs.example.com (hosted documentation, 120 pages, partial, no results)",
     );
     expect(text.match(/120 pages/g)).toHaveLength(1);
   });
@@ -3028,7 +3036,7 @@ describe("search preparation sections", () => {
       expect(lines.filter((line) => line.startsWith("  - "))).toHaveLength(2);
       expect(lines.some((line) => line.startsWith("    "))).toBe(true);
       expect(lines.every((line) => line.length <= 60)).toBe(true);
-      expect(section).toContain("preparing source");
+      expect(section).toContain("indexing");
       expect(section).toContain("preparing documentation");
       expect(text).toContain("1 result");
       expect(text).toContain("search_status");

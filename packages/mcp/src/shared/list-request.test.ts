@@ -33,6 +33,16 @@ function expectInvalid(
 }
 
 describe("buildListParams", () => {
+  it("list provenance callers preserve explicit selection and omit unspecified selection", () => {
+    const included = buildListParams(input({ includeTargetProvenance: true }));
+    const omitted = buildListParams(input());
+    const excluded = buildListParams(input({ includeTargetProvenance: false }));
+
+    expect(included.includeTargetProvenance).toBe(true);
+    expect(Object.hasOwn(omitted, "includeTargetProvenance")).toBe(false);
+    expect(excluded.includeTargetProvenance).toBe(false);
+  });
+
   it("preserves selectors and cursors while normalizing source filters", () => {
     const result = buildListParams(
       input({

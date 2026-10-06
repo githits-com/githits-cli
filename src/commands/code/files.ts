@@ -152,6 +152,7 @@ export async function pkgFilesAction(
     }
 
     const rendered = formatListFilesTerminal(payload, {
+      width: process.stdout.columns,
       verbose: options.verbose ?? false,
       useColors: shouldUseColors(),
     });

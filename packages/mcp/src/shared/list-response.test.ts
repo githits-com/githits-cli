@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { ListResult } from "@githits/core-internal";
+import type { ListResult, ListTargetResolution } from "@githits/core-internal";
 import { projectListResult } from "./list-response.js";
 
 function baseResult(overrides: Partial<ListResult> = {}): ListResult {
@@ -223,5 +223,150 @@ describe("projectListResult", () => {
     expect(siteFixture.entries[0]?.browse?.paths).toEqual([
       "docs.example.test/api/",
     ]);
+  });
+
+  it("list provenance projection preserves minimal identities and omitted fields", () => {
+    const targetResolution: ListTargetResolution = {
+      requested: { kind: "git_branch", gitRef: "main" },
+      resolvedRequested: null,
+      served: {
+        repoUrl: "https://github.com/acme/project",
+        gitRef: "main",
+        commitSha: "full-sha",
+        committedAt: "2025-04-03T02:01:00.123+05:30",
+      },
+      freshness: "current",
+      freshnessReason: "exact_current",
+    };
+    const projected = projectListResult(baseResult({ targetResolution }));
+    const projectedResolution = projected.targetResolution;
+
+    expect(projectedResolution).toEqual(targetResolution);
+    expect(Object.hasOwn(projectedResolution ?? {}, "indexingRef")).toBe(false);
+    expect(Object.hasOwn(projectedResolution ?? {}, "availableVersions")).toBe(
+      false,
+    );
+    expect(Object.hasOwn(projectedResolution ?? {}, "availableRefs")).toBe(
+      false,
+    );
+    expect(Object.hasOwn(projectedResolution ?? {}, "suggestedRefs")).toBe(
+      false,
+    );
+    expect(Object.hasOwn(projectedResolution?.served ?? {}, "kind")).toBe(
+      false,
+    );
+    expect(projectedResolution?.served?.committedAt).toBe(
+      "2025-04-03T02:01:00.123+05:30",
+    );
+  });
+
+  it.each([
+    {
+      name: "served date with a null resolved request",
+      targetResolution: {
+        requested: null,
+        resolvedRequested: null,
+        served: {
+          kind: "git_commit",
+          registry: null,
+          packageName: null,
+          version: null,
+          repoUrl: "https://github.com/acme/project",
+          gitRef: "main",
+          commitSha: "served-sha",
+          committedAt: "2025-04-03T02:01:00Z",
+        },
+        freshness: "current",
+        freshnessReason: null,
+      },
+    },
+    {
+      name: "resolved-requested date with a null served identity",
+      targetResolution: {
+        requested: null,
+        resolvedRequested: {
+          kind: "git_commit",
+          registry: null,
+          packageName: null,
+          version: null,
+          repoUrl: "https://github.com/acme/project",
+          gitRef: "main",
+          commitSha: "requested-sha",
+          committedAt: "2025-04-02T01:00:00Z",
+        },
+        served: null,
+        freshness: "fallback_recent",
+        freshnessReason: "head_unavailable",
+      },
+    },
+  ] satisfies Array<{
+    name: string;
+    targetResolution: ListTargetResolution;
+  }>)("list provenance projection preserves $name", ({ targetResolution }) => {
+    const projected = projectListResult(baseResult({ targetResolution }));
+
+    expect(projected.targetResolution).toEqual(targetResolution);
+    expect(projected.targetResolution?.resolvedRequested?.committedAt).toBe(
+      targetResolution.resolvedRequested?.committedAt,
+    );
+    expect(projected.targetResolution?.served?.committedAt).toBe(
+      targetResolution.served?.committedAt,
+    );
+  });
+
+  it("list provenance projection preserves nulls, clones arrays, and allowlists fields", () => {
+    const availableRef = { version: null, ref: "main", unexpected: true };
+    const targetResolution = {
+      requested: {
+        kind: "git_branch",
+        gitRef: "main",
+        unexpected: true,
+      },
+      resolvedRequested: null,
+      served: null,
+      freshness: "current",
+      freshnessReason: null,
+      indexingRef: null,
+      availableVersions: null,
+      availableRefs: [availableRef],
+      suggestedRefs: [],
+      unexpected: true,
+    } as ListTargetResolution & { unexpected: boolean };
+    const result = baseResult({ targetResolution });
+
+    const projected = projectListResult(result);
+    const projectedResolution = projected.targetResolution;
+
+    expect(projectedResolution?.indexingRef).toBeNull();
+    expect(projectedResolution?.freshnessReason).toBeNull();
+    expect(projectedResolution?.availableVersions).toBeNull();
+    expect(projectedResolution?.availableRefs).toEqual([
+      { version: null, ref: "main" },
+    ]);
+    expect(projectedResolution?.suggestedRefs).toEqual([]);
+    expect(projectedResolution).not.toHaveProperty("unexpected");
+    expect(projectedResolution?.requested).not.toHaveProperty("unexpected");
+    expect(projectedResolution?.availableRefs?.[0]).not.toHaveProperty(
+      "unexpected",
+    );
+    expect(projectedResolution?.availableRefs).not.toBe(
+      targetResolution.availableRefs,
+    );
+    expect(projectedResolution?.availableRefs?.[0]).not.toBe(availableRef);
+    expect(projectedResolution?.requested).not.toBe(targetResolution.requested);
+
+    const projectedRequested = projectedResolution?.requested;
+    if (projectedRequested) projectedRequested.gitRef = "changed";
+    const projectedAvailableRef = projectedResolution?.availableRefs?.[0];
+    if (projectedAvailableRef) projectedAvailableRef.ref = "changed";
+    projectedResolution?.suggestedRefs?.push({ version: "1.0.0", ref: "v1" });
+    expect(targetResolution.requested?.gitRef).toBe("main");
+    expect(targetResolution.availableRefs).toHaveLength(1);
+    expect(availableRef).toEqual({
+      version: null,
+      ref: "main",
+      unexpected: true,
+    });
+    expect(targetResolution.suggestedRefs).toEqual([]);
   });
 });

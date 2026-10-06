@@ -109,7 +109,7 @@ content. Native source/context tabs, backslashes and Unicode remain intact;
 other C0/C1/DEL controls are escaped. Copyable CLI locator operands use exact
 shell quoting when they contain spaces, backslashes, Unicode, controls or shell
 metacharacters; MCP uses JSON quoting.
-Free prose wraps to caller width; source rows and locator headers remain intact.
+Free prose and source rows wrap to caller width; exact locator headers remain intact.
 
 Read actions are backend-authored. Display paths can be package-relative while
 read paths are repository-root paths at an exact commit. Hosted actions use
@@ -126,7 +126,8 @@ fallback is added.
 One `Sources:` list identifies resolved sources, one per line, and each
 numbered evidence header begins with a copyable read locator. `[1]`, `[2]` number
 file/page groups in first-appearance order, never sources or backend scopes.
-Scopes sharing a served source combine their page-result status in one entry.
+Scopes combine their page-result status only when served identity, corpus,
+readiness and coverage facts agree.
 Multiple pages share one canonical website in the summary. Hosted documentation
 is labeled separately from repository evidence. A `requested` label appears only
 when a backend-reported full requested commit differs from the served commit;
@@ -134,9 +135,10 @@ index freshness alone and a named ref compared to a SHA do not prove that a
 different snapshot was served. Named-ref mismatch needs resolved requested
 identity metadata that grep does not currently expose. Ordinary and hosted
 documentation results carry no requested label.
-Unavailable requested targets appear below the sources under `Omitted:`, one
-per line with their reason and compact advisory total indexing estimate when
-available.
+Pending repository/documentation targets appear under `Preparing`, grouped by
+actual work identity with one advisory total estimate and input-specific child
+rows. Other unavailable targets appear under `Omitted`, with their reason and
+suggestions. Grep supplies no commit-date or observed-HEAD proof.
 Sources without matches on an incomplete search are marked `(no results on
 this page)`, including scopes not yet visited because a page limit was reached.
 Completed searches use `(no results)`. This
@@ -149,7 +151,7 @@ secondary `[page: ...]` metadata after the actual read locator.
 
 ```text
 Sources:
-  - github:expressjs/express@dbac741a
+  - github:expressjs/express@dbac741a (source files)
   - site:expressjs.com (hosted documentation)
 # Read files: read --lines $start-$end -- $target $path
 # Read pages: read --lines $start-$end -- $url
@@ -266,3 +268,14 @@ records the successful 64-cell Braintrust run, exact release baseline, matched
 inputs, inspected grep/read traces, and source-investigation overhead. Broader
 instruction optimization, including the unresolved search-versus-grep usage
 comparison, is recorded in [the backlog](../plans/open-backlog.md).
+
+## Shared source and preparation rows
+
+Human output uses the shared `Sources` row grammar for served repository pins
+and hosted documentation. It preserves separate corpora, readiness, coverage
+and input aliases. Pending repository/documentation omissions move under
+`Preparing`; other omissions remain under `Omitted`. Each supplied estimate is
+printed once, with requested inputs and input-specific suggestions beneath it.
+Grep does not fetch commit dates or resolved HEAD intent, so it does not claim
+either. Scan counts, skipped files, issues, cursors and backend read actions stay
+with their original scopes.

@@ -2,8 +2,8 @@
 
 ## Status and outcome
 
-- Overall: **READY — reviewed**.
-- Phase 1: **READY** — search/status, grep, annotated read and
+- Overall: **IN PROGRESS — reviewed plan, implementation authorized**.
+- Phase 1: **IN PROGRESS** — search/status, grep, annotated read and
   list use the same compact source and preparation wording in CLI and MCP.
 - Product decisions: **none open**. On 2026-10-06 the user selected the shape
   below, canonical `github:` targets, `observed HEAD`, and shared strings with
@@ -339,7 +339,7 @@ same-ref/different-commit omission.
 
 ## Phase 1 — uniform rows in one bounded increment
 
-- Status: **READY**.
+- Status: **IN PROGRESS**.
 - Expected outcome: canonical tools and their annotated legacy consumers render
   the approved row shape with identical wording, accurate identities, compact
   wrapping, and unchanged action/coverage semantics.
@@ -435,7 +435,7 @@ helper's implementation:
 Run the existing affected suites (plus the new shared-row tests):
 
 ```bash
-bun test packages/core-internal/src/services/list-service.test.ts packages/core-internal/src/services/discovery-indexing-estimates.test.ts packages/mcp/src/shared/target-resolution.test.ts packages/mcp/src/shared/indexing-estimates.test.ts packages/mcp/src/shared/unified-search-presentation.test.ts packages/mcp/src/shared/unified-search-text.test.ts packages/mcp/src/shared/unified-search-status-text.test.ts packages/mcp/src/shared/unified-search-snapshot-text.test.ts packages/mcp/src/shared/grep-text.test.ts packages/mcp/src/shared/list-text.test.ts packages/mcp/src/shared/list-response.test.ts packages/mcp/src/shared/read-file-response.test.ts packages/mcp/src/shared/read-result-response.test.ts packages/mcp/src/shared/grep-repo-text.test.ts packages/mcp/src/shared/list-files-response.test.ts src/tools/search-parity.test.ts src/tools/grep-parity.test.ts src/tools/read-file-parity.test.ts packages/mcp/src/tools/list.test.ts src/commands/list.test.ts packages/mcp/src/tools/read.test.ts src/commands/read.test.ts src/tools/discovery-indexing-estimates-parity.test.ts packages/mcp/src/shared/mapped-error-text.test.ts packages/mcp/src/shared/list-package-docs-response.test.ts packages/mcp/src/shared/grep-repo-response.test.ts
+bun test packages/core-internal/src/services/list-service.test.ts packages/core-internal/src/services/discovery-indexing-estimates.test.ts packages/mcp/src/shared/target-resolution.test.ts packages/mcp/src/shared/indexing-estimates.test.ts packages/mcp/src/shared/unified-search-presentation.test.ts packages/mcp/src/shared/unified-search-text.test.ts packages/mcp/src/shared/unified-search-status-text.test.ts packages/mcp/src/shared/unified-search-snapshot-text.test.ts packages/mcp/src/shared/grep-text.test.ts packages/mcp/src/shared/list-text.test.ts packages/mcp/src/shared/list-response.test.ts packages/mcp/src/shared/read-file-response.test.ts packages/mcp/src/shared/read-result-response.test.ts packages/mcp/src/shared/grep-repo-text.test.ts packages/mcp/src/shared/list-files-response.test.ts src/tools/search-parity.test.ts src/tools/grep-parity.test.ts src/tools/read-file-parity.test.ts packages/mcp/src/tools/list.test.ts src/commands/list.test.ts packages/mcp/src/tools/read.test.ts src/commands/read.test.ts src/tools/discovery-indexing-estimates-parity.test.ts packages/mcp/src/shared/mapped-error-text.test.ts packages/mcp/src/shared/list-package-docs-response.test.ts packages/mcp/src/shared/grep-repo-response.test.ts packages/mcp/src/shared/source-provenance-text.test.ts packages/mcp/src/shared/list-request.test.ts packages/mcp/src/smoke-test.test.ts
 bun run typecheck
 bun run build
 bun run --cwd packages/mcp build
@@ -462,7 +462,7 @@ so no new benchmark harness or runtime performance comparison is warranted.
 
 Completion acceptance: the approved shape is used by every scoped annotated
 surface; all verified source/request/preparation facts survive; machine/raw
-   contracts and action semantics hold; focused checks and required smoke pass;
+contracts and action semantics hold; focused checks and required smoke pass;
 review findings are adjudicated; any missing live/eval evidence is explicit.
 
 ## Delivery, reorientation and plan cleanup
@@ -511,3 +511,108 @@ delivery; no merge/release/deployment is authorized.
   as not a readiness defect during review (now both are READY after closure).
 - Planning delivery check: `bun run build` passed. No production code changed
   for this plan. Implementation verification commands above are prospective.
+
+## Orchestration slices
+
+Coordinator owns shared source/request/preparation facts, search semantics and
+grep attribution. One Luna worker receives only one mechanical concern at a time,
+returns uncommitted deltas, and never edits coordinator files. Effective sandbox
+is full access; ownership boundaries remain mandatory. No builds/tests run while
+a worker is active. Sequence (each slice may be re-sliced after its return):
+
+1. List service minimal provenance selections, decoding and wire-contract tests.
+2. List JSON projection preserves selected partial identities and independent dates.
+3. List request/caller selection plumbing for normal text versus silent mode.
+4. List text placement using the coordinator's finished shared renderer.
+5. Annotated read placement using the finished renderer, raw/content unchanged.
+6. Coordinator: legacy grep substitution and comparison of preserved resolution facts.
+7. Coordinator: legacy file-list substitution and exact suppression of covered facts.
+8. Mechanical expectation/smoke updates for decided output, if needed.
+
+Coordinator verifies every returned slice, integrates judgment-heavy logic, updates
+permanent docs/release fragment, runs required validation, then Luna pre-flight,
+internal technical review and the retained PR reviewer. Implementation completes
+inside PR #454; this is not a separate plan-only PR.
+
+### Implementation checkpoints
+
+- Slice 1 (list wire): accepted after full hunk inspection and independent named
+  `list provenance wire` proof: 3 pass, 0 fail, 21 assertions. Worker full service
+  suite: 25 pass, 0 fail, 184 assertions.
+- Slice 2 (list projection): accepted after full hunk inspection and independent
+  named `list provenance projection` proof: 4 pass, 0 fail. Worker full projection
+  suite: 7 pass, 0 fail. Root typecheck found one typed matcher fixture error;
+  a separate narrow worker correction retained allowlist/cloning assertions.
+  Corrected typecheck passes; named proof has 28 assertions. No product defect
+  or extra implementation mechanism was involved.
+- Slice 3 (list callers): accepted after hunk inspection and independent named
+  `list provenance callers` proof: 5 pass, 0 fail, 16 assertions. Worker full
+  builder/CLI/MCP suite: 62 pass, 0 fail, 341 assertions. No new input flag/schema.
+- List placement was re-sliced after a context-compaction return with no code
+  changes. This was a coordinator slicing error: SOURCE and SITE had independent
+  placement constraints. SOURCE-only placement accepted after hunk inspection and
+  independent `list source rows`: 5 pass, 0 fail, 15 assertions. Worker full file:
+  23 pass, 0 fail, 59 assertions. SITE-only placement accepted after independent `list site rows`: 4 pass,
+  0 fail, 15 assertions; full worker file 27 pass, 0 fail, 74 assertions.
+  Annotated-read placement accepted after independent `read source rows`: 5 pass,
+  0 fail, 48 assertions; full worker file: 24 pass, 0 fail, 107 assertions.
+  A narrow fixture follow-up synchronized the served tag assertion after the
+  current fixture correction; no production correction was needed.
+- Coordinator retains legacy grep/file-list adapters because suppression of their
+  existing resolution diagnostics requires identity-attribution judgment. Shared
+  grammar, search/grep semantics, docs and integration remain coordinator-owned.
+  No coordinator tests/builds run while the worker is active.
+  Coordinator explicitly takes remaining list width plumbing: terminal width
+  belongs to the CLI UI, alongside the other command adapters; fallback prose
+  uses the existing width-aware wrapper. Adapter expectations remain delegated.
+- Intermediate search/grep/shared-row check: 198 cases, 195 pass and 3 outdated
+  wrapping assertions; those assertions were corrected to the new compact
+  layout. Final integrated validation is still pending.
+
+- Legacy identity check: `indexedVersion` is a backend version/tag/commit, not
+  a proved package version. Legacy Sources use explicit targetResolution.served
+  or an emitted repository plus result resolution SHA; a lone indexedVersion
+  retains its existing diagnostic without inventing a package pin.
+
+- Search projection closure: new row contexts select only requested, resolved
+  requested, served and freshness facts. Opaque indexing handles and raw reasons
+  remain outside the semantic presentation; existing contract tests pass.
+
+- Latest main check: `git fetch origin main` moved origin/main from `d425bb4`
+  to `39fa57d`; the intervening delta is four README lines only, with no output
+  strings or project guidance changed. Rebase after the implementation checkpoint
+  commit, before the full implementation review.
+
+- Packed browser contract finding: new shared preparation rows made the existing
+  package parser reachable from @githits/mcp/tools. Its registry constants came
+  from core's service barrel, bringing Node dependencies into the browser probe.
+  Core still owns the taxonomy; exporting the same pure constants from its
+  existing browser-safe entrypoint and selecting that import fixes the boundary
+  without duplicated registry names or new runtime machinery. Sibling scan covers
+  the repository formatter, target-resolution helpers, preparation/error rows and
+  the complete @githits/mcp/tools import graph via packed browser validation.
+
+- List adapters accepted after independent `list row adapters`: 21 pass, 0 fail,
+  47 assertions; full worker adapter files: 52 pass, 0 fail, 215 assertions.
+- Integrated focused suite: 841 pass, 0 fail, 4,122 assertions in 29 files.
+  Scoped Biome checks: clean (40 TS files before the browser closure; final
+  scope also includes core/browser.ts and package-spec.ts). Typecheck, both
+  builds and packed public-package/browser validation pass after the registry
+  import-boundary closure. Parser/repository/shared-row closure: 184 pass,
+  0 fail, 305 assertions across four files.
+- Dev source CLI/MCP smoke and built CLI/MCP smoke exit 0. Live stable and
+  experimental cohorts report AUTH_REQUIRED and were skipped; built coverage
+  verifies unauthenticated CLI behavior and MCP registration, not business rows.
+- Targeted Claude descriptor/explicit-GitHits evals for unified-search-investigation
+  and grep-mixed-docs failed before any tool events (empty tool-calls.json,
+  no final.json or isolation-violations.json). No agent-quality or cost claim.
+- Exact fixture capture: 24 pass, 0 fail, 48 assertions (12 cases x CLI/MCP),
+  including known/unknown/future/current/provisional/retained/withheld dates.
+  Outputs: /tmp/shared-source-exact-outputs.txt and .json. These are fixture
+  renders, not new live observations. Current dates stay visible and never wait.
+- Ten Luna dispatches (including two fixture follow-ups), no interrupts. The
+  broad SOURCE+SITE placement brief compacted without edits and was re-sliced;
+  that was coordinator slicing, not a worker correctness limit. A read fixture
+  compaction returned the correction without proof and was followed by a narrow
+  proved assertion fix. Judgment-heavy attribution and import-boundary fixes
+  remain coordinator-owned; no new infrastructure or major deferred development.

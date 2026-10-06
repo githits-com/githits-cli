@@ -146,6 +146,7 @@ export function createListTool(
           after: args.after,
           waitTimeoutMs: args.wait_timeout_ms,
           includeDetailedFields: args.format === "json",
+          includeTargetProvenance: true,
         });
         const result = await service.list(builtParams);
         const payload = projectListResult(result);

@@ -54,6 +54,7 @@ export interface ListRequestInput {
   after?: string;
   waitTimeoutMs?: number;
   includeDetailedFields: boolean;
+  includeTargetProvenance?: boolean;
 }
 
 /**
@@ -114,6 +115,9 @@ export function buildListParams(input: ListRequestInput): ListParams {
     ...(after !== undefined ? { after } : {}),
     ...(waitTimeoutMs !== undefined ? { waitTimeoutMs } : {}),
     includeDetailedFields: input.includeDetailedFields,
+    ...(input.includeTargetProvenance !== undefined
+      ? { includeTargetProvenance: input.includeTargetProvenance }
+      : {}),
     includeReadActions: input.includeDetailedFields || isSiteTarget,
   };
 }

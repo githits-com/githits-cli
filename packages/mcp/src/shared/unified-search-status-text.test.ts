@@ -263,7 +263,9 @@ describe("renderUnifiedSearchStatusText", () => {
     };
     const text = renderUnifiedSearchStatusText(payload);
     expect(firstLine(text)).toBe("No results");
-    expect(text).toContain("- npm:express@5.2.1\n  searched: code");
+    expect(text).toContain(
+      "Sources:\n  - npm:express@5.2.1 (code, no results)",
+    );
     expect(text).toContain(
       'Next: shorten or broaden query; use source="symbol"; use grep.',
     );
@@ -417,7 +419,7 @@ describe("search preparation sections", () => {
       expect(lines.filter((line) => line.startsWith("  - "))).toHaveLength(2);
       expect(lines.some((line) => line.startsWith("    "))).toBe(true);
       expect(lines.every((line) => line.length <= 60)).toBe(true);
-      expect(section).toContain("preparing source");
+      expect(section).toContain("indexing");
       expect(section).toContain("preparing documentation");
       expect(text).toContain("1 result");
       expect(text).toContain("search_status");

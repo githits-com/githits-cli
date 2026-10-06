@@ -16,7 +16,11 @@ import { colorize, dim } from "./colors.js";
 import { projectIndexingEstimates } from "./indexing-estimates.js";
 import { renderPreparationSection } from "./indexing-estimates-text.js";
 import {
-  buildTargetResolutionNotes,
+  renderResolutionDetails,
+  renderSourceSection,
+  resolutionSourceFacts,
+} from "./source-provenance-text.js";
+import {
   type LeanTargetResolution,
   projectTargetResolution,
 } from "./target-resolution.js";
@@ -104,6 +108,7 @@ export interface FormatReadFileTerminalOptions {
    * output is pipe-friendly (`code read … | grep …`, `| wc -l`, etc).
    */
   verbose?: boolean;
+  width?: number;
 }
 
 /**
@@ -146,10 +151,9 @@ function formatBinary(
     "Binary file — cannot display as text.",
     options.useColors,
   );
-  if (verbose) {
-    return `${buildHeader(envelope, options)}\n\n${sentinel}\n`;
-  }
-  return `${sentinel}\n`;
+  return verbose
+    ? formatVerboseSentinel(envelope, options, sentinel)
+    : `${sentinel}\n`;
 }
 
 function formatNoContent(
@@ -158,18 +162,31 @@ function formatNoContent(
   verbose: boolean,
 ): string {
   const sentinel = dim("(no content returned)", options.useColors);
-  if (verbose) {
-    return `${buildHeader(envelope, options)}\n\n${sentinel}\n`;
-  }
-  return `${sentinel}\n`;
+  return verbose
+    ? formatVerboseSentinel(envelope, options, sentinel)
+    : `${sentinel}\n`;
+}
+
+function formatVerboseSentinel(
+  envelope: LeanReadFileEnvelope,
+  options: FormatReadFileTerminalOptions,
+  sentinel: string,
+): string {
+  const lines = [buildHeader(envelope, options)];
+  const sources = renderReadSources(envelope, options.width);
+  if (sources.length > 0) lines.push(...sources);
+  lines.push("", sentinel);
+  lines.push(...renderTerminalReadMetadata(envelope, options), "");
+  return lines.join("\n");
 }
 
 function formatVerboseBody(
   envelope: LeanReadFileEnvelope,
   options: FormatReadFileTerminalOptions,
 ): string {
-  const lines: string[] = [];
-  lines.push(buildHeader(envelope, options));
+  const lines = [buildHeader(envelope, options)];
+  const sources = renderReadSources(envelope, options.width);
+  if (sources.length > 0) lines.push(...sources);
   lines.push("");
 
   const bodyLines = splitReadFileContentLines(envelope);
@@ -188,21 +205,37 @@ function formatVerboseBody(
     lines.push("");
     lines.push(dim(envelope.hint, options.useColors));
   }
-  lines.push(...renderPreparationSection(envelope.indexingEstimates));
-  appendTargetResolutionNotes(lines, envelope, options);
-  lines.push("");
+  lines.push(...renderTerminalReadMetadata(envelope, options), "");
   return lines.join("\n");
 }
 
-function appendTargetResolutionNotes(
-  lines: string[],
+function renderReadSources(
+  envelope: LeanReadFileEnvelope,
+  width: number | undefined,
+): string[] {
+  return renderSourceSection(resolutionSourceFacts(envelope.targetResolution), {
+    width,
+  });
+}
+
+function renderTerminalReadMetadata(
   envelope: LeanReadFileEnvelope,
   options: FormatReadFileTerminalOptions,
-): void {
-  const notes = buildTargetResolutionNotes(envelope.targetResolution);
-  if (notes.length === 0) return;
-  lines.push("");
-  for (const note of notes) lines.push(dim(note, options.useColors));
+): string[] {
+  const lines = renderPreparationSection(envelope.indexingEstimates, {
+    ...(envelope.targetResolution
+      ? { resolutions: [envelope.targetResolution] }
+      : {}),
+    width: options.width,
+  });
+  const details = renderResolutionDetails(
+    envelope.targetResolution,
+    envelope.indexingEstimates,
+    { width: options.width },
+  );
+  if (details.length > 0)
+    lines.push("", ...details.map((line) => dim(line, options.useColors)));
+  return lines;
 }
 
 export function splitReadFileContentLines(

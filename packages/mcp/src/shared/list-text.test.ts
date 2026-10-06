@@ -97,7 +97,9 @@ describe("formatListText", () => {
 
     expect(formatListText(result)).toBe(
       [
-        '# source github:example/repo@main | follow up with "read github:example/repo@main $path" | more results available',
+        "Sources:",
+        "  - github:example/repo@main",
+        "Read files: read -- 'github:example/repo@main' $path",
         "src/index.ts",
         "docs/",
         "examples/",
@@ -133,7 +135,9 @@ describe("formatListText", () => {
 
     expect(formatListText(result)).toBe(
       [
-        '# source site:legacy.example.test/api | follow up with "read site:legacy.example.test/api $path"',
+        "Sources:",
+        "  - site:legacy.example.test/api (hosted documentation)",
+        "Read pages: read -- 'site:legacy.example.test/api' $path",
         "/",
         "client",
         "reference/",
@@ -151,7 +155,9 @@ describe("formatListText", () => {
 
     expect(formatListText(result)).toBe(
       [
-        '# source site:docs.example.test/api | follow up with "read site:docs.example.test/api $path"',
+        "Sources:",
+        "  - site:docs.example.test/api (hosted documentation)",
+        "Read pages: read -- 'site:docs.example.test/api' $path",
         "pair/",
         "reference/",
       ].join("\n"),
@@ -173,7 +179,9 @@ describe("formatListText", () => {
 
     expect(formatListText(result)).toBe(
       [
-        '# source site:docs.example.test/api | follow up with "read site:docs.example.test/api $path"',
+        "Sources:",
+        "  - site:docs.example.test/api (hosted documentation)",
+        "Read pages: read -- 'site:docs.example.test/api' $path",
         "guide",
         "http://legacy.example.test/guide?version=1",
       ].join("\n"),
@@ -189,7 +197,12 @@ describe("formatListText", () => {
     });
 
     expect(formatListText(result)).toBe(
-      ["# source site:docs.example.test/api", "a", "b"].join("\n"),
+      [
+        "Sources:",
+        "  - site:docs.example.test/api (hosted documentation)",
+        "a",
+        "b",
+      ].join("\n"),
     );
   });
 
@@ -228,7 +241,9 @@ describe("formatListText", () => {
         })),
       });
       expect(formatListText(result)).toBe(
-        [`# source ${target}`, ...paths].join("\n"),
+        ["Sources:", `  - ${target} (hosted documentation)`, ...paths].join(
+          "\n",
+        ),
       );
       expect(formatListText(result, { includeHeader: false })).toBe(
         paths.join("\n"),
@@ -244,7 +259,13 @@ describe("formatListText", () => {
           canonicalTarget: "site:docs.example.test/api",
         }),
       ),
-    ).toBe("# source site:docs.example.test/api/nested");
+    ).toBe(
+      [
+        "No pages.",
+        "Sources:",
+        "  - site:docs.example.test/api/nested (hosted documentation)",
+      ].join("\n"),
+    );
   });
 
   it("pairs descendant PAGE paths with their emitted target instead of the owner", () => {
@@ -261,7 +282,9 @@ describe("formatListText", () => {
       ),
     ).toBe(
       [
-        `# source ${target} | follow up with "read ${target} $path"`,
+        "Sources:",
+        `  - ${target} (hosted documentation)`,
+        `Read pages: read -- '${target}' $path`,
         "client",
         "reference/",
       ].join("\n"),
@@ -270,17 +293,27 @@ describe("formatListText", () => {
 
   it("falls back to the requested source for an empty inventory", () => {
     expect(formatListText(sourceResult({ canonicalTarget: null }))).toBe(
-      '# source github:example/repo@main | follow up with "read github:example/repo@main $path"',
+      [
+        "No files.",
+        "Sources:",
+        "  - github:example/repo@main",
+        "Read files: read -- 'github:example/repo@main' $path",
+      ].join("\n"),
     );
   });
 
-  it("dims only the source line when colors are enabled", () => {
+  it("keeps source rows plain when colors are enabled", () => {
     const output = formatListText(
       sourceResult({ entries: [entry("FILE", "src/index.ts")] }),
       { useColors: true },
     );
     expect(output).toBe(
-      '\u001b[2m# source github:example/repo@main | follow up with "read github:example/repo@main $path"\u001b[0m\nsrc/index.ts',
+      [
+        "Sources:",
+        "  - github:example/repo@main",
+        "Read files: read -- 'github:example/repo@main' $path",
+        "src/index.ts",
+      ].join("\n"),
     );
   });
 
@@ -308,8 +341,8 @@ describe("formatListText", () => {
     });
     const output = formatListText(result);
 
-    expect(output).toContain('# source github:exa"mple/repo\\n\\u0085\\u2028');
-    expect(output.split("\n").slice(1)).toEqual([
+    expect(output).toContain('  - github:exa"mple/repo');
+    expect(output.split("\n").slice(-2)).toEqual([
       'docs/space name-π-😀-"quote"-\\\\slash-\\ud800.md',
       "docs/line\\nbreak\\t\\u001b\\u0085\\u2029.md",
     ]);
@@ -319,6 +352,373 @@ describe("formatListText", () => {
         return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
       }),
     ).toBe(false);
+  });
+});
+
+describe("list site rows", () => {
+  it("uses the shared PAGE target for CLI and MCP guidance despite a broader owner", () => {
+    const target = "site:docs.example.test/api/v2/nested";
+    const result = siteResult({
+      requestedTarget: target,
+      canonicalTarget: "site:docs.example.test/api/v2",
+      entries: [
+        entry("PAGE", "guide", target, "guide"),
+        { kind: "DIRECTORY", path: "reference/", read: null },
+      ],
+    });
+
+    expect(formatListText(result)).toBe(
+      [
+        "Sources:",
+        `  - ${target} (hosted documentation)`,
+        `Read pages: read -- '${target}' $path`,
+        "guide",
+        "reference/",
+      ].join("\n"),
+    );
+    expect(formatListText(result, { syntax: "mcp" })).toBe(
+      [
+        "Sources:",
+        `  - ${target} (hosted documentation)`,
+        `Read pages: read target=${JSON.stringify(target)} path=$path`,
+        "guide",
+        "reference/",
+      ].join("\n"),
+    );
+  });
+
+  it("handles ready, pending, and directory-only inventories without inventing recipes", () => {
+    const requestedTarget = "site:docs.example.test/api/nested";
+    const readyEmpty = formatListText(
+      siteResult({
+        requestedTarget,
+        canonicalTarget: "site:docs.example.test/api",
+      }),
+    );
+    expect(readyEmpty).toBe(
+      [
+        "No pages.",
+        "Sources:",
+        `  - ${requestedTarget} (hosted documentation)`,
+      ].join("\n"),
+    );
+    expect(readyEmpty).not.toContain("Read pages:");
+
+    const pendingEmpty = formatListText(
+      siteResult({
+        requestedTarget,
+        canonicalTarget: "site:docs.example.test/api",
+        codeIndexState: "INDEXING",
+      }),
+    );
+    expect(pendingEmpty).toStartWith("No pages available yet.");
+    expect(pendingEmpty).not.toContain("Sources:");
+    expect(pendingEmpty).not.toContain("Read pages:");
+    expect(pendingEmpty).toContain("Preparing:");
+
+    const directoryOnly = formatListText(
+      siteResult({
+        requestedTarget,
+        canonicalTarget: "site:docs.example.test/api",
+        entries: [{ kind: "DIRECTORY", path: "reference/", read: null }],
+      }),
+    );
+    expect(directoryOnly).toBe(
+      [
+        "Sources:",
+        `  - ${requestedTarget} (hosted documentation)`,
+        "reference/",
+      ].join("\n"),
+    );
+    expect(directoryOnly).not.toContain("Read pages:");
+  });
+
+  it("omits guidance for disagreeing PAGE targets and preserves exceptional paths", () => {
+    const requestedTarget = "site:docs.example.test/api/requested";
+    const result = siteResult({
+      requestedTarget,
+      canonicalTarget: "site:docs.example.test/api",
+      entries: [
+        entry("PAGE", "chapter/", "site:docs.example.test/api/one", "chapter/"),
+        entry(
+          "PAGE",
+          "exception",
+          "https://legacy.example.test/page?x=1",
+          null,
+        ),
+        entry("PAGE", "other", "site:docs.example.test/api/two", "other"),
+      ],
+    });
+    const text = formatListText(result);
+
+    expect(text).toBe(
+      [
+        "Sources:",
+        `  - ${requestedTarget} (hosted documentation)`,
+        "chapter/",
+        "https://legacy.example.test/page?x=1",
+        "other",
+      ].join("\n"),
+    );
+    expect(text).not.toContain("Read pages:");
+  });
+
+  it("wraps SITE provenance at the requested width and leaves silent output as paths only", () => {
+    const wrapped = formatListText(
+      siteResult({
+        requestedTarget: "site:docs.example.test/api/reference",
+        canonicalTarget: "site:docs.example.test/api",
+      }),
+      { width: 55 },
+    );
+    expect(wrapped).toBe(
+      [
+        "No pages.",
+        "Sources:",
+        "  - site:docs.example.test/api/reference (hosted",
+        "    documentation)",
+      ].join("\n"),
+    );
+
+    const pendingTarget = "site:docs.example.test/api/reference";
+    const pending = formatListText(
+      siteResult({
+        entries: [
+          entry("PAGE", "guide", "site:docs.example.test/api", "guide"),
+        ],
+        indexingEstimates: [
+          {
+            kind: "DOCUMENTATION",
+            targets: [pendingTarget],
+            unavailableReason: "UNSUPPORTED_WORK",
+          },
+        ],
+      }),
+      { width: 55 },
+    );
+    expect(pending).toContain(
+      [
+        "Preparing:",
+        `  - ${pendingTarget} (preparing`,
+        "    documentation, no estimate available)",
+      ].join("\n"),
+    );
+
+    const result = siteResult({
+      entries: [
+        entry("PAGE", "guide", "site:docs.example.test/api", "guide"),
+        { kind: "DIRECTORY", path: "reference/", read: null },
+      ],
+    });
+    expect(formatListText(result, { includeHeader: false })).toBe(
+      "guide\nreference/",
+    );
+  });
+});
+
+describe("list source rows", () => {
+  const repositoryUrl = "https://github.com/acme/project";
+  const servedSha = "1234567890abcdef1234567890abcdef12345678";
+  const requestedSha = "abcdef1234567890abcdef1234567890abcdef12";
+
+  it("renders a dated current served pin with exact package read guidance", () => {
+    const result = sourceResult({
+      requestedTarget: "npm:react@19.0.0",
+      canonicalTarget: "npm:react@19.1.0",
+      entries: [entry("FILE", "src/index.js")],
+      targetResolution: {
+        requested: null,
+        resolvedRequested: null,
+        served: {
+          kind: "repo_tag",
+          repoUrl: repositoryUrl,
+          gitRef: "v19.1.0",
+          commitSha: servedSha,
+          committedAt: "2025-08-09T10:11:12Z",
+        },
+        freshness: "current",
+        freshnessReason: "exact_current",
+      },
+    });
+
+    expect(formatListText(result, { syntax: "mcp", width: 200 })).toBe(
+      [
+        "Sources:",
+        "  - github:acme/project@12345678 (committed 2025-08-09, indexed from ref v19.1.0)",
+        'Read files: read target="npm:react@19.1.0" path=$path',
+        "src/index.js",
+      ].join("\n"),
+    );
+  });
+
+  it("keeps same-ref requested work and recovery separate from the served pin", () => {
+    const result = sourceResult({
+      requestedTarget: "github:acme/project@HEAD",
+      canonicalTarget: "github:acme/project@HEAD",
+      entries: [entry("FILE", "src/index.ts")],
+      codeIndexState: "INDEXING",
+      indexingEstimates: [
+        {
+          kind: "REPOSITORY",
+          repositoryUrl,
+          commitSha: requestedSha,
+          targets: ["github:acme/project@HEAD"],
+          estimate: { lowerSeconds: 30, upperSeconds: 45 },
+        },
+      ],
+      targetResolution: {
+        requested: {
+          kind: "repo_head",
+          repoUrl: repositoryUrl,
+          gitRef: "HEAD",
+          commitSha: requestedSha,
+          committedAt: "2026-01-02T03:04:05Z",
+        },
+        resolvedRequested: {
+          kind: "repo_head",
+          repoUrl: repositoryUrl,
+          gitRef: "HEAD",
+          commitSha: requestedSha,
+          committedAt: "2026-01-02T03:04:05Z",
+        },
+        served: {
+          kind: "repo_head",
+          repoUrl: repositoryUrl,
+          gitRef: "HEAD",
+          commitSha: servedSha,
+          committedAt: "2025-12-31T23:59:59Z",
+        },
+        freshness: "fallback_recent",
+        freshnessReason: "requested_ref_indexing",
+        availableRefs: [{ version: null, ref: "main" }],
+        suggestedRefs: [{ version: null, ref: "candidate" }],
+      },
+    });
+
+    expect(formatListText(result, { width: 200 })).toBe(
+      [
+        "Sources:",
+        "  - github:acme/project@12345678 (committed 2025-12-31, indexed from ref HEAD, older snapshot)",
+        "Read files: read -- 'github:acme/project@HEAD' $path",
+        "src/index.ts",
+        "",
+        "Preparing:",
+        "  - github:acme/project@abcdef12 (indexing, estimated total: 30-45s, committed 2026-01-02, observed HEAD)",
+        "",
+        "queryable now: refs=main",
+        "suggested refs (may need indexing): candidate",
+        "",
+        "Retry this list with --wait 60000.",
+      ].join("\n"),
+    );
+  });
+
+  it("keeps unavailable or indexing identities out of Sources without a served artifact", () => {
+    const requested = {
+      kind: "repo_head",
+      repoUrl: repositoryUrl,
+      gitRef: "HEAD",
+      commitSha: requestedSha,
+      committedAt: "2026-01-02T03:04:05Z",
+    };
+    const unavailable = formatListText(
+      sourceResult({
+        requestedTarget: "github:acme/project@HEAD",
+        canonicalTarget: "github:acme/project@HEAD",
+        targetResolution: {
+          requested,
+          resolvedRequested: requested,
+          served: null,
+          freshness: "unavailable",
+          freshnessReason: "ref_resolution_deferred",
+        },
+      }),
+    );
+    expect(unavailable).not.toContain("Sources:");
+    expect(unavailable).toContain("Requested: github:acme/project@abcdef12");
+    expect(unavailable).toContain("Target unavailable.");
+
+    const indexing = formatListText(
+      sourceResult({
+        requestedTarget: "github:acme/project@HEAD",
+        canonicalTarget: "github:acme/project@HEAD",
+        codeIndexState: "INDEXING",
+        targetResolution: {
+          requested,
+          resolvedRequested: requested,
+          served: null,
+          freshness: "indexing",
+          freshnessReason: "requested_ref_indexing",
+        },
+      }),
+    );
+    expect(indexing).not.toContain("Sources:");
+    expect(indexing).toContain("Requested: github:acme/project@abcdef12");
+    expect(indexing).toContain("Requested ref is being indexed.");
+
+    const pendingWithoutResolution = formatListText(
+      sourceResult({ codeIndexState: "INDEXING" }),
+    );
+    expect(pendingWithoutResolution).not.toContain("Sources:");
+    expect(pendingWithoutResolution).toContain("Preparing:");
+    expect(pendingWithoutResolution).toContain("github:example/repo@main");
+  });
+
+  it("keeps silent source output byte-for-byte paths only", () => {
+    const result = sourceResult({
+      entries: [entry("FILE", "src/index.ts"), entry("DIRECTORY", "docs")],
+      targetResolution: {
+        requested: null,
+        resolvedRequested: null,
+        served: {
+          repoUrl: repositoryUrl,
+          gitRef: "main",
+          commitSha: servedSha,
+          committedAt: "2025-08-09T10:11:12Z",
+        },
+        freshness: "current",
+        freshnessReason: "exact_current",
+      },
+    });
+
+    expect(formatListText(result, { includeHeader: false })).toBe(
+      "src/index.ts\ndocs/",
+    );
+  });
+
+  it("labels empty and pending inventories while retaining an authoritative source", () => {
+    const result = sourceResult({
+      targetResolution: {
+        requested: null,
+        resolvedRequested: null,
+        served: {
+          repoUrl: repositoryUrl,
+          gitRef: "main",
+          commitSha: servedSha,
+          committedAt: "2025-08-09T10:11:12Z",
+        },
+        freshness: "current",
+        freshnessReason: "exact_current",
+      },
+    });
+    expect(formatListText(result)).toBe(
+      [
+        "No files.",
+        "Sources:",
+        "  - github:acme/project@12345678 (committed 2025-08-09, indexed from ref main)",
+        "Read files: read -- 'github:example/repo@main' $path",
+      ].join("\n"),
+    );
+
+    const pending = formatListText(
+      sourceResult({
+        entries: [],
+        codeIndexState: "INDEXING",
+        targetResolution: result.targetResolution,
+      }),
+    );
+    expect(pending).toStartWith("No files available yet.\nSources:\n");
+    expect(pending).toContain("github:acme/project@12345678");
   });
 });
 
@@ -364,5 +764,26 @@ describe("list preparation outcomes", () => {
     expect(text).toContain('after="next-page"');
     expect(text).not.toContain("Omitted");
     expect(text).toEndWith("Retry this list with wait_timeout_ms=30000.");
+  });
+});
+
+describe("list width", () => {
+  it("wraps pending fallback prose without changing its words or native action", () => {
+    const result = sourceResult({ codeIndexState: "INDEXING" });
+    const narrow = formatListText(result, { width: 40 });
+    const wide = formatListText(result, { width: 200 });
+    const prose = (text: string): string =>
+      text.split("Preparing:\n")[1]!.split("\n\n")[0]!;
+    expect(
+      prose(narrow)
+        .split("\n")
+        .every((line) => line.length <= 40),
+    ).toBe(true);
+    expect(prose(narrow).replace(/\s+/g, " ")).toBe(
+      prose(wide).replace(/\s+/g, " "),
+    );
+    expect(narrow).toContain(
+      "Read files: read -- 'github:example/repo@main' $path",
+    );
   });
 });

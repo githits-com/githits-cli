@@ -111,11 +111,9 @@ describe("uniform indexing evidence presentation", () => {
     const text = formatGrepText(pending({ indexingEstimates: [entry] }), {
       width: 160,
     });
-    expect(text).toContain(`Omitted:\n  - ${repository.targets[0]} (indexing)`);
+    expect(text).toContain(`  - ${repository.targets[0]} (indexing)`);
     expect(
-      text.match(
-        /No time estimate is available for preparing documentation\./g,
-      ),
+      text.match(/preparing documentation, no estimate available/g),
     ).toHaveLength(1);
   });
   it("keeps documentation preparation and its unavailable estimate with the omitted site", () => {
@@ -136,7 +134,7 @@ describe("uniform indexing evidence presentation", () => {
       { syntax: "mcp", width: 160 },
     );
     expect(text.split("\n").filter((line) => line.startsWith("  - "))).toEqual([
-      "  - site:docs.test (documentation is being prepared, no estimate available)",
+      "  - site:docs.test (preparing documentation, no estimate available)",
     ]);
   });
   it("groups multiple omitted targets under one heading with each explanation on its own line", () => {
@@ -163,9 +161,9 @@ describe("uniform indexing evidence presentation", () => {
     for (const syntax of ["cli", "mcp"] as const) {
       const output = formatGrepText(result, { syntax, width: 160 });
       expect(output).toContain(
-        "Omitted:\n  - npm:one (indexing, estimated total: 33-85s)\n  - site:docs.test (documentation is being prepared, no estimate available)",
+        "Preparing:\n  - npm:one (indexing, estimated total: 33-85s)\n  - site:docs.test (preparing documentation, no estimate available)",
       );
-      expect(output.match(/^Omitted:$/gm)).toHaveLength(1);
+      expect(output.match(/^Preparing:$/gm)).toHaveLength(1);
       expect(output).not.toContain("Sources:");
     }
   });

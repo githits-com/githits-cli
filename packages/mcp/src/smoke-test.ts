@@ -246,8 +246,16 @@ export function assertDefaultText(
 }
 
 function listTextFirstPath(text: string, context: string): string {
-  const [header, path] = text.split("\n");
-  assert(header?.startsWith("# source "), `${context}: missing source header`);
+  const lines = text.split("\n");
+  assert(
+    lines[0] === "Sources:" && lines[1]?.startsWith("  - "),
+    `${context}: missing Sources row`,
+  );
+  const actionIndex = lines.findIndex((line) =>
+    line.startsWith("Read files: read target="),
+  );
+  assert(actionIndex > 1, `${context}: missing native read recipe`);
+  const path = lines[actionIndex + 1];
   assert(path !== undefined && path.length > 0, `${context}: missing path`);
   return path;
 }
@@ -1474,7 +1482,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "list package root first page text",
   );
   assert(
-    firstRootPage.includes("| more results available") &&
+    firstRootPage.includes("More results: repeat this list, adding:") &&
       firstRootPath.length > 0 &&
       nextCursor.length > 0,
     "list package root first page must expose one path and a text continuation",
@@ -1536,7 +1544,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   );
   assert(
     siteListText.includes(
-      '# source site:expressjs.com | follow up with "read site:expressjs.com $path"',
+      'Read pages: read target="site:expressjs.com" path=$path',
     ) && siteListText.includes("en/resources/"),
     "list site default missing follow-up header or resources path",
   );

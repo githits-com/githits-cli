@@ -697,7 +697,8 @@ describe("usable snapshot presentation parity", () => {
               kind: "REPOSITORY",
               targets: [target],
               repositoryUrl: repoUrl,
-              estimate: { upperSeconds: 120 },
+              commitSha: requestedSha,
+              estimate: { lowerSeconds: 100, upperSeconds: 120 },
             },
           ],
         },
@@ -736,6 +737,7 @@ describe("usable snapshot presentation parity", () => {
               targetResolution: {
                 requested: { kind: "repo_default_branch" },
                 resolvedRequested: {
+                  repoUrl,
                   gitRef: "HEAD",
                   commitSha: requestedSha,
                   committedAt: "2026-10-05T00:00:01Z",
@@ -793,12 +795,12 @@ describe("usable snapshot presentation parity", () => {
         cliStatus,
         mcpStatus.content[0]?.text ?? "",
       ]) {
-        expect(text).toContain("commit: github:anomalyco/opencode@bbd72fb8");
+        expect(text).toContain("  - github:anomalyco/opencode@bbd72fb8");
         expect(text.replace(/\s+/g, " ")).toContain(
           "committed 2026-09-01, indexed from ref HEAD",
         );
         expect(text.replace(/\s+/g, " ")).toContain(
-          "different commit (committed 2026-10-05) and is indexing",
+          "indexing, estimated total: 100-120s, committed 2026-10-05, observed HEAD",
         );
         expect(text).toContain("Next: use these hits");
         expect(text).not.toContain("Next: search_status");

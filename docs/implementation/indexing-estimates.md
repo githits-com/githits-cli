@@ -43,9 +43,10 @@ provenance and work identity. Pipe-friendly raw paths and source content remain
 raw. Grep lists resolved sources one per line under `Sources:`, marking sources
 without matches on an incomplete search as `(no results on this page)`, or
 `(no results)` when the search is complete. A separate
-`Omitted:` list has one entry per unavailable requested target, combining its
-reason and compact advisory total estimate. There is no separate partial-data or
-indexing paragraph.
+`Preparing:` block groups actual repository/documentation work and timing once
+per estimate. Duplicate/package requested inputs and their suggestions remain
+attached beneath that work; pending inputs without an estimate keep label-only
+rows. Non-preparation omissions remain under `Omitted:`.
 Hosted-site matches do not establish package-version
 provenance. The existing cursor instructions follow the matches; a short final note
 suggests rerunning the original query with the recommended wait. That retry is a
@@ -63,6 +64,14 @@ Search/status retain their lifecycle and session-native actions; their preparati
 annotations do not label queued/searching work as active index execution.
 Legacy annotated consumers reuse the same rows; raw CLI reads and `list --silent`
 remain suitable for piping.
+
+Preparing repository rows prefer the actual entry's repository/full SHA, rendered
+with an 8-character display SHA. Matching independently dated resolved-requested
+facts may add a date and `observed HEAD`; full raw URL/SHA equality and verified
+HEAD/default-branch intent are required. Ref labels, dates and SHA prefixes are
+not proof. Served dates are never borrowed. Missing job identity keeps the
+supplied labels. Ended search timing says `indexing when observed`; it supplies
+no poll action. `source-provenance-text.ts` owns the common row grammar.
 
 `indexing-estimates-text.ts` owns the Preparing section and native retry sentence shared by successful notices and errors. Its rows use terminal-aware hanging indentation and stay separated from file content. Free prose normalizes word spacing; raw file content and copyable actions bypass prose wrapping. `mapped-error-text.ts` owns human error wording. Tool boundaries supply native
 retry actions; core and error classifiers retain backend facts instead of

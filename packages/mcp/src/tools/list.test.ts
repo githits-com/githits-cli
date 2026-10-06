@@ -238,6 +238,7 @@ describe("createListTool", () => {
       target: "npm:express@5.2.1",
       recursive: false,
       includeDetailedFields: false,
+      includeTargetProvenance: true,
       includeReadActions: false,
     });
   });
@@ -255,6 +256,7 @@ describe("createListTool", () => {
       target: "site:expressjs.com",
       paths: ["en/resources/"],
       includeDetailedFields: false,
+      includeTargetProvenance: true,
       includeReadActions: true,
     });
   });
@@ -279,11 +281,12 @@ describe("createListTool", () => {
       languages: ["javascript"],
       fileTypes: ["source"],
       includeDetailedFields: false,
+      includeTargetProvenance: true,
       includeReadActions: false,
     });
   });
 
-  it("uses compact source projection and the shared path-only formatter by default", async () => {
+  it("list provenance callers request source text provenance; list row adapters render SOURCE guidance", async () => {
     const response = listResult({
       entries: [
         { kind: "DIRECTORY", path: "src" },
@@ -299,6 +302,7 @@ describe("createListTool", () => {
     expect(list).toHaveBeenCalledWith({
       target: "npm:express@5.2.1",
       includeDetailedFields: false,
+      includeTargetProvenance: true,
       includeReadActions: false,
     });
     expect(result.content[0]?.text).toBe(
@@ -308,20 +312,27 @@ describe("createListTool", () => {
       }),
     );
     expect(result.content[0]?.text).toBe(
-      '# source npm:express@5.2.1 | follow up with "read npm:express@5.2.1 $path"\nsrc/\nREADME.md',
+      [
+        "Sources:",
+        "  - npm:express@5.2.1",
+        'Read files: read target="npm:express@5.2.1" path=$path',
+        "src/",
+        "README.md",
+      ].join("\n"),
     );
   });
 
-  it("requests site read actions and renders the shared relative site paths", async () => {
+  it("list provenance callers request site text provenance; list row adapters preserve read actions", async () => {
+    const target = "site:expressjs.com/en/resources";
     const response = listResult({
       inventoryKind: "SITE",
-      requestedTarget: "site:expressjs.com",
+      requestedTarget: target,
       canonicalTarget: "site:expressjs.com",
       entries: [
         {
           kind: "PAGE",
-          path: "expressjs.com/en/resources/",
-          read: { target: "site:expressjs.com", path: "en/resources/" },
+          path: "overview/",
+          read: { target, path: "overview/" },
         },
         { kind: "DIRECTORY", path: "en/resources/guide/" },
       ],
@@ -329,11 +340,12 @@ describe("createListTool", () => {
     const list = mock(async (_params: ListParams) => response);
     const tool = createListTool({ list });
 
-    const result = await tool.handler({ target: "site:expressjs.com" }, {});
+    const result = await tool.handler({ target }, {});
 
     expect(list).toHaveBeenCalledWith({
-      target: "site:expressjs.com",
+      target,
       includeDetailedFields: false,
+      includeTargetProvenance: true,
       includeReadActions: true,
     });
     expect(result.content[0]?.text).toBe(
@@ -343,7 +355,34 @@ describe("createListTool", () => {
       }),
     );
     expect(result.content[0]?.text).toBe(
-      '# source site:expressjs.com | follow up with "read site:expressjs.com $path"\nen/resources/\nen/resources/guide/',
+      [
+        "Sources:",
+        `  - ${target} (hosted documentation)`,
+        `Read pages: read target=${JSON.stringify(target)} path=$path`,
+        "overview/",
+        "en/resources/guide/",
+      ].join("\n"),
+    );
+  });
+
+  it("list row adapters render ready empty SOURCE text", async () => {
+    const response = listResult({
+      inventoryKind: "SOURCE",
+      requestedTarget: "npm:express@5.2.1",
+      canonicalTarget: "npm:express@5.2.1",
+      entries: [],
+    });
+    const tool = createListTool(createService(async () => response));
+
+    const result = await tool.handler({ target: response.requestedTarget }, {});
+
+    expect(result.content[0]?.text).toBe(
+      [
+        "No files.",
+        "Sources:",
+        "  - npm:express@5.2.1",
+        'Read files: read target="npm:express@5.2.1" path=$path',
+      ].join("\n"),
     );
   });
 
@@ -354,29 +393,56 @@ describe("createListTool", () => {
     "TIMEOUT",
     "FAILED",
     "SUPERSEDED",
-  ])("preserves awaited %s in JSON and keeps compact text", async (outcome) => {
+  ])(
+    "list row adapters preserve awaited %s and render ready empty SITE text",
+    async (outcome) => {
+      const response = listResult({
+        inventoryKind: "SITE",
+        requestedTarget: "site:docs.example.test",
+        canonicalTarget: null,
+        preparation: {
+          selected: 1,
+          enqueued: 0,
+          activeJobs: [],
+          awaited: [{ mode: null, outcome }],
+        },
+      });
+      const tool = createListTool(createService(async () => response));
+      const json = await tool.handler(
+        { target: response.requestedTarget, format: "json" },
+        {},
+      );
+      expect(JSON.parse(json.content[0]?.text ?? "{}")).toEqual(response);
+      const text = await tool.handler({ target: response.requestedTarget }, {});
+      expect(text.content[0]?.text).toBe(
+        [
+          "No pages.",
+          "Sources:",
+          "  - site:docs.example.test (hosted documentation)",
+        ].join("\n"),
+      );
+    },
+  );
+
+  it("list row adapters omit Sources for pending empty SITE inventories", async () => {
     const response = listResult({
       inventoryKind: "SITE",
       requestedTarget: "site:docs.example.test",
       canonicalTarget: null,
-      preparation: {
-        selected: 1,
-        enqueued: 0,
-        activeJobs: [],
-        awaited: [{ mode: null, outcome }],
-      },
+      codeIndexState: "INDEXING",
     });
     const tool = createListTool(createService(async () => response));
-    const json = await tool.handler(
-      { target: response.requestedTarget, format: "json" },
-      {},
-    );
-    expect(JSON.parse(json.content[0]?.text ?? "{}")).toEqual(response);
-    const text = await tool.handler({ target: response.requestedTarget }, {});
-    expect(text.content[0]?.text).toBe("# source site:docs.example.test");
+
+    const result = await tool.handler({ target: response.requestedTarget }, {});
+    const text = result.content[0]?.text ?? "";
+
+    expect(text).toStartWith("No pages available yet.");
+    expect(text).toContain("Preparing:");
+    expect(text).not.toContain("Sources:");
+    expect(text).not.toContain("Read pages:");
   });
 
-  it("returns detailed JSON with exact actions and the continuation cursor", async () => {
+  it("list provenance callers keep detailed JSON with exact actions and the continuation cursor", async () => {
     const response = listResult({
       hasMore: true,
       nextCursor: "opaque-cursor",
@@ -410,6 +476,7 @@ describe("createListTool", () => {
     expect(list).toHaveBeenCalledWith({
       target: "github:expressjs/express",
       includeDetailedFields: true,
+      includeTargetProvenance: true,
       includeReadActions: true,
     });
     expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual(

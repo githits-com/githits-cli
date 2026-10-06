@@ -31,6 +31,7 @@ function snapshot(): UnifiedSearchIncompletePresentation {
         {
           kind: "REPOSITORY",
           repositoryUrl: repoUrl,
+          commitSha: headSha,
           targets: [target],
           estimate: { lowerSeconds: 100, upperSeconds: 120 },
         },
@@ -47,7 +48,7 @@ function snapshot(): UnifiedSearchIncompletePresentation {
         resultCount: 1,
         targetResolution: {
           requested: { kind: "repo_default_branch" },
-          resolvedRequested: { gitRef: "HEAD", commitSha: headSha },
+          resolvedRequested: { repoUrl, gitRef: "HEAD", commitSha: headSha },
           served: { repoUrl, gitRef: "HEAD", commitSha: servedSha },
           freshness: "fallback_recent",
           freshnessReason: "requested_ref_indexing",
@@ -135,10 +136,10 @@ describe("snapshot search text received by agents", () => {
       for (const syntax of ["mcp", "cli"] as const) {
         const text = both(payload, syntax)[0]!.replace(/\s+/g, " ");
         expect(text).toContain(
-          `commit: github:anomalyco/opencode@bbd72fb8 (${servedDate ? `committed ${servedDate.slice(0, 10)}, ` : ""}indexed from ref HEAD)`,
+          `github:anomalyco/opencode@bbd72fb8 (${servedDate ? `committed ${servedDate.slice(0, 10)}, ` : ""}indexed from ref HEAD, older snapshot)`,
         );
         expect(text).toContain(
-          `requested HEAD resolves to a different commit${requestedDate ? ` (committed ${requestedDate.slice(0, 10)})` : ""} and is indexing`,
+          `github:anomalyco/opencode@0112a92c (indexing, estimated total: 100-120s${requestedDate ? `, committed ${requestedDate.slice(0, 10)}` : ""}, observed HEAD)`,
         );
         expect(text.match(/committed \d{4}-\d{2}-\d{2}/g) ?? []).toHaveLength(
           Number(Boolean(servedDate)) + Number(Boolean(requestedDate)),
@@ -157,7 +158,7 @@ describe("snapshot search text received by agents", () => {
     resolution(payload).served!.gitRef = undefined;
     resolution(payload).served!.committedAt = "2026-09-01T12:00:00Z";
     expect(both(payload)[0]).toContain(
-      "commit: github:anomalyco/opencode@bbd72fb8 (committed 2026-09-01)",
+      "github:anomalyco/opencode@bbd72fb8 (committed 2026-09-01, older",
     );
   });
 
@@ -172,12 +173,13 @@ describe("snapshot search text received by agents", () => {
       resolution(payload).freshness = "provisional";
       payload.sourceStatus![0]!.codeIndexState = "PROVISIONAL";
       for (const text of both(payload)) {
-        expect(text).not.toContain("2026-10-05");
+        const sourceSection = text.split("Preparing:")[0]!;
+        expect(sourceSection).not.toContain("2026-10-05");
         expect(text).not.toContain("different commit");
         expect(text).not.toContain("If you need current HEAD");
         expect(text).toContain("Next: use these hits now");
         if (servedDate) expect(text).toContain("committed 2026-09-01");
-        else expect(text).not.toContain("committed");
+        else expect(sourceSection).not.toContain("committed");
       }
     },
   );
@@ -201,9 +203,9 @@ describe("snapshot search text received by agents", () => {
       resolution(payload).served!.committedAt = date;
       resolution(payload).resolvedRequested!.committedAt = date;
       const text = renderUnifiedSearchSuccess(completed);
-      expect(text).toBe(baseline);
+      expect(text).not.toBe(baseline);
       expect(text).not.toContain("wait");
-      expect(text).not.toContain("committed");
+      expect(text).toContain(`committed ${date.slice(0, 10)}`);
     },
   );
 
@@ -211,14 +213,12 @@ describe("snapshot search text received by agents", () => {
     "reads the served snapshot before optional HEAD waiting: %s",
     (syntax) => {
       for (const text of both(snapshot(), syntax)) {
-        expect(text).toContain("commit: github:anomalyco/opencode@bbd72fb8");
+        expect(text).toContain("github:anomalyco/opencode@bbd72fb8");
         expect(text).toContain("indexed from ref HEAD");
         expect(text.replace(/\s+/g, " ")).toContain(
-          "requested HEAD resolves to a different commit",
+          "github:anomalyco/opencode@0112a92c",
         );
-        expect(text.replace(/\s+/g, " ")).toContain(
-          "different commit and is indexing",
-        );
+        expect(text.replace(/\s+/g, " ")).toContain("observed HEAD");
         expect(text).toContain("next_offset=3");
         expect(text).toContain("1 result");
         expect(text).not.toContain("partial result");
@@ -242,7 +242,7 @@ describe("snapshot search text received by agents", () => {
           "For a specific ref, search github:anomalyco/opencode@<ref>.",
         );
         expect(text).not.toContain("Results from commit:"); // No duplicated backend notice.
-        expect(text).not.toContain("older snapshot");
+        expect(text).toContain("older snapshot");
       }
     },
   );
@@ -313,9 +313,7 @@ describe("snapshot search text received by agents", () => {
       resolution(payload).resolvedRequested!.gitRef = undefined;
       const text = both(payload)[0]!;
       expect(text).toContain("If you need current HEAD");
-      expect(text.replace(/\s+/g, " ")).toContain(
-        "different commit and is indexing",
-      );
+      expect(text.replace(/\s+/g, " ")).toContain("observed HEAD");
     },
   );
 
@@ -330,7 +328,7 @@ describe("snapshot search text received by agents", () => {
         expect(text).not.toContain("If you need current HEAD");
         expect(text).not.toContain("HEAD is indexing");
         expect(text.replace(/\s+/g, " ")).toContain(
-          `requested ${ref} resolves to a different commit`,
+          "github:anomalyco/opencode@0112a92c (indexing, estimated total: 100-120s)",
         );
         expect(text).toContain("If you need updated results");
       }
@@ -345,9 +343,11 @@ describe("snapshot search text received by agents", () => {
       resolution(payload).freshness = freshness;
       payload.sourceStatus![0]!.codeIndexState = "PROVISIONAL";
       for (const text of both(payload)) {
-        expect(text).toContain("commit:");
+        expect(text).toContain("Sources:");
         expect(text).not.toContain("different commit");
-        expect(text).not.toContain("older snapshot");
+        if (freshness === "fallback_recent")
+          expect(text).toContain("older snapshot");
+        else expect(text).not.toContain("older snapshot");
         expect(text).not.toContain("If you need current HEAD");
       }
     },
@@ -359,7 +359,8 @@ describe("snapshot search text received by agents", () => {
       resolution(payload)[missing]!.commitSha = undefined;
       resolution(payload).resolvedRequested!.committedAt =
         "2026-10-05T00:00:00Z";
-      expect(both(payload)[0]).not.toContain("2026-10-05");
+      if (missing === "resolvedRequested")
+        expect(both(payload)[0]).not.toContain("2026-10-05");
       expect(both(payload)[0]).not.toContain("If you need current HEAD");
     }
   });
@@ -374,7 +375,7 @@ describe("snapshot search text received by agents", () => {
         'Next: search_status search_ref="recorded-search" wait_timeout_ms=120000',
       );
       expect(text).not.toContain("read target=");
-      expect(text).not.toContain("commit:");
+      expect(text).not.toContain("Sources:");
       expect(text).not.toContain("older snapshot");
     }
     resolution(payload).served = undefined;
@@ -391,12 +392,15 @@ describe("snapshot search text received by agents", () => {
       resolution(payload).served!.committedAt = "2026-09-01T00:00:00Z";
       payload.progress!.status = status;
       for (const text of both(payload)) {
-        expect(text).toContain("commit: github:anomalyco/opencode@bbd72fb8");
+        expect(text).toContain("github:anomalyco/opencode@bbd72fb8");
         expect(text.replace(/\s+/g, " ")).toContain(
-          "requested HEAD resolves to a different commit",
+          "github:anomalyco/opencode@0112a92c",
         );
+        expect(text.replace(/\s+/g, " ")).toContain("observed HEAD");
         expect(text.replace(/\s+/g, " ")).toContain(
-          "different commit and is indexing",
+          status === "INDEXING"
+            ? "(indexing, estimated"
+            : "(indexing when observed, estimated",
         );
         expect(text).toContain("committed 2026-09-01");
         expect(text).not.toContain("Next: use these hits");
@@ -421,8 +425,9 @@ describe("snapshot search text received by agents", () => {
     resolution(payload).served = undefined;
     resolution(payload).resolvedRequested!.committedAt = "2026-10-05T00:00:00Z";
     for (const text of both(payload)) {
-      expect(text).not.toContain("commit:");
-      expect(text).not.toContain("committed");
+      expect(text).not.toContain("Sources:");
+      expect(text).toContain("committed 2026-10-05");
+      expect(text).not.toContain("committed 2026-09-01");
     }
   });
 
@@ -433,7 +438,7 @@ describe("snapshot search text received by agents", () => {
     payload.results[0]!.target = bareTarget;
     payload.results[0]!.servedTarget = target;
     for (const text of both(payload)) {
-      expect(text).toContain("commit: github:anomalyco/opencode@bbd72fb8");
+      expect(text).toContain("github:anomalyco/opencode@bbd72fb8");
       expect(text).toContain("If you need current HEAD");
     }
   });
@@ -466,15 +471,16 @@ describe("snapshot search text received by agents", () => {
       });
       for (const text of both(payload)) {
         if (resultCount === 0) {
-          expect(text).toContain("commit:"); // Its own zero-hit search provenance.
+          expect(
+            projectUnifiedSearchPresentation(payload).provenance[0]!.sources,
+          ).toHaveLength(1); // Its own zero-hit provenance.
           expect(text.replace(/\s+/g, " ")).toContain(
-            "requested HEAD resolves to a different commit",
+            "github:anomalyco/opencode@0112a92c",
           );
         } else {
-          expect(text).not.toContain("commit:");
-          expect(text.replace(/\s+/g, " ")).not.toContain(
-            "requested HEAD resolves to a different commit",
-          );
+          expect(
+            projectUnifiedSearchPresentation(payload).provenance[0]!.sources,
+          ).toHaveLength(0);
         }
         expect(text).not.toContain("If you need current HEAD");
         expect(text).toContain("Next: use these hits");
@@ -528,4 +534,56 @@ describe("snapshot search text received by agents", () => {
       expect(text).not.toContain("search_status");
     },
   );
+  it("shared rows show actual coalesced work separately from observed requested HEAD", () => {
+    const payload = snapshot();
+    resolution(payload).resolvedRequested!.committedAt = "2026-10-05T00:00:00Z";
+    payload.progress!.indexingEstimates![0]!.commitSha = "c".repeat(40);
+    for (const text of both(payload)) {
+      const flat = text.replace(/\s+/g, " ");
+      expect(flat).toContain(
+        "github:anomalyco/opencode@cccccccc (indexing, estimated total: 100-120s)",
+      );
+      expect(flat).toContain(
+        "Requested: github:anomalyco/opencode@0112a92c (committed 2026-10-05, observed HEAD)",
+      );
+      const prep = flat.split("Preparing:")[1]!.split("Requested:")[0]!;
+      expect(prep).not.toContain("observed HEAD");
+      expect(prep).not.toContain("committed");
+      expect(text).toContain("Next: use these hits now");
+    }
+  });
+  it("shared rows never join requested dates or HEAD across raw repository identities", () => {
+    const payload = snapshot();
+    resolution(payload).resolvedRequested!.repoUrl = `${repoUrl}.git`;
+    resolution(payload).resolvedRequested!.committedAt = "2026-10-05T00:00:00Z";
+    const flat = both(payload)[0]!.replace(/\s+/g, " ");
+    const preparation = flat.split("Preparing:")[1]!.split("Requested:")[0]!;
+    expect(preparation).not.toContain("observed HEAD");
+    expect(preparation).not.toContain("committed");
+    expect(flat).toContain("Requested:");
+    expect(flat).toContain("committed 2026-10-05");
+  });
+  it("shared rows require the hit repository as well as its full SHA", () => {
+    const payload = snapshot();
+    payload.results[0]!.locator.repoUrl = "https://github.com/other/project";
+    const presentation = projectUnifiedSearchPresentation(payload);
+    expect(presentation.provenance[0]!.sources).toHaveLength(0);
+    for (const text of both(payload)) {
+      expect(text).not.toContain("Sources:");
+      expect(text).not.toContain("If you need current HEAD");
+    }
+  });
+  it("shared rows keep a same-SHA provisional artifact without inventing work", () => {
+    const payload = snapshot();
+    payload.progress!.indexingEstimates = [];
+    resolution(payload).freshness = "provisional";
+    resolution(payload).resolvedRequested!.commitSha = servedSha;
+    payload.sourceStatus![0]!.codeIndexState = "PROVISIONAL";
+    for (const text of both(payload)) {
+      expect(text).toContain("provisional");
+      expect(text).not.toContain("Preparing:");
+      expect(text).not.toContain("observed HEAD");
+      expect(text).not.toContain("If you need current HEAD");
+    }
+  });
 });

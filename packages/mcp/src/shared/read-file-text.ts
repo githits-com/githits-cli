@@ -1,13 +1,29 @@
 import { renderPreparationSection } from "./indexing-estimates-text.js";
 import type { LeanReadFileEnvelope } from "./read-file-response.js";
 import { splitReadFileContentLines } from "./read-file-response.js";
-import { buildTargetResolutionNotes } from "./target-resolution.js";
+import {
+  renderResolutionDetails,
+  renderSourceSection,
+  resolutionSourceFacts,
+} from "./source-provenance-text.js";
 
 const SEP = " | ";
 
-export function renderReadFileText(envelope: LeanReadFileEnvelope): string {
+export interface RenderReadFileTextOptions {
+  width?: number;
+}
+
+export function renderReadFileText(
+  envelope: LeanReadFileEnvelope,
+  options: RenderReadFileTextOptions = {},
+): string {
   const lines: string[] = [];
   lines.push(buildHeader(envelope));
+  const sources = renderSourceSection(
+    resolutionSourceFacts(envelope.targetResolution),
+    { width: options.width },
+  );
+  if (sources.length > 0) lines.push(...sources);
   lines.push("");
 
   if (envelope.isBinary) {
@@ -27,12 +43,20 @@ export function renderReadFileText(envelope: LeanReadFileEnvelope): string {
     lines.push("");
     lines.push(`hint: ${envelope.hint}`);
   }
-  lines.push(...renderPreparationSection(envelope.indexingEstimates));
-  const resolutionNotes = buildTargetResolutionNotes(envelope.targetResolution);
-  if (resolutionNotes.length > 0) {
-    lines.push("");
-    for (const note of resolutionNotes) lines.push(note);
-  }
+  lines.push(
+    ...renderPreparationSection(envelope.indexingEstimates, {
+      ...(envelope.targetResolution
+        ? { resolutions: [envelope.targetResolution] }
+        : {}),
+      width: options.width,
+    }),
+  );
+  const resolutionDetails = renderResolutionDetails(
+    envelope.targetResolution,
+    envelope.indexingEstimates,
+    { width: options.width },
+  );
+  if (resolutionDetails.length > 0) lines.push("", ...resolutionDetails);
   return lines.join("\n");
 }
 
