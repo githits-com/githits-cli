@@ -225,7 +225,7 @@ async function assertStableAuthProbe(
     () =>
       client.callTool({
         name: "pkg_info",
-        arguments: { target: "npm:express" },
+        arguments: { target: "npm:express", format: "json" },
       }),
   )) as McpSmokeToolResult;
   const envelope = assertCleanErrorEnvelope(result, `pkg_info ${context}`);
@@ -237,6 +237,25 @@ async function assertStableAuthProbe(
     resultText(result, `pkg_info ${context}`).length > 0,
     `${context} probe returned empty error text`,
   );
+  for (const format of [undefined, "text"] as const) {
+    const readable = (await client.callTool({
+      name: "pkg_info",
+      arguments: { target: "npm:express", ...(format ? { format } : {}) },
+    })) as McpSmokeToolResult;
+    assert(
+      readable.isError === true,
+      `${context}: text auth probe must be an error`,
+    );
+    const text = resultText(readable, `pkg_info ${context} text`);
+    assert(
+      text.includes("login"),
+      `${context}: text auth error must include remediation`,
+    );
+    assert(
+      !text.trimStart().startsWith("{"),
+      `${context}: text auth error must not be JSON`,
+    );
+  }
 }
 
 /** Exercise real startup maintenance inside disposable smoke roots. */
@@ -312,7 +331,12 @@ async function runRegistrationSmoke(target: CliLaunchTarget): Promise<void> {
       await assertStableAuthProbe(client, "registration");
       const diffResult = (await client.callTool({
         name: "code_diff",
-        arguments: { target: "npm:express", from: "5.2.0", to: "5.2.1" },
+        arguments: {
+          target: "npm:express",
+          from: "5.2.0",
+          to: "5.2.1",
+          format: "json",
+        },
       })) as McpSmokeToolResult;
       assert(
         assertCleanErrorEnvelope(diffResult, "stable code_diff registration")
@@ -352,6 +376,7 @@ async function runExperimentalRegistrationSmoke(
                   name: "research",
                   arguments: {
                     ...subject,
+                    format: "json",
                     question: "Where is Express router dispatch implemented?",
                   },
                 },
@@ -371,7 +396,7 @@ async function runExperimentalRegistrationSmoke(
           () =>
             client.callTool({
               name: "resolve_target",
-              arguments: { name: "express" },
+              arguments: { name: "express", format: "json" },
             }),
         )) as McpSmokeToolResult;
         assert(
@@ -440,7 +465,7 @@ async function runExperimentalLiveSmoke(
           () =>
             client.callTool({
               name: "pkg_info",
-              arguments: { target: "npm:express" },
+              arguments: { target: "npm:express", format: "json" },
             }),
         )) as McpSmokeToolResult;
         if (authProbe.isError === true) {
@@ -549,8 +574,12 @@ async function runExperimentalLiveSmoke(
             }),
         )) as McpSmokeToolResult;
         if (resolveText.isError === true) {
+          const resolveErrorJson = (await client.callTool({
+            name: "resolve_target",
+            arguments: { name: "express", format: "json" },
+          })) as McpSmokeToolResult;
           const envelope = assertCleanErrorEnvelope(
-            resolveText,
+            resolveErrorJson,
             "experimental resolve auth probe",
           );
           assert(

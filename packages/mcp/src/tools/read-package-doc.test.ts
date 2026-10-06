@@ -339,7 +339,7 @@ describe("createDocsReadTool", () => {
       { target: "page", start_line: 0 },
       { target: "page", start_line: 4, end_line: 3 },
     ]) {
-      const result = await tool.handler(args, {});
+      const result = await tool.handler({ ...args, format: "json" }, {});
       const payload = parseText(result) as { code: string };
       expect(result.isError).toBe(true);
       expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -360,7 +360,7 @@ describe("createDocsReadTool", () => {
       }),
     );
     const unresolved = await unresolvedTool.handler(
-      { target: "https://docs.example.test/page#missing" },
+      { target: "https://docs.example.test/page#missing", format: "json" },
       {},
     );
     expect(parseText(unresolved)).toEqual({
@@ -380,7 +380,7 @@ describe("createDocsReadTool", () => {
       }),
     );
     const missing = await missingTool.handler(
-      { target: "https://docs.example.test/unknown" },
+      { target: "https://docs.example.test/unknown", format: "json" },
       {},
     );
     expect(parseText(missing)).toEqual({

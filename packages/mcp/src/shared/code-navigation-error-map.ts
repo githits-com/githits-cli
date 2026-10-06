@@ -19,9 +19,6 @@ import {
   CodeNavigationVersionNotFoundError,
   MalformedCodeNavigationResponseError,
 } from "@githits/core-internal";
-import { MAX_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
-import { renderIndexingEstimates } from "./indexing-estimates-text.js";
-import { indexingWaitMs } from "./indexing-wait.js";
 import type {
   MappedError,
   MappedErrorCode,
@@ -140,20 +137,8 @@ function classify(error: unknown): MappedError {
     }
     if (error.indexingEstimates) {
       details.indexingEstimates = error.indexingEstimates;
-      if (error.indexingEstimates.length) {
-        const wait = indexingWaitMs(
-          error.indexingEstimates,
-          MAX_WAIT_TIMEOUT_MS,
-        );
-        details.action = `Retry the same request using CLI --wait ${wait} or MCP wait_timeout_ms=${wait}.`;
-        details.hint = [
-          ...renderIndexingEstimates(error.indexingEstimates),
-          details.action,
-        ].join("\n");
-      }
     }
-    if (error.hint)
-      details.hint = [error.hint, details.hint].filter(Boolean).join("\n");
+    if (error.hint) details.hint = error.hint;
     return {
       code: "INDEXING",
       message: error.message,

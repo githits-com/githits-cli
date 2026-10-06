@@ -68,6 +68,8 @@ export async function pkgFilesAction(
   options: PkgFilesCommandOptions,
   deps: PkgFilesCommandDependencies,
 ): Promise<void> {
+  let requestedTarget: string | undefined;
+
   try {
     requireAuth(deps);
   } catch (error) {
@@ -89,6 +91,7 @@ export async function pkgFilesAction(
       secondArg,
       hasRepoUrl,
     );
+    requestedTarget = spec ?? options.repoUrl;
 
     const target = resolveCliCodeNavTarget(spec, options);
     const limit = parseIntCliOption(options.limit, "--limit", 1, 1000);
@@ -155,10 +158,8 @@ export async function pkgFilesAction(
     process.stdout.write(rendered.stdout);
     if (rendered.stderr) process.stderr.write(rendered.stderr);
   } catch (error) {
-    handleCodeNavCommandError(
-      error,
-      options.json ?? false,
-      formatIndexingError,
+    handleCodeNavCommandError(error, options.json ?? false, (mapped) =>
+      formatIndexingError(mapped, { target: requestedTarget }),
     );
   }
 }

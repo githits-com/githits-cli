@@ -221,13 +221,13 @@ describe("createPackageChangelogTool — happy path", () => {
         createMockPackageIntelligenceService({ packageChangelog }),
       );
       const invalid = await tool.handler(
-        { target: "npm:express", verbose: false, body_lines },
+        { target: "npm:express", verbose: false, body_lines, format: "text" },
         {},
       );
       expect(invalid.isError).toBe(true);
-      expect((parseText(invalid) as { code: string }).code).toBe(
-        "INVALID_ARGUMENT",
-      );
+      const text = invalid.content[0]?.text ?? "";
+      expect(text).toContain("body_lines must be an integer between 1 and 50.");
+      expect(text).toContain(`Got ${body_lines}.`);
       expect(packageChangelog).not.toHaveBeenCalled();
     },
   );
@@ -427,7 +427,7 @@ describe("createPackageChangelogTool — validation errors via in-handler builde
     const tool = createPackageChangelogTool(
       createMockPackageIntelligenceService({ packageChangelog }),
     );
-    const result = await tool.handler({} as never, {});
+    const result = await tool.handler({ format: "json" } as never, {});
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -446,7 +446,7 @@ describe("createPackageChangelogTool — validation errors via in-handler builde
       "https://github.com/expressjs/express",
       "site:expressjs.com",
     ]) {
-      const result = await tool.handler({ target }, {});
+      const result = await tool.handler({ target, format: "json" }, {});
       expect(result.isError).toBe(true);
       const payload = parseText(result) as { code: string; error: string };
       expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -466,6 +466,7 @@ describe("createPackageChangelogTool — validation errors via in-handler builde
       {
         target: "npm:express@5.2.1",
         limit: 10,
+        format: "json",
       },
       {},
     );
@@ -484,6 +485,7 @@ describe("createPackageChangelogTool — validation errors via in-handler builde
       {
         target: "npm:express@5.0.0..",
         limit: 10,
+        format: "json",
       },
       {},
     );
@@ -500,6 +502,7 @@ describe("createPackageChangelogTool — validation errors via in-handler builde
     const result = await tool.handler(
       {
         target: "npm:express@v4.18.0",
+        format: "json",
       },
       {},
     );
@@ -513,7 +516,10 @@ describe("createPackageChangelogTool — validation errors via in-handler builde
     const tool = createPackageChangelogTool(
       createMockPackageIntelligenceService(),
     );
-    const result = await tool.handler({ target: "npm:express", limit: 51 }, {});
+    const result = await tool.handler(
+      { target: "npm:express", limit: 51, format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string; error: string };
     expect(payload.code).toBe("INVALID_ARGUMENT");
@@ -525,7 +531,7 @@ describe("createPackageChangelogTool — validation errors via in-handler builde
       createMockPackageIntelligenceService(),
     );
     const result = await tool.handler(
-      { target: "npm:express", limit: 3.5 },
+      { target: "npm:express", limit: 3.5, format: "json" },
       {},
     );
     expect(result.isError).toBe(true);
@@ -540,7 +546,10 @@ describe("createPackageChangelogTool — validation errors via in-handler builde
     const tool = createPackageChangelogTool(
       createMockPackageIntelligenceService({ packageChangelog }),
     );
-    const result = await tool.handler({ target: "npm:express@.." }, {});
+    const result = await tool.handler(
+      { target: "npm:express@..", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     expect((parseText(result) as { code: string }).code).toBe(
       "INVALID_ARGUMENT",
@@ -585,7 +594,10 @@ describe("createPackageChangelogTool — service errors", () => {
       ),
     });
     const tool = createPackageChangelogTool(service);
-    const result = await tool.handler({ target: "npm:does-not-exist" }, {});
+    const result = await tool.handler(
+      { target: "npm:does-not-exist", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("NOT_FOUND");
@@ -596,7 +608,10 @@ describe("createPackageChangelogTool — service errors", () => {
       packageChangelog: mock(() => Promise.reject(new Error("boom"))),
     });
     const tool = createPackageChangelogTool(service);
-    const result = await tool.handler({ target: "npm:express" }, {});
+    const result = await tool.handler(
+      { target: "npm:express", format: "json" },
+      {},
+    );
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("UNKNOWN");

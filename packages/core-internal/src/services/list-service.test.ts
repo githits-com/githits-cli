@@ -1179,3 +1179,67 @@ function expectedListSelection(): SelectionTree {
     },
   };
 }
+
+describe("list zero-wait indexing metadata", () => {
+  it("preserves singular duration and requested/ref alternatives from GraphQL errors without new selections", async () => {
+    const fetchFn = mock(() =>
+      Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: "Still indexing",
+              extensions: {
+                code: "PACKAGE_INDEXING",
+                retryable: true,
+                repo_url: "https://github.com/expressjs/express",
+                package: "npm:express",
+                indexing_ref: "opaque-progress",
+                estimated_indexing_duration: {
+                  lower_seconds: 33,
+                  upper_seconds: 85,
+                  elapsed_seconds: 4,
+                  sample_count: 7,
+                  source: "same_repository_refs",
+                },
+                available_versions: [{ version: "1.0.2", ref: "v1.0.2" }],
+                hint: "Use an indexed ref if suitable.",
+              },
+            },
+          ],
+        }),
+      ),
+    );
+    const service = new ListServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    let failure: unknown;
+    try {
+      await service.list({
+        target: "npm:express@1.0.3",
+        waitTimeoutMs: 0,
+        includeDetailedFields: false,
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(ListGraphQLError);
+    const error = failure as ListGraphQLError;
+    expect(error.indexingMetadata).toEqual({
+      indexingEstimate: {
+        lowerSeconds: 33,
+        upperSeconds: 85,
+        elapsedSeconds: 4,
+        sampleCount: 7,
+        source: "same_repository_refs",
+      },
+      availableVersions: [{ version: "1.0.2", ref: "v1.0.2" }],
+      package: "npm:express",
+    });
+    expect(error.repoUrl).toBe("https://github.com/expressjs/express");
+    expect(error.hint).toBe("Use an indexed ref if suitable.");
+    expect(readRequest(fetchFn).variables.waitTimeoutMs).toBe(0);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+});

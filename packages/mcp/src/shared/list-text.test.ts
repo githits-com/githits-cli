@@ -68,12 +68,15 @@ describe("formatListText", () => {
       nextCursor: "available-page",
     });
     for (const syntax of ["cli", "mcp"] as const) {
-      const text = formatListText(result, { syntax });
+      const text = formatListText(result, { syntax, hasAfter: true });
       expect(text).toContain(
-        syntax === "cli" ? "Leave out --after" : "Leave out after",
+        syntax === "cli" ? "Leave out --after" : "Leave out the after argument",
       );
       expect(text).toContain("More results available now");
-      expect(text).toContain("To wait for indexing, run list again");
+      expect(text).toContain("Retry this list with");
+      expect(text.indexOf("More results available now")).toBeLessThan(
+        text.indexOf("Retry this list with"),
+      );
       expect(text).toContain("available-page");
     }
     expect(formatListText(result, { includeHeader: false })).toBe(
@@ -316,5 +319,50 @@ describe("formatListText", () => {
         return codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
       }),
     ).toBe(false);
+  });
+});
+
+describe("list preparation outcomes", () => {
+  it("distinguishes empty pending inventory from empty ready, with conditional cursor advice", () => {
+    const pending = sourceResult({
+      codeIndexState: "INDEXING",
+      indexingEstimates: [
+        {
+          kind: "REPOSITORY",
+          targets: ["npm:express@1.0.3"],
+          estimate: { lowerSeconds: 33, upperSeconds: 85 },
+        },
+      ],
+    });
+    const text = formatListText(pending);
+    expect(text).toStartWith("No files available yet.");
+    expect(text).toContain(
+      "npm:express@1.0.3 (indexing, estimated total: 33-85s)",
+    );
+    expect(text).toEndWith("Retry this list with --wait 100000.");
+    expect(text).not.toContain("follow up with");
+    expect(text).not.toContain("--after");
+    expect(formatListText(sourceResult())).not.toContain("Retry");
+    expect(formatListText(pending, { includeHeader: false })).toBe("");
+  });
+  it("retains hosted pages and their cursor while refresh has no ETA", () => {
+    const result = siteResult({
+      entries: [entry("PAGE", "/api", "site:docs.example.test", "/api")],
+      nextCursor: "next-page",
+      hasMore: true,
+      indexingEstimates: [
+        {
+          kind: "DOCUMENTATION",
+          targets: ["site:docs.example.test"],
+          unavailableReason: "UNSUPPORTED_WORK",
+        },
+      ],
+    });
+    const text = formatListText(result, { syntax: "mcp" });
+    expect(text).toContain("/api");
+    expect(text).toContain("preparing documentation, no estimate available");
+    expect(text).toContain('after="next-page"');
+    expect(text).not.toContain("Omitted");
+    expect(text).toEndWith("Retry this list with wait_timeout_ms=30000.");
   });
 });

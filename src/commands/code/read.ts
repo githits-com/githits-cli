@@ -65,6 +65,7 @@ export async function pkgReadAction(
   deps: PkgReadCommandDependencies,
 ): Promise<void> {
   let requestedFilePath = "";
+  let requestedTarget: string | undefined;
 
   try {
     requireAuth(deps);
@@ -90,6 +91,7 @@ export async function pkgReadAction(
     //                                     → firstArg=path, secondArg=undefined
     const hasRepoUrl = Boolean(options.repoUrl);
     const { spec, path } = resolvePositionals(firstArg, secondArg, hasRepoUrl);
+    requestedTarget = spec ?? options.repoUrl;
     if (!path || path.trim().length === 0) {
       throw new InvalidPackageSpecError(
         "A <path> argument is required — pass the path to the file within the package or repo.",
@@ -144,7 +146,8 @@ export async function pkgReadAction(
     handleCodeNavCommandError(
       error,
       options.json ?? false,
-      formatFileErrorWithFilesHint,
+      (mapped) =>
+        formatFileErrorWithFilesHint(mapped, { target: requestedTarget }),
       1,
       (mapped) => withCliReadFileRecovery(mapped, requestedFilePath),
     );

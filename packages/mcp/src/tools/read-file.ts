@@ -1,11 +1,12 @@
 import type { CodeNavigationService } from "@githits/core-internal";
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import {
-  DEFAULT_WAIT_TIMEOUT_MS,
+  MAX_WAIT_TIMEOUT_MS,
   MCP_READ_DEFAULT_SPAN,
   MCP_READ_MAX_SPAN,
 } from "../shared/code-navigation-defaults.js";
 import { mapCodeNavigationError } from "../shared/code-navigation-error-map.js";
+import { withIndexingRetryAction } from "../shared/mapped-error-text.js";
 import { withReadFileRecovery } from "../shared/read-file-error.js";
 import { buildReadFileParams } from "../shared/read-file-request.js";
 import {
@@ -100,7 +101,7 @@ export async function readSourceFile(
   service: Pick<CodeNavigationService, "readFile">,
   context?: ToolExecutionContext,
 ): Promise<ToolResult> {
-  const target = resolveCodeTarget(args.target);
+  const target = resolveCodeTarget(args.target, context, args.format);
   if ("content" in target) return target;
 
   try {
@@ -145,13 +146,17 @@ export async function readSourceFile(
       mapCodeNavigationError(error),
       args.path,
     );
-    if (mapped.code === "INDEXING") {
-      mapped.details = {
-        ...mapped.details,
-        action: `Retry read target=${JSON.stringify(args.target)} path=${JSON.stringify(args.path)} wait_timeout_ms=${args.wait_timeout_ms ?? DEFAULT_WAIT_TIMEOUT_MS}.`,
-      };
-    }
-    return mcpMappedErrorResult(mapped, context);
+    return mcpMappedErrorResult(
+      withIndexingRetryAction(mapped, "read", "mcp", {
+        maxWaitMs: MAX_WAIT_TIMEOUT_MS,
+      }),
+      context,
+      args.format,
+      {
+        indexingTarget: args.target,
+        indexingOutcome: "This content is not available yet.",
+      },
+    );
   }
 }
 

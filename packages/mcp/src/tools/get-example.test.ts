@@ -1,9 +1,57 @@
 import { describe, expect, it, mock } from "bun:test";
-import { ApiRateLimitError, FetchTimeoutError } from "@githits/core-internal";
+import {
+  ApiRateLimitError,
+  AuthenticationError,
+  FetchTimeoutError,
+} from "@githits/core-internal";
 import { createMockGitHitsService } from "../services/test-helpers.js";
 import { createGetExampleTool } from "./get-example.js";
 
 describe("getExampleTool", () => {
+  it.each([
+    { name: "omitted", format: undefined },
+    { name: "text", format: "text" as const },
+    { name: "json", format: "json" as const },
+  ])("formats authentication failures when format is $name", async (mode) => {
+    const search = mock(() =>
+      Promise.reject(
+        new AuthenticationError("The host token was rejected.", "server"),
+      ),
+    );
+    const tool = createGetExampleTool(createMockGitHitsService({ search }));
+    const result = await tool.handler(
+      {
+        query: "host authentication",
+        ...(mode.format === undefined ? {} : { format: mode.format }),
+      },
+      {},
+    );
+    const content = result.content[0]?.text ?? "";
+
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(result.isError).toBe(true);
+    if (mode.format === "json") {
+      expect(JSON.parse(content)).toEqual({
+        error: "The host token was rejected.",
+        code: "AUTH_REQUIRED",
+        retryable: false,
+        details: {
+          authSource: "server",
+          action:
+            "Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set. If this persists, contact support@githits.com.",
+        },
+      });
+      return;
+    }
+
+    expect(content).toContain("The host token was rejected.");
+    expect(content).toContain(
+      "Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set.",
+    );
+    expect(content).toContain("contact support@githits.com.");
+    expect(content).not.toContain('"code":"AUTH_REQUIRED"');
+  });
+
   it("tells agents to report source repository provenance", () => {
     const tool = createGetExampleTool(createMockGitHitsService());
 
@@ -116,7 +164,7 @@ describe("getExampleTool", () => {
     const tool = createGetExampleTool(service);
 
     const result = await tool.handler(
-      { query: "test", language: "python" },
+      { query: "test", language: "python", format: "json" },
       {},
     );
 
@@ -136,7 +184,7 @@ describe("getExampleTool", () => {
     });
     const tool = createGetExampleTool(service);
 
-    const result = await tool.handler({ query: "test" }, {});
+    const result = await tool.handler({ query: "test", format: "json" }, {});
 
     expect(result.isError).toBe(true);
     expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
@@ -156,7 +204,7 @@ describe("getExampleTool", () => {
     });
     const tool = createGetExampleTool(service);
 
-    const result = await tool.handler({ query: "test" }, {});
+    const result = await tool.handler({ query: "test", format: "json" }, {});
 
     expect(result.isError).toBe(true);
     expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({

@@ -131,7 +131,7 @@ export function createPackageChangelogTool(
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);
         const mapped = mapPackageIntelligenceError(error);
-        return mcpMappedErrorResult(mapped, context);
+        return mcpMappedErrorResult(mapped, context, args.format);
       }
     },
   };

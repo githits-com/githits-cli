@@ -586,7 +586,7 @@ async function main(): Promise<void> {
         const a = await cli(appendGlob([...args.cli, "--json"], c), c.id);
         ok(a.exit === 1 && a.stdout === "");
         ok(JSON.parse(a.stderr).code === c.error, a.stderr);
-        const b = await mcp(args.mcp, c.id);
+        const b = await mcp({ ...args.mcp, format: "json" }, c.id);
         ok(b.isError);
         // Numeric schema bounds are rejected by the MCP SDK before the shared builder.
         if (c.id.startsWith("files-too-")) ok(/MCP error -32602/.test(b.text));

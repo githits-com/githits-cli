@@ -859,3 +859,40 @@ describe("v31 format selection", () => {
     });
   }
 });
+
+describe("searchStatus error format", () => {
+  it.each([undefined, "text", "json"] as const)(
+    "renders service authentication in %s format",
+    async (format) => {
+      const operation = mock(() =>
+        Promise.reject(
+          new AuthenticationError("The host token was rejected.", "server"),
+        ),
+      );
+      const result = await createSearchStatusTool(
+        createMockCodeNavigationService({ searchStatus: operation }),
+      ).handler(
+        { search_ref: "test-ref", format },
+        { authAction: "Reconnect the host, then retry." },
+      );
+      expect(operation).toHaveBeenCalledTimes(1);
+      expect(result.isError).toBe(true);
+      const text = result.content[0]!.text;
+      if (format === "json")
+        expect(JSON.parse(text)).toEqual({
+          error: "The host token was rejected.",
+          code: "AUTH_REQUIRED",
+          retryable: false,
+          details: {
+            authSource: "server",
+            action: "Reconnect the host, then retry.",
+          },
+        });
+      else {
+        expect(text).toContain("The host token was rejected.");
+        expect(text).toEndWith("Reconnect the host, then retry.");
+        expect(() => JSON.parse(text)).toThrow();
+      }
+    },
+  );
+});

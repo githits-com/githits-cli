@@ -20,7 +20,7 @@ import type {
 } from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
 import { projectIndexingEstimates } from "./indexing-estimates.js";
-import { renderIndexingEstimates } from "./indexing-estimates-text.js";
+import { renderPreparationSection } from "./indexing-estimates-text.js";
 import { formatRepositoryTarget } from "./repository-target.js";
 import {
   buildTargetResolutionNotes,
@@ -316,7 +316,7 @@ function formatVerbose(
     lines.push(buildResolutionLine(envelope, options));
   }
   appendTargetResolutionNotes(lines, envelope, options);
-  lines.push(...renderIndexingEstimates(envelope.indexingEstimates));
+  lines.push(...renderPreparationSection(envelope.indexingEstimates));
   lines.push("");
 
   const pathWidth = longestPathLength(envelope.files);
@@ -361,7 +361,7 @@ function formatEmpty(
     lines.push(buildResolutionLine(envelope, options));
   }
   appendTargetResolutionNotes(lines, envelope, options);
-  lines.push(...renderIndexingEstimates(envelope.indexingEstimates));
+  lines.push(...renderPreparationSection(envelope.indexingEstimates));
   lines.push("");
   lines.push(dim(hint, options.useColors));
   lines.push("");

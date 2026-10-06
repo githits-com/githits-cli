@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import {
   CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
@@ -775,33 +775,61 @@ describe("pkgGrepAction", () => {
     exitSpy.mockRestore();
   });
 
-  it("enriches INDEXING error", async () => {
-    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
-    const exitSpy = spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("process.exit");
-    });
-    const service = createMockCodeNavigationService({
-      grepRepo: mock(() =>
+  it.each([
+    {
+      name: "package spec",
+      first: "npm:express",
+      second: "middleware",
+      third: undefined,
+      options: {},
+      requestedTarget: "npm:express",
+    },
+    {
+      name: "repository URL",
+      first: "middleware",
+      second: undefined,
+      third: undefined,
+      options: { repoUrl: "https://github.com/acme/repo" },
+      requestedTarget: "https://github.com/acme/repo",
+    },
+  ])(
+    "includes the requested $name in no-metadata indexing errors",
+    async ({ first, second, third, options, requestedTarget }) => {
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("process.exit");
+      });
+      const grepRepo = mock(() =>
         Promise.reject(
           new CodeNavigationIndexingError("Indexing...", "ref_abc"),
         ),
-      ),
-    });
-    try {
-      await pkgGrepAction(
-        "npm:express",
-        "middleware",
-        undefined,
-        {},
-        createDeps({ codeNavigationService: service }),
       );
-    } catch {
-      /* expected */
-    }
-    expect(errorSpy.mock.calls[0]?.[0]).toContain("indexing ref: ref_abc");
-    errorSpy.mockRestore();
-    exitSpy.mockRestore();
-  });
+      try {
+        await pkgGrepAction(
+          first,
+          second,
+          third,
+          options,
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              grepRepo,
+            }),
+          }),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const output = errorSpy.mock.calls[0]?.[0] as string;
+      expect(grepRepo).toHaveBeenCalledTimes(1);
+      expect(output).toContain("Source is being indexed.");
+      expect(output).toContain(requestedTarget);
+      expect(output).not.toContain("ref_abc");
+      expect(output).toContain("Retry this request with --wait 30000.");
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    },
+  );
 
   it("adds file listing hint only for file-path failures", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
@@ -1046,3 +1074,6 @@ describe("pkgGrepAction", () => {
     exitSpy.mockRestore();
   });
 });
+
+// Keep a failed output assertion from leaking console/process spies to other tests.
+afterEach(() => mock.restore());

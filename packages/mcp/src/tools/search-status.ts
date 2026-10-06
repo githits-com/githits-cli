@@ -4,12 +4,15 @@ import {
   DEFAULT_WAIT_TIMEOUT_MS,
   MAX_DISCOVERY_WAIT_TIMEOUT_MS,
 } from "../shared/code-navigation-defaults.js";
+import type { MappedError } from "../shared/mapped-error.js";
+import { withIndexingRetryAction } from "../shared/mapped-error-text.js";
 import {
   buildUnifiedSearchErrorPayload,
   buildUnifiedSearchStatusPayload,
   projectUnifiedSearchStatusPayload,
 } from "../shared/unified-search-response.js";
 import { renderUnifiedSearchStatusText } from "../shared/unified-search-status-text.js";
+import { renderUnifiedSearchError } from "../shared/unified-search-text.js";
 import { addLocalMcpAuthAction, throwIfCallerCancellation } from "./shared.js";
 import {
   errorResult,
@@ -79,14 +82,30 @@ export function createSearchStatusTool(
         );
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);
-        return errorResult(
-          JSON.stringify(
-            addLocalMcpAuthAction(
-              buildUnifiedSearchErrorPayload(error),
-              context,
-            ),
-          ),
+        const basePayload = buildUnifiedSearchErrorPayload(error);
+        const mapped = withIndexingRetryAction(
+          {
+            code: basePayload.code as MappedError["code"],
+            message: basePayload.error,
+            retryable: basePayload.retryable,
+            details: basePayload.details as MappedError["details"],
+          },
+          "search",
+          "mcp",
         );
+        const payload = addLocalMcpAuthAction(
+          {
+            ...basePayload,
+            ...(mapped.details
+              ? { details: mapped.details as Record<string, unknown> }
+              : {}),
+          },
+          context,
+        );
+        if (isTextFormat(args.format)) {
+          return errorResult(renderUnifiedSearchError(payload));
+        }
+        return errorResult(JSON.stringify(payload));
       }
     },
   };

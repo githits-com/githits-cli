@@ -4,7 +4,11 @@ import type {
   GrepResult,
   GrepService,
 } from "@githits/core-internal";
-import { GrepGraphQLError, parseGrepResult } from "@githits/core-internal";
+import {
+  AuthenticationError,
+  GrepGraphQLError,
+  parseGrepResult,
+} from "@githits/core-internal";
 import { z } from "zod";
 import mixedPage from "../shared/fixtures/grep-text/mixed-100.json";
 import { createGrepTool, type GrepArgs } from "./grep.js";
@@ -31,9 +35,49 @@ function payload(text: string): Record<string, unknown> {
 }
 
 describe("unified MCP grep", () => {
+  it.each([
+    { name: "omitted", format: undefined },
+    { name: "text", format: "text" as const },
+    { name: "json", format: "json" as const },
+  ])("formats authentication failures when format is $name", async (mode) => {
+    const grep = mock(async (_params: GrepParams): Promise<GrepResult> => {
+      throw new AuthenticationError("The host token was rejected.", "server");
+    });
+    const tool = createGrepTool(service(grep));
+    const result = await tool.handler({
+      targets: [{ target: "npm:express" }],
+      pattern: "router",
+      ...(mode.format === undefined ? {} : { format: mode.format }),
+    });
+    const content = result.content[0]?.text ?? "";
+
+    expect(grep).toHaveBeenCalledTimes(1);
+    expect(result.isError).toBe(true);
+    if (mode.format === "json") {
+      expect(payload(content)).toEqual({
+        error: "The host token was rejected.",
+        code: "AUTH_REQUIRED",
+        retryable: false,
+        details: {
+          authSource: "server",
+          action:
+            "Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set. If this persists, contact support@githits.com.",
+        },
+      });
+      return;
+    }
+
+    expect(content).toContain("The host token was rejected.");
+    expect(content).toContain(
+      "Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set.",
+    );
+    expect(content).toContain("contact support@githits.com.");
+    expect(content).not.toContain('"code":"AUTH_REQUIRED"');
+  });
+
   it("advertises a standalone selection sentence, migration route, guardrail, and independent controls", () => {
     const tool = createGrepTool(service());
-    const firstSentence = tool.description.split(".")[0] + ".";
+    const firstSentence = `${tool.description.split(".")[0]}.`;
     const first80 = tool.description.slice(0, 80);
     const inputSchema = z.toJSONSchema(z.object(tool.schema), { io: "input" });
 
@@ -186,6 +230,7 @@ describe("unified MCP grep", () => {
     const result = await tool.handler({
       targets: [{ target: "site:expressjs.com", corpus: "source" }],
       pattern: "router",
+      format: "json",
     });
 
     expect(result.isError).toBe(true);
@@ -211,6 +256,7 @@ describe("unified MCP grep", () => {
     const result = await tool.handler({
       targets: [{ target: "npm:express" }],
       pattern: "router",
+      format: "json",
     });
 
     expect(result.isError).toBe(true);

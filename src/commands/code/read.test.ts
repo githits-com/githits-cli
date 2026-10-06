@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import {
   CodeNavigationBackendError,
   CodeNavigationFileNotFoundError,
@@ -814,9 +814,68 @@ describe("pkgReadAction", () => {
       /* expected */
     }
     const output = errorSpy.mock.calls[0]?.[0] as string;
-    expect(output).toContain("indexing ref: ref_xyz");
-    expect(output).toContain("indexed refs/versions: 4.21.0");
+    expect(output).not.toContain("ref_xyz");
+    expect(output).toContain("Source is being indexed.");
+    expect(output).toContain("Indexed versions/refs: 4.21.0");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
+
+  it.each([
+    {
+      name: "package spec",
+      firstArg: "npm:express",
+      secondArg: "src/index.js",
+      options: {},
+      requestedTarget: "npm:express",
+    },
+    {
+      name: "repository URL",
+      firstArg: "src/index.js",
+      secondArg: undefined,
+      options: { repoUrl: "https://github.com/acme/repo" },
+      requestedTarget: "https://github.com/acme/repo",
+    },
+  ])(
+    "includes the requested $name in no-metadata indexing errors",
+    async ({ firstArg, secondArg, options, requestedTarget }) => {
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("process.exit");
+      });
+      const readFile = mock(() =>
+        Promise.reject(
+          new CodeNavigationIndexingError(
+            "Target is indexing.",
+            "opaque_progress_id",
+          ),
+        ),
+      );
+      try {
+        await pkgReadAction(
+          firstArg,
+          secondArg,
+          options,
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              readFile,
+            }),
+          }),
+        );
+      } catch {
+        /* expected */
+      }
+
+      const output = errorSpy.mock.calls[0]?.[0] as string;
+      expect(readFile).toHaveBeenCalledTimes(1);
+      expect(output).toContain("Source is being indexed.");
+      expect(output).toContain(requestedTarget);
+      expect(output).not.toContain("opaque_progress_id");
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    },
+  );
 });
+
+// Keep a failed output assertion from leaking console/process spies to other tests.
+afterEach(() => mock.restore());

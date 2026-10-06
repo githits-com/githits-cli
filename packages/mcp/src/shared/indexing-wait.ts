@@ -1,4 +1,7 @@
-import type { DiscoveryIndexingEstimate } from "@githits/core-internal";
+import type {
+  DiscoveryIndexingEstimate,
+  IndexingDurationEstimate,
+} from "@githits/core-internal";
 import {
   DEFAULT_WAIT_TIMEOUT_MS,
   MAX_DISCOVERY_WAIT_TIMEOUT_MS,
@@ -8,11 +11,15 @@ import {
 export function indexingWaitMs(
   entries: readonly DiscoveryIndexingEstimate[] | undefined,
   maxWaitMs: number = MAX_DISCOVERY_WAIT_TIMEOUT_MS,
+  singular?: IndexingDurationEstimate,
 ): number {
   let largestUpperSeconds: number | undefined;
   let hasUncoveredWork = false;
-  for (const entry of entries ?? []) {
-    const upperSeconds = entry.estimate?.upperSeconds;
+  const estimates = entries?.length
+    ? entries.map((entry) => entry.estimate)
+    : [singular];
+  for (const estimate of estimates) {
+    const upperSeconds = estimate?.upperSeconds;
     if (typeof upperSeconds === "number") {
       largestUpperSeconds = Math.max(
         largestUpperSeconds ?? upperSeconds,

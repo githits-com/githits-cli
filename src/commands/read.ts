@@ -19,6 +19,7 @@ import {
   resolveReadLocator,
   shouldUseColors,
   validateReadRange,
+  withIndexingRetryAction,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
@@ -26,6 +27,7 @@ import { recordCliErrorClassification } from "../shared/cli-error-diagnostics.js
 import { startSpinner } from "../shared/spinner.js";
 import {
   formatFileErrorWithFilesHint,
+  formatIndexingError,
   handleCodeNavCommandError,
   parseIntCliOption,
   resolveCliCodeNavTarget,
@@ -66,6 +68,7 @@ export async function readAction(
   if (options.selector !== undefined || !options.repoUrl) {
     let requestedFilePath = "";
     let exactFile = false;
+    let requestedTarget: string | undefined;
     let exactRequest:
       | ReturnType<typeof buildCliReadFileParams>["params"]
       | undefined;
@@ -88,6 +91,7 @@ export async function readAction(
         : (firstArg ?? "");
       const path = options.repoUrl ? firstArg : secondArg;
       const locator = resolveReadLocator(target, path);
+      requestedTarget = locator.target;
       exactFile =
         selector === undefined &&
         locator.path !== undefined &&
@@ -207,16 +211,30 @@ export async function readAction(
         handleCodeNavCommandError(
           error,
           options.json ?? false,
-          formatFileErrorWithFilesHint,
+          (mapped) =>
+            formatFileErrorWithFilesHint(mapped, {
+              target: requestedTarget,
+              operation: "read",
+            }),
           1,
-          (mapped) => withCliReadFileRecovery(mapped, requestedFilePath),
+          (mapped) =>
+            withIndexingRetryAction(
+              withCliReadFileRecovery(mapped, requestedFilePath),
+              "read",
+              "cli",
+              { maxWaitMs: MAX_WAIT_TIMEOUT_MS },
+            ),
         );
       }
       const docsError = mapPackageIntelligenceError(error);
-      const mapped =
+      const mapped = withIndexingRetryAction(
         docsError.code !== "UNKNOWN"
           ? docsError
-          : mapCodeNavigationError(error);
+          : mapCodeNavigationError(error),
+        "read",
+        "cli",
+        { maxWaitMs: MAX_WAIT_TIMEOUT_MS },
+      );
       recordCliErrorClassification(
         docsError.code !== "UNKNOWN" ? "pkg-intel" : "code-nav",
         error,
@@ -224,7 +242,15 @@ export async function readAction(
       );
       if (options.json)
         console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
-      else console.error(formatMappedErrorForTerminal(mapped));
+      else
+        console.error(
+          mapped.code === "INDEXING"
+            ? formatIndexingError(mapped, {
+                target: requestedTarget,
+                operation: "read",
+              })
+            : formatMappedErrorForTerminal(mapped),
+        );
       process.exit(1);
     }
   }

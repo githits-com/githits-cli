@@ -106,6 +106,7 @@ export function createGetExampleTool(
           return textResult(JSON.stringify(payload));
         },
         context,
+        args.format,
       );
     },
   };

@@ -316,7 +316,7 @@ describe("searchAction", () => {
     }
   });
 
-  it("renders indexing wait guidance and structured details in human output", async () => {
+  it("renders advisory timing and native search retry guidance", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
@@ -328,7 +328,7 @@ describe("searchAction", () => {
       undefined,
       undefined,
       { lowerSeconds: 7, upperSeconds: 19, elapsedSeconds: 3 },
-      "Wait until ready with CLI `--wait 60000` or MCP `wait_timeout_ms: 60000`.",
+      "The requested branch is queued.",
     );
 
     await expect(
@@ -344,12 +344,12 @@ describe("searchAction", () => {
     ).rejects.toThrow("process.exit");
 
     const output = String(errorSpy.mock.calls[0]?.[0]);
-    expect(output).toContain("--wait 60000");
-    expect(output).toContain("indexing ref: idx-search");
-    expect(output).toContain(
-      "Estimated indexing time: 7-19s total. Time spent indexing: 3s.",
-    );
-    expect(output).toContain("indexed refs/versions: 5.2.1");
+    expect(output).toEndWith("Retry this search with --wait 30.");
+    expect(output).not.toContain("idx-search");
+    expect(output).not.toContain("wait_timeout_ms");
+    expect(output).toContain("estimated total: 7-19s, time spent indexing: 3s");
+    expect(output).toContain("Indexed versions/refs: 5.2.1");
+    expect(output).toContain("The requested branch is queued.");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });

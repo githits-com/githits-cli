@@ -130,6 +130,7 @@ export function createResolveTargetTool(
         return mcpMappedErrorResult(
           mapPackageIntelligenceError(error),
           context,
+          args.format,
         );
       }
     },

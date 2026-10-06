@@ -1,5 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
 import {
+  AuthenticationError,
   CodeDiffError,
   type CodeDiffResult,
   type CodeDiffService,
@@ -40,6 +41,51 @@ function parseError(result: Awaited<ReturnType<typeof invoke>>): {
 }
 
 describe("code_diff MCP adapter", () => {
+  it.each([
+    { name: "omitted", format: undefined },
+    { name: "text", format: "text" as const },
+    { name: "json", format: "json" as const },
+  ])("formats authentication failures when format is $name", async (mode) => {
+    const codeDiff = mock(() =>
+      Promise.reject(
+        new AuthenticationError("The host token was rejected.", "server"),
+      ),
+    );
+    const tool = createCodeDiffTool(
+      createMockCodeNavigationService({ codeDiff }),
+    );
+    const response = await invoke(tool, {
+      target: "npm:express",
+      from: "4.18.1",
+      to: "4.18.2",
+      ...(mode.format === undefined ? {} : { format: mode.format }),
+    });
+    const content = response.content[0]?.text ?? "";
+
+    expect(codeDiff).toHaveBeenCalledTimes(1);
+    expect(response.isError).toBe(true);
+    if (mode.format === "json") {
+      expect(JSON.parse(content)).toEqual({
+        error: "The host token was rejected.",
+        code: "AUTH_REQUIRED",
+        retryable: false,
+        details: {
+          authSource: "server",
+          action:
+            "Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set. If this persists, contact support@githits.com.",
+        },
+      });
+      return;
+    }
+
+    expect(content).toContain("The host token was rejected.");
+    expect(content).toContain(
+      "Re-authenticate with `githits login` or update GITHITS_API_TOKEN if set.",
+    );
+    expect(content).toContain("contact support@githits.com.");
+    expect(content).not.toContain('"code":"AUTH_REQUIRED"');
+  });
+
   it("describes the compact target, views, privacy, and safety contract", () => {
     const tool = createCodeDiffTool(createMockCodeNavigationService());
     const schema = z.toJSONSchema(z.object(tool.schema));
@@ -188,6 +234,7 @@ describe("code_diff MCP adapter", () => {
       target: "npm:express@1#main",
       from: "1",
       to: "2",
+      format: "json",
     });
     expect(invalid.isError).toBe(true);
     expect(parseError(invalid)).toEqual({
@@ -202,6 +249,7 @@ describe("code_diff MCP adapter", () => {
       from: "1",
       to: "2",
       max_files: 0,
+      format: "json",
     });
     expect(invalidMaxFiles.isError).toBe(true);
     expect(parseError(invalidMaxFiles)).toEqual({
@@ -214,6 +262,7 @@ describe("code_diff MCP adapter", () => {
       target: "github:expressjs/express#main",
       from: "1",
       to: "2",
+      format: "json",
     });
     expect(invalidRepositoryTarget.isError).toBe(true);
     expect(parseError(invalidRepositoryTarget)).toEqual({
@@ -237,6 +286,7 @@ describe("code_diff MCP adapter", () => {
       target: "npm:express",
       from: "1",
       to: "2",
+      format: "json",
     });
     expect(mapped.isError).toBe(true);
     expect(parseError(mapped).code).toBe("RATE_LIMITED");

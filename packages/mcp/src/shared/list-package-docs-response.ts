@@ -7,7 +7,7 @@ import { colorize, dim } from "./colors.js";
 import { lowerDocSourceKind } from "./docs-follow-up.js";
 import { toIsoDate } from "./format-date.js";
 import { projectIndexingEstimates } from "./indexing-estimates.js";
-import { renderIndexingEstimates } from "./indexing-estimates-text.js";
+import { renderPreparationSection } from "./indexing-estimates-text.js";
 import { renderReadTarget } from "./read-target-text.js";
 import { shellQuote } from "./shell-quote.js";
 
@@ -136,7 +136,7 @@ export function formatListPackageDocsTerminal(
 ): string {
   const lines: string[] = [];
   lines.push(buildSummaryHeader(envelope, options.useColors));
-  lines.push(...renderIndexingEstimates(envelope.indexingEstimates));
+  lines.push(...renderPreparationSection(envelope.indexingEstimates));
   lines.push("");
 
   if (envelope.pages.length === 0) {

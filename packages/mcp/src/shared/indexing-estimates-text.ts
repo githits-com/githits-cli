@@ -3,8 +3,10 @@ import type {
   IndexingDurationEstimate,
 } from "@githits/core-internal";
 
+import { wrapTerminalProse } from "./terminal-text.js";
+
 /** Preserve backend Unicode while making timing/target prose safe on one line. */
-function safe(value: string): string {
+export function escapePreparationTarget(value: string): string {
   return JSON.stringify(value).slice(1, -1);
 }
 
@@ -71,7 +73,65 @@ export function renderIndexingEstimates(
   entries: readonly DiscoveryIndexingEstimate[] | undefined,
 ): string[] {
   return (entries ?? []).map((entry) => {
-    const label = entry.targets.map(safe).join(", ");
+    const label = entry.targets.map(escapePreparationTarget).join(", ");
     return `${label}: ${formatIndexingEstimate(entry)}`;
   });
+}
+
+/** Compact preparation evidence; the caller retains lifecycle and next-action ownership. */
+export function renderPreparationEstimates(
+  entries: readonly DiscoveryIndexingEstimate[] | undefined,
+  repositoryState: string = "indexing",
+): string[] {
+  return (entries ?? []).map((entry) => {
+    const state =
+      entry.kind === "DOCUMENTATION"
+        ? "preparing documentation"
+        : repositoryState;
+    return `  - ${entry.targets.map(escapePreparationTarget).join(", ")} (${state}, ${formatIndexingEstimate(entry, "compact")})`;
+  });
+}
+
+export interface PreparationSectionOptions {
+  repositoryState?: string;
+  width?: number;
+}
+
+/** Keep preparation metadata separate from served content in every annotated tool. */
+export function renderPreparationSection(
+  entries: readonly DiscoveryIndexingEstimate[] | undefined,
+  options: PreparationSectionOptions = {},
+): string[] {
+  const rows = renderPreparationEstimates(entries, options.repositoryState);
+  return rows.length
+    ? [
+        "",
+        "Preparing:",
+        ...rows.flatMap((row) => wrapTerminalProse(row, options.width)),
+      ]
+    : [];
+}
+
+export interface PreparationRetryOptions {
+  operation: string;
+  syntax: "cli" | "mcp";
+  waitMs: number;
+  hasAfter?: boolean;
+  cliUnit?: "milliseconds" | "seconds";
+}
+
+/** Native retry copy shared by successful preparation notices and mapped errors. */
+export function formatPreparationRetry(
+  options: PreparationRetryOptions,
+): string {
+  const argument =
+    options.syntax === "mcp"
+      ? `wait_timeout_ms=${options.waitMs}`
+      : `--wait ${options.cliUnit === "seconds" ? options.waitMs / 1000 : options.waitMs}`;
+  const cursor = options.hasAfter
+    ? options.syntax === "mcp"
+      ? " Leave out the after argument."
+      : " Leave out --after."
+    : "";
+  return `Retry this ${options.operation} with ${argument}.${cursor}`;
 }

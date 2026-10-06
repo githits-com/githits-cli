@@ -106,3 +106,31 @@ export const indexingEstimatesSchema: z.ZodType<DiscoveryIndexingEstimate[]> = z
       estimate: normaliseIndexingDurationEstimate(entry.estimate),
     })),
   );
+
+/** Decode the existing singular GraphQL error timing aliases without inventing uniform entries. */
+export function parseIndexingDurationEstimate(
+  extensions: Record<string, unknown> | undefined,
+): IndexingDurationEstimate | undefined {
+  const raw =
+    extensions?.estimated_indexing_duration ??
+    extensions?.estimatedIndexingDuration ??
+    extensions?.indexing_estimate ??
+    extensions?.indexingEstimate;
+  const parsed = indexingDurationEstimateSchema.safeParse(
+    normaliseRawIndexingDurationEstimate(raw),
+  );
+  if (!parsed.success) return undefined;
+  return normaliseIndexingDurationEstimate(parsed.data);
+}
+
+function normaliseRawIndexingDurationEstimate(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const record = raw as Record<string, unknown>;
+  return {
+    lowerSeconds: record.lowerSeconds ?? record.lower_seconds,
+    upperSeconds: record.upperSeconds ?? record.upper_seconds,
+    elapsedSeconds: record.elapsedSeconds ?? record.elapsed_seconds,
+    sampleCount: record.sampleCount ?? record.sample_count,
+    source: record.source,
+  };
+}

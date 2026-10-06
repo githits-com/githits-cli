@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, spyOn } from "bun:test";
+import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import {
   AuthenticationError,
   CodeNavigationIndexingError,
@@ -55,14 +55,10 @@ describe("pkgFilesAction", () => {
       const output = formatIndexingError(mapped);
       expect(mapped.message).toBe("Target is indexing.");
       expect(output).toContain(`--wait ${wait}`);
-      expect(output).toContain(`wait_timeout_ms=${wait}`);
+      expect(output).not.toContain("wait_timeout_ms");
       expect(output).not.toContain("60000");
-      expect(output.match(/Retry the same request/g)).toHaveLength(1);
-      expect(
-        output
-          .split("\n")
-          .filter((line) => line.includes("Retry the same request"))[0],
-      ).toStartWith("    ");
+      expect(output.match(/Retry this request/g)).toHaveLength(1);
+      expect(output).toEndWith(`Retry this request with --wait ${wait}.`);
     },
   );
   const mcpUrl = "https://mcp.githits.com";
@@ -570,6 +566,57 @@ describe("pkgFilesAction", () => {
     exitSpy.mockRestore();
   });
 
+  it.each([
+    {
+      name: "package spec",
+      spec: "npm:express",
+      options: {},
+      requestedTarget: "npm:express",
+    },
+    {
+      name: "repository URL",
+      spec: undefined,
+      options: { repoUrl: "https://github.com/acme/repo" },
+      requestedTarget: "https://github.com/acme/repo",
+    },
+  ])(
+    "includes the requested $name in no-metadata indexing errors",
+    async ({ spec, options, requestedTarget }) => {
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const exitSpy = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("process.exit");
+      });
+      const listFiles = mock(() =>
+        Promise.reject(
+          new CodeNavigationIndexingError(
+            "Target is indexing.",
+            "opaque_progress_id",
+          ),
+        ),
+      );
+      try {
+        await pkgFilesAction(
+          spec,
+          undefined,
+          options,
+          createDeps({
+            codeNavigationService: createMockCodeNavigationService({
+              listFiles,
+            }),
+          }),
+        );
+      } catch {
+        /* expected */
+      }
+      const output = errorSpy.mock.calls[0]?.[0] as string;
+      expect(listFiles).toHaveBeenCalledTimes(1);
+      expect(output).toContain(requestedTarget);
+      expect(output).not.toContain("opaque_progress_id");
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    },
+  );
+
   it("enriches INDEXING error with indexing ref + indexed refs/versions", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
@@ -604,13 +651,11 @@ describe("pkgFilesAction", () => {
       /* expected */
     }
     const output = errorSpy.mock.calls[0]?.[0] as string;
-    expect(output).toContain("indexing");
-    expect(output).toContain("indexing ref: ref_xyz");
+    expect(output).toContain("Source is being indexed.");
+    expect(output).not.toContain("ref_xyz");
     expect(output.match(/Backend says this ref is queued\./g)).toHaveLength(1);
-    expect(output).toContain(
-      "Estimated indexing time: 7-19s total. Time spent indexing: 3s.",
-    );
-    expect(output).toContain("indexed refs/versions: 4.21.0, 4.20.1");
+    expect(output).toContain("estimated total: 7-19s, time spent indexing: 3s");
+    expect(output).toContain("Indexed versions/refs: 4.21.0, 4.20.1");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
@@ -643,3 +688,6 @@ describe("pkgFilesAction", () => {
     exitSpy.mockRestore();
   });
 });
+
+// Keep a failed output assertion from leaking console/process spies to other tests.
+afterEach(() => mock.restore());

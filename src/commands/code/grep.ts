@@ -61,6 +61,8 @@ export async function pkgGrepAction(
   options: PkgGrepCommandOptions,
   deps: PkgGrepCommandDependencies,
 ): Promise<void> {
+  let requestedTarget: string | undefined;
+
   try {
     requireAuth(deps);
   } catch (error) {
@@ -84,6 +86,7 @@ export async function pkgGrepAction(
       third,
       hasRepoUrl,
     );
+    requestedTarget = spec ?? options.repoUrl;
     if (pattern === undefined) {
       throw new InvalidPackageSpecError(
         "A <pattern> argument is required — pass the text to search for.",
@@ -197,7 +200,8 @@ export async function pkgGrepAction(
     handleCodeNavCommandError(
       error,
       options.json ?? false,
-      formatFileErrorWithFilesHint,
+      (mapped) =>
+        formatFileErrorWithFilesHint(mapped, { target: requestedTarget }),
       2,
       withCliGrepFileRecovery,
     );

@@ -122,8 +122,14 @@ itself does not scan pages or reconstruct inventory client-side.
 SOURCE indexing metadata (`codeIndexState`, `indexingStatus`, `indexingRef`,
 and detailed resolution data) remains distinct from an empty result in JSON.
 SITE `inventoryState`, `crawlStatus`, `coverageState`, `coverageReason`, and
-`preparation` are also preserved there. Compact text represents an empty
-inventory with its zero-entry header alone. No legacy-root fallback is used
+`preparation` are also preserved there. Completed empty inventories keep their zero-entry header. Pending empty source/
+site inventories say “No files/pages available yet”, followed by compact
+preparation rows. Available paths/pages and their cursor remain visible during
+refresh. One native wait recommendation appears after the continuation footer;
+leave-out-cursor advice appears only when the request supplied `after`. CLI
+`--silent` continues emitting paths only. Zero-wait GraphQL errors retain the
+existing singular duration, package and indexed alternatives instead of losing
+the supplied metadata; JSON does not fabricate a uniform array for those errors. No legacy-root fallback is used
 for unsupported API or pagination errors.
 
 ## Exact site wait outcomes and rollout

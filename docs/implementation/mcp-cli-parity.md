@@ -425,17 +425,22 @@ surface-native read and pagination syntax and optional ANSI.
 
 ### `PARITY-ERROR-ENVELOPE`
 
-- Every error result, on both surfaces, carries
+- Explicit JSON error results on both surfaces carry
   `{ error: string, code: MappedErrorCode, retryable?: boolean, details?: object }`.
+  Default/text MCP failures return readable text with `isError: true`, just as
+  CLI human mode renders an explanation instead of a serialized envelope.
 - `code` is mandatory. `UNKNOWN` is a last resort — named errors from the
   GitHits API, code-navigation, and package-intelligence clients map to a
   specific code. API rate-limit metadata is preserved in `details` when
   available. The classifiers are covered in
   `packages/mcp/src/shared/*-error-map.test.ts`; those tests are the enforcement
   mechanism, not a convention.
-- MCP error text is always valid JSON. A client that parses
-  `content[0].text` on error gets the same envelope shape and structured data as
-  CLI `--json`. Client-owned validation messages and path-recovery
+- MCP callers parsing `content[0].text` must request `format: "json"` on errors
+  as well as successes. That mode retains the same envelope shape and structured
+  data as CLI `--json`. Package-produced early validation, local Research and
+  pre-handler service-provider failures respect the selected format. SDK schema
+  validation still returns SDK-authored text before tool handlers; direct
+  CallableTool schema parsing keeps its existing exception contract. Client-owned validation messages and path-recovery
   `details.action` are deliberately surface-native: MCP names MCP
   tools/arguments, while CLI JSON names CLI commands/options. Shared request
   builders use natural, surface-neutral prose for semantic validation labels;

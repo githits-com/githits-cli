@@ -53,6 +53,33 @@ fresh first-page request with the same ordered targets and matching controls.
 The cursor retrieves more matches from searched targets and cannot retry omitted
 targets.
 
+## Consistent preparation and error presentation
+
+Human read/list output combines each target's preparation state and compact
+`estimated total: lower-upper` / `time spent indexing` evidence on one row.
+Hosted documentation has no estimate; no history remains explicit. Readable
+content may coexist with these rows and does not become an omitted source.
+Search/status retain their lifecycle and session-native actions; their preparation
+annotations do not label queued/searching work as active index execution.
+Legacy annotated consumers reuse the same rows; raw CLI reads and `list --silent`
+remain suitable for piping.
+
+`indexing-estimates-text.ts` owns the Preparing section and native retry sentence shared by successful notices and errors. Its rows use terminal-aware hanging indentation and stay separated from file content. Free prose normalizes word spacing; raw file content and copyable actions bypass prose wrapping. `mapped-error-text.ts` owns human error wording. Tool boundaries supply native
+retry actions; core and error classifiers retain backend facts instead of
+appending mixed CLI/MCP syntax. Default/text MCP errors are readable `isError`
+results; only explicit JSON serializes the existing error envelope. Progress IDs
+remain in JSON; actionable backend hints and ref/version alternatives remain
+visible. Non-indexing errors describe alternatives as available rather than indexed; code-diff alternatives retain their version and ref identity. Rate-limit retry durations render in seconds while JSON retains the supplied timing fields. Core preserves supplied hints even when embedded in the raw message;
+only presentation deduplicates visible prose. Host auth/terms remediation and cancellation retain their contracts. Retryable failures without a supplied action or existing retry wording end with readable retry advice; JSON retains the retryability field.
+
+Zero-wait list GraphQL errors supply `estimated_indexing_duration` separately
+from successful uniform arrays. Core shares the existing error-duration decoder
+with navigation, including its existing aliases, and retains requested package,
+repository and indexed-version alternatives. Rendering/recommendations use this
+singular evidence without fabricating uniform entries. A canonical `site:` target without uniform metadata is described as preparing documentation, not repository indexing. Explicit JSON preserves
+these distinct shapes. A supplied singular upper bound uses the same bounded
+recommendation formula; no timing uses the existing default.
+
 ## Deployment prerequisite
 
 Backend PR [#2980](https://github.com/githits-com/pkgseer-backend/pull/2980)
@@ -67,7 +94,7 @@ before releasing/adopting these client selections. Dev or local tests do not
 establish production support; no compatibility flag or missing-field fallback
 is provided.
 
-## Client verification (2026-10-05)
+## Prior grep increment verification (2026-10-05)
 
 The client increment passed 2,302 focused core/service/shared/grep parity/smoke/
 files/search tests, plus 95 formatter/read/files tests for the final shared hint
@@ -101,3 +128,15 @@ The single final fresh-context check found no material issues. An optional missi
 entry wait-floor guard was rejected: the verified backend contract emits entries
 for all pending work, including hosted docs and coalesced targets, so the suggested
 trigger lacks evidence. No speculative fallback or new duration model was added.
+
+## Shared error and preparation UX verification (2026-10-05)
+
+The final full unit suite passed 5,477 tests in 233 files after the alternative-label, retry-unit, hosted preparation, annotation-separation and wrapping corrections. Typecheck, both builds, packed public-package validation, source unauthenticated CLI/MCP smoke and built CLI/MCP smoke passed. Tests cover default/text/JSON errors, host-provided authentication actions, compact preparation rows, native wait units/caps, pending empty inventory, readable content with refresh, and preservation of raw CLI output.
+
+The initial authenticated dev checks were blocked in macOS Keychain credential access. A user-requested retry on 2026-10-05 succeeded: CLI list returned ready express 1.0.3 paths, and CLI/MCP list returned pending SQLAlchemy rel_2_0_0 with advisory total bounds of 38-57 seconds and native 70000 ms retry actions. A cold rel_2_0_1 MCP read returned the same total bounds, observable elapsed execution of 0 seconds and a 60000 ms retry action. Later bounded reads returned source. The live read exposed overlapping ref-only alternatives in both backend arrays; the shared text formatter now lists those refs once while retaining distinct package versions and all JSON evidence. After that correction, a cold rel_2_0_2 live MCP read confirmed a single indexed-ref line with the same timing and native retry advice; 104 focused formatter/read/list tests and the build passed.
+
+A 1 ms read still returned a backend TIMEOUT with no indexing metadata, exposing the phrase "Repository preparation exceeded waitTimeoutMs before an indexing target was available." A transitional readable result also had provisional target resolution with empty indexingEstimates; the next read was current. These observations need backend contract investigation before inferring pending timing from that state; see the backlog. Production support remains unverified. The earlier neutral and explicit GitHits agent evaluations did not establish pending-state agent UX or a quality claim; live tool checks do not replace qualitative agent evaluation.
+
+Internal review and three external Claude rounds completed with no remaining material findings. The final fresh-context check confirmed format propagation, native wait units/caps, preserved raw output and zero-wait list metadata. Prose spacing normalization was retained as intentional presentation behavior; no source-content formatting or structured evidence changed.
+
+CI declaration builds use Bun 1.4.2. The optional list-error metadata constructor parameter explicitly includes `undefined`; the matching declaration build and packed-package validator passed with that version, alongside 70 focused list tests.

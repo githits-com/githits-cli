@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseAvailableArtifacts } from "../shared/available-artifacts.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   isFetchTimeoutError,
@@ -33,6 +34,7 @@ import {
   indexingDurationEstimateSchema,
   indexingEstimatesSchema,
   normaliseIndexingDurationEstimate,
+  parseIndexingDurationEstimate,
 } from "./indexing-estimates.js";
 import {
   READ_TARGET_SELECTION,
@@ -47,9 +49,6 @@ export type {
   IndexingDurationEstimate,
 } from "./indexing-estimates.js";
 export { INDEXING_DURATION_ESTIMATE_SELECTION } from "./indexing-estimates.js";
-
-const INDEXING_WAIT_HINT =
-  "Wait until ready with CLI `--wait 60000` or MCP `wait_timeout_ms: 60000`.";
 
 /**
  * Back-compat alias — the canonical registry union now lives in
@@ -4083,10 +4082,7 @@ export function createCodeNavigationGraphQLError(
         parseAvailableRefs(extensions),
         parseTargetResolution(extensions),
         indexingEstimate,
-        appendIndexingWaitHint(
-          message,
-          typeof extensions?.hint === "string" ? extensions.hint : undefined,
-        ),
+        typeof extensions?.hint === "string" ? extensions.hint : undefined,
         undefined,
         parseGraphQLRepoUrl(extensions),
       );
@@ -4399,33 +4395,6 @@ function parseTargetResolution(
   return normaliseTargetResolution(parsed.data);
 }
 
-function parseIndexingDurationEstimate(
-  extensions: Record<string, unknown> | undefined,
-): IndexingDurationEstimate | undefined {
-  const raw =
-    extensions?.estimated_indexing_duration ??
-    extensions?.estimatedIndexingDuration ??
-    extensions?.indexing_estimate ??
-    extensions?.indexingEstimate;
-  const parsed = indexingDurationEstimateSchema.safeParse(
-    normaliseRawIndexingDurationEstimate(raw),
-  );
-  if (!parsed.success) return undefined;
-  return normaliseIndexingDurationEstimate(parsed.data);
-}
-
-function normaliseRawIndexingDurationEstimate(raw: unknown): unknown {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
-  const record = raw as Record<string, unknown>;
-  return {
-    lowerSeconds: record.lowerSeconds ?? record.lower_seconds,
-    upperSeconds: record.upperSeconds ?? record.upper_seconds,
-    elapsedSeconds: record.elapsedSeconds ?? record.elapsed_seconds,
-    sampleCount: record.sampleCount ?? record.sample_count,
-    source: record.source,
-  };
-}
-
 function normaliseCodeContextResult(
   data: z.infer<typeof codeContextResponseSchema>,
 ): ReadFileResult {
@@ -4458,9 +4427,7 @@ function throwIfCodeContextIndexing(data: {
     data.indexingEstimate,
   );
   throw new CodeNavigationIndexingError(
-    data.indexingEstimates?.length
-      ? "Target is indexing."
-      : `Target is indexing. ${INDEXING_WAIT_HINT}`,
+    "Target is indexing.",
     data.indexingRef ?? targetResolution?.indexingRef,
     normaliseAvailableVersions(data.availableVersions) ??
       targetResolution?.availableVersions,
@@ -4482,40 +4449,6 @@ export function parseCodeContextResult(data: unknown): ReadFileResult {
   }
   throwIfCodeContextIndexing(parsed.data);
   return normaliseCodeContextResult(parsed.data);
-}
-
-function appendIndexingWaitHint(
-  message: string,
-  backendHint: string | undefined,
-): string | undefined {
-  const hintAlreadyInMessage = Boolean(
-    backendHint && message.includes(backendHint),
-  );
-  const existingGuidance = `${message} ${backendHint ?? ""}`;
-  if (/(?:--wait\b|wait_timeout_ms|waitTimeoutMs)/i.test(existingGuidance)) {
-    return hintAlreadyInMessage ? undefined : backendHint;
-  }
-  return backendHint && !hintAlreadyInMessage
-    ? `${backendHint} ${INDEXING_WAIT_HINT}`
-    : INDEXING_WAIT_HINT;
-}
-
-function parseAvailableArtifacts(raw: unknown): AvailableVersion[] | undefined {
-  if (!Array.isArray(raw)) return undefined;
-  const parsed: AvailableVersion[] = [];
-  for (const item of raw) {
-    if (item && typeof item === "object" && "ref" in item) {
-      const entry = item as { ref?: unknown; version?: unknown };
-      if (typeof entry.ref === "string") {
-        parsed.push({
-          ref: entry.ref,
-          version:
-            typeof entry.version === "string" ? entry.version : undefined,
-        });
-      }
-    }
-  }
-  return parsed.length > 0 ? parsed : undefined;
 }
 
 function normaliseAvailableVersions(
