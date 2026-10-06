@@ -844,12 +844,14 @@ export function assertMcpResolveText(resolveTextBody: string): void {
     );
   } else if (resolveTextBody.includes("Ambiguous:")) {
     assert(
-      resolveTextBody.includes("do not auto-select a candidate"),
+      resolveTextBody.includes("never auto-select") &&
+        resolveTextBody.includes("explicitly choose a candidate"),
       "ambiguous resolve text should require an explicit choice",
     );
   } else {
     assert(
-      resolveTextBody.includes("do not pass the best result automatically"),
+      resolveTextBody.includes("never auto-select the best match") &&
+        resolveTextBody.includes("explicitly choose a candidate"),
       "unconfirmed resolve text should require an explicit choice",
     );
   }

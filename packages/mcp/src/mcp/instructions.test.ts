@@ -97,18 +97,17 @@ describe("buildLocalMcpQuickStart", () => {
     const guide = buildMcpQuickStart();
     for (const phrase of [
       "`resolve_target`",
-      "fuzzy, misspelled, or noncanonical",
-      "skip canonical",
+      "vague or misspelled public OSS name",
+      "skip known canonical targets",
       "EXACT/HIGH",
       "CLEAR or NOT_APPLICABLE",
-      "CLEAR is not a vulnerability-free claim",
+      "CLEAR\nis not a vulnerability-free claim",
       "Other or missing statuses are non-actionable",
       "MEDIUM/LOW",
-      "never auto-select",
+      "explicitly choose an actionable candidate; never auto-select",
       "A selected `site:` is docs-only",
-      "pass it to `list`",
-      'or to `search` with `source:"docs"`',
-      "replay the complete emitted read action unchanged",
+      "`list` to browse",
+      'or `search` with `source:"docs"`',
     ]) {
       expect(guide).toContain(phrase);
     }
@@ -157,27 +156,23 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("Do not invent or rewrite sources");
     expect(instructions).toContain("`resolve_target`");
     expect(instructions).toContain("`code_diff`");
-    expect(instructions).toContain("canonical `registry:name`");
-    expect(instructions).toContain("fuzzy, misspelled, or noncanonical");
-    expect(instructions).toContain("documentation-site names");
-    expect(instructions).toContain("`site:<host[/path]>`");
-    expect(instructions).toContain('`source:"docs"`');
-    expect(instructions).toContain("pass it to `list` to browse pages");
+    expect(instructions).toContain("skip known canonical targets");
+    expect(instructions).toContain("vague or misspelled public OSS name");
+    expect(instructions).toContain("A selected `site:` is docs-only");
+    expect(instructions).toContain('or `search` with `source:"docs"`');
+    expect(instructions).toContain("`list` to browse");
     expect(instructions).toContain(
-      'or to `search` with `source:"docs"` for topic search',
+      "JSON is only for code consuming the raw response or required fields absent",
     );
     expect(instructions).toContain(
-      "keep text unless code consumes the raw response",
-    );
-    expect(instructions).toContain(
-      "replay the complete emitted read action unchanged, otherwise use its returned target/range",
+      "replay its `followUp` unchanged, including supplied `selector` and bounds",
     );
     expect(instructions).toContain("EXACT/HIGH");
     expect(instructions).toContain("CLEAR or NOT_APPLICABLE");
     expect(instructions).toContain(
       "Other or missing statuses are non-actionable",
     );
-    expect(instructions).toContain("CLEAR is not a vulnerability-free claim");
+    expect(instructions).toContain("CLEAR\nis not a vulnerability-free claim");
     expect(instructions).toContain("MEDIUM/LOW");
     expect(instructions).toContain("never auto-select");
     expect(instructions).toContain("`pkg_upgrade_review`");

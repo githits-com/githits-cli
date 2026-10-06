@@ -58,14 +58,11 @@ const DESCRIPTION_ROUTING: Record<
 > = {
   resolve_target: {
     prefix:
-      /^Resolve package, repository, or documentation-site names to canonical targets\./,
+      /^Find canonical package, repo, or docs targets for vague or misspelled names\./,
     exactPrefix:
-      "Resolve package, repository, or documentation-site names to canonical targets. For ".slice(
-        0,
-        80,
-      ),
+      "Find canonical package, repo, or docs targets for vague or misspelled names. Use",
     body: [
-      "Do not call for canonical",
+      "Use known canonical targets directly",
       "EXACT or HIGH",
       "CLEAR or NOT_APPLICABLE",
       "MEDIUM and LOW require",

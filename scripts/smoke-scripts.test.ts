@@ -895,7 +895,7 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
 
   it("requires explicit-choice guidance for unconfirmed targets", () => {
     const cli = `Targets:\n  1. npm:express [medium] · package\n\nNext: narrow the name or filters, or explicitly choose a candidate before running githits search '<query>' --in '<target>'\n`;
-    const mcp = `Targets:\n  1. npm:express [medium; package]\nNext: narrow the name or filters, or explicitly choose a candidate that matches the user's intent; do not pass the best result automatically.\n`;
+    const mcp = `Targets:\n  1. npm:express [medium; package]\nNext: narrow the name or filters, or explicitly choose a candidate; never auto-select the best match.\n`;
 
     expect(() => assertCliResolveText(cli)).not.toThrow();
     expect(() => assertMcpResolveText(mcp)).not.toThrow();
@@ -906,7 +906,26 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
     ).toThrow("require an explicit choice");
     expect(() =>
       assertMcpResolveText(
-        mcp.replace("do not pass the best result automatically", "choose one"),
+        mcp.replace("never auto-select the best match", "choose one"),
+      ),
+    ).toThrow("require an explicit choice");
+    expect(() =>
+      assertMcpResolveText(
+        mcp.replace("explicitly choose a candidate", "continue"),
+      ),
+    ).toThrow("require an explicit choice");
+  });
+
+  it("requires explicit choice and no automatic selection for ambiguity", () => {
+    const text =
+      "Ambiguous: low confidence.\nTargets:\n  1. npm:express [low; package]\nNext: narrow the name or explicitly choose a candidate; pass its exact canonical target to the next MCP tool, never auto-select.\n";
+    expect(() => assertMcpResolveText(text)).not.toThrow();
+    expect(() =>
+      assertMcpResolveText(text.replace("never auto-select", "continue")),
+    ).toThrow("require an explicit choice");
+    expect(() =>
+      assertMcpResolveText(
+        text.replace("explicitly choose a candidate", "continue"),
       ),
     ).toThrow("require an explicit choice");
   });

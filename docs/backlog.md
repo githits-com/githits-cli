@@ -68,10 +68,6 @@ see [target resolution](implementation/resolve-target.md) for audit scope.
   reproduce the affected input, preserve unrelated package matches, and return
   the requested supported identity or honest uncertainty without unrelated-site
   substitution. Provider/vendor coverage expansion requires a product decision.
-- Ambiguity presentation: some singleton responses still say "multiple candidates
-  remain". Future correction should reproduce limit/filter behavior and explain
-  ambiguity without claiming multiple visible candidates or weakening selection
-  gates. Backend ambiguity classification and client wording are separate owners.
 - Pydantic site refresh: usable stale docs and emitted read actions succeeded,
   while one status follow-up remained INDEXING at about 80.7 seconds. Completion
   was not verified; this is not proof of a stuck refresh. Investigate backend

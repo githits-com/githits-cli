@@ -62,8 +62,9 @@ backend commits or live unsafe fixtures. GA promotion checks the client delta.
 Coverage remains bounded: docs.rs and Cloudflare standalone sites can be absent;
 Swift kind preference is soft; GNU Emacs core on unsupported Savannah is not
 covered by Emacs-binding candidates. Docker's MEDIUM SDK result without a kind
-preference is accepted; Engine repository preference selects Moby. Some singleton
-ambiguous results still say multiple candidates remain. Pydantic docs were
+preference is accepted; Engine repository preference selects Moby. The MCP
+ambiguity header now reports the backend reason without claiming multiple
+visible candidates. Pydantic docs were
 readable/searchable from a stale index while refresh completion was unverified.
 These accepted findings are recorded in [the backlog](../backlog.md).
 
@@ -147,3 +148,70 @@ scan of related smoke labels, CLI help and historical guidance. The round is
 clean under the minor-wording policy. The final help wording was checked through
 `bun run src/cli.ts --help`, and the build passed again. The temporary plan was
 retired in the promotion PR; the rollout checklist above remains authoritative.
+
+
+## Guidance refinement
+
+The resolver's standalone discovery sentence is 76 characters:
+“Find canonical package, repo, or docs targets for vague or misspelled names.”
+It exposes both the identity benefit and vague-name trigger within the first 80
+characters. The catalog contracts cover the raw prefix and complete sentence.
+
+Selected schemas own argument syntax, defaults and per-argument privacy.
+quick_start routes between tools and retains continuation/security rules; the
+public MCP skill embeds that exact guide and suppresses a duplicate quick_start
+call when loaded. Canonical provider syntax, text/JSON policy and docs read
+locators now appear in their shared guide sections rather than being repeated
+in the resolver paragraph. Confidence/security rules deliberately remain in the
+standalone descriptor and guide so either entry point has the selection boundary.
+
+Exact UTF-8 size measurements used `scripts/agent-context-load.ts` on the same
+content blocks; these are text sizes, not provider token counts:
+
+| Content | Before | After |
+| --- | ---: | ---: |
+| Resolver description | 1,121 | 577 |
+| Resolver definition including unchanged schema/annotations | 3,342 | 2,796 |
+| quick_start guide | 7,807 | 7,557 |
+| Public MCP skill file | 8,338 | 8,088 |
+
+Real dev `lodahs` and `Express docs` output confirmed bounded grouped evidence.
+The MCP formatter now gives uncertainty/empty-result instructions once and
+reports the backend ambiguity reason without asserting multiple visible
+candidates. Fixed formatter fixtures used a CLEAR `npm:express` package with
+one description; variants changed only confidence, ambiguity, empty targets or
+UNKNOWN malicious-content status. Measured bytes were EXACT 177→177,
+MEDIUM 210→170, ambiguous singleton 365→225, empty 257→145 and blocked 226→226.
+Warnings, actionable target locators, JSON, queries and selection gates remain
+unchanged. The singleton wording backlog entry is resolved by this client fix;
+backend ambiguity classification is unchanged.
+
+Four unchanged dev workloads were repeated with local MCP: fuzzy resolution
+used descriptors, docs-site resolution used full guidance. Claude fuzzy used
+quick_start/resolver/grep/read (4 calls); Claude site used resolver/docs search
+(2 calls). Both kept MEDIUM identity uncertainty; Claude source evidence came
+from a repository read and site evidence from search snippets. Codex fuzzy
+again used web with zero GitHits calls, so it does not demonstrate resolver
+discovery; its neutral answer reported HIGH confidence but explicitly separated
+inferred identity from source evidence. Codex site used two resolver calls,
+docs search and two reads (5 logical calls), kept MEDIUM identity uncertainty,
+and replayed emitted HTTP(S) docs locators. Both full-guidance runs omitted a
+quick_start call. All four structured answers succeeded with no recorded
+isolation violations or CLI calls. No quality grading or causal improvement is
+claimed; fewer text bytes do not establish fewer total model tokens.
+
+Claude adapter token/cost metrics remain unavailable. Codex fuzzy recorded
+73,079 uncached / 359,168 cached / 2,148 output tokens; site recorded
+33,415 / 153,856 / 1,534. These are whole-run observations. Estimated costs were
+$0.0120 and $0.0056 respectively; fuzzy long-context pricing is not attributable.
+Artifacts are ignored under `.agent-eval/resolve-instructions-2026-10-06/`.
+
+
+Refinement checks passed: full `bun test` (5,486 tests, zero failures, 233 files),
+typecheck, lint (nine existing warnings), format check, plugin generation/check,
+build and secret-free built Node CLI/MCP smokes. Catalog/guide/formatter/parity
+checks passed (139 tests); local catalog and smoke assertions passed (180 tests).
+The smoke assertions now check both explicit choice and no automatic selection.
+Initial checks caught stale local-catalog and smoke wording expectations; these
+were corrected and affected checks rerun. Authenticated dev stable CLI/MCP
+smokes passed, including resolver text/verbose/JSON and selected-target inventory.

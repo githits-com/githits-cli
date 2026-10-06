@@ -203,7 +203,7 @@ async function assertExperimentalMcpSession(
       !quickStart.includes("`ask`") &&
       quickStart.includes("resolve_target") &&
       quickStart.includes("code_diff") &&
-      quickStart.includes("site:<host[/path]>") &&
+      quickStart.includes("A selected `site:` is docs-only") &&
       quickStart.includes('source:"docs"') &&
       quickStart.includes("`read`") &&
       quickStart.includes("credentials") &&

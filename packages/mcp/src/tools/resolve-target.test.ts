@@ -128,7 +128,7 @@ describe("resolve_target MCP adapter", () => {
       destructiveHint: false,
     });
     expect(DESCRIPTION.slice(0, 80)).toStartWith(
-      "Resolve package, repository, or documentation-site names to canonical targets.",
+      "Find canonical package, repo, or docs targets for vague or misspelled names.",
     );
     expect(DESCRIPTION.split(".")[0]!.length + 1).toBeLessThanOrEqual(79);
     expect(Object.keys(tool.schema)).toEqual([
@@ -173,35 +173,28 @@ describe("resolve_target MCP adapter", () => {
     });
     expect(tool.description).not.toContain("Experimental");
     for (const phrase of [
-      "fuzzy",
-      "ambiguous",
-      "misspelled",
-      "human-friendly",
-      "registry:name",
-      "github:owner/repo",
-      "site:<host[/path]>",
-      "standalone documentation-site",
-      'source: "docs"',
-      'format: "json"',
-      "docsReadTarget",
-      "pageId",
-      "and range with",
-      "read",
-      "credentials",
-      "personal data",
-      "private code",
-      "proprietary content",
-      "text",
-      "json",
-      "EXACT",
-      "HIGH",
-      "MEDIUM",
-      "LOW",
-      "missing statuses",
+      "vague or misspelled",
+      "Use known canonical targets directly",
+      "non-ambiguous EXACT or HIGH",
+      "CLEAR or NOT_APPLICABLE",
+      "missing statuses are non-actionable",
       "CLEAR is not a vulnerability-free claim",
-      "explicit choice",
+      "MEDIUM and LOW require narrowing or an explicit choice",
+      "never auto-select an ambiguous result",
+      "A selected `site:` is docs-only",
+      'source: "docs"',
+      "returned read locators",
+      "Inputs leave this machine; public OSS only",
     ]) {
       expect(DESCRIPTION).toContain(phrase);
+    }
+    // Syntax, defaults and per-argument privacy stay in the selected schema.
+    expect(tool.schema.name?.description).toContain("registry:name");
+    expect(tool.schema.name?.description).toContain("site:<host[/path]>");
+    for (const key of ["query", "intent_hints"]) {
+      expect(tool.schema[key]?.description).toContain(
+        "Do not include credentials, personal data, private code, or proprietary content",
+      );
     }
   });
 
@@ -304,7 +297,7 @@ describe("resolve_target MCP adapter", () => {
       "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
     );
     expect(text).not.toContain("readiness");
-    expect(text).toContain("do not pass the best result automatically");
+    expect(text).toContain("never auto-select the best match");
     expect(text).not.toContain(
       'pass the canonical target "npm:lodash-es" to the next MCP tool',
     );
@@ -616,7 +609,7 @@ describe("resolve_target MCP adapter", () => {
       expect(text).not.toContain("Unconfirmed ranked candidates:");
       expect(text).toContain("Next: narrow the name or filters");
       expect(text).toContain("explicitly choose a candidate");
-      expect(text).toContain("do not pass the best result automatically");
+      expect(text).toContain("never auto-select the best match");
     }
   });
 
@@ -676,7 +669,7 @@ describe("resolve_target MCP adapter", () => {
       name: "express",
     });
     expect(ambiguousText).toContain("Ambiguous:");
-    expect(ambiguousText).toContain("choose the canonical target");
+    expect(ambiguousText).toContain("explicitly choose a candidate");
     expect(ambiguousText).not.toContain("Best match:");
     expect(ambiguousText).not.toContain("candidate 1");
   });
@@ -707,11 +700,13 @@ describe("resolve_target MCP adapter", () => {
       { name: "express" },
     );
 
-    expect(text).toContain(
-      "Ambiguous: low confidence; multiple candidates remain.",
-    );
+    expect(text).toStartWith("Ambiguous: low confidence.\n");
+    expect(text).not.toContain("multiple candidates");
+    expect(text.match(/Next:/g)).toHaveLength(1);
     expect(text).toContain("Targets:\n  1. npm:express [low; package]");
-    expect(text).toContain("Next: choose the canonical target");
+    expect(text).toContain(
+      "Next: narrow the name or explicitly choose a candidate",
+    );
     expect(text).not.toContain("Warning:");
     expect(text).not.toContain("Unconfirmed ranked candidates:");
     expect(text).not.toContain(
@@ -735,13 +730,14 @@ describe("resolve_target MCP adapter", () => {
     expect(response.isError).toBeUndefined();
     expect(response.content[0]?.text).toContain("No targets found");
     expect(response.content[0]?.text).toContain(
-      "Check the spelling or adjust registry filters",
+      "Next: check spelling or registry filters",
     );
     expect(response.content[0]?.text).toContain(
       "query, preferred kind, and intent hints only rank existing candidates",
     );
     expect(response.content[0]?.text).not.toContain("include more context");
-    expect(response.content[0]?.text).toContain("no target was invented");
+    expect(response.content[0]?.text?.match(/Next:/g)).toHaveLength(1);
+    expect(response.content[0]?.text).not.toContain("no target was invented");
   });
 
   it("maps builder and service failures to structured MCP errors", async () => {

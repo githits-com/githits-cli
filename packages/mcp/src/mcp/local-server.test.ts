@@ -284,7 +284,7 @@ describe("createLocalMcpServer", () => {
       research:
         "Research a public repository or package to answer a question with sources.",
       resolve_target:
-        "Resolve package, repository, or documentation-site names to canonical targets.",
+        "Find canonical package, repo, or docs targets for vague or misspelled names.",
       code_diff:
         "Compare source across exact package versions or public repository refs.",
     } as const;
