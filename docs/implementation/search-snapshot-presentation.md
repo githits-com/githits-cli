@@ -458,11 +458,38 @@ and registration; authenticated dev CLI/local MCP captures separately verify the
 four business-query surfaces. Qualitative Claude agent workloads remained blocked
 by provider login before any tool use, so no agent-quality claim follows.
 
-A fresh authenticated capture after the final grep polish was blocked in macOS
-Keychain before query output; local stdio MCP timed out waiting for authentication.
-Earlier authenticated four-tool dev captures establish source/preparation behavior;
-final grep placement/alias grouping and hit-pin-only provenance are proved by
-actual adapter and formatter regressions above. No credentials were printed.
+The user approved macOS Keychain access and final authenticated dev captures
+completed on registry-confirmed, initially unindexed Express versions:
+CLI `npm:express@2.3.10` and local stdio MCP `npm:express@2.3.11`.
+The earlier probe used unpublished `1.0.9`; its read/list publication errors
+were test-input errors, not indexing behavior. Package info did not enumerate
+old versions, so the npm registry independently confirmed the replacement pins.
+All four CLI calls used literal `--wait 1`; MCP used `wait_timeout_ms=1000`
+for search and 1 for grep/read/list, matching their existing units.
+
+| Call | Final authenticated metadata |
+| --- | --- |
+| search | One partial docs result; hosted-doc Source; actual repository Preparing pin, 25-61s total, requested alias and indexed alternatives beneath Preparing |
+| grep | One hosted-doc match; same Source and preparation pin/estimate, requested alias without input indices; native read recipe after matches and before cursor/retry |
+| read | INDEXING error with the same actual preparation pin/estimate, requested alias and indexed alternatives; native 60000ms retry |
+| list | No files yet; same actual preparation pin/estimate and requested alias, plus its independently supplied matching commit date; native 80000ms retry |
+
+CLI identified `github:expressjs/express@1bb798d9`; MCP identified
+`github:expressjs/express@e2cdd760`. Only list knew the corresponding dates,
+2011-05-27 and 2011-06-04 respectively; other tools omitted them. Elapsed values
+reflect each response rather than synchronized observations. Fresh ready CLI and
+MCP search for `npm:n8n@2.36.6` also confirmed the hit-derived source pin
+`github:n8n-io/n8n@4fdfc9f9` without an invented date or historical ref.
+No credentials were displayed.
+
+Final external Claude Opus 5.5 review, including its one fresh-context full-delta
+check, was clean after a minor tools-reference wording correction. A fabricated
+cross-version package fallback carrying both package and repository identities
+was investigated: fixtures cover package-only fallback (whose served version is
+retained) and current combined identities, but no verified different-version
+combined fallback. The user-selected canonical repository pin remains the text
+identity; complete package provenance remains in JSON. No code defect, major
+deferred work or required refactoring was established.
 
 The user explicitly requested the partial-results default to become true after
 indexing-state visibility was added. This is a deliberate exception to the
