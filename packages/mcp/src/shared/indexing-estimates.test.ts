@@ -286,3 +286,25 @@ describe("shared preparation section", () => {
     expect(renderPreparationSection([])).toEqual([]);
   });
 });
+
+it("keeps multiple requests' indexed alternatives attributed within preparation", () => {
+  const text = renderPreparationSection(
+    [
+      {
+        ...repository,
+        commitSha: "0123456789abcdef0123456789abcdef01234567",
+        targets: ["npm:one@1", "npm:two@2"],
+      },
+    ],
+    {
+      indexedAlternatives: [
+        { target: "npm:one@1", summary: "versions 0.9" },
+        { target: "npm:two@2", summary: "versions 1.9" },
+        { target: "npm:other@3", summary: "versions 2.9" },
+      ],
+    },
+  ).join("\n");
+  expect(text).toContain("Indexed alternatives for npm:one@1: versions 0.9");
+  expect(text).toContain("Indexed alternatives for npm:two@2: versions 1.9");
+  expect(text).not.toContain("2.9");
+});

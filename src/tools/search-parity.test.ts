@@ -5,8 +5,13 @@ import type {
   UnifiedSearchParams,
   UnifiedSearchRepositoryEvidence,
 } from "@githits/core-internal";
+import { Command } from "commander";
 import { resolveAction } from "../commands/resolve.js";
-import { searchAction, searchStatusAction } from "../commands/search.js";
+import {
+  registerSearchCommand,
+  searchAction,
+  searchStatusAction,
+} from "../commands/search.js";
 import {
   createMockCodeNavigationService,
   createMockResolveTargetService,
@@ -867,6 +872,194 @@ describe("usable snapshot presentation parity", () => {
       }
       // JSON keeps the existing capped follow-up contract; the text's practical
       // example uses the backend selection unchanged.
+    },
+  );
+});
+
+describe("healthy source provenance through actual search adapters", () => {
+  it("preserves healthy source dates for initial and status text while keeping JSON compact", async () => {
+    if (defaultUnifiedSearchOutcome.state !== "completed")
+      throw new Error("expected completed fixture");
+    const original = defaultUnifiedSearchOutcome.result;
+    const repoUrl = "https://github.com/n8n-io/n8n";
+    const sha = "4fdfc9f9db35702b64a8f15044a454044e47f6fc";
+    const target = "npm:n8n@2.36.6";
+    const outcome: UnifiedSearchOutcome = {
+      state: "completed",
+      completed: true,
+      searchRef: "healthy-search",
+      result: {
+        ...original,
+        partialResults: false,
+        results: [
+          {
+            ...original.results[0]!,
+            targetLabel: target,
+            locator: {
+              ...original.results[0]!.locator,
+              repoUrl,
+              commitSha: sha,
+              gitRef: sha,
+            },
+            readTarget: { target, path: "src/index.ts" },
+          },
+        ],
+        sourceStatus: [
+          {
+            ...original.sourceStatus[0]!,
+            source: "CODE",
+            targetLabel: target,
+            codeIndexState: "CURRENT",
+            indexingStatus: "INDEXED",
+            resultCount: 1,
+            targetResolution: {
+              requested: {
+                kind: "package_exact_version",
+                registry: "npm",
+                packageName: "n8n",
+                version: "2.36.6",
+              },
+              resolvedRequested: {
+                repoUrl,
+                gitRef: "n8n@2.36.6",
+                commitSha: sha,
+                committedAt: "2026-08-24T00:00:00Z",
+              },
+              served: {
+                repoUrl,
+                gitRef: "n8n@2.36.6",
+                commitSha: sha,
+                committedAt: "2026-08-24T00:00:00Z",
+              },
+              freshness: "current",
+              freshnessReason: "exact_current",
+              availableVersions: [],
+              availableRefs: [],
+            },
+          },
+        ],
+      },
+    };
+    for (const text of [
+      await cliTextForOutcome(outcome),
+      await mcpTextForOutcome(outcome),
+    ]) {
+      expect(text).toContain("Sources:");
+      expect(text.replace(/\s+/g, " ")).toContain(
+        "github:n8n-io/n8n@4fdfc9f9 (committed 2026-08-24, indexed from ref n8n@2.36.6",
+      );
+      expect(text).not.toContain("If you need current HEAD");
+      expect(text).not.toContain("sourceStatusForText");
+    }
+    const service = createMockCodeNavigationService({
+      searchStatus: mock(async () => outcome),
+    });
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    let cliStatus = "";
+    try {
+      await searchStatusAction(
+        "healthy-search",
+        { wait: "0" },
+        {
+          codeNavigationService: service,
+          codeNavigationUrl: "https://pkgseer.dev",
+          hasValidToken: true,
+          mcpUrl: "https://mcp.example.com",
+        },
+      );
+      cliStatus = String(log.mock.calls[0]?.[0]);
+    } finally {
+      log.mockRestore();
+    }
+    const statusTool = createParityMcpTool("search_status", {
+      codeNavigationService: service,
+    });
+    const mcpStatus = await statusTool.handler(
+      { search_ref: "healthy-search", wait_timeout_ms: 0 },
+      {},
+    );
+    for (const text of [cliStatus, mcpStatus.content[0]?.text ?? ""]) {
+      expect(text).toContain("Sources:");
+      expect(text).toContain("committed 2026-08-24");
+      expect(text).not.toContain("sourceStatusForText");
+    }
+    const cli = await cliJsonForOutcome(outcome);
+    const mcp = await mcpJsonForOutcome(outcome);
+    expect(cli).toEqual(mcp);
+    expect(JSON.stringify(cli)).not.toContain("sourceStatusForText");
+    expect(cli).not.toHaveProperty("sourceStatus");
+    const jsonStatus = await statusTool.handler(
+      { search_ref: "healthy-search", format: "json" },
+      {},
+    );
+    expect(jsonStatus.content[0]?.text).not.toContain("sourceStatusForText");
+    expect(
+      JSON.parse(jsonStatus.content[0]?.text ?? "{}").result,
+    ).not.toHaveProperty("sourceStatus");
+  });
+});
+
+describe("partial search default across adapters", () => {
+  it.each([undefined, true, false])(
+    "preserves partial mode %s through CLI and MCP with truthful JSON",
+    async (allowPartial) => {
+      const search = mock((_: UnifiedSearchParams) =>
+        Promise.resolve(defaultUnifiedSearchOutcome),
+      );
+      const service = createMockCodeNavigationService({ search });
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await searchAction(
+          "router",
+          { in: ["npm:express"], json: true, allowPartial },
+          {
+            codeNavigationService: service,
+            codeNavigationUrl: "https://pkgseer.dev",
+            hasValidToken: true,
+            mcpUrl: "https://mcp.example.com",
+          },
+        );
+        const cli = JSON.parse(String(log.mock.calls[0]?.[0]));
+        const result = await createParityMcpTool("search", {
+          codeNavigationService: service,
+        }).handler(
+          {
+            target: "npm:express",
+            query: "router",
+            format: "json",
+            allow_partial_results: allowPartial,
+          },
+          {},
+        );
+        const mcp = JSON.parse(result.content[0]?.text ?? "");
+        expect(search.mock.calls[0]?.[0].allowPartialResults).toBe(
+          allowPartial ?? true,
+        );
+        expect(search.mock.calls[1]?.[0].allowPartialResults).toBe(
+          allowPartial ?? true,
+        );
+        expect(cli.query.allowPartialResults).toBe(allowPartial ?? true);
+        expect(mcp).toEqual(cli);
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
+  it.each([undefined, "--allow-partial", "--no-allow-partial"])(
+    "parses the CLI partial control %s",
+    (flag) => {
+      const program = new Command();
+      registerSearchCommand(program);
+      const search = program.commands.find(
+        (command) => command.name() === "search",
+      )!;
+      search.parseOptions([
+        "router",
+        "--in",
+        "npm:express",
+        ...(flag ? [flag] : []),
+      ]);
+      expect(search.opts().allowPartial).toBe(flag !== "--no-allow-partial");
     },
   );
 });

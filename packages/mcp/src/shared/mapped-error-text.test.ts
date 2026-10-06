@@ -111,7 +111,7 @@ describe("readable mapped error content", () => {
       },
       { width: 50 },
     );
-    expect(output).toContain("Indexed versions/refs: 1.0.2");
+    expect(output).toContain("Indexed alternatives: versions/refs 1.0.2");
     expect(output).toContain("Use a specific available ref.");
     expect(output).not.toContain("\u001b");
     expect(output.split("\n").some((line) => line.startsWith("    "))).toBe(
@@ -132,8 +132,10 @@ describe("readable mapped error content", () => {
       },
     };
     const text = formatMappedErrorText(mapped);
-    expect(text).toContain("Indexed versions/refs: rel_2_0_1, 2.0.0");
-    expect(text).toContain("Indexed refs: rel_2_0_0");
+    expect(text).toContain(
+      "Indexed alternatives: versions/refs rel_2_0_1, 2.0.0",
+    );
+    expect(text).toContain("refs rel_2_0_0");
     expect(text.match(/rel_2_0_0/g)).toHaveLength(1);
     const json = JSON.parse(
       mcpMappedErrorResult(mapped, undefined, "json").content[0]!.text,
@@ -150,7 +152,7 @@ describe("readable mapped error content", () => {
       },
     });
     expect(refsOnly).not.toContain("versions/refs:");
-    expect(refsOnly).toContain("Indexed refs: rel_2_0_0");
+    expect(refsOnly).toContain("refs rel_2_0_0");
   });
 });
 

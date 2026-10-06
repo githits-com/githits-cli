@@ -198,3 +198,67 @@ describe("shared source and preparation rows", () => {
     expect(resolution).toEqual(before);
   });
 });
+
+describe("hanging provenance prose", () => {
+  it("indents requested and resolution-detail continuation lines", () => {
+    const lines = renderResolutionDetails(
+      {
+        ...resolution,
+        freshnessReason: "ref_resolution_deferred",
+        suggestedRefs: [
+          { ref: "candidate-one" },
+          { ref: "candidate-two" },
+          { ref: "candidate-three" },
+        ],
+      },
+      [],
+      { width: 60 },
+    );
+    expect(lines.join(" ").replace(/\s+/g, " ")).toContain(
+      "Requested: github:anomalyco/opencode@0112a92c (committed 2026-10-05, observed HEAD)",
+    );
+    expect(
+      lines.filter((line) => line.startsWith("  ")).length,
+    ).toBeGreaterThan(0);
+    expect(lines.every((line) => line.length <= 60)).toBe(true);
+    expect(lines).toContain("Branch resolution is deferred.");
+    expect(lines.join("\n")).not.toContain("\nHEAD)");
+  });
+});
+
+describe("unresolved requested indexing coverage", () => {
+  it("does not repeat indexing already conveyed by the exact requested alias", () => {
+    const target = "npm:n8n@2.36.7";
+    const pending: SourceProvenanceResolution = {
+      requested: {
+        kind: "package_exact_version",
+        registry: "npm",
+        packageName: "n8n",
+        version: "2.36.7",
+      },
+      resolvedRequested: {
+        repoUrl: "https://github.com/n8n-io/n8n",
+        gitRef: "n8n@2.36.7",
+      },
+      freshness: "indexing",
+      freshnessReason: "no_current_fallback",
+    };
+    const preparation = {
+      ...work,
+      targets: [target],
+      repositoryUrl: "https://github.com/n8n-io/n8n",
+      commitSha: "f".repeat(40),
+    };
+    expect(renderResolutionDetails(pending, [preparation])).toEqual([]);
+    expect(
+      renderResolutionDetails(
+        pending,
+        [{ ...preparation, targets: ["npm:other@1.0.0"] }],
+        { width: 240 },
+      ),
+    ).toEqual([
+      "Requested: github:n8n-io/n8n@n8n@2.36.7",
+      "Requested target is being indexed; no current snapshot is available yet.",
+    ]);
+  });
+});

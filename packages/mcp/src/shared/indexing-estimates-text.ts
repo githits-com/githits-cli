@@ -99,6 +99,7 @@ export interface PreparationSectionOptions {
   repositoryState?: string;
   width?: number;
   resolutions?: readonly SourceProvenanceResolution[];
+  indexedAlternatives?: readonly { target: string; summary: string }[];
 }
 
 /** Exact work identity is independent of the requested branch's observed pointer. */
@@ -146,6 +147,15 @@ export function renderPreparationSection(
       rows.push(
         `    Requested: ${entry.targets.map(escapePreparationTarget).join(", ")}`,
       );
+    for (const alternative of options.indexedAlternatives ?? []) {
+      if (entry.targets.includes(alternative.target))
+        rows.push(
+          formatIndexedAlternatives(
+            alternative.summary,
+            entry.targets.length > 1 ? alternative.target : undefined,
+          ),
+        );
+    }
     return rows;
   });
   return rows.length
@@ -155,6 +165,14 @@ export function renderPreparationSection(
         ...rows.flatMap((row) => wrapTerminalProse(row, options.width)),
       ]
     : [];
+}
+
+/** Indexed alternatives are immediately queryable, unlike suggested refs. */
+export function formatIndexedAlternatives(
+  summary: string,
+  target?: string,
+): string {
+  return `    Indexed alternatives${target ? ` for ${escapePreparationTarget(target)}` : ""}: ${summary}`;
 }
 
 export interface PreparationRetryOptions {

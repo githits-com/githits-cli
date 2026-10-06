@@ -2894,7 +2894,7 @@ export class CodeNavigationServiceImpl
       query: params.query,
       sources: params.sources,
       filters: params.filters,
-      allowPartialResults: params.allowPartialResults ?? false,
+      allowPartialResults: params.allowPartialResults ?? true,
       limit: params.limit,
       offset: params.offset,
       waitTimeoutMs: params.waitTimeoutMs,

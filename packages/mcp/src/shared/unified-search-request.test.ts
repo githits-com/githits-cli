@@ -229,19 +229,27 @@ describe("buildUnifiedSearchParams", () => {
     expect(built.params.filters).toBeUndefined();
   });
 
-  it("passes through allowPartialResults without changing the default", () => {
-    const defaulted = buildUnifiedSearchParams({
+  it("partial results default and explicit overrides", () => {
+    const omitted = buildUnifiedSearchParams({
       target: { registry: "NPM", packageName: "express" },
       query: "router",
     });
-    expect(defaulted.params.allowPartialResults).toBeUndefined();
 
-    const explicit = buildUnifiedSearchParams({
+    const explicitlyEnabled = buildUnifiedSearchParams({
       target: { registry: "NPM", packageName: "express" },
       query: "router",
       allowPartialResults: true,
     });
-    expect(explicit.params.allowPartialResults).toBe(true);
+
+    const explicitlyDisabled = buildUnifiedSearchParams({
+      target: { registry: "NPM", packageName: "express" },
+      query: "router",
+      allowPartialResults: false,
+    });
+
+    expect(omitted.params.allowPartialResults).toBe(true);
+    expect(explicitlyEnabled.params.allowPartialResults).toBe(true);
+    expect(explicitlyDisabled.params.allowPartialResults).toBe(false);
   });
 
   it("dedupes exact duplicate targets while preserving order", () => {

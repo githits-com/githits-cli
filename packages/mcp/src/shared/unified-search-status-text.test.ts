@@ -483,6 +483,7 @@ describe("pending package preparation aliases", () => {
       expect(text.match(/Requested:/g)).toHaveLength(1);
       expect(text).toContain(`    Requested: ${target}`);
       expect(text).not.toContain("github:n8n-io/n8n@n8n@2.36.7");
+      expect(text).not.toContain("Requested target is being indexed");
       expect(text).not.toContain("committed");
       expect(text).not.toContain("observed HEAD");
       expect(text).toContain(

@@ -236,8 +236,8 @@ test suite anchors the doc.
 - **MCP arguments** use `snake_case`. They are the wire contract agents
   see; the JSON-schema description is the primary UX.
 - **CLI flags** use `--kebab-case`. They are the user-facing surface.
-  `allow_partial_results` maps to CLI `--allow-partial` because the CLI
-  name reads better as a command flag while preserving the same behaviour.
+  `allow_partial_results` maps to CLI `--allow-partial` (true) and
+  `--no-allow-partial` (false), preserving the shared default true.
   `search_status.wait_timeout_ms` maps to `search-status --wait <seconds>`;
   both default to the shared 30-second bounded wait.
 - **Public enum values** are lowercase strings on both surfaces
@@ -344,11 +344,11 @@ test suite anchors the doc.
   echo. Follow-up `search_status` responses intentionally omit that
   echo and return only backend-known fields:
   `{completed, searchRef?, progress?, result?}`.
-- Unified `search` is complete-by-default (`allowPartialResults: false`).
-  An incomplete response may still carry an atomic interim result when every
-  runnable target/source pair is serveable. `allow_partial_results` /
-  `--allow-partial` additionally permit a serveable subset while other pairs
-  remain unavailable; both forms carry `results` plus the `searchRef`.
+- Unified `search` permits partial results by default (`allowPartialResults: true`).
+  CLI `--no-allow-partial` and MCP `allow_partial_results: false` require atomic
+  evidence across runnable pairs; `--allow-partial` remains accepted. An incomplete
+  response can carry `results` plus `searchRef`; backend `partialResults` remains
+  authoritative. The normalized initial query echo preserves either Boolean.
 - Completed empty search JSON retains zero-result source/target context;
   healthy source status remains suppressed for non-empty success. Text advice
   is renderer-only and never replaces structured JSON.

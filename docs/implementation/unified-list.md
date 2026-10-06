@@ -62,8 +62,9 @@ response. The backend's opaque cursor is otherwise preserved exactly.
 - `list-response.ts` copies only the selected camelCase `ListResult` fields.
   It preserves meaningful `null`s and omitted conditional details, clones
   nested values, and adds no total, filter echo, or reconstructed action.
-- `list-text.ts` uses shared `Sources:` rows, then separate native `Read files:`
-  or `Read pages:` guidance and one path per line. Known SOURCE provenance is
+- `list-text.ts` uses shared `Sources:` rows, then native `Read files:` guidance
+  when SOURCE paths are returned, or shared `Read pages:` guidance for SITE actions,
+  followed by one path per line. Known SOURCE provenance is
   pinned and dated; its exact read recipe retains canonical/requested path base,
   which can be a package target rather than the displayed repository SHA. SITE
   rows and recipes use the shared PAGE action target or requested target, never a

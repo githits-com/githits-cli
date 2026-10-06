@@ -1,6 +1,7 @@
 import { MAX_DISCOVERY_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import {
   escapePreparationTarget,
+  formatIndexedAlternatives,
   formatIndexingDuration,
   formatPreparationRetry,
   renderPreparationSection,
@@ -67,24 +68,6 @@ export function formatMappedErrorText(
           : "Source is being indexed."))
       : mapped.message,
   ];
-  if (mapped.code === "INDEXING") {
-    const rows = renderPreparationSection(details.indexingEstimates, {
-      width: options.width,
-    });
-    if (rows.length) lines.push(...rows);
-    else {
-      const timing =
-        formatIndexingDuration(details.indexingEstimate, "compact") ??
-        "no estimate available";
-      lines.push(
-        "",
-        "Preparing:",
-        target
-          ? `  - ${escapePreparationTarget(target)} (${preparingDocumentation ? "preparing documentation" : "indexing"}, ${timing})`
-          : `  - Source (indexing, ${timing})`,
-      );
-    }
-  }
   const versions = details.availableVersions
     ?.filter(
       (entry) =>
@@ -101,20 +84,63 @@ export function formatMappedErrorText(
           : entry.ref,
     );
   const refs = details.availableRefs?.map((entry) => entry.ref);
+  const indexedSummary = [
+    versions?.length
+      ? `versions/refs ${versions.slice(0, 5).join(", ")}${versions.length > 5 ? ` (+${versions.length - 5} more)` : ""}`
+      : undefined,
+    refs?.length
+      ? `refs ${refs.slice(0, 5).join(", ")}${refs.length > 5 ? ` (+${refs.length - 5} more)` : ""}`
+      : undefined,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  if (mapped.code === "INDEXING") {
+    const rows = renderPreparationSection(details.indexingEstimates, {
+      width: options.width,
+      indexedAlternatives:
+        target && indexedSummary
+          ? [{ target, summary: indexedSummary }]
+          : undefined,
+    });
+    if (rows.length) lines.push(...rows);
+    else {
+      const timing =
+        formatIndexingDuration(details.indexingEstimate, "compact") ??
+        "no estimate available";
+      lines.push(
+        "",
+        "Preparing:",
+        target
+          ? `  - ${escapePreparationTarget(target)} (${preparingDocumentation ? "preparing documentation" : "indexing"}, ${timing})`
+          : `  - Source (indexing, ${timing})`,
+      );
+    }
+    if (
+      indexedSummary &&
+      !details.indexingEstimates?.some((entry) =>
+        entry.targets.includes(target ?? ""),
+      )
+    )
+      lines.push(
+        formatIndexedAlternatives(
+          indexedSummary,
+          rows.length ? target : undefined,
+        ),
+      );
+  }
   if (
-    versions?.length ||
-    refs?.length ||
+    (mapped.code !== "INDEXING" && (versions?.length || refs?.length)) ||
     details.latestIndexed ||
     details.publishedVersions?.length
   )
     lines.push("");
-  if (versions?.length)
+  if (mapped.code !== "INDEXING" && versions?.length)
     lines.push(
-      `${mapped.code === "INDEXING" ? "Indexed" : "Available"} versions/refs: ${versions.slice(0, 5).join(", ")}${versions.length > 5 ? ` (+${versions.length - 5} more)` : ""}`,
+      `Available versions/refs: ${versions.slice(0, 5).join(", ")}${versions.length > 5 ? ` (+${versions.length - 5} more)` : ""}`,
     );
-  if (refs?.length)
+  if (mapped.code !== "INDEXING" && refs?.length)
     lines.push(
-      `${mapped.code === "INDEXING" ? "Indexed" : "Available"} refs: ${refs.slice(0, 5).join(", ")}${refs.length > 5 ? ` (+${refs.length - 5} more)` : ""}`,
+      `Available refs: ${refs.slice(0, 5).join(", ")}${refs.length > 5 ? ` (+${refs.length - 5} more)` : ""}`,
     );
   if (details.latestIndexed)
     lines.push(`Latest indexed version: ${details.latestIndexed}`);

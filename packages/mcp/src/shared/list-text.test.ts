@@ -293,12 +293,7 @@ describe("formatListText", () => {
 
   it("falls back to the requested source for an empty inventory", () => {
     expect(formatListText(sourceResult({ canonicalTarget: null }))).toBe(
-      [
-        "No files.",
-        "Sources:",
-        "  - github:example/repo@main",
-        "Read files: read -- 'github:example/repo@main' $path",
-      ].join("\n"),
+      ["No files.", "Sources:", "  - github:example/repo@main"].join("\n"),
     );
   });
 
@@ -685,13 +680,9 @@ describe("list source rows", () => {
     );
 
     expect(text).toBe(
-      [
-        "No files.",
-        `Read files: read -- '${target}' $path`,
-        "",
-        `Requested: ${target}`,
-        "Target unavailable.",
-      ].join("\n"),
+      ["No files.", "", `Requested: ${target}`, "Target unavailable."].join(
+        "\n",
+      ),
     );
     expect(text).not.toContain("Sources:");
   });
@@ -719,13 +710,9 @@ describe("list source rows", () => {
     );
 
     expect(text).toBe(
-      [
-        "No files.",
-        `Read files: read -- '${target}' $path`,
-        "",
-        `Requested: ${target}`,
-        "Target unavailable.",
-      ].join("\n"),
+      ["No files.", "", `Requested: ${target}`, "Target unavailable."].join(
+        "\n",
+      ),
     );
     expect(text).not.toContain("Sources:");
   });
@@ -772,7 +759,6 @@ describe("list source rows", () => {
         "No files.",
         "Sources:",
         "  - github:acme/project@12345678 (committed 2025-08-09, indexed from ref main)",
-        "Read files: read -- 'github:example/repo@main' $path",
       ].join("\n"),
     );
 
@@ -785,6 +771,41 @@ describe("list source rows", () => {
     );
     expect(pending).toStartWith("No files available yet.\nSources:\n");
     expect(pending).toContain("github:acme/project@12345678");
+    expect(pending).not.toContain("Read files:");
+  });
+
+  it("empty source read guidance appears only when paths are returned", () => {
+    const target = "github:owner/repo@main";
+    const readyEmpty = sourceResult({
+      requestedTarget: target,
+      canonicalTarget: target,
+    });
+    const pendingEmpty = sourceResult({
+      requestedTarget: target,
+      canonicalTarget: target,
+      codeIndexState: "INDEXING",
+    });
+    const withPath = sourceResult({
+      requestedTarget: target,
+      canonicalTarget: target,
+      entries: [entry("FILE", "src/index.ts")],
+    });
+
+    for (const syntax of ["cli", "mcp"] as const) {
+      const readyText = formatListText(readyEmpty, { syntax });
+      const pendingText = formatListText(pendingEmpty, { syntax });
+      const pathText = formatListText(withPath, { syntax });
+      const guidance =
+        syntax === "mcp"
+          ? `Read files: read target=${JSON.stringify(target)} path=$path`
+          : `Read files: read -- '${target}' $path`;
+
+      expect(readyText).toStartWith("No files.\n");
+      expect(readyText).not.toContain("Read files:");
+      expect(pendingText).toStartWith("No files available yet.");
+      expect(pendingText).not.toContain("Read files:");
+      expect(pathText).toContain(guidance);
+    }
   });
 });
 
@@ -848,8 +869,6 @@ describe("list width", () => {
     expect(prose(narrow).replace(/\s+/g, " ")).toBe(
       prose(wide).replace(/\s+/g, " "),
     );
-    expect(narrow).toContain(
-      "Read files: read -- 'github:example/repo@main' $path",
-    );
+    expect(narrow).not.toContain("Read files:");
   });
 });

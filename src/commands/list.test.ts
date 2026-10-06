@@ -548,13 +548,7 @@ describe("unified list CLI", () => {
       );
 
       expect(writes.join("")).toBe(
-        [
-          "No files.",
-          "Sources:",
-          "  - npm:express@5.2.1",
-          "Read files: read -- 'npm:express@5.2.1' $path",
-          "",
-        ].join("\n"),
+        ["No files.", "Sources:", "  - npm:express@5.2.1", ""].join("\n"),
       );
     } finally {
       write.mockRestore();

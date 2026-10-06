@@ -587,3 +587,103 @@ describe("snapshot search text received by agents", () => {
     }
   });
 });
+
+describe("requested indexing explanation without matching estimates", () => {
+  it.each(["absent", "empty", "unmatched"])(
+    "preserves requested-ref indexing for %s estimates on CLI and MCP initial/status",
+    (estimates) => {
+      const payload = snapshot();
+      resolution(payload).resolvedRequested!.committedAt =
+        "2026-10-05T00:00:00Z";
+      if (estimates === "absent")
+        payload.progress!.indexingEstimates = undefined;
+      else if (estimates === "empty") payload.progress!.indexingEstimates = [];
+      else payload.progress!.indexingEstimates![0]!.commitSha = "c".repeat(40);
+      for (const syntax of ["cli", "mcp"] as const) {
+        for (const text of both(payload, syntax)) {
+          const flat = text.replace(/\s+/g, " ");
+          expect(flat).toContain(
+            "Requested: github:anomalyco/opencode@0112a92c (committed 2026-10-05, observed HEAD)",
+          );
+          expect(flat).toContain("Requested ref is being indexed.");
+          expect(text).not.toContain("requested_ref_indexing");
+          expect(text).not.toContain("\nHEAD)");
+          expect(text).toContain("Next: use these hits now");
+          if (estimates === "unmatched") {
+            expect(flat).toContain(
+              "github:anomalyco/opencode@cccccccc (indexing, estimated total: 100-120s)",
+            );
+            expect(flat).not.toContain(
+              "github:anomalyco/opencode@0112a92c (indexing",
+            );
+          } else expect(text).not.toContain("Preparing:");
+        }
+      }
+    },
+  );
+  it("qualifies a terminal retained explanation as historical", () => {
+    const payload = snapshot();
+    payload.progress!.indexingEstimates = [];
+    payload.progress!.status = "COMPLETED";
+    const text = renderUnifiedSearchStatusText({
+      completed: false,
+      searchRef: payload.searchRef,
+      progress: payload.progress,
+      result: {
+        query: payload.query,
+        partialResults: false,
+        hasMore: payload.hasMore,
+        nextOffset: payload.nextOffset,
+        results: payload.results,
+        sourceStatus: payload.sourceStatus,
+      },
+    });
+    expect(text).toContain("Requested ref was being indexed when observed.");
+    expect(text).not.toContain("Requested ref is being indexed.");
+  });
+});
+
+describe("indexed alternatives in matching preparation rows", () => {
+  it("keeps indexed alternatives with the exact pending request in initial and status text", () => {
+    const payload = snapshot();
+    const request = "npm:express@1.0.5";
+    payload.results = [];
+    payload.sourceStatus = [];
+    payload.progress!.targets = [
+      {
+        requested: request,
+        freshness: "indexing",
+        availableVersions: [{ version: "1.0.4", ref: "v1.0.4" }],
+        availableRefs: [{ ref: "HEAD" }],
+        suggestedRefs: [{ ref: "unindexed-branch" }],
+      },
+    ];
+    payload.progress!.indexingEstimates![0]!.targets = [request];
+    for (const syntax of ["cli", "mcp"] as const)
+      for (const text of both(payload, syntax)) {
+        expect(text).toContain(
+          "    Requested: npm:express@1.0.5\n    Indexed alternatives: versions 1.0.4, refs HEAD",
+        );
+        expect(text).not.toContain(
+          "Indexed alternatives: versions 1.0.4, refs HEAD, suggested",
+        );
+        expect(text).toContain("suggested refs unindexed-branch");
+      }
+  });
+  it("does not move another request's alternatives under a coalesced job", () => {
+    const payload = snapshot();
+    payload.results = [];
+    payload.sourceStatus = [];
+    payload.progress!.targets = [
+      {
+        requested: "npm:express@1.0.5",
+        freshness: "indexing",
+        availableVersions: [{ version: "1.0.4", ref: "v1.0.4" }],
+      },
+    ];
+    for (const text of both(payload)) {
+      expect(text).not.toContain("    Indexed alternatives:");
+      expect(text).toContain("indexed: versions 1.0.4");
+    }
+  });
+});

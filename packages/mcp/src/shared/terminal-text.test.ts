@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { sanitizeTerminalText } from "./terminal-text.js";
+import { sanitizeTerminalText, wrapTerminalProse } from "./terminal-text.js";
 
 describe("sanitizeTerminalText", () => {
   it("strips complete CSI sequences", () => {
@@ -45,5 +45,26 @@ describe("sanitizeTerminalText", () => {
     ["a \u0007 b", "a  b"],
   ])("preserves the control-stripping order for %j", (value, expected) => {
     expect(sanitizeTerminalText(value)).toBe(expected);
+  });
+});
+
+describe("hanging provenance prose", () => {
+  it("keeps the first label at column zero and indents continuation text", () => {
+    const text =
+      "Requested: github:example/project@abcdef12 (committed 2026-10-05, observed HEAD)";
+    const lines = wrapTerminalProse(text, 55, "  ");
+    expect(lines[0]).toStartWith("Requested:");
+    expect(lines.slice(1).every((line) => line.startsWith("  "))).toBe(true);
+    expect(lines.every((line) => line.length <= 55)).toBe(true);
+    expect(lines.join(" ").replace(/\s+/g, " ")).toBe(text);
+    expect(
+      wrapTerminalProse(
+        "plain prose still wraps without added indentation",
+        20,
+      )[1],
+    ).not.toStartWith(" ");
+    expect(
+      wrapTerminalProse("  - source with several qualifiers and a date", 25)[1],
+    ).toStartWith("    ");
   });
 });

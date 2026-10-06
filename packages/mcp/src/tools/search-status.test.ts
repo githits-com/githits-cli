@@ -301,10 +301,13 @@ describe("searchStatusTool", () => {
     );
 
     const text = await tool.handler({ search_ref: "search-ref-docs" }, {});
-    expect(text.content[0]?.text).toContain(
-      "indexing: expressjs.com/en/guide docs",
+    const textOutput = text.content[0]?.text ?? "";
+    expect(textOutput).toContain(
+      "indexing when observed: expressjs.com/en/guide docs",
     );
-    expect(text.content[0]?.text).toContain("searched: repository docs");
+    expect(textOutput.replace(/\s+/g, " ")).toContain(
+      "github:expressjs/express@01234567 (repository docs, requested: npm:express@5.1.0, no results)",
+    );
   });
 
   it("keeps completed empty JSON structured", async () => {
@@ -586,7 +589,9 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("No results yet | indexing | 0/1 ready");
     expect(text).toContain("- site:example.com");
-    expect(text).toContain("searched: site:example.com docs");
+    expect(text).toContain(
+      "Sources:\n  - site:example.com (hosted documentation)",
+    );
     expect(text).toContain("available: site:docs.example.com");
     expect(text).toContain("+more");
     expect(text).toContain(
@@ -640,9 +645,11 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "ref-stale" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("- npm:express latest");
-    expect(text).toContain("using: 5.1.0 while 5.2.1 indexes");
-    expect(text.match(/5\.1\.0 while 5\.2\.1 indexes/g)).toHaveLength(1);
+    expect(text).toContain(
+      "Sources:\n  - npm:express@5.1.0 (code, requested: npm:express latest, older snapshot)",
+    );
+    expect(text).toContain("Requested: npm:express@5.2.1 (indexing)");
+    expect(text.match(/older snapshot/g)).toHaveLength(1);
   });
 
   it("renders source targetResolution notes in completed text", async () => {
@@ -688,7 +695,10 @@ describe("searchStatusTool", () => {
     const result = await tool.handler({ search_ref: "search-ref-123" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("- npm:express@4.18.2");
-    expect(text).toContain("using: 4.18.2 (older snapshot)");
+    expect(text).toContain(
+      "Sources:\n  - npm:express@4.18.2 (code, older snapshot)",
+    );
+    expect(text).toContain("Requested: npm:express@5.2.1");
     expect(text).toContain("indexed: versions");
     expect(text).toContain("4.18.2");
     expect(text).not.toContain("ref_resolution_deferred");
@@ -732,7 +742,9 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("No results");
     expect(text).toContain("- site:example.com");
-    expect(text).toContain("searched: site:example.com docs");
+    expect(text).toContain(
+      "Sources:\n  - site:example.com (hosted documentation)",
+    );
     expect(text).toContain("Try: site:example.com/docs");
     expect(text).toContain("+more");
     expect(text).not.toContain("Next: shorten or broaden site query.");

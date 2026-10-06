@@ -315,14 +315,18 @@ No major deferred item or required refactoring remains.
 `source-provenance-text.ts` owns common identity/date/ref clauses and source rows;
 `indexing-estimates-text.ts` owns preparation rows and existing timing/retry copy.
 Search's semantic projection still owns actual-hit/zero-hit attribution, corpora,
-coverage, prior-HEAD proof and lifecycle/actions. Rows replace repeated commit
+coverage, prior-HEAD proof and lifecycle/actions. Recognized requested-ref indexing
+reasons use the shared requested-indexing explanation when no matching preparation
+row conveys them. The explanation concerns the ref, so it never mislabels an
+independently observed SHA as the actual coalesced job. Top-level provenance
+details wrap with hanging indentation. Rows replace repeated commit
 serialization without parsing backend notices. Site scope and package aliases
 remain explicit. Per-tool formatters control placement, width and native actions.
 Annotated read and legacy navigation replace human resolution serialization with
 these facts while retaining deferred/unavailable/provisional/unknown state and
 queryable-versus-suggested recovery. Structured search warnings remain unchanged.
 
-Focused verification: 842 tests pass across 29 files with 4,136 assertions;
+Focused verification after review fixes: 862 tests pass across 30 files with 4,265 assertions;
 parser/repository/row browser closure adds a 184-test check (305 assertions).
 Typecheck, scoped Biome, both builds and packed public-package validation pass.
 The latter caught a registry import through core's service barrel; the parser
@@ -384,3 +388,44 @@ A narrow local stdio MCP pass exercised the same four real dev tools, using
 confirmed the same actual-work pin, shared copy and source omission, with native
 MCP actions; read returned `isError: true` for INDEXING. This verifies local
 MCP package behavior, not published hosted adoption or agent interpretation.
+
+
+The original version became indexed during review. A fresh pending-version pass
+used `npm:n8n@2.36.6` with the same literal waits and query/path options after the
+review fixes. All four calls identified `github:n8n-io/n8n@4fdfc9f9`, estimated total
+437-1044s, and omitted Sources while no artifact was served. Captured elapsed
+values were 0s for the initial list probe, 47s for search, 51s for grep and 53s for
+read. List independently received committed 2026-08-24; the other three omitted
+the unknown date. Grep also prepared documentation. Search disclosed indexed
+version 2.36.7 and ref HEAD; read preserved its indexed-versions/refs recovery
+hint. Native retries remained search 120 seconds, grep/list 120000 milliseconds,
+and read 60000 milliseconds. Empty list no longer offers a Read files recipe.
+
+
+Partial results are now enabled by default in the shared request builder and
+transport, with explicit false preserved (`--no-allow-partial` /
+`allow_partial_results: false`). Sources remains actual searched/served evidence.
+This allows hosted docs to contribute while repository code prepares; it does not
+change backend partialResults, target counts, pagination or continuation rules.
+The normalized initial query echo retains both Boolean values. Search/status
+and mapped indexing errors use shared `Indexed alternatives` copy inside Preparing,
+with exact request attribution. Suggested refs remain advisory and separate.
+
+Healthy source status is deliberately omitted from non-empty public JSON. The
+response builder retains selected source facts in its private presentation DTO
+(`sourceStatusForText`) so initial/status text can still disclose known dates.
+Public projection removes that property; no additional network fields or requests
+are introduced. Actual adapter tests cover Sources dates and JSON parity/omission.
+
+
+The default correction was verified against dev using fresh `npm:express@1.0.7`.
+With literal `--wait 1`, search returned one partial docs hit and a
+`site:expressjs.com (hosted documentation)` Source, while Preparing identified
+`github:expressjs/express@8c3ad123` (25-61s) and the requested package.
+Indexed alternatives were versions 1.0.3, 2.0.0, 1.0.0 +7 under that row. Grep
+returned one docs match with the same Source and actual job. Read was INDEXING
+(exit 1) and list returned no files; both identified the same job. Only list
+received the independently matching date 2011-02-07. Elapsed values were 0s,
+2s, 4s and 5s respectively. Live captures are observations at different moments,
+not guarantees of exact timing or order. Alternatives ordering/limits reflect
+the supplied backend facts and each tool's existing selection.

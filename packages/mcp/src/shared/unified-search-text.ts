@@ -23,6 +23,7 @@ import { renderReadTarget } from "./read-target-text.js";
 import { parseRepositoryTargetSpec } from "./repository-target.js";
 import {
   formatProvenanceRow,
+  formatRequestedIndexingExplanation,
   formatRequestedProvenance,
   renderSourceSection,
 } from "./source-provenance-text.js";
@@ -304,8 +305,18 @@ function appendPresentationContext(
   if (sources.length)
     lines.push("", ...renderSourceSection(sources, { width: options.width }));
   const historical = presentation.lifecycle.kind !== "active";
+  const indexedAlternatives = presentation.targetGroups.flatMap((group) => {
+    const alternatives = group.alternatives;
+    if (!alternatives?.target || group.recovery) return [];
+    const summary = formatTargetAlternatives({
+      ...alternatives,
+      suggestedRefs: [],
+    });
+    return summary ? [{ target: alternatives.target, summary }] : [];
+  });
   lines.push(
     ...renderPreparationSection(presentation.indexingEstimates, {
+      indexedAlternatives,
       repositoryState: historical ? "indexing when observed" : "indexing",
       resolutions: presentation.provenance.flatMap((record) =>
         record.resolution ? [record.resolution] : [],
@@ -313,19 +324,25 @@ function appendPresentationContext(
       width: options.width,
     }),
   );
-  const requested = [
+  const resolutionDetails = [
     ...new Set(
       presentation.provenance.flatMap((record) => {
-        const fact = formatRequestedProvenance(
-          record.resolution,
-          presentation.indexingEstimates,
-        );
-        return fact ? [fact] : [];
+        return [
+          formatRequestedProvenance(
+            record.resolution,
+            presentation.indexingEstimates,
+          ),
+          formatRequestedIndexingExplanation(
+            record.resolution,
+            presentation.indexingEstimates,
+            historical ? "indexing when observed" : "indexing",
+          ),
+        ].filter((fact): fact is string => Boolean(fact));
       }),
     ),
   ];
-  for (const fact of requested)
-    lines.push(...wrapTerminalProse(fact, options.width));
+  for (const fact of resolutionDetails)
+    lines.push(...wrapTerminalProse(fact, options.width, "  "));
   for (const group of presentation.targetGroups) {
     const renderedSources = presentation.provenance.some(
       (record) =>
@@ -355,6 +372,7 @@ function appendPresentationContext(
         ...wrapTerminalProse(
           `Requested: ${formatProvenanceRow(group.identity.fresh, [historical ? "indexing when observed" : "indexing"])}`,
           options.width,
+          "  ",
         ),
       );
     }
@@ -382,6 +400,9 @@ function appendPresentationContext(
       renderedSources,
       preparingGroup,
       historical,
+      presentation.indexingEstimates?.some((entry) =>
+        entry.targets.includes(group.alternatives?.target ?? ""),
+      ) ?? false,
     );
   }
   appendPresentationWarnings(lines, presentation.warnings, options);
@@ -409,6 +430,7 @@ function appendPresentationTargetGroup(
   renderedSources: boolean,
   renderedPreparation: boolean,
   historical: boolean,
+  renderedAlternatives: boolean,
 ): void {
   const identity = `- ${renderedSources || renderedPreparation ? (group.identity.requested ?? formatTargetGroupIdentity(group)) : formatTargetGroupIdentity(group)}`;
 
@@ -453,7 +475,11 @@ function appendPresentationTargetGroup(
   if (available) details.push(`available: ${available}`);
 
   if (group.recovery === undefined) {
-    const indexed = formatTargetAlternatives(group.alternatives);
+    const indexed = formatTargetAlternatives(
+      renderedAlternatives && group.alternatives
+        ? { ...group.alternatives, versions: [], refs: [] }
+        : group.alternatives,
+    );
     if (indexed) details.push(`indexed: ${indexed}`);
   }
 

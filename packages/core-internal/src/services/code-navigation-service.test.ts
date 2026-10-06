@@ -1663,84 +1663,89 @@ describe("CodeNavigationServiceImpl", () => {
     expect(result.resolution?.resolvedRef).toBe("v5.2.1");
   });
 
-  it("normalises unified search highlight spans", async () => {
-    const fn = mockFetch(() =>
-      Promise.resolve(
-        new Response(
-          JSON.stringify({
-            data: {
-              search: {
-                completed: true,
-                searchRef: "search-ref-123",
-                result: {
-                  query: "router middleware",
-                  queryWarnings: [],
-                  sources: ["CODE"],
-                  results: [
-                    {
-                      readTarget: null,
-                      id: "hit-1",
-                      resultType: "REPOSITORY_CODE",
-                      targetLabel: "npm:express@4.18.2",
-                      title: "router middleware",
-                      summary: "function router(req, res, next) { ... }",
-                      score: 0.92,
-                      highlights: {
-                        title: [[7, 17]],
-                        summary: [[9, 15]],
+  it.each([undefined, true, false])(
+    "normalises unified search highlight spans and partial wire mode %s",
+    async (allowPartialResults) => {
+      const fn = mockFetch(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data: {
+                search: {
+                  completed: true,
+                  searchRef: "search-ref-123",
+                  result: {
+                    query: "router middleware",
+                    queryWarnings: [],
+                    sources: ["CODE"],
+                    results: [
+                      {
+                        readTarget: null,
+                        id: "hit-1",
+                        resultType: "REPOSITORY_CODE",
+                        targetLabel: "npm:express@4.18.2",
+                        title: "router middleware",
+                        summary: "function router(req, res, next) { ... }",
+                        score: 0.92,
+                        highlights: {
+                          title: [[7, 17]],
+                          summary: [[9, 15]],
+                        },
+                        locator: {
+                          registry: "npm",
+                          packageName: "express",
+                          version: "4.18.2",
+                          filePath: "lib/router/index.js",
+                          startLine: 42,
+                          endLine: 57,
+                          language: "javascript",
+                        },
                       },
-                      locator: {
-                        registry: "npm",
-                        packageName: "express",
-                        version: "4.18.2",
-                        filePath: "lib/router/index.js",
-                        startLine: 42,
-                        endLine: 57,
-                        language: "javascript",
-                      },
+                    ],
+                    page: {
+                      offset: 0,
+                      limit: 20,
+                      returned: 1,
+                      hasMore: false,
                     },
-                  ],
-                  page: {
-                    offset: 0,
-                    limit: 20,
-                    returned: 1,
-                    hasMore: false,
+                    partialResults: false,
+                    sourceStatus: [],
                   },
-                  partialResults: false,
-                  sourceStatus: [],
+                  progress: null,
                 },
-                progress: null,
               },
-            },
-          }),
-          { headers: { "Content-Type": "application/json" } },
+            }),
+            { headers: { "Content-Type": "application/json" } },
+          ),
         ),
-      ),
-    );
+      );
 
-    const service = new CodeNavigationServiceImpl(
-      BASE_URL,
-      createMockTokenProvider(),
-      globalThis.fetch,
-    );
+      const service = new CodeNavigationServiceImpl(
+        BASE_URL,
+        createMockTokenProvider(),
+        globalThis.fetch,
+      );
 
-    const result = await service.search({
-      targets: [{ registry: "NPM", packageName: "express" }],
-      query: "router middleware",
-      allowPartialResults: true,
-    });
+      const result = await service.search({
+        targets: [{ registry: "NPM", packageName: "express" }],
+        query: "router middleware",
+        allowPartialResults,
+      });
 
-    expect(result.state).toBe("completed");
-    if (result.state !== "completed") {
-      throw new Error("expected completed search outcome");
-    }
-    expect(result.result.results[0]?.highlights).toEqual({
-      title: [[7, 17]],
-    });
-    const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
-    const body = JSON.parse(init.body as string);
-    expect(body.variables.allowPartialResults).toBe(true);
-  });
+      expect(result.state).toBe("completed");
+      if (result.state !== "completed") {
+        throw new Error("expected completed search outcome");
+      }
+      expect(result.result.results[0]?.highlights).toEqual({
+        title: [[7, 17]],
+      });
+      const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+      const body = JSON.parse(init.body as string);
+      expect(body.variables.allowPartialResults).toBe(
+        allowPartialResults ?? true,
+      );
+    },
+  );
 
   it("structural search evidence round-trip from search", async () => {
     await assertStructuralSearchRoundTrip(BASE_URL, "search");

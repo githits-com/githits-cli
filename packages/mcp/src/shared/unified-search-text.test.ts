@@ -2992,7 +2992,7 @@ describe("renderUnifiedSearchError", () => {
       },
     };
     expect(renderUnifiedSearchError(error)).toContain(
-      "Indexed versions/refs: 4.21.0",
+      "Indexed alternatives: versions/refs 4.21.0",
     );
   });
 });

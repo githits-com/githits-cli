@@ -171,6 +171,51 @@ export function resolutionSourceFacts(
   ];
 }
 
+/** Preparation conveys request intent without identifying an unknown requested commit. */
+function preparationConveysRequestedFacts(
+  resolution: SourceProvenanceResolution,
+  preparation: readonly DiscoveryIndexingEstimate[] | undefined,
+): boolean {
+  const requested = resolution.resolvedRequested ?? resolution.requested;
+  const requestedLabel = formatSourceIdentity(resolution.requested);
+  return (
+    preparation?.some(
+      (entry) =>
+        preparationMatchesIdentity(entry, requested) ||
+        Boolean(
+          !requested?.commitSha &&
+            requestedLabel &&
+            entry.targets.includes(requestedLabel),
+        ),
+    ) ?? false
+  );
+}
+
+/** Describe requested-ref work without claiming the observed requested SHA is the job. */
+export function formatRequestedIndexingExplanation(
+  resolution: SourceProvenanceResolution | null | undefined,
+  preparation: readonly DiscoveryIndexingEstimate[] | undefined,
+  repositoryState: SourceTextOptions["repositoryState"] = "indexing",
+): string | undefined {
+  if (
+    !resolution ||
+    resolution.freshness === "current" ||
+    !["requested_ref_indexing", "no_current_fallback"].includes(
+      resolution.freshnessReason ?? "",
+    ) ||
+    preparationConveysRequestedFacts(resolution, preparation)
+  )
+    return undefined;
+  const historical = repositoryState === "indexing when observed";
+  const indexing = historical
+    ? "was being indexed when observed"
+    : "is being indexed";
+  return resolution.freshnessReason === "no_current_fallback" &&
+    !resolution.served
+    ? `Requested target ${indexing}; no current snapshot ${historical ? "was available then" : "is available yet"}.`
+    : `Requested ref ${indexing}.`;
+}
+
 /** Retain recovery and requested facts while replacing internal identity serialization. */
 export function renderResolutionDetails(
   resolution: SourceProvenanceResolution | null | undefined,
@@ -189,16 +234,12 @@ export function renderResolutionDetails(
     reason === "requested_ref_indexing" ||
     reason === "no_current_fallback"
   ) {
-    if (
-      !preparation?.some((entry) =>
-        preparationMatchesIdentity(entry, resolution.resolvedRequested),
-      )
-    )
-      lines.push(
-        reason === "no_current_fallback" && !resolution.served
-          ? "Requested target is being indexed; no current snapshot is available yet."
-          : "Requested ref is being indexed.",
-      );
+    const explanation = formatRequestedIndexingExplanation(
+      resolution,
+      preparation,
+      options.repositoryState,
+    );
+    if (explanation) lines.push(explanation);
   } else if (resolution.freshness === "indexing" && !preparation?.length) {
     lines.push("Requested target is being indexed.");
   }
@@ -250,6 +291,7 @@ export function renderResolutionDetails(
           : line,
       ),
       options.width,
+      "  ",
     ),
   );
 }
@@ -262,17 +304,10 @@ export function formatRequestedProvenance(
   if (!resolution || resolution.freshness === "current") return undefined;
   const requested = resolution.resolvedRequested ?? resolution.requested;
   const target = formatSourceIdentity(requested);
-  const requestedLabel = formatSourceIdentity(resolution.requested);
-  if (
-    requestedLabel &&
-    !requested?.commitSha &&
-    preparation?.some((entry) => entry.targets.includes(requestedLabel))
-  )
-    return undefined;
   if (
     !requested ||
     !target ||
-    preparation?.some((entry) => preparationMatchesIdentity(entry, requested))
+    preparationConveysRequestedFacts(resolution, preparation)
   )
     return undefined;
   if (

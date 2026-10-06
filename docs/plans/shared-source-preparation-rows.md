@@ -656,3 +656,61 @@ inside PR #454; this is not a separate plan-only PR.
   Sibling scan covers list projection/callers/default-silent-JSON selection,
   read/navigation full identity fragments and search original identity facts.
   No further verified instance of the compact identity-loss class was found.
+
+- External implementation round 1: direction sound; accepted lost requested-ref
+  indexing explanation when no estimate matches, empty SOURCE read guidance, and
+  missing hanging indentation on top-level details. Search now reuses the shared requested-indexing explanation with only recognized indexing reasons selected;
+  the ref explanation does not claim the independently observed requested SHA is
+  the actual coalesced job. Shared prose wrapper owns continuation indentation.
+  Empty list guidance is the single-concern Luna dispatch 12; source facts,
+  requested aliases, native actions and machine contracts remain unchanged.
+
+- Round 1 closure verified: 862 tests pass in 30 files, 4,265 assertions;
+  typecheck and both builds pass. All four required source/built CLI/MCP smokes
+  pass (unauthenticated cohorts remain explicitly skipped). Internal full revised
+  delta re-review is clean. Luna dispatch 12 passes its named five-case proof;
+  coordinator full focused suite independently covers it. Initial full-resolution
+  reuse exposed three duplicated state lines and was narrowed to the common
+  requested-indexing clause before any commit. No new mechanism or placement
+  boundary was introduced. Fresh pending-version live capture follows because
+  npm:n8n@2.36.7 became indexed during review.
+
+### User correction: partial search default and grouped alternatives
+
+Verified 2026-10-06: the shared request builder forwarded an omitted partial flag
+and the transport substituted false. This prevented ready documentation subsets
+from appearing while repository work was pending, unlike grep. The user requires
+partial results by default. Keep explicit false supported in MCP and CLI via
+--no-allow-partial; retain --allow-partial compatibility. The shared request builder
+normalizes the product default and the service sends the same default for direct
+callers. Echo explicit false truthfully as well as true. Existing backend lifecycle,
+partialResults, pagination, and Sources attribution remain authoritative.
+
+Next mechanical dispatch 13 owns only the shared request default and its named
+regression. Coordinator owns transport/adapters, descriptions, truthful query echo,
+live verification, alternative attribution and common output grammar. Future slice
+is none unless a bounded mechanical fixture update is needed. Tests/builds wait for
+the worker to return. New default makes the earlier proposed unsearched Sources
+row unnecessary: Sources continues to mean actually searched or served evidence.
+Immediately indexed versions/refs move beneath their matching requested target
+in Preparing; suggested refs retain their advisory meaning.
+
+Dispatch 13 builder change accepted after root read of both hunks and a causal
+18-case proof across builder, transport, actual adapters and alternative placement
+(0 failures, 76 assertions). Worker compacted after producing the exact proof;
+root owns the final re-read. New live npm:express@1.0.7 returns hosted docs during
+actual repository job github:expressjs/express@8c3ad123 preparation. Broadened
+adapter coverage reveals stale old-grammar expectations; next mechanical dispatch
+14 updates only already exercised adapter/list assertions to the confirmed Sources
+and Preparing grammar. Root owns type closure, live evidence and full verification.
+
+Latest checkpoint before main rebase: complete focused command now covers 36
+files, 1,237 pass, 0 fail, 6,001 assertions. Typecheck and root/MCP builds pass.
+Dispatch14 proof was 19 pass (the zero-wait case expands into three formats),
+0 fail, 118 assertions; root reread accepted all changed assertions and full
+focused coverage independently proves them. No production code was delegated
+for these assertion updates. Local stdio MCP on fresh npm:express@1.0.8 confirms
+partial docs during repo ff712f31 preparation and same shared row layout.
+Main advanced to d2cfc30 (stable resolver promotion); rebase and ensuing package
+validation are next. All non-unit-test TS changes total 1,907 lines against the
+prior main base, including smoke assertions; do not grow past 2,000 lines.

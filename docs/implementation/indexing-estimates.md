@@ -35,7 +35,7 @@ and rounds up to ten seconds. Uncovered work adds a 30-second floor; no bounds
 uses the unchanged 30-second default. It never sums work or target labels.
 Discovery and grep/list suggestions cap at 120 seconds; read and legacy navigation
 cap at 60 seconds. These are request budgets, not completion promises. Search CLI
-renders wait seconds; grep/list/read/code CLI and MCP use milliseconds. Request
+renders wait seconds; grep/list/read/code CLI and MCP use milliseconds. Wait
 defaults do not change, and there is no automatic retry, polling or new status API.
 
 Annotated text displays total duration and active elapsed evidence; JSON preserves
@@ -73,7 +73,7 @@ not proof. Served dates are never borrowed. Missing job identity keeps the
 supplied labels. Ended search timing says `indexing when observed`; it supplies
 no poll action. `source-provenance-text.ts` owns the common row grammar.
 
-`indexing-estimates-text.ts` owns the Preparing section and native retry sentence shared by successful notices and errors. Its rows use terminal-aware hanging indentation and stay separated from file content. Free prose normalizes word spacing; raw file content and copyable actions bypass prose wrapping. `mapped-error-text.ts` owns human error wording. Tool boundaries supply native
+`indexing-estimates-text.ts` owns the Preparing section, Indexed alternatives prefix, and native retry sentence shared by successful notices and errors. Immediately indexed version/ref alternatives stay beneath their matching requested target; suggested refs remain separate advisory facts. Its rows use terminal-aware hanging indentation and stay separated from file content. Free prose normalizes word spacing; raw file content and copyable actions bypass prose wrapping. `mapped-error-text.ts` owns human error wording. Tool boundaries supply native
 retry actions; core and error classifiers retain backend facts instead of
 appending mixed CLI/MCP syntax. Default/text MCP errors are readable `isError`
 results; only explicit JSON serializes the existing error envelope. Progress IDs

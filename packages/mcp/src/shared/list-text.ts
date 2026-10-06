@@ -52,7 +52,11 @@ export function formatListText(
           ? []
           : [pending ? "No files available yet." : "No files."]),
         ...renderSourceSection(sourceRows, { width: options.width }),
-        `Read files: ${formatSourceReadAction(sourceBase, options.syntax)}`,
+        ...(paths.length
+          ? [
+              `Read files: ${formatSourceReadAction(sourceBase, options.syntax)}`,
+            ]
+          : []),
         ...paths,
       ]
     : [

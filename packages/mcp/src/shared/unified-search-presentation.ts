@@ -11,21 +11,21 @@ import {
 } from "./source-provenance-text.js";
 import type {
   LeanDocCoverage,
-  UnifiedSearchCompletedPayload,
+  UnifiedSearchCompletedPresentation,
   UnifiedSearchHitPayload,
-  UnifiedSearchIncompletePayload,
+  UnifiedSearchIncompletePresentation,
   UnifiedSearchProgressPayload,
   UnifiedSearchQueryEcho,
   UnifiedSearchSourceStatusPayload,
-  UnifiedSearchStatusCompletedPayload,
-  UnifiedSearchStatusIncompletePayload,
+  UnifiedSearchStatusCompletedPresentation,
+  UnifiedSearchStatusIncompletePresentation,
 } from "./unified-search-response.js";
 
 export type UnifiedSearchPresentationInput =
-  | UnifiedSearchCompletedPayload
-  | UnifiedSearchIncompletePayload
-  | UnifiedSearchStatusCompletedPayload
-  | UnifiedSearchStatusIncompletePayload;
+  | UnifiedSearchCompletedPresentation
+  | UnifiedSearchIncompletePresentation
+  | UnifiedSearchStatusCompletedPresentation
+  | UnifiedSearchStatusIncompletePresentation;
 
 export type UnifiedSearchAvailabilityKind =
   | "no_snapshot"
@@ -352,7 +352,15 @@ export function projectUnifiedSearchPresentation(
 function extractSnapshot(
   payload: UnifiedSearchPresentationInput,
 ): SnapshotFacts | undefined {
-  if ("result" in payload) return payload.result;
+  if ("result" in payload) {
+    const result = payload.result;
+    return result
+      ? {
+          ...result,
+          sourceStatus: result.sourceStatusForText ?? result.sourceStatus,
+        }
+      : undefined;
+  }
   if (!("partialResults" in payload) || payload.partialResults === undefined) {
     return undefined;
   }
@@ -361,7 +369,7 @@ function extractSnapshot(
     partialResults: payload.partialResults,
     hasMore: payload.hasMore,
     results: payload.results,
-    sourceStatus: payload.sourceStatus,
+    sourceStatus: payload.sourceStatusForText ?? payload.sourceStatus,
     evidenceNotice: payload.evidenceNotice,
   };
 }
@@ -824,6 +832,12 @@ function projectProvenanceResolution(
     resolvedRequested: resolution.resolvedRequested,
     served: resolution.served,
     freshness: resolution.freshness,
+    // Only known indexing explanations belong in human presentation facts.
+    ...(["requested_ref_indexing", "no_current_fallback"].includes(
+      resolution.freshnessReason ?? "",
+    )
+      ? { freshnessReason: resolution.freshnessReason }
+      : {}),
   };
 }
 
