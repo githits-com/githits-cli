@@ -5,6 +5,139 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.27.0] - 2026-10-06
+
+Pre-1.0 minor release. Custom MCP service providers must now supply
+`resolveTargetService`. Search returns partial results by default; use CLI
+`--no-allow-partial` or MCP `allow_partial_results: false` for atomic results.
+Production schema support was verified during release preparation; hosted clients
+require adoption and deployment of the released MCP package.
+
+### Added
+
+- **Stable target resolution** - Enable `githits resolve` and `resolve_target`
+  by default, with stable guidance, public resolver clients and smoke coverage.
+  OSS dependency discovery wording and compact uncertainty/empty-result text
+  guide follow-up calls. MCP providers must now supply `resolveTargetService`;
+  hosted availability follows released-package adoption and deployment.
+
+### Changed
+
+- **Readable MCP errors** - Default and explicit text responses now explain
+  failures in readable text, including early validation and service-provider
+  failures. Request `format: "json"` when parsing the structured error
+  envelope; its error codes, retryability and supplied metadata remain
+  available.
+
+- **Dated search snapshot provenance** - Shared CLI/MCP search and retained
+  status text show independently known UTC commit dates without changing
+  read-now or conditional wait advice; shared read and legacy navigation
+  provenance retain full timestamps. Production backend schema deployment must
+  be confirmed before client release or hosted adoption, or reads fail and
+  search/status fallback drops target provenance.
+
+- **Shared source and preparation rows** - Search/status, grep, list and
+  annotated reads use consistent pinned source and actual-work identities,
+  independently known dates and compact timing. List adds selected nullable
+  commit timestamps without fetching detailed metadata for text. Confirm
+  production backend schema support before client release or hosted adoption:
+  GraphQL validates the complete list/read query even when directives skip
+  fields. Search now defaults to partial results so ready sources contribute
+  while others prepare; opt out with CLI --no-allow-partial or MCP
+  allow_partial_results: false. Indexed alternatives stay with their
+  preparation target. Grep hides backend input numbers in human text and puts
+  read guidance after matches. Raw content, silent paths, JSON actions and
+  native continuations remain unchanged.
+
+- **Actionable indexing preparation** - Grep lists resolved sources and omitted
+  targets separately, marks sources without results on the returned page,
+  combines each omission's indexing status and timing, and places concise retry
+  guidance after the matches. Waiting tools preserve uniform advisory indexing
+  duration metadata and share timing/wait logic. Production backend schema
+  deployment is required before client release or hosted adoption.
+
+- **CLI skill parity** - Code and package skills route vague dependency names
+  through stable `githits resolve` with the same selection gates as MCP. Code
+  guidance documents the partial-search default and atomic opt-out.
+
+### Fixed
+
+- **Changelog preview precedence** - MCP `pkg_changelog` accepts `verbose:true`
+  together with `body_lines` or `omit_bodies:true` and fetches and returns full
+  bodies instead of rejecting redundant preview controls.
+
+- **Consistent indexing messages** - Read, list, search and annotated legacy
+  output share compact advisory total timing and native retry guidance. List
+  preserves estimates supplied by zero-wait errors, distinguishes pending
+  inventories from available data, and puts retry advice after cursor
+  instructions; raw content and paths-only output stay clean.
+
+- **Resolver eval accounting** - Include CLI `githits resolve` calls in agent-eval
+  tool-call metrics and flag them as CLI fallbacks in MCP-only evaluations.
+
+## [@githits/mcp 0.27.0] - 2026-10-06
+
+Pre-1.0 minor release. Custom MCP service providers must now supply
+`resolveTargetService`. Search returns partial results by default; use CLI
+`--no-allow-partial` or MCP `allow_partial_results: false` for atomic results.
+Production schema support was verified during release preparation; hosted clients
+require adoption and deployment of the released MCP package.
+
+### Added
+
+- **Stable target resolution** - Enable `githits resolve` and `resolve_target`
+  by default, with stable guidance, public resolver clients and smoke coverage.
+  OSS dependency discovery wording and compact uncertainty/empty-result text
+  guide follow-up calls. MCP providers must now supply `resolveTargetService`;
+  hosted availability follows released-package adoption and deployment.
+
+### Changed
+
+- **Readable MCP errors** - Default and explicit text responses now explain
+  failures in readable text, including early validation and service-provider
+  failures. Request `format: "json"` when parsing the structured error
+  envelope; its error codes, retryability and supplied metadata remain
+  available.
+
+- **Dated search snapshot provenance** - Shared CLI/MCP search and retained
+  status text show independently known UTC commit dates without changing
+  read-now or conditional wait advice; shared read and legacy navigation
+  provenance retain full timestamps. Production backend schema deployment must
+  be confirmed before client release or hosted adoption, or reads fail and
+  search/status fallback drops target provenance.
+
+- **Shared source and preparation rows** - Search/status, grep, list and
+  annotated reads use consistent pinned source and actual-work identities,
+  independently known dates and compact timing. List adds selected nullable
+  commit timestamps without fetching detailed metadata for text. Confirm
+  production backend schema support before client release or hosted adoption:
+  GraphQL validates the complete list/read query even when directives skip
+  fields. Search now defaults to partial results so ready sources contribute
+  while others prepare; opt out with CLI --no-allow-partial or MCP
+  allow_partial_results: false. Indexed alternatives stay with their
+  preparation target. Grep hides backend input numbers in human text and puts
+  read guidance after matches. Raw content, silent paths, JSON actions and
+  native continuations remain unchanged.
+
+- **Actionable indexing preparation** - Grep lists resolved sources and omitted
+  targets separately, marks sources without results on the returned page,
+  combines each omission's indexing status and timing, and places concise retry
+  guidance after the matches. Waiting tools preserve uniform advisory indexing
+  duration metadata and share timing/wait logic. Production backend schema
+  deployment is required before client release or hosted adoption.
+
+### Fixed
+
+- **Changelog preview precedence** - MCP `pkg_changelog` accepts `verbose:true`
+  together with `body_lines` or `omit_bodies:true` and fetches and returns full
+  bodies instead of rejecting redundant preview controls.
+
+- **Consistent indexing messages** - Read, list, search and annotated legacy
+  output share compact advisory total timing and native retry guidance. List
+  preserves estimates supplied by zero-wait errors, distinguishes pending
+  inventories from available data, and puts retry advice after cursor
+  instructions; raw content and paths-only output stay clean.
+
 ## [githits 0.26.0] - 2026-10-05
 
 ### Added

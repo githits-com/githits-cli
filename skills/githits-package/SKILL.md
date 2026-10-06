@@ -48,6 +48,7 @@ githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-sta
 
 ## Decision Flow
 
+- Need a canonical target for an OSS dependency name: use `githits resolve "<name>"`; skip resolution for known canonical targets. Reuse only an unambiguous EXACT/HIGH best with CLEAR or NOT_APPLICABLE malicious-content status. Other or missing statuses are non-actionable; narrow or explicitly choose an actionable candidate for MEDIUM/LOW or ambiguity. Never auto-select, and do not treat CLEAR as vulnerability-free. A selected `site:` is docs-only.
 - Need current package health: start with `githits pkg info <registry:name>`.
 - Need security status for a specific installed version: use `githits pkg vulns <registry:name@version>`.
 - Need vulnerabilities in resolved dependency versions: add `pkg vulns --transitive`; this opt-in adds graph-analysis cost and audits the resolved graph, not a local application lockfile.

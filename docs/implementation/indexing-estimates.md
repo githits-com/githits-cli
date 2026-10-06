@@ -98,10 +98,44 @@ merged as `884d09bda21666d63386bc23e267e0812a4d06e7`. Containing revision
 Backend-owner authenticated checks verified pending/ready metadata, both diff
 sides, null-singular read handoff, retained pagination and clearing to `[]`.
 
-Production field support is unverified. Verify production schema deployment
-before releasing/adopting these client selections. Dev or local tests do not
-establish production support; no compatibility flag or missing-field fallback
-is provided.
+Production field support was verified on 2026-10-06 during 0.27.0 release
+preparation against `https://oss.githits.dev/api/graphql`. Ten complete client
+query documents passed validation with only their root execution skipped:
+unified read, compact/detailed list, grep, listRepoFiles, fetchCodeContext,
+grepRepo, listPackageDocs, search and search status. An unknown-field negative
+control was rejected even under the root skip, proving that the complete
+documents were validated. This covers every new result-level array and commit
+date selection without creating indexing work; it does not assert a backend
+deployment revision or pending-state execution. Local evidence is retained under
+`.agent-eval/release-0.27.0/`. No compatibility flag or missing-field fallback is
+provided. Hosted adoption still requires the released package and deployment.
+
+Release-preparation execution checks also passed the authenticated production CLI
+stable cohort (161 smoke steps) and ten focused local MCP requests covering
+resolver text/JSON, read JSON, list text/JSON, grep/search JSON, overlapping
+changelog preview controls and text/JSON validation errors. Source smoke suites
+passed in file-auth mode with expected unauthenticated skips; built Node CLI/MCP
+smokes passed. The default-auth source launches could not use credentials under
+the disposable home, so authenticated checks supplied the host token only through
+an in-memory child environment. No credential was printed.
+
+The broad ad hoc authenticated MCP smoke did not complete: its SDK caller hit the
+default 60-second request timeout without recording the failing tool. Focused
+checks establish the changed surfaces, not a passing broad MCP live cohort.
+Experimental Research was not rerun; its existing backend investigation remains
+in the backlog.
+
+Two local Codex CLI-skill workloads (`unified-search-investigation` and
+`resolution-follow-up`) produced successful structured answers in 121.5 seconds.
+The captured CLI commands included fuzzy resolution, followed by source evidence
+for both Lodash candidates; the answer retained MEDIUM identity uncertainty.
+The original metrics counted 13 logical calls but omitted the resolver CLI
+invocation; raw stdout confirmed that invocation. Release preparation fixed the
+missing harness mapping and added accounting/isolation regression coverage;
+reparsing that captured trace includes the resolver without rerunning the agent. Reports recorded no warnings; Skills mode did
+not produce a separate isolation-violations artifact. These are trace observations,
+not quality grades or before/after improvement claims. Artifacts remain under
+`.agent-eval/release-0.27.0/skills-eval/`.
 
 ## Prior grep increment verification (2026-10-05)
 
@@ -144,7 +178,7 @@ The final full unit suite passed 5,477 tests in 233 files after the alternative-
 
 The initial authenticated dev checks were blocked in macOS Keychain credential access. A user-requested retry on 2026-10-05 succeeded: CLI list returned ready express 1.0.3 paths, and CLI/MCP list returned pending SQLAlchemy rel_2_0_0 with advisory total bounds of 38-57 seconds and native 70000 ms retry actions. A cold rel_2_0_1 MCP read returned the same total bounds, observable elapsed execution of 0 seconds and a 60000 ms retry action. Later bounded reads returned source. The live read exposed overlapping ref-only alternatives in both backend arrays; the shared text formatter now lists those refs once while retaining distinct package versions and all JSON evidence. After that correction, a cold rel_2_0_2 live MCP read confirmed a single indexed-ref line with the same timing and native retry advice; 104 focused formatter/read/list tests and the build passed.
 
-A 1 ms read still returned a backend TIMEOUT with no indexing metadata, exposing the phrase "Repository preparation exceeded waitTimeoutMs before an indexing target was available." A transitional readable result also had provisional target resolution with empty indexingEstimates; the next read was current. These observations need backend contract investigation before inferring pending timing from that state; see the backlog. Production support remains unverified. The earlier neutral and explicit GitHits agent evaluations did not establish pending-state agent UX or a quality claim; live tool checks do not replace qualitative agent evaluation.
+A 1 ms read still returned a backend TIMEOUT with no indexing metadata, exposing the phrase "Repository preparation exceeded waitTimeoutMs before an indexing target was available." A transitional readable result also had provisional target resolution with empty indexingEstimates; the next read was current. These observations need backend contract investigation before inferring pending timing from that state; see the backlog. Production schema support was unverified at that checkpoint; the release validation above closes the field-support gate. The earlier neutral and explicit GitHits agent evaluations did not establish pending-state agent UX or a quality claim; live tool checks do not replace qualitative agent evaluation.
 
 Internal review and three external Claude rounds completed with no remaining material findings. The final fresh-context check confirmed format propagation, native wait units/caps, preserved raw output and zero-wait list metadata. Prose spacing normalization was retained as intentional presentation behavior; no source-content formatting or structured evidence changed.
 
