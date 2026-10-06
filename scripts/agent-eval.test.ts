@@ -3875,6 +3875,7 @@ describe("agent eval harness", () => {
       "read",
       "/bin/zsh -lc 'githits read npm:express lib/express.js --lines 1-90'",
     ],
+    ["resolve_target", "/bin/zsh -lc 'githits resolve lodahs'"],
   ])(
     "extracts top-level %s CLI calls from shell-wrapped events",
     (tool, command) => {
@@ -3901,14 +3902,18 @@ describe("agent eval harness", () => {
     },
   );
 
-  it.each(["list", "read"])(
+  it.each([
+    ["list", "list"],
+    ["read", "read"],
+    ["resolve_target", "resolve"],
+  ])(
     "flags top-level %s as a CLI fallback in MCP evals",
-    (tool) => {
+    (tool, commandName) => {
       const stdout = JSON.stringify({
         type: "item.completed",
         item: {
           type: "command_execution",
-          command: `githits ${tool} npm:express lib/express.js`,
+          command: `githits ${commandName} npm:express lib/express.js`,
           status: "completed",
         },
       });
