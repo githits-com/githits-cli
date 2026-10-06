@@ -434,10 +434,10 @@ query List(
       requested {
         kind
         gitRef
-        registry @include(if: $includeDetailedFields)
-        packageName @include(if: $includeDetailedFields)
-        version @include(if: $includeDetailedFields)
-        repoUrl @include(if: $includeDetailedFields)
+        registry
+        packageName
+        version
+        repoUrl
         commitSha @include(if: $includeDetailedFields)
       }
       resolvedRequested {

@@ -377,7 +377,8 @@ same-ref/different-commit omission.
    omit it retain their current selection. Do not expose a user/MCP flag. Use
    GraphQL field-selection variables and directives to keep
    per-entry metadata, browse actions, retry arrays and opaque indexing refs
-   detailed-only. The text subset is requested kind/ref, resolved-requested and
+   detailed-only. The text subset is requested kind/ref and repository/package identity,
+   resolved-requested and
    served repository/ref/full SHA/date, plus freshness/reason. The schema must
    accept omitted conditional fields while preserving returned nulls. Add the
    date only to served/resolved-requested identities; original request is undated.
@@ -640,3 +641,18 @@ inside PR #454; this is not a separate plan-only PR.
   search/grep/read/list calls also verified shared actual-work output and native
   actions. Final focused suite is now 842 pass, 0 fail, 4,136 assertions. Literal wait1 is seconds for search, milliseconds for the
   other three; native action units remain unchanged.
+
+- Internal technical review: direction sound. Accepted compact-list unresolved
+  identity loss: requested repository/package fields were detailed-only, so a
+  missing repository ref could render only `Requested: missing`. The ordinary
+  unresolved input shape has bounded display impact; four existing identity fields
+  close it without new infrastructure. Wire and output regressions delegated as
+  one narrow follow-up. Default compact and silent provenance still opt out;
+  recovery arrays and requested SHA remain detailed-only.
+
+- Dispatch 11 accepted after coordinator verification: named unresolved identity
+  regressions 3 pass, 0 fail, 10 assertions; six-file list closure 129 pass,
+  0 fail, 676 assertions. Typecheck, CLI build and MCP build pass afterward.
+  Sibling scan covers list projection/callers/default-silent-JSON selection,
+  read/navigation full identity fragments and search original identity facts.
+  No further verified instance of the compact identity-loss class was found.

@@ -376,6 +376,78 @@ describe("ListServiceImpl", () => {
     expect(result.targetResolution?.suggestedRefs).toBeUndefined();
   });
 
+  it("compact unresolved requested identity selects and projects repository and package labels", async () => {
+    const cases = [
+      {
+        target: "github:owner/repo@missing",
+        requested: {
+          kind: "git_branch",
+          repoUrl: "https://github.com/owner/repo",
+          gitRef: "missing",
+        },
+      },
+      {
+        target: "npm:example@missing",
+        requested: {
+          kind: "package_exact_version",
+          registry: "npm",
+          packageName: "example",
+          version: "missing",
+          gitRef: null,
+        },
+      },
+    ];
+
+    for (const { target, requested } of cases) {
+      const fetchFn = mock(() =>
+        Promise.resolve(
+          jsonResponse(
+            successBody({
+              requestedTarget: target,
+              canonicalTarget: target,
+              targetResolution: {
+                requested,
+                resolvedRequested: null,
+                served: null,
+                freshness: "unavailable",
+                freshnessReason: null,
+              },
+            }),
+          ),
+        ),
+      );
+      const service = new ListServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+
+      const result = await service.list({
+        target,
+        includeDetailedFields: false,
+        includeTargetProvenance: true,
+      });
+      const request = readRequest(fetchFn);
+
+      expect(request.variables).toEqual({
+        target,
+        includeDetailedFields: false,
+        includeTargetProvenance: true,
+        includeReadActions: false,
+      });
+      expect(parseListSelection(request.query)).toEqual(
+        expectedListSelection(),
+      );
+      expect(result.targetResolution).toEqual({
+        requested,
+        resolvedRequested: null,
+        served: null,
+        freshness: "unavailable",
+        freshnessReason: null,
+      });
+    }
+  });
+
   it("list provenance wire omits provenance for default compact calls", async () => {
     const fetchFn = mock(() => Promise.resolve(jsonResponse(successBody())));
     const service = new ListServiceImpl(
@@ -1277,10 +1349,10 @@ function expectedListSelection(): SelectionTree {
   const requestedIdentity = {
     kind: null,
     gitRef: null,
-    registry: detailed(),
-    packageName: detailed(),
-    version: detailed(),
-    repoUrl: detailed(),
+    registry: null,
+    packageName: null,
+    version: null,
+    repoUrl: null,
     commitSha: detailed(),
   };
   const servedIdentity = {

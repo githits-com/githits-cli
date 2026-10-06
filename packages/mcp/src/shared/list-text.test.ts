@@ -664,6 +664,72 @@ describe("list source rows", () => {
     expect(pendingWithoutResolution).toContain("github:example/repo@main");
   });
 
+  it("compact unresolved requested identity retains a repository target", () => {
+    const target = "github:owner/repo@missing";
+    const text = formatListText(
+      sourceResult({
+        requestedTarget: target,
+        canonicalTarget: target,
+        targetResolution: {
+          requested: {
+            kind: "git_branch",
+            repoUrl: "https://github.com/owner/repo",
+            gitRef: "missing",
+          },
+          resolvedRequested: null,
+          served: null,
+          freshness: "unavailable",
+          freshnessReason: null,
+        },
+      }),
+    );
+
+    expect(text).toBe(
+      [
+        "No files.",
+        `Read files: read -- '${target}' $path`,
+        "",
+        `Requested: ${target}`,
+        "Target unavailable.",
+      ].join("\n"),
+    );
+    expect(text).not.toContain("Sources:");
+  });
+
+  it("compact unresolved requested identity retains a package target", () => {
+    const target = "npm:example@missing";
+    const text = formatListText(
+      sourceResult({
+        requestedTarget: target,
+        canonicalTarget: target,
+        targetResolution: {
+          requested: {
+            kind: "package_exact_version",
+            registry: "npm",
+            packageName: "example",
+            version: "missing",
+            gitRef: null,
+          },
+          resolvedRequested: null,
+          served: null,
+          freshness: "unavailable",
+          freshnessReason: null,
+        },
+      }),
+    );
+
+    expect(text).toBe(
+      [
+        "No files.",
+        `Read files: read -- '${target}' $path`,
+        "",
+        `Requested: ${target}`,
+        "Target unavailable.",
+      ].join("\n"),
+    );
+    expect(text).not.toContain("Sources:");
+  });
+
   it("keeps silent source output byte-for-byte paths only", () => {
     const result = sourceResult({
       entries: [entry("FILE", "src/index.ts"), entry("DIRECTORY", "docs")],

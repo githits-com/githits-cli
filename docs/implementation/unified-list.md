@@ -37,7 +37,8 @@ actions, file metadata, detailed source resolution, available refs and versions,
 and singular indexing estimates. Normal text opts into service-only
 `includeTargetProvenance`; silent text opts out and omitted service callers retain
 the old compact selection. Detailed mode always selects provenance. The minimal
-block contains requested kind/ref, resolved-requested and served repo/ref/full SHA/
+block contains requested kind/ref and repository/package identity, so unresolved
+requests retain their full target. It also contains resolved-requested and served repo/ref/full SHA/
 nullable `committedAt`, freshness and reason. Recovery arrays and opaque nested
 indexing refs remain detailed-only. Selected nulls and omitted fields stay distinct;
 JSON preserves full timestamps. It does not request content or snippets.

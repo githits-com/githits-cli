@@ -341,8 +341,16 @@ on both surfaces (24 passing parity checks, 48 assertions); examples and unit
 assertions establish the row wording. Production schema support remains required
 before release or hosted adoption.
 
-Implementation review evidence is recorded after the clean round.
-
+Internal review accepted an unresolved compact-list identity gap: original
+repository/package fields had been gated behind detailed metadata, so an
+unresolved repository could render only its ref. Normal list text now selects
+those four existing fields; requested SHA and recovery arrays stay detailed-only.
+Exact wire/projection and repository/package output regressions pass (3 tests,
+10 assertions); the six-file list service/projection/request/CLI/MCP closure passes
+129 tests with 676 assertions. Typecheck and both builds pass after this correction.
+The bounded sibling scan covered list projections and caller selection, full
+read/navigation identity fragments and search provenance. External review evidence
+is recorded after the clean round.
 
 ## Live pending-version verification (2026-10-06)
 
