@@ -247,3 +247,8 @@ Codex recorded 30,808 uncached / 114,176 cached / 1,427 output tokens, estimated
 $0.0049 for the whole run. These are neutral observations, not a quality grade or
 causal token/discovery improvement. Artifacts are ignored under
 `.agent-eval/resolve-dependency-framing-2026-10-06/`.
+
+Dependency-framing internal review and Claude Opus 5.5 refinement round 3 were
+clean, including the permitted fresh-context check after the user correction.
+The reviewer verified the complete 79-character sentence and guide/skill parity;
+no schema, runtime or continuation-gate change was found.
