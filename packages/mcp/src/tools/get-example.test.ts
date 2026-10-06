@@ -120,6 +120,7 @@ describe("getExampleTool", () => {
       language: "python",
       licenseMode: "yolo",
       includeExplanation: false,
+      sourceFormat: "mcp",
     });
   });
 
@@ -135,6 +136,7 @@ describe("getExampleTool", () => {
       language: undefined,
       licenseMode: undefined,
       includeExplanation: false,
+      sourceFormat: "mcp",
     });
   });
 
@@ -152,6 +154,7 @@ describe("getExampleTool", () => {
         language: undefined,
         licenseMode: undefined,
         includeExplanation: false,
+        sourceFormat: "mcp",
       },
       { signal },
     );

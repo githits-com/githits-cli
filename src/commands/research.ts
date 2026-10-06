@@ -18,6 +18,7 @@ import { createContainer } from "../container.js";
 import type { Spinner } from "../shared/spinner.js";
 import { startSpinner } from "../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
+import { sanitizeTerminalMarkdown } from "../shared/terminal-markdown.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,
@@ -115,18 +116,6 @@ export async function researchAction(
 /** Print backend-owned Markdown through the terminal safety boundary. */
 export function formatAgenticAskHumanResponse(response: unknown): string {
   return sanitizeTerminalMarkdown(extractAgenticAskDisplay(response));
-}
-
-function sanitizeTerminalMarkdown(value: string): string {
-  return value
-    .split(/\r\n|\n|\r/)
-    .map((line) =>
-      line
-        .split("\t")
-        .map((segment) => sanitizeTerminalText(segment))
-        .join("\t"),
-    )
-    .join("\n");
 }
 
 function isCallerCancellation(

@@ -61,6 +61,7 @@ describe("toCallableTool", () => {
     await callable.execute({ query: "hello", unknown: "ignored" });
     expect(search).toHaveBeenCalledWith({
       query: "hello",
+      sourceFormat: "mcp",
       language: undefined,
       licenseMode: undefined,
       includeExplanation: false,

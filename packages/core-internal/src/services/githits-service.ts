@@ -97,6 +97,8 @@ export function parseRetryAfterSeconds(
  */
 export interface SearchParams {
   query: string;
+  /** Source read syntax; omission preserves the server's client default. */
+  sourceFormat?: "cli" | "mcp" | "url";
   language?: string;
   licenseMode?: "strict" | "yolo" | "custom";
   includeExplanation?: boolean;
@@ -153,6 +155,7 @@ export class GitHitsServiceImpl implements GitHitsService {
             headers: this.headers(),
             body: JSON.stringify({
               query: params.query,
+              source_format: params.sourceFormat,
               language: params.language,
               license_mode: params.licenseMode ?? "strict",
               include_explanation: params.includeExplanation ?? false,
