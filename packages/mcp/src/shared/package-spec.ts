@@ -1,7 +1,7 @@
 import {
   PKGSEER_REGISTRY_ARGS,
   PKGSEER_REGISTRY_LIST,
-} from "@githits/core-internal";
+} from "@githits/core-internal/browser";
 
 /**
  * Known package registries supported by code navigation targets.

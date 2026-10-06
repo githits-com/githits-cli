@@ -81,10 +81,6 @@ async function main(): Promise<void> {
     new FileSystemServiceImpl(),
     argv,
   );
-  const resolveAvailable = shouldRegisterCliCommand(
-    "resolve",
-    experimentalCliPolicy.tools,
-  );
   const researchAvailable = shouldRegisterCliCommand(
     "research",
     experimentalCliPolicy.tools,
@@ -127,10 +123,7 @@ async function main(): Promise<void> {
     .hook("postAction", (_thisCommand, actionCommand) => {
       endTelemetrySpan(commandSpans.get(actionCommand));
     })
-    .addHelpText(
-      "after",
-      buildGettingStartedText({ researchAvailable, resolveAvailable }),
-    );
+    .addHelpText("after", buildGettingStartedText({ researchAvailable }));
 
   // Setup command
   registerInitCommand(program);
@@ -148,9 +141,7 @@ async function main(): Promise<void> {
   if (researchAvailable) {
     registerResearchCommand(program);
   }
-  if (resolveAvailable) {
-    registerResolveCommand(program);
-  }
+  registerResolveCommand(program);
   registerSettingsCommand(program);
   registerReadCommand(program);
   registerListCommand(program);
@@ -263,20 +254,17 @@ function isSearchHelpTarget(value: string | undefined): boolean {
 
 function buildGettingStartedText(options: {
   researchAvailable: boolean;
-  resolveAvailable: boolean;
 }): string {
   const experimentalResearch = options.researchAvailable
     ? '\n  githits research npm:express "How?"  Research one open-source target'
-    : "";
-  const experimentalResolve = options.resolveAvailable
-    ? "\n  githits resolve express              Resolve a package or repository name"
     : "";
   return `
 ${colorizeBrand("Getting started:", "primary", useColors, { bold: true })}
   githits init                         Connect GitHits to your coding agents
   githits login                        Sign in to your GitHits account
   githits mcp                          Show MCP setup instructions
-  githits example "query"              Find real-world implementations${experimentalResearch}${experimentalResolve}
+  githits example "query"              Find real-world implementations${experimentalResearch}
+  githits resolve express              Resolve a package or repository name
 
 Learn more at https://githits.com
 Docs: https://docs.githits.com

@@ -12,10 +12,7 @@ import {
   createMockResolveTargetService,
   defaultUnifiedSearchOutcome,
 } from "../services/test-helpers.js";
-import {
-  createParityExperimentalMcpTool,
-  createParityMcpTool,
-} from "./parity-test-helpers.js";
+import { createParityMcpTool } from "./parity-test-helpers.js";
 
 function outcomeWithPartial(partialResults: boolean) {
   if (defaultUnifiedSearchOutcome.state !== "completed") {
@@ -637,7 +634,7 @@ describe("S2b readiness", () => {
             log.mockRestore();
           }
         } else {
-          const resolver = createParityExperimentalMcpTool("resolve_target", {
+          const resolver = createParityMcpTool("resolve_target", {
             resolveTargetService,
           });
           const resolution = await resolver.handler(

@@ -3,7 +3,7 @@ import {
   buildCliDocsReadCommand,
   shellQuoteExact,
 } from "@githits/mcp/internal";
-import { isResolveDirectTargetUnwarned } from "./resolve-smoke-guidance.ts";
+import { isResolveDirectTargetUnwarned } from "@githits/mcp/smoke-test";
 import {
   createIsolatedSmokeEnvironment,
   createScopedSmokeEnvironment,
@@ -47,15 +47,10 @@ export type CliLiveCohortStatus = "passed" | "skipped";
 
 export function formatCliLiveCohortSummary(
   stable: CliLiveCohortStatus,
-  experimental: CliLiveCohortStatus,
 ): string {
-  if (stable === "passed" && experimental === "passed") {
-    return "CLI smoke passed: stable and experimental live cohorts passed";
-  }
-  if (stable === "skipped" && experimental === "skipped") {
-    return "CLI smoke skipped: stable and experimental live cohorts skipped (AUTH_REQUIRED)";
-  }
-  return `CLI smoke partial pass: stable live cohort ${stable}; experimental live cohort ${experimental}`;
+  return stable === "passed"
+    ? "CLI smoke passed: stable live cohort passed"
+    : "CLI smoke skipped: stable live cohort skipped (AUTH_REQUIRED)";
 }
 
 interface JsonParityFixture {
@@ -81,6 +76,7 @@ export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
   "logout",
   "mcp",
   "example",
+  "resolve",
   "doctor",
   "settings",
   "read",
@@ -97,13 +93,18 @@ export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
 export const EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS = [
   ...EXPECTED_STABLE_TOP_LEVEL_COMMANDS,
   "research",
-  "resolve",
 ] as const;
 
 /** Backwards-compatible name for the exact stable baseline command set. */
 export const EXPECTED_TOP_LEVEL_COMMANDS = EXPECTED_STABLE_TOP_LEVEL_COMMANDS;
 
 export const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
+  {
+    name: "resolve_target",
+    cliArgs: ["resolve", "express", "--json"],
+    mcpTool: "resolve_target",
+    mcpArgs: { name: "express", format: "json" },
+  },
   {
     name: "pkg_info",
     cliArgs: ["pkg", "info", "npm:express", "--json"],
@@ -1023,8 +1024,8 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "stable root help should omit research",
     );
     assert(
-      !helpResult.stdout.includes("resolve"),
-      "stable root help should omit resolve",
+      helpResult.stdout.includes("resolve"),
+      "stable root help should expose resolve",
     );
 
     const removedFeedback = await runCliWithEnv(["feedback", "--accept"], env);
@@ -1073,34 +1074,24 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       );
     }
 
-    const disabledResolve = await runCliWithEnv(["resolve", "express"], env);
+    const resolveHelp = await runCliWithEnv(["resolve", "--help"], env);
     assert(
-      disabledResolve.exitCode !== 0 &&
-        `${disabledResolve.stderr}\n${disabledResolve.stdout}`.includes(
-          `Experimental CLI command "resolve" is disabled. Enable it in ${configPath} by adding:\n[experimental]\ntools = true`,
-        ),
-      "disabled resolve should expose the exact config path and snippet",
+      resolveHelp.exitCode === 0 &&
+        resolveHelp.stdout.includes("Usage: githits resolve"),
+      "stable resolver help should be available",
     );
-
-    const disabledResolveJson = await runCliWithEnv(
+    const resolveJson = await runCliWithEnv(
       ["resolve", "express", "--json"],
       env,
     );
     assertJsonErrorCode(
-      disabledResolveJson,
-      "disabled resolve JSON",
-      "INVALID_ARGUMENT",
+      resolveJson,
+      "stable resolve auth probe",
+      "AUTH_REQUIRED",
     );
     assert(
-      disabledResolveJson.stdout.trim() === "",
-      "disabled resolve JSON should keep stdout empty",
-    );
-    assert(
-      assertCleanErrorEnvelope(
-        disabledResolveJson.stderr,
-        "disabled resolve JSON",
-      ).error.includes(`[experimental]\ntools = true`),
-      "disabled resolve JSON should retain the enable snippet",
+      resolveJson.stdout.trim() === "",
+      "stable resolver auth error should keep stdout clean",
     );
 
     const stableDiffHelp = await runCliWithEnv(["code", "diff", "--help"], env);
@@ -1320,7 +1311,7 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
       resolveHelp.exitCode === 0 &&
         resolveHelp.stdout.includes("credentials") &&
         resolveHelp.stdout.includes("private code"),
-      "experimental resolve help should expose privacy guidance",
+      "resolve help should expose privacy guidance",
     );
     const codeDiffHelp = await runCliWithEnv(["code", "diff", "--help"], env);
     assert(
@@ -1412,11 +1403,11 @@ async function assertLiveOrAuthRequired(
   return false;
 }
 
-export function assertExperimentalCliResolveText(resolveText: string): void {
+export function assertCliResolveText(resolveText: string): void {
   assert(
     resolveText.includes("Targets:") &&
       /\n\s+\d+\. (?:npm|github|site):\S+/.test(resolveText),
-    "experimental resolve text should include canonical target groups",
+    "resolve text should include canonical target groups",
   );
   const directTarget = resolveText.match(
     /Next: githits search .+ --in '((?:npm|github|site):[^']+)'/,
@@ -1424,7 +1415,7 @@ export function assertExperimentalCliResolveText(resolveText: string): void {
   if (directTarget) {
     assert(
       isResolveDirectTargetUnwarned(resolveText, directTarget),
-      "experimental direct resolve action should target a listed direct candidate without a warning",
+      "direct resolve action should target a listed direct candidate without a warning",
     );
     return;
   }
@@ -1432,30 +1423,28 @@ export function assertExperimentalCliResolveText(resolveText: string): void {
     assert(
       !resolveText.includes("Next:") &&
         !resolveText.includes("Next after choosing:"),
-      "experimental malicious-blocked resolve text should omit the normal next action",
+      "malicious-blocked resolve text should omit the normal next action",
     );
   } else if (resolveText.includes("Ambiguous:")) {
     assert(
       resolveText.includes("Next after choosing:"),
-      "experimental ambiguous resolve text should require an explicit choice",
+      "ambiguous resolve text should require an explicit choice",
     );
   } else {
     assert(
       resolveText.includes("explicitly choose a candidate") &&
         resolveText.includes("--in '<target>'"),
-      "experimental unconfirmed resolve text should require an explicit choice",
+      "unconfirmed resolve text should require an explicit choice",
     );
   }
 }
 
-async function runExperimentalLiveSmoke(
-  env: Record<string, string>,
-): Promise<void> {
+async function runResolveLiveSmoke(env: Record<string, string>): Promise<void> {
   const resolveText = assertTerminalOutput(
     await runCliWithEnv(["resolve", "express"], env),
-    "experimental resolve terminal",
+    "resolve terminal",
   );
-  assertExperimentalCliResolveText(resolveText);
+  assertCliResolveText(resolveText);
   for (const expected of [
     "npm:express",
     "github:expressjs/express",
@@ -1464,7 +1453,7 @@ async function runExperimentalLiveSmoke(
   ]) {
     assert(
       resolveText.includes(expected),
-      `experimental express resolution missing ${expected}`,
+      `express resolution missing ${expected}`,
     );
   }
 
@@ -1472,7 +1461,7 @@ async function runExperimentalLiveSmoke(
     await runCliWithEnv(["resolve", "expressjs.com"], env),
     "experimental site resolve terminal",
   );
-  assertExperimentalCliResolveText(siteResolveText);
+  assertCliResolveText(siteResolveText);
   assert(
     /\n {2}1\. site:expressjs\.com \[(?:exact|high)\] · site/.test(
       siteResolveText,
@@ -1480,12 +1469,12 @@ async function runExperimentalLiveSmoke(
       siteResolveText.includes("Related targets:") &&
       siteResolveText.includes("npm:express · related package") &&
       siteResolveText.includes("github:expressjs/express · related repository"),
-    "experimental expressjs.com resolution should directly match the site and group related package/repository targets",
+    "expressjs.com resolution should directly match the site and group related package/repository targets",
   );
 
   const fuzzyResolveText = assertTerminalOutput(
     await runCliWithEnv(["resolve", "lodahs", "--prefer-kind", "package"], env),
-    "experimental fuzzy resolve terminal",
+    "fuzzy resolve terminal",
   );
   assert(
     !fuzzyResolveText.includes("name similarity") &&
@@ -1494,7 +1483,7 @@ async function runExperimentalLiveSmoke(
       !fuzzyResolveText.includes("readiness") &&
       !fuzzyResolveText.includes("no code") &&
       !fuzzyResolveText.includes("no docs"),
-    "experimental fuzzy resolve default text should omit lexical and negative availability detail",
+    "fuzzy resolve default text should omit lexical and negative availability detail",
   );
 
   const fuzzyResolveVerbose = assertTerminalOutput(
@@ -1502,14 +1491,14 @@ async function runExperimentalLiveSmoke(
       ["resolve", "lodahs", "--prefer-kind", "package", "--verbose"],
       env,
     ),
-    "experimental fuzzy resolve verbose terminal",
+    "fuzzy resolve verbose terminal",
   );
   assert(
     /\d+% name similarity/.test(fuzzyResolveVerbose) &&
       fuzzyResolveVerbose.includes(
         "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
       ),
-    "experimental fuzzy resolve verbose text should qualify lexical evidence",
+    "fuzzy resolve verbose text should qualify lexical evidence",
   );
 
   const resolveJson = assertJsonOutput(
@@ -1531,9 +1520,9 @@ async function runExperimentalLiveSmoke(
       ],
       env,
     ),
-    "experimental resolve json",
+    "resolve json",
   );
-  assertRecord(resolveJson, "experimental resolve json");
+  assertRecord(resolveJson, "resolve json");
   assert(
     typeof resolveJson.best === "string" &&
       resolveJson.best === "npm:express" &&
@@ -1547,7 +1536,7 @@ async function runExperimentalLiveSmoke(
       ) &&
       Array.isArray(resolveJson.protectedMatches) &&
       typeof resolveJson.targetsTruncated === "boolean",
-    "experimental resolve JSON missing structured candidate facts",
+    "resolve JSON missing structured candidate facts",
   );
 
   const fuzzyResolveJson = assertJsonOutput(
@@ -1555,9 +1544,9 @@ async function runExperimentalLiveSmoke(
       ["resolve", "lodahs", "--prefer-kind", "package", "--json"],
       env,
     ),
-    "experimental fuzzy resolve json",
+    "fuzzy resolve json",
   );
-  assertRecord(fuzzyResolveJson, "experimental fuzzy resolve json");
+  assertRecord(fuzzyResolveJson, "fuzzy resolve json");
   assert(
     Array.isArray(fuzzyResolveJson.candidates) &&
       fuzzyResolveJson.candidates.some(
@@ -1567,11 +1556,12 @@ async function runExperimentalLiveSmoke(
           candidate.target === "npm:lodash" &&
           typeof candidate.nameSimilarity === "number",
       ),
-    "experimental fuzzy resolve JSON should preserve numeric name similarity for npm:lodash",
+    "fuzzy resolve JSON should preserve numeric name similarity for npm:lodash",
   );
 }
 
 async function runLiveSmoke(env: Record<string, string>): Promise<void> {
+  await runResolveLiveSmoke(env);
   const scopedDiffArgs = [
     "code",
     "diff",
@@ -2816,20 +2806,7 @@ export async function main(argv = process.argv.slice(2)): Promise<void> {
     stableLive.cleanup();
   }
 
-  const experimentalLive = createScopedSmokeEnvironment(
-    "githits-cli-live-experimental-home-",
-  );
-  let experimentalStatus: CliLiveCohortStatus = "skipped";
-  try {
-    writeSmokeConfig(experimentalLive.env, "[experimental]\ntools = true\n");
-    if (await assertLiveOrAuthRequired(experimentalLive.env)) {
-      await runExperimentalLiveSmoke(experimentalLive.env);
-      experimentalStatus = "passed";
-    }
-  } finally {
-    experimentalLive.cleanup();
-  }
-  console.log(formatCliLiveCohortSummary(stableStatus, experimentalStatus));
+  console.log(formatCliLiveCohortSummary(stableStatus));
 }
 
 function inheritedEnv(): Record<string, string> {

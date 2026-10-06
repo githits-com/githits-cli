@@ -18,6 +18,22 @@ update and deployment rather than through a parallel implementation.
 > filesystem access, authentication implementation or storage, configuration
 > discovery, or any other host behavior.
 
+## Stable Target Resolution
+
+The public inventory includes `resolve_target` by default. It ranks fuzzy public
+package, repository and documentation-site names using the existing backend
+resolver. Canonical targets go directly to the next tool; confidence, ambiguity
+and malicious-content status govern continuation. This does not establish
+vulnerability-free or upgrade-safe status.
+
+Providers must now supply `resolveTargetService: ResolveTargetService`. Import
+`ResolveTargetServiceImpl` and its service/request/result contracts from
+`@githits/mcp/client`; construct it with the existing OSS endpoint and the
+request's token provider, headers and optional diagnostics. The browser-callable
+factory and `ResolveTargetMcpArgs` are exported from `@githits/mcp/tools`.
+No private core or workspace-internal imports are needed. Hosted MCP must adopt
+and deploy the released package before its clients receive the tool.
+
 ## Stable Source Diff
 
 The public tool inventory includes `code_diff` by default. It compares raw

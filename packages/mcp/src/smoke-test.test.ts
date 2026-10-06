@@ -57,6 +57,74 @@ function createCaller(callTool: McpSmokeCaller["callTool"]): McpSmokeCaller {
 }
 
 describe("MCP smoke-test helpers", () => {
+  it("requires stable resolver registration", async () => {
+    const caller = createCaller(async (name, args) =>
+      smokeResponse(name, args),
+    );
+    const listTools = caller.listTools;
+    caller.listTools = async () => ({
+      tools: (await listTools()).tools.filter(
+        (tool) => tool.name !== "resolve_target",
+      ),
+    });
+    await expect(
+      runMcpSmoke(caller, { includeLiveTools: false }),
+    ).rejects.toThrow("listTools missing resolve_target");
+  });
+
+  it("exercises stable resolver text, verbose, JSON and its selected target", async () => {
+    const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+    const caller = createCaller(async (name, args) => {
+      calls.push({ name, args });
+      return smokeResponse(name, args);
+    });
+    await runMcpSmoke(caller, { logger: { log: () => {}, error: () => {} } });
+    expect(
+      calls
+        .filter(({ name }) => name === "resolve_target")
+        .map(({ args }) => args),
+    ).toEqual([
+      { name: "express" },
+      { name: "lodahs", preferred_kind: "package" },
+      { name: "lodahs", preferred_kind: "package", verbose: true },
+      { name: "express", format: "json" },
+      { name: "lodahs", preferred_kind: "package", format: "json" },
+    ]);
+    expect(calls).toContainEqual({
+      name: "list",
+      args: { target: "npm:express", depth: 1, limit: 2, format: "json" },
+    });
+  });
+
+  it("requests JSON when probing a missing search reference", async () => {
+    let invalidRefArgs: Record<string, unknown> | undefined;
+    const caller = createCaller(async (name, args) => {
+      if (
+        name === "search" &&
+        args.format === "json" &&
+        args.query === "router"
+      ) {
+        return jsonResult({ completed: true, results: [] });
+      }
+      if (
+        name === "search_status" &&
+        args.search_ref === "smoke-invalid-search-ref"
+      ) {
+        invalidRefArgs = args;
+        return args.format === "json"
+          ? errorResult("NOT_FOUND")
+          : errorResult("NOT_FOUND", "Search reference not found");
+      }
+      return smokeResponse(name, args);
+    });
+    await runMcpSmoke(caller, { logger: { log: () => {}, error: () => {} } });
+    expect(invalidRefArgs).toEqual({
+      search_ref: "smoke-invalid-search-ref",
+      wait_timeout_ms: 0,
+      format: "json",
+    });
+  });
+
   it("requires stable diff registration", async () => {
     const caller = createCaller(async (name, args) =>
       smokeResponse(name, args),
@@ -1247,13 +1315,25 @@ function smokeResponse(
   if (args.format === "json") return smokeJsonResponse(name, args);
 
   switch (name) {
+    case "resolve_target":
+      if (args.name === "lodahs") {
+        return textResult(
+          "Targets:\n  1. npm:lodash [high; package]\n     code: indexed package snapshot" +
+            (args.verbose === true
+              ? "\n     91% name similarity\nName similarity is coarse lexical support; candidate order follows broader backend policy."
+              : ""),
+        );
+      }
+      return textResult(
+        'Targets:\n  1. npm:express [exact; package]\n     github:expressjs/express\nRelated targets:\n       site:expressjs.com\nNext: pass the canonical target "npm:express" to search.',
+      );
     case "code_diff":
       return textResult(
         "Source changed\nResolved endpoints:\nScope: repository",
       );
     case "quick_start":
       return textResult(
-        "GitHits routing guide: use `search` to discover, `list` to browse files, `grep` to match code and docs, and `read` to open results; `code_diff` compares source.",
+        "GitHits routing guide: use `search` to discover, `list` to browse files, `grep` to match code and docs, and `read` to open results; `resolve_target` resolves names; `code_diff` compares source.",
       );
     case "get_example":
       return textResult("example\nsolution_id: smoke");
@@ -1359,6 +1439,25 @@ function smokeJsonResponse(
   args: Record<string, unknown>,
 ): McpSmokeToolResult {
   switch (name) {
+    case "resolve_target": {
+      const target = args.name === "lodahs" ? "npm:lodash" : "npm:express";
+      return jsonResult({
+        best: target,
+        ambiguous: false,
+        protectedMatches: [target],
+        targetsTruncated: false,
+        candidates: [
+          {
+            target,
+            kind: "package",
+            direct: true,
+            confidence: "exact",
+            latestVersionMaliciousStatus: "clear",
+            nameSimilarity: 0.91,
+          },
+        ],
+      });
+    }
     case "code_diff":
       return jsonResult({
         view: args.view ?? "name-status",

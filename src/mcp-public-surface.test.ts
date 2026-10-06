@@ -29,7 +29,9 @@ import {
   createMockListService,
   createMockPackageIntelligenceService,
   createMockReadService,
+  createMockResolveTargetService,
   defaultCodeDiffResult,
+  defaultResolveTargetResult,
 } from "./services/test-helpers.js";
 
 interface RegisteredTool {
@@ -53,6 +55,7 @@ function createServices(
     listService: createMockListService(),
     readService: createMockReadService(),
     grepService: createMockGrepService(),
+    resolveTargetService: createMockResolveTargetService(),
     ...overrides,
   };
 }
@@ -73,6 +76,7 @@ const EXPECTED_DESCRIPTOR_NAMES = [
   "list",
   "read",
   "grep",
+  "resolve_target",
   "code_diff",
   "pkg_info",
   "pkg_vulns",
@@ -89,6 +93,7 @@ const EXPECTED_SMOKE_NAMES = [
   "list",
   "read",
   "grep",
+  "resolve_target",
   "code_diff",
   "pkg_info",
   "pkg_vulns",
@@ -98,6 +103,79 @@ const EXPECTED_SMOKE_NAMES = [
 ] as const;
 
 describe("public MCP package surface", () => {
+  it.each([undefined, "json"] as const)(
+    "executes stable resolve with request-scoped services and format=%s",
+    async (format) => {
+      const resolveTarget = mock(() =>
+        Promise.resolve(defaultResolveTargetResult),
+      );
+      const provider = mock((context: { extra: RemoteExtra | undefined }) => {
+        expect(context.extra?.sessionId).toBe("resolve-session");
+        return createServices({
+          resolveTargetService: createMockResolveTargetService({
+            resolveTarget,
+          }),
+        });
+      });
+      const server = createMcpServer<RemoteExtra>({
+        metadata: { name: "public-resolve", version: "0.0.0" },
+        services: provider,
+      });
+      expect(provider).not.toHaveBeenCalled();
+      const result = await registeredTool(server, "resolve_target").handler(
+        { name: "express", ...(format ? { format } : {}) },
+        { sessionId: "resolve-session" } as unknown as RequestHandlerExtra<
+          ServerRequest,
+          ServerNotification
+        >,
+      );
+      expect(result.isError).toBeUndefined();
+      expect(provider).toHaveBeenCalledTimes(1);
+      expect(resolveTarget).toHaveBeenCalledTimes(1);
+      expect(resolveTarget).toHaveBeenCalledWith({
+        name: "express",
+        limit: 8,
+        includeDetailedFields: format === "json",
+        includeNameSimilarity: format === "json",
+      });
+      const text = result.content[0]?.text ?? "";
+      if (format === "json") {
+        expect(JSON.parse(text)).toMatchObject({
+          best: "npm:express",
+          ambiguous: false,
+        });
+      } else {
+        expect(text).toContain("npm:express");
+        expect(text).toContain("[exact; package]");
+      }
+    },
+  );
+
+  it("maps stable resolver auth failures using the host remediation", async () => {
+    const action = "Sign in through the hosted MCP connection, then retry.";
+    const server = createMcpServer({
+      metadata: { name: "public-resolve-auth", version: "0.0.0" },
+      authAction: action,
+      services: createServices({
+        resolveTargetService: createMockResolveTargetService({
+          resolveTarget: mock(() => Promise.reject(new AuthenticationError())),
+        }),
+      }),
+    });
+    const result = await registeredTool(server, "resolve_target").handler(
+      { name: "express", format: "json" },
+      undefined as unknown as RequestHandlerExtra<
+        ServerRequest,
+        ServerNotification
+      >,
+    );
+    expect(result.isError).toBe(true);
+    expect(JSON.parse(result.content[0]?.text ?? "{}")).toMatchObject({
+      code: "AUTH_REQUIRED",
+      details: { action },
+    });
+  });
+
   it("executes stable diff with request-scoped services and the inventory default", async () => {
     const codeDiff = mock(() => Promise.resolve(defaultCodeDiffResult));
     const provider = mock(() =>
@@ -148,7 +226,7 @@ describe("public MCP package surface", () => {
     );
 
     expect(names).toEqual([...EXPECTED_DESCRIPTOR_NAMES]);
-    expect(names).toHaveLength(13);
+    expect(names).toHaveLength(14);
     expect(names).toContain("list");
     expect(names).toContain("read");
     expect(names).not.toContain("code_read");
@@ -166,7 +244,10 @@ describe("public MCP package surface", () => {
       registeredNames,
       [...EXPECTED_MCP_TOOLS],
     ]) {
-      expect(inventory).not.toContain("resolve_target");
+      expect(
+        inventory.filter((name) => name === "resolve_target"),
+      ).toHaveLength(1);
+      expect(inventory).not.toContain("research");
       expect(inventory).toContain("code_diff");
       expect(inventory.filter((name) => name === "code_diff")).toHaveLength(1);
       expect(inventory).not.toContain("ask");
@@ -180,6 +261,7 @@ describe("public MCP package surface", () => {
     expect(publicMcpClient.ReadServiceImpl).toBeDefined();
     expect("ListServiceImpl" in publicMcp).toBe(false);
     expect(publicMcpClient.ListServiceImpl).toBeDefined();
+    expect(publicMcpClient.ResolveTargetServiceImpl).toBeDefined();
     expect("AgenticAskServiceImpl" in publicMcpClient).toBe(false);
   });
 

@@ -6,7 +6,7 @@ import {
   type ResolveTargetKind,
   type ResolveTargetParams,
   toPkgseerRegistry,
-} from "@githits/core-internal";
+} from "@githits/core-internal/browser";
 import {
   InvalidArgumentError,
   InvalidPackageSpecError,

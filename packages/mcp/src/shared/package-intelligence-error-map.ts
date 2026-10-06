@@ -20,7 +20,7 @@ import {
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceValidationError,
   PackageIntelligenceVersionNotFoundError,
-} from "@githits/core-internal";
+} from "@githits/core-internal/browser";
 import { buildUpdateRequiredError } from "./code-navigation-error-map.js";
 import type {
   MappedError,

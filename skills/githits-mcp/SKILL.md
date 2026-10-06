@@ -17,6 +17,7 @@ Choose a route, discover that tool, and read its schema for syntax and defaults.
 
 | Question | Tool to discover |
 | --- | --- |
+| Resolve fuzzy package, repository, or documentation-site names | `resolve_target` |
 | Find a known regex or literal in public source or documentation | `grep` |
 | Find relevant source, symbols, tests, or documentation for a topic | `search` |
 | Browse files or documentation pages in a known package, repository, or site | `list` |
@@ -42,6 +43,8 @@ Use public repository targets for full repositories or sibling packages:
 `github:`, `codeberg:`, `gitlab:`, or a supported full URL. Never infer a provider.
 A ref may be a branch, tag, or commit and contain later `@`; `#` is for
 semantic fragments, not revisions.
+
+For `resolve_target`, resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` is docs-only: pass it to `list` to browse pages or to `search` with `source:"docs"` for topic search; keep text unless code consumes the raw response; replay the complete emitted read action unchanged, otherwise use its returned target/range.
 
 For `code_diff`, pass an unversioned target and separate `from`/`to`
 versions or refs. Start with default `name-status`; use `stat` for magnitude

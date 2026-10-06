@@ -1,5 +1,4 @@
 import { describe, expect, it, mock } from "bun:test";
-import type { ResolveTargetService } from "@githits/core-internal";
 import { z } from "zod";
 import { QUICK_START_PREREQUISITE } from "../tools/quick-start.js";
 import type { McpToolServices } from "../tools/tool-services.js";
@@ -22,6 +21,7 @@ const FORMAT_SELECTABLE_TOOLS = new Set([
   "list",
   "read",
   "grep",
+  "resolve_target",
   "code_diff",
   "pkg_info",
   "pkg_vulns",
@@ -38,6 +38,7 @@ const STABLE_MCP_TOOL_NAMES = [
   "list",
   "read",
   "grep",
+  "resolve_target",
   "code_diff",
   "pkg_info",
   "pkg_vulns",
@@ -55,6 +56,22 @@ const DESCRIPTION_ROUTING: Record<
     absent?: string[];
   }
 > = {
+  resolve_target: {
+    prefix:
+      /^Resolve package, repository, or documentation-site names to canonical targets\./,
+    exactPrefix:
+      "Resolve package, repository, or documentation-site names to canonical targets. For ".slice(
+        0,
+        80,
+      ),
+    body: [
+      "Do not call for canonical",
+      "EXACT or HIGH",
+      "CLEAR or NOT_APPLICABLE",
+      "MEDIUM and LOW require",
+    ],
+    absent: ["Experimental"],
+  },
   code_diff: {
     prefix:
       /^Compare source across exact package versions or public repository refs\./,
@@ -221,7 +238,7 @@ describe("MCP tool annotations", () => {
     const descriptors = getMcpToolDescriptors();
 
     expect(descriptors.map(({ name }) => name)).not.toContain("feedback");
-    expect(descriptors).toHaveLength(13);
+    expect(descriptors).toHaveLength(14);
     expect(descriptors.map(({ name }) => name)).toContain("read");
     expect(descriptors.map(({ name }) => name)).toContain("list");
     expect(descriptors.map(({ name }) => name)).toContain("grep");
@@ -642,21 +659,21 @@ describe("MCP search schema", () => {
 
 describe("MCP factory seam", () => {
   interface ExperimentalServices extends McpToolServices {
-    resolveTargetService: ResolveTargetService;
+    probeService: { probe(): Promise<string> };
   }
 
   it("passes extension services to descriptor construction without runtime providers", () => {
     const stable = createDescriptorServices();
     const descriptorServices: ExperimentalServices = {
       ...stable,
-      resolveTargetService: {
-        resolveTarget: mock(() => Promise.reject(new Error("unused"))),
+      probeService: {
+        probe: mock(() => Promise.reject(new Error("unused"))),
       },
     };
     const experimentalFactory: McpToolFactory<ExperimentalServices> = (
       services,
     ): ToolDefinition<unknown> => {
-      expect(services.resolveTargetService).toBeDefined();
+      expect(services.probeService).toBeDefined();
       expect(services.codeNavigationService.codeDiff).toBeDefined();
       return {
         name: "experimental_probe",

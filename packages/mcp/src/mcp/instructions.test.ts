@@ -7,7 +7,7 @@ import {
   type LocalExperimentalToolName,
 } from "./instructions.js";
 
-const EXPERIMENTAL_TOOLS = ["research", "resolve_target"] as const;
+const EXPERIMENTAL_TOOLS = ["research"] as const;
 
 function buildLocal(
   enabledExperimentalTools: readonly LocalExperimentalToolName[],
@@ -93,6 +93,31 @@ describe("buildLocalMcpQuickStart", () => {
     expect(quickStart).not.toContain("A fragment needs no bounds");
   });
 
+  it("keeps resolver guidance and continuation gates on the default stable surface", () => {
+    const guide = buildMcpQuickStart();
+    for (const phrase of [
+      "`resolve_target`",
+      "fuzzy, misspelled, or noncanonical",
+      "skip canonical",
+      "EXACT/HIGH",
+      "CLEAR or NOT_APPLICABLE",
+      "CLEAR is not a vulnerability-free claim",
+      "Other or missing statuses are non-actionable",
+      "MEDIUM/LOW",
+      "never auto-select",
+      "A selected `site:` is docs-only",
+      "pass it to `list`",
+      'or to `search` with `source:"docs"`',
+      "replay the complete emitted read action unchanged",
+    ]) {
+      expect(guide).toContain(phrase);
+    }
+    expect(guide).not.toContain("Local experimental tools");
+    expect(
+      buildLocal(["research"]).split("Local experimental tools")[1],
+    ).not.toContain("`resolve_target`");
+  });
+
   it("keeps deprecated instruction builders as exact compatibility aliases", () => {
     expect(buildMcpInstructions()).toBe(buildMcpQuickStart());
     expect(
@@ -165,8 +190,8 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("credentials");
     expect(instructions).toContain("private or proprietary content");
     expect(instructions).toContain("targets.\n\n- `research`");
-    expect(instructions).toContain(
-      "Do not invent or rewrite sources.\n- `resolve_target`",
+    expect(instructions.split("Local experimental tools")[1]).not.toContain(
+      "`resolve_target`",
     );
     expect(instructions.split("Local experimental tools")[1]).not.toContain(
       "`code_diff`",
@@ -182,19 +207,13 @@ describe("buildLocalMcpQuickStart", () => {
   it("composes only the requested experimental subset without phantom guidance", () => {
     const cases = [
       { enabled: [] as const, absent: EXPERIMENTAL_TOOLS },
-      {
-        enabled: ["resolve_target"] as const,
-        absent: ["research"] as const,
-      },
-      {
-        enabled: ["research"] as const,
-        absent: ["resolve_target"] as const,
-      },
+      { enabled: ["research"] as const, absent: [] as const },
     ];
 
     for (const { enabled, absent } of cases) {
       const instructions = buildLocal(enabled);
       expect(instructions).toContain("`code_diff`");
+      expect(instructions).toContain("`resolve_target`");
       expect(instructions).not.toContain("feedback");
       expect(instructions).not.toContain("Issue reporting");
       for (const name of enabled) {

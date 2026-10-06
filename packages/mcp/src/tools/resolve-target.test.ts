@@ -171,8 +171,8 @@ describe("resolve_target MCP adapter", () => {
         "rank retrieved candidates and do not expand candidate retrieval",
       ),
     });
+    expect(tool.description).not.toContain("Experimental");
     for (const phrase of [
-      "Experimental",
       "fuzzy",
       "ambiguous",
       "misspelled",

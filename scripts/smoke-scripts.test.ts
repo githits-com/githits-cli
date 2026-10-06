@@ -3,9 +3,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { EXPECTED_MCP_TOOLS } from "@githits/mcp/smoke-test";
 import {
-  assertExperimentalCliResolveText,
+  assertMcpResolveText,
+  EXPECTED_MCP_TOOLS,
+} from "@githits/mcp/smoke-test";
+import {
+  assertCliResolveText,
   assertRootHelpStructure,
   assertSearchTerminalText,
   assertTransitiveVulnerabilityText,
@@ -20,7 +23,6 @@ import {
 } from "./cli-smoke.ts";
 import { parseMcpCallArgs } from "./mcp-call.ts";
 import {
-  assertExperimentalMcpResolveText,
   EXPECTED_EXPERIMENTAL_MCP_TOOLS,
   parseMcpSmokeArgs,
   STABLE_MCP_SMOKE_CONFIG,
@@ -703,12 +705,12 @@ describe("CLI root help smoke contract", () => {
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).toContain("uninstall");
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("ask");
     expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("research");
-    expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).not.toContain("resolve");
+    expect(EXPECTED_STABLE_TOP_LEVEL_COMMANDS).toContain("resolve");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("research");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).not.toContain("ask");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toContain("resolve");
     expect(EXPECTED_EXPERIMENTAL_TOP_LEVEL_COMMANDS).toHaveLength(
-      EXPECTED_STABLE_TOP_LEVEL_COMMANDS.length + 2,
+      EXPECTED_STABLE_TOP_LEVEL_COMMANDS.length + 1,
     );
   });
 
@@ -776,7 +778,6 @@ describe("MCP smoke cohorts", () => {
     expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).toEqual([
       ...EXPECTED_MCP_TOOLS,
       "research",
-      "resolve_target",
     ]);
     expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).toContain("research");
     expect(EXPECTED_EXPERIMENTAL_MCP_TOOLS).not.toContain("ask");
@@ -806,8 +807,8 @@ Next: pass the canonical target "npm:express" to the next MCP tool.
 `;
 
   it("allows a verified best action when only an alternative is warned", () => {
-    expect(() => assertExperimentalCliResolveText(cliMixed)).not.toThrow();
-    expect(() => assertExperimentalMcpResolveText(mcpMixed)).not.toThrow();
+    expect(() => assertCliResolveText(cliMixed)).not.toThrow();
+    expect(() => assertMcpResolveText(mcpMixed)).not.toThrow();
   });
 
   it("accepts a warning-free direct best nested under Related targets", () => {
@@ -819,9 +820,9 @@ Next: pass the canonical target "npm:express" to the next MCP tool.
 Next: githits search '<query>' --in 'github:owner/project'
 `;
 
-    expect(() => assertExperimentalCliResolveText(nestedBest)).not.toThrow();
+    expect(() => assertCliResolveText(nestedBest)).not.toThrow();
     expect(() =>
-      assertExperimentalCliResolveText(
+      assertCliResolveText(
         nestedBest.replace(
           "       github:owner/project [high] · repository\n",
           "       github:owner/project [high] · repository\n         Warning: Malicious content affects this target.\n",
@@ -836,13 +837,13 @@ Targets:
        github:owner/project [high; repository]
 Next: pass the canonical target "github:owner/project" to the next MCP tool.
 `;
-    expect(() => assertExperimentalMcpResolveText(nestedMcpBest)).not.toThrow();
+    expect(() => assertMcpResolveText(nestedMcpBest)).not.toThrow();
 
     const relatedCliAction = nestedBest.replace(
       "github:owner/project [high] · repository",
       "github:owner/project · related repository",
     );
-    expect(() => assertExperimentalCliResolveText(relatedCliAction)).toThrow(
+    expect(() => assertCliResolveText(relatedCliAction)).toThrow(
       "without a warning",
     );
 
@@ -850,7 +851,7 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
       "       github:owner/project [high; repository]",
       "       github:owner/project [related; repository]",
     );
-    expect(() => assertExperimentalMcpResolveText(relatedMcpAction)).toThrow(
+    expect(() => assertMcpResolveText(relatedMcpAction)).toThrow(
       "listed direct candidate without a warning",
     );
 
@@ -863,7 +864,7 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
         "\n     Related targets:\n       github:owner/project · related repository",
         "",
       );
-    expect(() => assertExperimentalCliResolveText(relatedCliLead)).toThrow(
+    expect(() => assertCliResolveText(relatedCliLead)).toThrow(
       "listed direct candidate without a warning",
     );
 
@@ -876,7 +877,7 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
         "\n     Related targets:\n       github:owner/project [related; repository]",
         "",
       );
-    expect(() => assertExperimentalMcpResolveText(relatedMcpLead)).toThrow(
+    expect(() => assertMcpResolveText(relatedMcpLead)).toThrow(
       "listed direct candidate without a warning",
     );
   });
@@ -888,23 +889,23 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
       "",
     );
 
-    expect(() => assertExperimentalCliResolveText(cliBlocked)).not.toThrow();
-    expect(() => assertExperimentalMcpResolveText(mcpBlocked)).not.toThrow();
+    expect(() => assertCliResolveText(cliBlocked)).not.toThrow();
+    expect(() => assertMcpResolveText(mcpBlocked)).not.toThrow();
   });
 
   it("requires explicit-choice guidance for unconfirmed targets", () => {
     const cli = `Targets:\n  1. npm:express [medium] · package\n\nNext: narrow the name or filters, or explicitly choose a candidate before running githits search '<query>' --in '<target>'\n`;
     const mcp = `Targets:\n  1. npm:express [medium; package]\nNext: narrow the name or filters, or explicitly choose a candidate that matches the user's intent; do not pass the best result automatically.\n`;
 
-    expect(() => assertExperimentalCliResolveText(cli)).not.toThrow();
-    expect(() => assertExperimentalMcpResolveText(mcp)).not.toThrow();
+    expect(() => assertCliResolveText(cli)).not.toThrow();
+    expect(() => assertMcpResolveText(mcp)).not.toThrow();
     expect(() =>
-      assertExperimentalCliResolveText(
+      assertCliResolveText(
         cli.replace("explicitly choose a candidate", "choose a candidate"),
       ),
     ).toThrow("require an explicit choice");
     expect(() =>
-      assertExperimentalMcpResolveText(
+      assertMcpResolveText(
         mcp.replace("do not pass the best result automatically", "choose one"),
       ),
     ).toThrow("require an explicit choice");
@@ -920,10 +921,10 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
       "  1. npm:express [exact; package]\n     Warning: Malicious content affects the latest version. Do not use this target.\n",
     );
 
-    expect(() => assertExperimentalCliResolveText(cliWarnedBest)).toThrow(
+    expect(() => assertCliResolveText(cliWarnedBest)).toThrow(
       "without a warning",
     );
-    expect(() => assertExperimentalMcpResolveText(mcpWarnedBest)).toThrow(
+    expect(() => assertMcpResolveText(mcpWarnedBest)).toThrow(
       "without a warning",
     );
   });
@@ -931,38 +932,32 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
   it("rejects aggregate restrictions and ambiguous actions with warnings", () => {
     const aggregate =
       "Warning: Some candidates are not actionable. Narrow the result before continuing.\n";
-    expect(() =>
-      assertExperimentalCliResolveText(`${cliMixed}${aggregate}`),
-    ).toThrow("without a warning");
-    expect(() =>
-      assertExperimentalMcpResolveText(`${mcpMixed}${aggregate}`),
-    ).toThrow("without a warning");
+    expect(() => assertCliResolveText(`${cliMixed}${aggregate}`)).toThrow(
+      "without a warning",
+    );
+    expect(() => assertMcpResolveText(`${mcpMixed}${aggregate}`)).toThrow(
+      "without a warning",
+    );
 
     const cliAmbiguous = `${cliMixed.replace(
       /\nNext: githits search[^\n]+\n/,
       "\n",
     )}Next after choosing: githits search '<query>' --in '<target>'\n`;
-    expect(() => assertExperimentalCliResolveText(cliAmbiguous)).toThrow(
+    expect(() => assertCliResolveText(cliAmbiguous)).toThrow(
       "omit the normal next action",
     );
   });
 });
 
 describe("CLI live smoke cohort reporting", () => {
-  it("distinguishes both passed, partial, and both skipped outcomes", () => {
-    expect(formatCliLiveCohortSummary("passed", "passed")).toContain(
-      "stable and experimental live cohorts passed",
+  it("reports the stable live outcome after experimental registration checks", () => {
+    expect(formatCliLiveCohortSummary("passed")).toContain(
+      "stable live cohort passed",
     );
-    expect(formatCliLiveCohortSummary("passed", "skipped")).toContain(
-      "partial pass",
-    );
-    expect(formatCliLiveCohortSummary("skipped", "passed")).toContain(
-      "partial pass",
-    );
-    expect(formatCliLiveCohortSummary("skipped", "skipped")).toContain(
+    expect(formatCliLiveCohortSummary("skipped")).toContain(
       "CLI smoke skipped",
     );
-    expect(formatCliLiveCohortSummary("skipped", "skipped")).not.toContain(
+    expect(formatCliLiveCohortSummary("skipped")).not.toContain(
       "CLI smoke passed",
     );
   });
