@@ -11,7 +11,7 @@ remain non-destructive and omit `idempotentHint`.
 
 `openWorldHint` describes the domain of interaction independently of writes,
 authentication, and evidence quality. Thirteen stable public-evidence tools and
-both experimental tools advertise `openWorldHint: true`. This includes
+local experimental `research` advertise `openWorldHint: true`. This includes
 `search_status`: retrieving an existing search still returns public evidence.
 Only `quick_start` advertises `openWorldHint: false`, since it returns bundled
 usage guidance.
