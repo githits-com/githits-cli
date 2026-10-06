@@ -55,3 +55,25 @@ The existing provisional provenance footer still uses internal field labels.
 Resolve the state semantics before redesigning that footer around preparation
 status. This requires backend investigation outside this CLI lane; no backend
 edits, extra polling or inferred timing were introduced.
+
+## Accepted resolve-target launch limits
+
+The user accepted the 2026-10-06 production audit for GA and prefers adjustment
+when issues appear. These are retained findings, not additional release gates;
+see [target resolution](implementation/resolve-target.md) for audit scope.
+
+- Backend identity/admission: docs.rs and Cloudflare standalone sites may be
+  absent, Swift kind preference stays soft, and Emacs binding candidates do not
+  establish GNU Emacs core identity on unsupported Savannah. Future fixes should
+  reproduce the affected input, preserve unrelated package matches, and return
+  the requested supported identity or honest uncertainty without unrelated-site
+  substitution. Provider/vendor coverage expansion requires a product decision.
+- Pydantic site refresh: usable stale docs and emitted read actions succeeded,
+  while one status follow-up remained INDEXING at about 80.7 seconds. Completion
+  was not verified; this is not proof of a stuck refresh. Investigate backend
+  refresh state if reported again, and verify completion/current freshness with
+  readable results. No client timer workaround or repeated polling is proposed.
+
+Docker MEDIUM SDK resolution without a kind preference is explicitly accepted;
+repository-preferred Docker Engine remains HIGH Moby. No new ranking change or
+coverage requirement is inferred from GA promotion.

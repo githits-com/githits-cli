@@ -92,18 +92,6 @@
       "suites": ["experimental"]
     },
     {
-      "id": "experimental-resolution-follow-up",
-      "path": "eval/agentic/workloads/experimental-resolution-follow-up.md",
-      "safety": "experimental",
-      "suites": ["experimental"]
-    },
-    {
-      "id": "experimental-site-resolution-follow-up",
-      "path": "eval/agentic/workloads/experimental-site-resolution-follow-up.md",
-      "safety": "experimental",
-      "suites": ["experimental"]
-    },
-    {
       "id": "express-router",
       "path": "eval/agentic/workloads/express-router.md",
       "safety": "stable",
@@ -230,6 +218,12 @@
       "suites": ["stable-full"]
     },
     {
+      "id": "resolution-follow-up",
+      "path": "eval/agentic/workloads/resolution-follow-up.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
       "id": "search-inline-qualifiers",
       "path": "eval/agentic/workloads/search-inline-qualifiers.md",
       "safety": "stable",
@@ -238,6 +232,12 @@
     {
       "id": "search-source-ergonomics",
       "path": "eval/agentic/workloads/search-source-ergonomics.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
+      "id": "site-resolution-follow-up",
+      "path": "eval/agentic/workloads/site-resolution-follow-up.md",
       "safety": "stable",
       "suites": ["stable-full"]
     },

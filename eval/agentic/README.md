@@ -424,13 +424,11 @@ Canary has `express-router` and
 `package-overview-vulnerabilities`; smoke adds `global-example`,
 `unified-search-investigation`, `docs-search-followup`,
 `package-upgrade-safety`, and the `code-diff` comparison; stable-full contains
-all 37 stable workloads.
+all 39 stable workloads.
 `stateful-manual` contains only `githits-onboarding` and is dry-run-only in
-this phase. `experimental` contains only
-`ask-version-followup`, `experimental-question-only-ask`,
-`experimental-resolution-follow-up`, and
-`experimental-site-resolution-follow-up`. The manifest therefore classifies
-42 workloads: 37 stable, one stateful, and four experimental. Canary is a
+this phase. `experimental` contains only `ask-version-followup` and
+`experimental-question-only-ask`. The manifest therefore classifies
+42 workloads: 39 stable, one stateful, and two experimental. Canary is a
 subset of smoke, smoke is a subset of stable-full, and stateful or experimental
 workloads never enter those stable suites.
 
@@ -955,7 +953,7 @@ use at least one agent for quick iteration.
 | Package, repository, and site inventory plus exact file/page follow-up, `list`, `read` | `list-package-repository.md`, `list-recursion-glob.md`, `list-site-read.md`, `list-continuation.md`, and `list-package-docs-site.md`; use `code-file-navigation.md` and `code-read-window.md` for source navigation, and `docs-discovery.md`, `docs-search-followup.md`, `docs-search-noise.md`, and `docs-fragment-read.md` for documentation search and page selection |
 | Deterministic source and hosted-documentation matching UX, `grep` | `code-grep-investigation.md`, `grep-mixed-docs.md` |
 | Multi-tool code navigation strategy and MCP/skill guidance         | `express-router.md`; `opencode-compaction.md` is the remote-MCP routing regression derived from the connector transcript                                                                                                                                                              |
-| Experimental target resolution                                     | `experimental-resolution-follow-up.md`; use `experimental-site-resolution-follow-up.md` for site resolution into documentation search or inventory browsing                                                                                                                                                          |
+| Target resolution                                                  | `resolution-follow-up.md`; use `site-resolution-follow-up.md` for site resolution into documentation search or inventory browsing                                                                                                                                                                                |
 | Stable exact source diff | `code-diff.md` (package changes), `code-diff-repository.md` (tags and identical refs), `code-diff-monorepo.md` (repository scope), `code-diff-recovery.md` (unavailable endpoint), and `code-diff-bounded.md` (file, content, and display limits) |
 
 The poor-changelog workload uses the fixed Lodash `4.17.20` to `4.17.21`
@@ -1072,19 +1070,19 @@ bun run agent:e2e --agent claude --server local --workload eval/agentic/workload
 bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/code-diff.md
 ```
 
-For local experimental tool changes, run the relevant workloads and the
+For resolver changes, run the relevant stable workloads and the
 `express-router.md` regression cohort with Claude and Codex:
 
 ```bash
-bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/experimental-resolution-follow-up.md
-bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/experimental-resolution-follow-up.md
-bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/experimental-site-resolution-follow-up.md
-bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/experimental-site-resolution-follow-up.md
-bun run agent:e2e --agent claude --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
-bun run agent:e2e --agent codex --server local --experimental-tools --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent claude --server local --workload eval/agentic/workloads/resolution-follow-up.md
+bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/resolution-follow-up.md
+bun run agent:e2e --agent claude --server local --workload eval/agentic/workloads/site-resolution-follow-up.md
+bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/site-resolution-follow-up.md
+bun run agent:e2e --agent claude --server local --workload eval/agentic/workloads/express-router.md
+bun run agent:e2e --agent codex --server local --workload eval/agentic/workloads/express-router.md
 ```
 
-The eval override keeps the acting result contract product-neutral. Inspect raw
+The workload prompts leave tool choice open. Inspect raw
 `tool-calls.json` for the actual tool sequence and arguments, then inspect
 `final.json` for status, answer, and confidence. For
 resolution, check that ambiguity is retained when warranted and source

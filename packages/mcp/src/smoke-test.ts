@@ -52,6 +52,7 @@ export const EXPECTED_MCP_TOOLS = [
   "list",
   "read",
   "grep",
+  "resolve_target",
   "code_diff",
   "pkg_info",
   "pkg_vulns",
@@ -786,7 +787,78 @@ async function assertLiveOrAuthRequired(
   return true;
 }
 
+/** Verify that a direct resolve handoff names a listed, warning-free target. */
+export function isResolveDirectTargetUnwarned(
+  output: string,
+  target: string,
+): boolean {
+  if (/^Warning:/m.test(output)) return false;
+
+  const escapedTarget = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const candidatePattern = new RegExp(
+    `^(?: {2}\\d+\\. | {7})${escapedTarget}(?:\\s|$)`,
+  );
+  const lines = output.split("\n");
+  const candidateIndex = lines.findIndex((line) => candidatePattern.test(line));
+  if (candidateIndex < 0) return false;
+  const candidateLine = lines[candidateIndex] ?? "";
+  const nested = candidateLine.startsWith("       ");
+  if (
+    candidateLine.includes(" · related ") ||
+    candidateLine.includes("[related;")
+  ) {
+    return false;
+  }
+  const detailIndent = nested ? "         " : "     ";
+
+  for (let index = candidateIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    if (line.trim() === "Related targets:") break;
+    if (!line.startsWith(detailIndent)) break;
+    if (line.includes("Warning:")) return false;
+  }
+  return true;
+}
+
+export function assertMcpResolveText(resolveTextBody: string): void {
+  assert(
+    resolveTextBody.includes("npm:express") &&
+      !resolveTextBody.includes("githits ") &&
+      !resolveTextBody.includes("--"),
+    "resolve text should include MCP-native candidate guidance",
+  );
+  const directTarget = resolveTextBody.match(
+    /Next: pass the canonical target "([^"]+)"/,
+  )?.[1];
+  if (directTarget) {
+    assert(
+      isResolveDirectTargetUnwarned(resolveTextBody, directTarget),
+      "direct resolve action should target a listed direct candidate without a warning",
+    );
+    return;
+  }
+  if (resolveTextBody.includes("Warning:")) {
+    assert(
+      !resolveTextBody.includes("Next:"),
+      "malicious-blocked resolve text should omit the normal next action",
+    );
+  } else if (resolveTextBody.includes("Ambiguous:")) {
+    assert(
+      resolveTextBody.includes("never auto-select") &&
+        resolveTextBody.includes("explicitly choose a candidate"),
+      "ambiguous resolve text should require an explicit choice",
+    );
+  } else {
+    assert(
+      resolveTextBody.includes("never auto-select the best match") &&
+        resolveTextBody.includes("explicitly choose a candidate"),
+      "unconfirmed resolve text should require an explicit choice",
+    );
+  }
+}
+
 async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
+  await runResolveSmoke(caller);
   const diffArgs = {
     target: "npm:express",
     from: "5.2.0",
@@ -1825,11 +1897,117 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
       await callTool(caller, "search_status", {
         search_ref: "smoke-invalid-search-ref",
         wait_timeout_ms: 0,
+        format: "json",
       }),
       "search_status invalid ref",
       "NOT_FOUND",
     );
   }
+}
+
+async function runResolveSmoke(caller: McpSmokeCaller): Promise<void> {
+  const text = assertDefaultText(
+    await callTool(caller, "resolve_target", { name: "express" }),
+    "resolve_target default",
+  );
+  assertMcpResolveText(text);
+  for (const expected of [
+    "Targets:",
+    "npm:express",
+    "github:expressjs/express",
+    "site:expressjs.com",
+    "Related targets:",
+  ]) {
+    assert(text.includes(expected), `express resolution missing ${expected}`);
+  }
+
+  const fuzzyArgs = { name: "lodahs", preferred_kind: "package" };
+  const fuzzyText = assertDefaultText(
+    await callTool(caller, "resolve_target", fuzzyArgs),
+    "resolve_target fuzzy default",
+  );
+  assert(
+    !fuzzyText.includes("name similarity") &&
+      !fuzzyText.includes("coarse lexical support") &&
+      fuzzyText.includes("indexed package snapshot") &&
+      !fuzzyText.includes("readiness") &&
+      !fuzzyText.includes("no code") &&
+      !fuzzyText.includes("no docs"),
+    "fuzzy resolve default text should omit lexical and negative availability detail",
+  );
+  const verbose = assertDefaultText(
+    await callTool(caller, "resolve_target", { ...fuzzyArgs, verbose: true }),
+    "resolve_target fuzzy verbose",
+  );
+  assert(
+    /\d+% name similarity/.test(verbose) &&
+      verbose.includes(
+        "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
+      ),
+    "fuzzy resolve verbose text should qualify lexical evidence",
+  );
+
+  const json = assertJsonResult(
+    await callTool(caller, "resolve_target", {
+      name: "express",
+      format: "json",
+    }),
+    "resolve_target json",
+  );
+  assertRecord(json, "resolve_target json");
+  assert(
+    Array.isArray(json.candidates),
+    "resolve_target json missing candidates",
+  );
+  const best = json.candidates.find((candidate: unknown) => {
+    assertRecord(candidate, "resolve candidate");
+    return candidate.target === "npm:express";
+  });
+  assertRecord(best, "resolve express candidate");
+  assert(
+    typeof best.latestVersionMaliciousStatus === "string" &&
+      typeof json.targetsTruncated === "boolean",
+    "resolve_target json missing security status or truncation",
+  );
+  assert(
+    json.best === "npm:express" &&
+      json.ambiguous === false &&
+      (best.confidence === "exact" || best.confidence === "high") &&
+      (best.latestVersionMaliciousStatus === "clear" ||
+        best.latestVersionMaliciousStatus === "not_applicable"),
+    "express resolution must provide an unambiguous actionable best before the follow-up",
+  );
+  const inventory = assertJsonResult(
+    await callTool(caller, "list", {
+      target: json.best,
+      depth: 1,
+      limit: 2,
+      format: "json",
+    }),
+    "resolve_target selected-target inventory",
+  );
+  assertRecord(inventory, "resolve_target selected-target inventory");
+  assert(
+    Array.isArray(inventory.entries),
+    "resolved target inventory missing entries",
+  );
+
+  const fuzzyJson = assertJsonResult(
+    await callTool(caller, "resolve_target", { ...fuzzyArgs, format: "json" }),
+    "resolve_target fuzzy json",
+  );
+  assertRecord(fuzzyJson, "resolve_target fuzzy json");
+  assert(
+    Array.isArray(fuzzyJson.candidates) &&
+      fuzzyJson.candidates.some((candidate: unknown) => {
+        assertRecord(candidate, "fuzzy resolve candidate");
+        return (
+          candidate.target === "npm:lodash" &&
+          typeof candidate.nameSimilarity === "number"
+        );
+      }),
+    "fuzzy resolve json should preserve numeric name similarity for npm:lodash",
+  );
 }
 
 export async function runMcpSmoke(
@@ -1878,6 +2056,7 @@ export async function runMcpSmoke(
     "`grep`",
     "`read`",
     "`code_diff`",
+    "`resolve_target`",
   ]) {
     assert(
       quickStart.includes(expected),

@@ -12,6 +12,7 @@ import {
   createPackageVulnerabilitiesTool,
   createQuickStartTool,
   createReadTool,
+  createResolveTargetTool,
   createSearchStatusTool,
   createSearchTool,
   QUICK_START_PREREQUISITE,
@@ -92,6 +93,8 @@ const STABLE_MCP_OPERATION_FACTORIES: readonly McpToolFactory[] = [
   (services) => eraseMcpTool(createListTool(services.listService)),
   (services) => eraseMcpTool(createReadTool(services)),
   (services) => eraseMcpTool(createGrepTool(services.grepService)),
+  (services) =>
+    eraseMcpTool(createResolveTargetTool(services.resolveTargetService)),
   (services) =>
     eraseMcpTool(createCodeDiffTool(services.codeNavigationService)),
   (services) =>
@@ -345,6 +348,9 @@ export function createDescriptorServices(): McpToolServices {
     },
     grepService: {
       grep: fail,
+    },
+    resolveTargetService: {
+      resolveTarget: fail,
     },
   };
 }

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The CLI exposes setup/auth commands, `doctor`, `example`, top-level indexed `search` / `search-status`, `read`, `list`, `grep`, and the `code`, `docs`, and `pkg` command groups by default. `code diff` is available by default; `resolve` is an experimental, host-config-gated command. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search shares its presentation model and text formatter with MCP; `list` and unified `grep` use the same request, result, error, and text helpers on both surfaces. Legacy `githits code grep` retains its separate single-target repository-file contract.
+The CLI exposes setup/auth commands, `doctor`, `example`, top-level indexed `search` / `search-status`, `read`, `list`, `grep`, and the `code`, `docs`, and `pkg` command groups by default. `code diff` and `resolve` are available by default. MCP-parity commands share business logic with the MCP tools through the same service interfaces and shared utilities. Unified search shares its presentation model and text formatter with MCP; `list` and unified `grep` use the same request, result, error, and text helpers on both surfaces. Legacy `githits code grep` retains its separate single-target repository-file contract.
 
 ## Experimental CLI commands
 
@@ -21,7 +21,7 @@ installations may also be read from the legacy Application Support path when
 the canonical file is absent.
 
 Without the setting, or with `tools = false`, help omits experimental
-`resolve`, `research`, and `ask`; `code diff` remains available. Direct
+`research` and `ask`; `resolve` and `code diff` remain available. Direct
 experimental invocations fail before authentication or network
 startup with the resolved config path and the snippet above. Terminal failures
 retain that exact path/snippet; `--json` failures write only the structured
@@ -44,7 +44,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--allow-partial`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols. Defaults to 10 results. |
 | `search-status <search-ref>` | `<search-ref>` | `--wait <seconds>`, `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search; waits up to 30 seconds by default |
 | `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
-| `resolve <name>` *(experimental; config-gated)* | package or public repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--verbose`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
+| `resolve <name>` | package, public repository, or documentation-site name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--verbose`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
 | `settings` | — | `--json` | Show canonical preferences, privacy and terms, and account limits |
 | `settings show` | — | `--json` | Explicit form of `settings` for showing all account settings |
 | `settings get <key>` | setting key | `--json` | Read one writable setting using its public CLI name |
@@ -514,14 +514,20 @@ evidence or `docs: crawled on demand`, without code, stars, or
 downloads. `--prefer-kind site` is a soft ranking preference rather than a
 filter, matching the package/repository kind contract.
 
-The config-gated CLI help, local `resolve_target` description/schema, and local
-experimental server instructions advertise the site kind. Cross-tool guidance
+The default CLI help, stable `resolve_target` description/schema, and stable
+routing guide advertise the site kind. Cross-tool guidance
 routes a selected `site:` candidate to `search` with `source:"docs"`, then to
 `read`; already-canonical `site:<host[/path]>` targets skip resolution.
 
-#### Release posture and next phase
+#### GA promotion and historical dogfood evidence
 
-The command remains a dogfood surface. The initial 36-case production audit
+The user accepted current production quality for GA on 2026-10-06. `resolve`
+and `resolve_target` are now default CLI/public-package surfaces; hosted
+availability follows released-package adoption and deployment. The earlier
+dogfood-only gates below are historical and superseded by that decision.
+See [target resolution](resolve-target.md) for current contracts and rollout.
+
+The command initially shipped as a dogfood surface. The initial 36-case production audit
 selected the expected package in 25 cases. After backend ranking work, a
 113-case dev audit across all 12 supported registries matched 102 exact
 expectations; ten actionable population, alias, or current-module ranking gaps
@@ -529,21 +535,17 @@ and one explicit family ambiguity were recorded in the backend relevance
 corpus. Those findings do not block landing the CLI dogfood surface. The earlier
 `guava` and `symfony/framework-bundle` mismatches now resolve correctly on dev.
 
-The command is part of the config-gated experimental CLI surface. When
-`[experimental] tools = true` is enabled in the canonical host config,
-`resolve` is available; otherwise it remains hidden and
-explicit calls are rejected with the config path and enable snippet. The same
-opt-in exposes the local-only MCP `resolve_target` adapter. Its compact text,
+The original command was config-gated. Enabling `[experimental] tools = true`
+exposed `resolve` and the local MCP adapter; disabled calls reported the config
+path and enable snippet. This opt-in requirement is removed by GA. Compact text,
 JSON contract, privacy guidance, and structured error mapping reuse the shared
-resolver request/service contracts; local experimental instructions are
-composed only for the enabled local tool inventory.
+resolver request/service contracts. Resolver guidance is now part of the stable
+routing guide.
 
-Remote/public MCP, generated transports, and Agent Skill promotion remain
-blocked pending dogfood and evaluation evidence: the expanded production
-corpus must have no known wrong exact-package result, ambiguity wording must be
-accepted, fuzzy latency and rate limiting must be validated for expected
-CLI/MCP volume, and shipping without linked-repository popularity evidence must
-be explicitly accepted or exposed cheaply. The reduced query has been
+The initial remote/public MCP and Agent Skill promotion proposal called for
+additional corpus, ambiguity, volume and popularity evidence. The 2026-10-06
+launch decision supersedes those extra gates; no load test or linked-repository
+popularity requirement is inferred from the GA promotion. The reduced query has been
 validated below production's GraphQL complexity limit; roughly 50 dogfood calls
 completed without protocol, schema, complexity, or rate-limit errors, but that
 is not a volume test. Combined MCP quick-start guidance, smoke coverage, and Claude and

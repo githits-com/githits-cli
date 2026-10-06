@@ -61,6 +61,15 @@ function expectDiffHelp(result: CliResult): void {
   expect(result.stderr).not.toContain("Invalid GITHITS_CODE_NAV_URL");
 }
 
+function expectResolveHelp(result: CliResult): void {
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout).toContain("Usage: githits resolve");
+  expect(result.stderr).not.toContain("Invalid GITHITS_API_URL");
+  expect(result.stderr).not.toContain("Invalid GITHITS_MCP_URL");
+  expect(result.stderr).not.toContain("Invalid GITHITS_ACCOUNTS_URL");
+  expect(result.stderr).not.toContain("Invalid GITHITS_CODE_NAV_URL");
+}
+
 async function withConfig<T>(
   contents: string | undefined,
   fn: (configHome: string) => Promise<T>,
@@ -96,13 +105,13 @@ async function withMissingConfig<T>(
 }
 
 describe("experimental CLI process policy", () => {
-  it("keeps diff help available when canonical and legacy config are absent", async () => {
+  it("keeps resolve and diff help available when config is absent", async () => {
     await withMissingConfig(async (xdgConfigHome, isolatedHome) => {
       const root = await runCli(xdgConfigHome, ["--help"], isolatedHome);
       expect(root.exitCode).toBe(0);
       expect(root.stdout).not.toContain("research");
       expect(root.stdout).not.toContain("ask");
-      expect(root.stdout).not.toContain("resolve");
+      expect(root.stdout).toContain("githits resolve express");
 
       const code = await runCli(
         xdgConfigHome,
@@ -116,17 +125,23 @@ describe("experimental CLI process policy", () => {
       expectDiffHelp(
         await runCli(xdgConfigHome, ["code", "diff", "--help"], isolatedHome),
       );
+      expectResolveHelp(
+        await runCli(xdgConfigHome, ["resolve", "--help"], isolatedHome),
+      );
+      expectResolveHelp(
+        await runCli(xdgConfigHome, ["help", "resolve"], isolatedHome),
+      );
     });
   }, 30_000);
 
-  it("keeps diff help available with empty and false experimental config", async () => {
+  it("keeps resolve and diff help available with empty and false config", async () => {
     for (const contents of ["", "[experimental]\ntools = false\n"]) {
       await withConfig(contents, async (xdgConfigHome) => {
         const root = await runCli(xdgConfigHome, ["--help"]);
         expect(root.exitCode).toBe(0);
         expect(root.stdout).not.toContain("research");
         expect(root.stdout).not.toContain("ask");
-        expect(root.stdout).not.toContain("resolve");
+        expect(root.stdout).toContain("githits resolve express");
 
         const code = await runCli(xdgConfigHome, ["code", "--help"]);
         expect(code.exitCode).toBe(0);
@@ -136,6 +151,8 @@ describe("experimental CLI process policy", () => {
         expect(code.stdout).toContain("diff");
         expect(code.stdout).toContain("compare exact trees");
         expectDiffHelp(await runCli(xdgConfigHome, ["code", "diff", "--help"]));
+        expectResolveHelp(await runCli(xdgConfigHome, ["resolve", "--help"]));
+        expectResolveHelp(await runCli(xdgConfigHome, ["help", "resolve"]));
       });
     }
   }, 30_000);
@@ -168,15 +185,13 @@ describe("experimental CLI process policy", () => {
     );
   }, 30_000);
 
-  it("rejects disabled direct commands before auth, update, or service work", async () => {
+  it("keeps research and ask disabled before auth, update, or service work", async () => {
     await withConfig(
       "[experimental]\ntools = false\n",
       async (xdgConfigHome) => {
         for (const args of [
           ["research", "--help"],
           ["ask", "--help"],
-          ["resolve", "--help"],
-          ["help", "resolve"],
           ["help", "research"],
           ["help", "ask"],
         ]) {
@@ -221,37 +236,22 @@ describe("experimental CLI process policy", () => {
       ]) {
         const result = await runCli(xdgConfigHome, args);
         expect(result.exitCode).toBe(0);
-        expect(result.stdout).not.toMatch(/^\s+resolve\b/m);
         expect(result.stdout).not.toMatch(/^\s+research\b/m);
         expect(result.stdout).not.toMatch(/^\s+ask\b/m);
       }
 
-      expectDiffHelp(await runCli(xdgConfigHome, ["code", "diff", "--help"]));
+      const root = await runCli(xdgConfigHome, ["--help"]);
+      expect(root.stdout).toContain("githits resolve express");
+      expectResolveHelp(await runCli(xdgConfigHome, ["resolve", "--help"]));
+      expectResolveHelp(await runCli(xdgConfigHome, ["help", "resolve"]));
 
-      const direct = await runCli(xdgConfigHome, ["resolve", "express"]);
-      expect(direct.exitCode).toBe(1);
-      expect(direct.stderr).toContain(
-        join(xdgConfigHome, "githits", "config.toml"),
-      );
-      expect(direct.stderr).toContain("Cannot parse GitHits config");
+      expectDiffHelp(await runCli(xdgConfigHome, ["code", "diff", "--help"]));
 
       for (const command of ["research", "ask"]) {
         const malformed = await runCli(xdgConfigHome, [command, "--help"]);
         expect(malformed.exitCode).toBe(1);
         expect(malformed.stderr).toContain("Cannot parse GitHits config");
       }
-
-      const directJson = await runCli(xdgConfigHome, [
-        "resolve",
-        "express",
-        "--json",
-      ]);
-      expect(directJson.exitCode).toBe(1);
-      expect(directJson.stdout).toBe("");
-      expect(JSON.parse(directJson.stderr)).toMatchObject({
-        code: "INVALID_ARGUMENT",
-        retryable: false,
-      });
     });
   }, 30_000);
 });

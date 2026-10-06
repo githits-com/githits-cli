@@ -4,7 +4,7 @@ import type {
   ResolveTargetService,
   ResolveTargetTarget,
 } from "@githits/core-internal";
-import { PKGSEER_REGISTRY_LIST } from "@githits/core-internal";
+import { PKGSEER_REGISTRY_LIST } from "@githits/core-internal/browser";
 import { z } from "zod";
 import { mapPackageIntelligenceError } from "../shared/package-intelligence-error-map.js";
 import { buildResolveTargetParams } from "../shared/resolve-target-request.js";
@@ -90,7 +90,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION =
-  'Resolve package, repository, or documentation-site names to canonical targets. Experimental tool for fuzzy, ambiguous, misspelled, or human-friendly public OSS names. Do not call for canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, or `site:<host[/path]>` targets; use those directly with the next MCP tool. Pass a selected standalone documentation-site target to `search` with `source: "docs"`; request `format: "json"` only if required locator fields are absent from text, then use its `docsReadTarget` (or `pageId`) and range with `read`. The optional `query` and `intent_hints` values leave this machine and must not contain credentials, personal data, private code, or proprietary content. Default `text` gives bounded ranked candidates; pass `verbose: true` to include coarse lexical name-similarity evidence. Only a non-ambiguous EXACT or HIGH best result with CLEAR or NOT_APPLICABLE malicious-content status gets a direct follow-up; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. MEDIUM and LOW require narrowing or an explicit choice.';
+  'Resolve OSS dependency names to canonical package, repository, or docs targets. Use known canonical targets directly. Only a non-ambiguous EXACT or HIGH best with CLEAR or NOT_APPLICABLE malicious-content status permits direct continuation; other or missing statuses are non-actionable. CLEAR is not a vulnerability-free claim. MEDIUM and LOW require narrowing or an explicit choice; never auto-select an ambiguous result. A selected `site:` is docs-only: use `list` or `search` with `source: "docs"`, then reuse returned read locators. Inputs leave this machine; public OSS only.';
 
 export function createResolveTargetTool(
   service: ResolveTargetService,
@@ -165,17 +165,13 @@ export function formatResolveTargetMcpText(
   const lines: string[] = [];
 
   if (result.ambiguous) {
-    lines.push(
-      `Ambiguous: ${formatAmbiguousReason(result.ambiguousReason)} Choose a candidate or narrow the name, query, registry, or preferred kind before continuing.`,
-    );
+    lines.push(`Ambiguous: ${formatAmbiguousReason(result.ambiguousReason)}`);
   } else if (actionable && result.best) {
     lines.push(`Best match: ${formatReference(result.best)}.`);
   } else if (blockedBest && result.best) {
     lines.push(`Best identity match: ${formatReference(result.best)}.`);
   } else if (!result.best) {
-    lines.push(
-      `No targets found for "${sanitizeTerminalText(options.name)}". Check the spelling or adjust registry filters; query, preferred kind, and intent hints only rank existing candidates.`,
-    );
+    lines.push(`No targets found for "${sanitizeTerminalText(options.name)}".`);
   }
 
   if (groups.length > 0) {
@@ -216,7 +212,7 @@ export function formatResolveTargetMcpText(
     );
   } else if (result.ambiguous) {
     lines.push(
-      "Next: choose the canonical target that matches the user's intent, then pass that exact target to the next MCP tool; do not auto-select a candidate.",
+      "Next: narrow the name or filters, or explicitly choose a candidate; pass its exact canonical target to the next MCP tool, never auto-select.",
     );
   } else if (actionable && result.best) {
     const target = sanitizeTerminalText(result.best.canonicalKey);
@@ -231,11 +227,11 @@ export function formatResolveTargetMcpText(
     );
   } else if (result.best) {
     lines.push(
-      "Next: narrow the name or filters, or explicitly choose a candidate that matches the user's intent; do not pass the best result automatically.",
+      "Next: narrow the name or filters, or explicitly choose a candidate; never auto-select the best match.",
     );
   } else {
     lines.push(
-      "Next: correct the spelling or adjust filters before requesting another resolution; no target was invented.",
+      "Next: check spelling or registry filters; query, preferred kind, and intent hints only rank existing candidates.",
     );
   }
   return `${lines.join("\n")}\n`;
@@ -335,9 +331,7 @@ function formatAmbiguousReason(reason: string): string {
   const message = sanitizeTerminalText(
     reason.toLowerCase().replaceAll("_", " "),
   );
-  return message
-    ? `${message}; multiple candidates remain.`
-    : "Multiple candidates remain.";
+  return message ? `${message}.` : "review identity before use.";
 }
 
 function targetKey(

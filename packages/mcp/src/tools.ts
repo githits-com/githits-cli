@@ -75,4 +75,8 @@ export {
   type GetExampleSearchParams,
   type GetExampleService,
 } from "./tools/get-example.js";
+export {
+  createResolveTargetTool,
+  type ResolveTargetMcpArgs,
+} from "./tools/resolve-target.js";
 export type { CompleteToolAnnotations, ToolResult } from "./tools/types.js";

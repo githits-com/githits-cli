@@ -17,6 +17,7 @@ Choose a route, discover that tool, and read its schema for syntax and defaults.
 
 | Question | Tool to discover |
 | --- | --- |
+| Identify the package, repository, or docs site for an OSS dependency | `resolve_target` |
 | Find a known regex or literal in public source or documentation | `grep` |
 | Find relevant source, symbols, tests, or documentation for a topic | `search` |
 | Browse files or documentation pages in a known package, repository, or site | `list` |
@@ -42,6 +43,14 @@ Use public repository targets for full repositories or sibling packages:
 `github:`, `codeberg:`, `gitlab:`, or a supported full URL. Never infer a provider.
 A ref may be a branch, tag, or commit and contain later `@`; `#` is for
 semantic fragments, not revisions.
+
+`resolve_target` identifies canonical candidates for an OSS dependency name
+before evidence lookup; skip known canonical targets. Follow its continuation:
+only an unambiguous EXACT/HIGH best with CLEAR or NOT_APPLICABLE malicious-content
+status allows direct reuse. Other or missing statuses are non-actionable; CLEAR
+is not a vulnerability-free claim. For MEDIUM/LOW or ambiguity, narrow or
+explicitly choose an actionable candidate; never auto-select. A selected `site:` is docs-only: use
+`list` to browse or `search` with `source:"docs"`.
 
 For `code_diff`, pass an unversioned target and separate `from`/`to`
 versions or refs. Start with default `name-status`; use `stat` for magnitude

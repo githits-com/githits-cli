@@ -26,6 +26,11 @@ export {
   QUICK_START_PREREQUISITE,
 } from "./quick-start.js";
 export { createReadTool, DESCRIPTION as READ_DESCRIPTION } from "./read.js";
+export {
+  createResolveTargetTool,
+  DESCRIPTION as RESOLVE_TARGET_DESCRIPTION,
+  type ResolveTargetMcpArgs,
+} from "./resolve-target.js";
 export { createSearchTool } from "./search.js";
 export { createSearchStatusTool } from "./search-status.js";
 export type {

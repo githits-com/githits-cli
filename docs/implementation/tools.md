@@ -725,8 +725,7 @@ The `hint` field is emitted only when the cap *actually truncated* the response 
 ## Text response format (`format: "text"`)
 
 Every format-selectable MCP tool accepts only `text` and `json`, with `text` as
-the default. This includes stable tools including `code_diff`, and the local experimental `research` and
-`resolve_target` tools. The format parameter recommends:
+the default. This includes stable `code_diff` and `resolve_target`, and local experimental `research`. The format parameter recommends:
 "Use `text` (default) for reading and tool follow-ups; it is token-efficient.
 Use `json` only to parse responses in code or obtain fields absent from text." Tool-specific JSON-only details remain documented. The shared quick-start guide
 and its skill copy explicitly allow passing returned paths, IDs, and line ranges
@@ -992,20 +991,15 @@ payload whose privilege, visibility, and repetition vary by host.
   reads, and wait/recovery discipline. Selected descriptions/schemas own language
   retry, docs fragment/range behavior, and other single-tool mechanics.
 - **External-content block** — appended by default from `packages/mcp/src/tools/guardrails.ts`; tells agents to treat third-party prose as data, not instructions.
+- **Resolver guidance** — part of the stable routing guide. Fuzzy names use
+  `resolve_target`; canonical identities skip resolution. Only unambiguous
+  EXACT/HIGH with CLEAR/NOT_APPLICABLE allows automatic continuation. Other or
+  missing statuses are non-actionable; MEDIUM/LOW or ambiguity needs narrowing
+  or explicit choice. Sites use docs search/list and emitted read actions.
 - **Local experimental block** — appended only by the workspace-internal local
-  composer when the host policy enables experimental tools. It names only the
-  registered local `research`/`resolve_target`/`code_diff` subset, routes source-cited
-  question answering and fuzzy identity
-  before canonical diff evidence, and permits direct reuse of a resolved target
-  only for a non-ambiguous `EXACT` or `HIGH` best result with `CLEAR` or
-  `NOT_APPLICABLE` malicious-content status. `CLEAR` is not a vulnerability-free
-  claim. Other or missing statuses are non-actionable; `MEDIUM`, `LOW`, and
-  ambiguous results require narrowing or an explicit actionable choice. Site candidates
-  are routed into `search` with `source:"docs"`, followed by `read`; exact
-  `site:<host[/path]>` targets skip resolution. The block also
-  states public-OSS/privacy limits.
-  Disabling experimental tools returns the public builder's exact baseline;
-  public and remote servers never receive this block.
+  composer when experimental tools are enabled. It routes `research` question
+  answering with public-OSS/privacy limits. Disabling experimental tools returns
+  the exact public guide; public and remote servers never receive this appendix.
 
 The stable guide embedded in `skills/githits-mcp/SKILL.md` is an exact copy of
 `buildMcpQuickStart()` and is checked by `src/skills-packaging.test.ts`. The

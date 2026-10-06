@@ -1,9 +1,5 @@
-import type {
-  AgenticAskService,
-  ResolveTargetService,
-} from "@githits/core-internal";
+import type { AgenticAskService } from "@githits/core-internal";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { createResolveTargetTool } from "../tools/resolve-target.js";
 import type { McpToolServices } from "../tools/tool-services.js";
 import type { ToolTermsRemediation } from "../tools/types.js";
 import {
@@ -29,7 +25,6 @@ export interface LocalExperimentalMcpPolicy {
 
 export interface LocalMcpToolServices extends McpToolServices {
   agenticAskService: AgenticAskService;
-  resolveTargetService: ResolveTargetService;
 }
 
 export type LocalMcpToolServicesProvider<TExtra = unknown> =
@@ -73,10 +68,6 @@ export function createLocalMcpServer<TExtra = unknown>(
   });
 }
 
-const LOCAL_RESOLVE_TARGET_FACTORY: McpToolFactory<LocalMcpToolServices> = (
-  services,
-) => eraseMcpTool(createResolveTargetTool(services.resolveTargetService));
-
 const LOCAL_RESEARCH_FACTORY: McpToolFactory<LocalMcpToolServices> = (
   services,
 ) => eraseMcpTool(createLocalResearchTool(services.agenticAskService));
@@ -87,10 +78,7 @@ interface LocalExperimentalToolDefinition {
 }
 
 const LOCAL_EXPERIMENTAL_TOOL_DEFINITIONS: readonly LocalExperimentalToolDefinition[] =
-  [
-    { name: "research", factory: LOCAL_RESEARCH_FACTORY },
-    { name: "resolve_target", factory: LOCAL_RESOLVE_TARGET_FACTORY },
-  ];
+  [{ name: "research", factory: LOCAL_RESEARCH_FACTORY }];
 
 function createLocalDescriptorServices(): LocalMcpToolServices {
   const fail = () => {
@@ -101,9 +89,6 @@ function createLocalDescriptorServices(): LocalMcpToolServices {
     ...stable,
     agenticAskService: {
       ask: fail,
-    },
-    resolveTargetService: {
-      resolveTarget: fail,
     },
   };
 }

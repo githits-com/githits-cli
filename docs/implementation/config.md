@@ -194,11 +194,10 @@ feedback-submission guidance.
 Auth and experimental settings share TOML discovery/parsing and the canonical
 platform path above, including the existing macOS legacy fallback, but validate
 their own subsections independently. Unknown keys remain accepted. With the
-host policy enabled, local `research`/`ask`/`resolve` and MCP `research`/
-`resolve_target` become available. CLI diff and public MCP `code_diff` are
-stable and independent of this setting; the public `@githits/mcp` surface remains
-the stable tool inventory and does not acquire experimental service
-requirements.
+host policy enabled, local `research`/`ask` and MCP `research` become available.
+CLI `resolve` and `code diff`, and public MCP `resolve_target` and `code_diff`,
+are stable and independent of this setting. The public `@githits/mcp` surface
+remains the stable inventory and does not acquire research service requirements.
 
 The hidden `githits mcp start --experimental-tools` option is for isolated
 evaluation/development only. It enables local tools for that process without

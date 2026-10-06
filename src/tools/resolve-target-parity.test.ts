@@ -18,7 +18,7 @@ import {
   defaultResolveTargetResult,
 } from "../services/test-helpers.js";
 import {
-  createParityExperimentalMcpTool,
+  createParityMcpTool,
   isProcessExitSentinel,
 } from "./parity-test-helpers.js";
 
@@ -86,7 +86,7 @@ describe("resolve_target parity", () => {
         }),
       }),
     );
-    const tool = createParityExperimentalMcpTool("resolve_target", {
+    const tool = createParityMcpTool("resolve_target", {
       resolveTargetService: createMockResolveTargetService({
         resolveTarget: mcpResolveTarget,
       }),
@@ -150,7 +150,7 @@ describe("resolve_target parity", () => {
         }),
       }),
     );
-    const tool = createParityExperimentalMcpTool("resolve_target", {
+    const tool = createParityMcpTool("resolve_target", {
       resolveTargetService: createMockResolveTargetService({
         resolveTarget: mock(() => Promise.resolve(result)),
       }),
@@ -200,7 +200,7 @@ describe("resolve_target parity", () => {
         }),
       }),
     );
-    const tool = createParityExperimentalMcpTool("resolve_target", {
+    const tool = createParityMcpTool("resolve_target", {
       resolveTargetService: createMockResolveTargetService({
         resolveTarget: mock(() => Promise.reject(error)),
       }),
@@ -225,7 +225,7 @@ describe("resolve_target parity", () => {
       { registry: "not-a-registry" },
       cliDeps(),
     );
-    const tool = createParityExperimentalMcpTool("resolve_target");
+    const tool = createParityMcpTool("resolve_target");
     const mcpResult = await tool.handler(
       {
         name: "express",
@@ -272,7 +272,7 @@ describe("resolve_target parity", () => {
           }),
         }),
       );
-      const tool = createParityExperimentalMcpTool("resolve_target", {
+      const tool = createParityMcpTool("resolve_target", {
         resolveTargetService: createMockResolveTargetService({
           resolveTarget: mcpResolveTarget,
         }),
@@ -311,7 +311,7 @@ describe("resolve_target parity", () => {
           }),
         }),
       );
-      const tool = createParityExperimentalMcpTool("resolve_target", {
+      const tool = createParityMcpTool("resolve_target", {
         resolveTargetService: createMockResolveTargetService({
           resolveTarget: mcpResolveTarget,
         }),
@@ -378,7 +378,7 @@ async function readinessText(
     stdout.mockRestore();
     process.exitCode = previousExitCode;
   }
-  const tool = createParityExperimentalMcpTool("resolve_target", {
+  const tool = createParityMcpTool("resolve_target", {
     resolveTargetService: service,
   });
   const mcp = await tool.handler({ name: "Pydantic AI", verbose }, {});
@@ -519,7 +519,7 @@ describe("S2b readiness", () => {
           { verbose },
           cliDeps({ resolveTargetService: service }),
         );
-        const tool = createParityExperimentalMcpTool("resolve_target", {
+        const tool = createParityMcpTool("resolve_target", {
           resolveTargetService: service,
         });
         const raw = await tool.handler(

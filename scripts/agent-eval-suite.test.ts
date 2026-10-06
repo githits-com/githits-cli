@@ -396,7 +396,7 @@ describe("agent eval suites", () => {
     expect(manifest.workloads).toHaveLength(42);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stable"),
-    ).toHaveLength(37);
+    ).toHaveLength(39);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stateful"),
     ).toHaveLength(1);
@@ -404,7 +404,7 @@ describe("agent eval suites", () => {
       manifest.workloads.filter(
         (workload) => workload.safety === "experimental",
       ),
-    ).toHaveLength(4);
+    ).toHaveLength(2);
 
     expect(
       manifest.workloads
@@ -505,8 +505,10 @@ describe("agent eval suites", () => {
       "package-vulnerability-history",
       "package-vulnerability-rubygems",
       "package-vulnerability-transitive",
+      "resolution-follow-up",
       "search-inline-qualifiers",
       "search-source-ergonomics",
+      "site-resolution-follow-up",
       "site-search-explicit",
       "unified-search-investigation",
     ]);
@@ -515,12 +517,7 @@ describe("agent eval suites", () => {
     ).toEqual(["githits-onboarding"]);
     expect(
       selectSuiteWorkloads(manifest, "experimental").map((item) => item.id),
-    ).toEqual([
-      "ask-version-followup",
-      "experimental-question-only-ask",
-      "experimental-resolution-follow-up",
-      "experimental-site-resolution-follow-up",
-    ]);
+    ).toEqual(["ask-version-followup", "experimental-question-only-ask"]);
     expect(AGENT_EVAL_SUITE_NAMES).toEqual([
       "canary",
       "smoke",
@@ -533,6 +530,76 @@ describe("agent eval suites", () => {
       "stateful",
       "experimental",
     ]);
+  });
+
+  it("admits stable resolver workloads without experimental opt-in", async () => {
+    const resolverWorkloadIds = [
+      "resolution-follow-up",
+      "site-resolution-follow-up",
+    ];
+    const fixture = createSuiteExecutionFixture([
+      {
+        id: "resolution-follow-up",
+        path: "eval/agentic/workloads/resolution-follow-up.md",
+        safety: "stable",
+        suites: ["stable-full"],
+      },
+      {
+        id: "site-resolution-follow-up",
+        path: "eval/agentic/workloads/site-resolution-follow-up.md",
+        safety: "stable",
+        suites: ["stable-full"],
+      },
+      {
+        id: "experimental-a",
+        path: "eval/agentic/workloads/experimental-a.md",
+        safety: "experimental",
+        suites: ["experimental"],
+      },
+    ]);
+    const outDir = join(fixture.root, "out");
+    let stableFullShard: AgentEvalSuiteShardOptions | undefined;
+    try {
+      await runAgentEvalSuite({
+        suite: "stable-full",
+        repoRoot: fixture.root,
+        targetRoot: fixture.targetRoot,
+        outDir,
+        manifestPath: fixture.manifestPath,
+        workloadsDir: fixture.workloadsDir,
+        reportingPath: fixture.reportingPath,
+        schemaPath: fixture.schemaPath,
+        dryRun: true,
+        shardExecutor: async (options) => {
+          stableFullShard = options;
+          writeShardArtifacts(
+            options,
+            options.workloads.map((workload) => suiteRecord(workload.id)),
+          );
+          return { status: "success" };
+        },
+      });
+
+      expect(stableFullShard?.workloads.map((workload) => workload.id)).toEqual(
+        resolverWorkloadIds,
+      );
+      expect(stableFullShard?.experimentalTools).toBe(false);
+      const manifest = loadSuiteManifest({
+        manifestPath: fixture.manifestPath,
+        repoRoot: fixture.root,
+        workloadsDir: fixture.workloadsDir,
+      });
+      const experimentalWorkloadIds = selectSuiteWorkloads(
+        manifest,
+        "experimental",
+      ).map((workload) => workload.id);
+      expect(experimentalWorkloadIds).not.toContain("resolution-follow-up");
+      expect(experimentalWorkloadIds).not.toContain(
+        "site-resolution-follow-up",
+      );
+    } finally {
+      rmSync(fixture.root, { recursive: true, force: true });
+    }
   });
 
   it("rejects an empty suite selection before spawning a child", async () => {

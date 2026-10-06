@@ -7,6 +7,7 @@ Choose a route, discover that tool, and read its schema for syntax and defaults.
 
 | Question | Tool to discover |
 | --- | --- |
+| Identify the package, repository, or docs site for an OSS dependency | \`resolve_target\` |
 | Find a known regex or literal in public source or documentation | \`grep\` |
 | Find relevant source, symbols, tests, or documentation for a topic | \`search\` |
 | Browse files or documentation pages in a known package, repository, or site | \`list\` |
@@ -32,6 +33,14 @@ Use public repository targets for full repositories or sibling packages:
 \`github:\`, \`codeberg:\`, \`gitlab:\`, or a supported full URL. Never infer a provider.
 A ref may be a branch, tag, or commit and contain later \`@\`; \`#\` is for
 semantic fragments, not revisions.
+
+\`resolve_target\` identifies canonical candidates for an OSS dependency name
+before evidence lookup; skip known canonical targets. Follow its continuation:
+only an unambiguous EXACT/HIGH best with CLEAR or NOT_APPLICABLE malicious-content
+status allows direct reuse. Other or missing statuses are non-actionable; CLEAR
+is not a vulnerability-free claim. For MEDIUM/LOW or ambiguity, narrow or
+explicitly choose an actionable candidate; never auto-select. A selected \`site:\` is docs-only: use
+\`list\` to browse or \`search\` with \`source:"docs"\`.
 
 For \`code_diff\`, pass an unversioned target and separate \`from\`/\`to\`
 versions or refs. Start with default \`name-status\`; use \`stat\` for magnitude
@@ -125,7 +134,7 @@ export function buildMcpInstructions(
   return buildMcpQuickStart(options);
 }
 
-export type LocalExperimentalToolName = "research" | "resolve_target";
+export type LocalExperimentalToolName = "research";
 
 export interface BuildLocalMcpQuickStartOptions {
   enabledExperimentalTools: readonly LocalExperimentalToolName[];
@@ -146,9 +155,6 @@ const LOCAL_RESEARCH_GUIDANCE_START =
 const LOCAL_RESEARCH_GUIDANCE_END =
   ' Reuse a returned `thread_id` for follow-ups. Change project, version, or topic in the follow-up question. Sources default to directly callable MCP tools; use `source_format:"url"` for original upstream URLs. Do not invent or rewrite sources.';
 
-const LOCAL_RESOLVE_TARGET_GUIDANCE =
-  '- `resolve_target` — resolve fuzzy, misspelled, or noncanonical package, repository, or documentation-site names; skip canonical `registry:name`, `github:owner/repo`, `codeberg:owner/repo`, `gitlab:group/subgroup/project`, and `site:<host[/path]>`. Reuse only an unambiguous EXACT/HIGH best target with CLEAR or NOT_APPLICABLE malicious-content status; CLEAR is not a vulnerability-free claim. Other or missing statuses are non-actionable. For MEDIUM/LOW or ambiguity, narrow or explicitly choose an actionable candidate; never auto-select. A selected `site:` is docs-only: pass it to `list` to browse pages or to `search` with `source:"docs"` for topic search; keep text unless code consumes the raw response; replay the complete emitted read action unchanged, otherwise use its returned target/range.';
-
 /**
  * Compose local-only experimental guidance without changing the public
  * `buildMcpQuickStart()` output or public package surface.
@@ -168,9 +174,6 @@ export function buildLocalMcpQuickStart(
     toolGuidance.push(
       `${LOCAL_RESEARCH_GUIDANCE_START}${LOCAL_RESEARCH_GUIDANCE_END}`,
     );
-  }
-  if (enabled.has("resolve_target")) {
-    toolGuidance.push(LOCAL_RESOLVE_TARGET_GUIDANCE);
   }
   guidance.push(toolGuidance.join("\n"));
 

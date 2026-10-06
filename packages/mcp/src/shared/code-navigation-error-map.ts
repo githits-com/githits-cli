@@ -18,7 +18,7 @@ import {
   CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
   MalformedCodeNavigationResponseError,
-} from "@githits/core-internal";
+} from "@githits/core-internal/browser";
 import type {
   MappedError,
   MappedErrorCode,

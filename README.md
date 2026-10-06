@@ -149,20 +149,21 @@ Raw diffs do not prove upgrade safety. See [source diff](docs/implementation/cod
 for bounds, patch safety, and supported addressing. Hosted MCP availability
 requires adoption of the released `@githits/mcp` package and deployment.
 
+## Target Resolution
+
+`resolve_target` / `githits resolve` turns a fuzzy, misspelled or ambiguous public
+package, repository or documentation-site name into ranked canonical targets.
+It is available by default in the CLI, local MCP and public MCP package.
+Canonical targets skip resolution; uncertain identity needs an explicit choice.
+See [target resolution](docs/implementation/resolve-target.md) for continuation
+rules and limits. Hosted MCP and plugins receive it after the released package
+is adopted and deployed.
+
 ## Experimental Tools
 
-GitHits includes two opt-in local tools for early dogfooding:
-
-- `research` / `githits research` answers grounded questions with sources.
-
-- `resolve_target` / `githits resolve` turns a fuzzy or ambiguous package,
-  repository, or documentation-site name into grouped canonical targets with
-  related project identities kept together.
-
-They are hidden and disabled by default. They are available only through the
-local `githits` CLI and local stdio MCP server; the hosted MCP and plugin or
-extension installs keep the stable tool set. Enable them in the GitHits host
-config, then restart the coding agent so it restarts the local MCP server:
+`research` / `githits research` (`githits ask` alias) answers grounded questions
+with sources. It is hidden and disabled by default and available through the
+local CLI and local stdio MCP after host-config opt-in:
 
 ```toml
 # macOS/Linux: ~/.config/githits/config.toml
@@ -171,9 +172,8 @@ config, then restart the coding agent so it restarts the local MCP server:
 tools = true
 ```
 
-See [Experimental tools](docs/experimental-tools.md) for platform-specific
-config discovery, CLI examples, limitations, and how
-to disable the tools.
+Restart the coding agent after changing the setting. See
+[Experimental tools](docs/experimental-tools.md) for configuration and usage.
 
 ## Supported Sources
 
@@ -407,7 +407,7 @@ githits mcp              Show setup instructions or start the local MCP server
 githits mcp start        Always start the local MCP server over stdio
 githits example          Find real-world implementations from open source
 githits doctor           Diagnose configuration and auth state
-githits resolve          Experimental: resolve a fuzzy name to canonical targets
+githits resolve          Resolve a fuzzy name to canonical targets
 githits settings         View and update preferences, privacy, and terms
 githits search           Explore repository code, dependencies, docs, and symbols
 githits search-status    Check the status of a previous indexed search

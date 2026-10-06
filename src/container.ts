@@ -310,7 +310,7 @@ export interface Dependencies {
   grepService: GrepService;
   /** Unified compact code/documentation read service. */
   readService: ReadService;
-  /** Resolves fuzzy package/repository names for the CLI dogfood surface. */
+  /** Resolves fuzzy package, repository, and documentation-site names. */
   resolveTargetService: ResolveTargetService;
   /** Private experimental Ask service used by the root CLI and local MCP. */
   agenticAskService: AgenticAskService;

@@ -1,7 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
 import {
   EXPERIMENTAL_CLI_COMMANDS,
-  ExperimentalToolsDisabledError,
   getExperimentalCliCommand,
   isExperimentalCliCommand,
   resolveExperimentalCliPolicy,
@@ -19,13 +18,13 @@ function configFile(contents: string) {
 
 describe("experimental CLI policy", () => {
   it("keeps experimental CLI membership in one data list", () => {
-    expect(EXPERIMENTAL_CLI_COMMANDS).toEqual(["research", "ask", "resolve"]);
+    expect(EXPERIMENTAL_CLI_COMMANDS).toEqual(["research", "ask"]);
     expect(isExperimentalCliCommand("research")).toBe(true);
     expect(isExperimentalCliCommand("ask")).toBe(true);
-    expect(isExperimentalCliCommand("resolve")).toBe(true);
+    expect(isExperimentalCliCommand("resolve")).toBe(false);
     expect(isExperimentalCliCommand("code diff")).toBe(false);
     expect(isExperimentalCliCommand("code files")).toBe(false);
-    expect(shouldRegisterCliCommand("resolve", false)).toBe(false);
+    expect(shouldRegisterCliCommand("resolve", false)).toBe(true);
     expect(shouldRegisterCliCommand("research", false)).toBe(false);
     expect(shouldRegisterCliCommand("ask", false)).toBe(false);
     expect(shouldRegisterCliCommand("code diff", false)).toBe(true);
@@ -44,8 +43,8 @@ describe("experimental CLI policy", () => {
       "ask",
     );
     expect(getExperimentalCliCommand(["help", "ask"])).toBe("ask");
-    expect(getExperimentalCliCommand(["resolve", "express"])).toBe("resolve");
-    expect(getExperimentalCliCommand(["resolve", "--help"])).toBe("resolve");
+    expect(getExperimentalCliCommand(["resolve", "express"])).toBe(undefined);
+    expect(getExperimentalCliCommand(["resolve", "--help"])).toBe(undefined);
     expect(getExperimentalCliCommand(["help", "code", "diff"])).toBe(undefined);
     expect(
       getExperimentalCliCommand(["--no-color", "code", "diff", "--help"]),
@@ -53,24 +52,6 @@ describe("experimental CLI policy", () => {
     expect(getExperimentalCliCommand(["code", "files", "--help"])).toBe(
       undefined,
     );
-  });
-
-  it("rejects a disabled direct invocation before its action can run", async () => {
-    await expect(
-      resolveExperimentalCliPolicy(createMockFileSystemService(), [
-        "resolve",
-        "express",
-      ]),
-    ).rejects.toMatchObject({
-      name: "ExperimentalToolsDisabledError",
-      message: expect.stringContaining("[experimental]\ntools = true"),
-    });
-    await expect(
-      resolveExperimentalCliPolicy(createMockFileSystemService(), [
-        "resolve",
-        "express",
-      ]),
-    ).rejects.toBeInstanceOf(ExperimentalToolsDisabledError);
   });
 
   it("returns enabled settings for experimental invocations", async () => {
@@ -89,12 +70,6 @@ describe("experimental CLI policy", () => {
   });
 
   it("surfaces malformed config for direct invocations", async () => {
-    await expect(
-      resolveExperimentalCliPolicy(configFile("[experimental\n"), [
-        "resolve",
-        "express",
-      ]),
-    ).rejects.toBeInstanceOf(ExperimentalConfigError);
     for (const command of ["research", "ask"]) {
       await expect(
         resolveExperimentalCliPolicy(configFile("[experimental\n"), [
@@ -111,6 +86,24 @@ describe("experimental CLI policy", () => {
         "doctor",
         "--help",
       ]),
+    ).resolves.toMatchObject({ tools: false });
+    await expect(
+      resolveExperimentalCliPolicy(configFile("[experimental\n"), [
+        "resolve",
+        "--help",
+      ]),
+    ).resolves.toMatchObject({ tools: false });
+    await expect(
+      resolveExperimentalCliPolicy(createMockFileSystemService(), [
+        "resolve",
+        "--help",
+      ]),
+    ).resolves.toMatchObject({ tools: false });
+    await expect(
+      resolveExperimentalCliPolicy(
+        configFile("[experimental]\ntools = false\n"),
+        ["resolve", "--help"],
+      ),
     ).resolves.toMatchObject({ tools: false });
   });
 });

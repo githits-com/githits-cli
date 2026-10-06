@@ -1,4 +1,4 @@
-import { LOCAL_AUTHENTICATION_MISSING_MESSAGE } from "@githits/core-internal";
+import { LOCAL_AUTHENTICATION_MISSING_MESSAGE } from "@githits/core-internal/browser";
 
 /**
  * Error thrown when authentication is required but no valid token is available.

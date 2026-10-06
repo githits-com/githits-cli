@@ -16,7 +16,6 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { version } from "../package.json";
 import history from "../src/services/fixtures/mcp-skill-history.json";
 import { inspectSkillContent } from "../src/services/mcp-skill-content.js";
-import { isResolveDirectTargetUnwarned } from "./resolve-smoke-guidance.ts";
 import {
   createIsolatedSmokeEnvironment,
   createScopedSmokeEnvironment,
@@ -42,7 +41,6 @@ export interface McpSmokeScriptOptions {
 export const EXPECTED_EXPERIMENTAL_MCP_TOOLS = [
   ...EXPECTED_MCP_TOOLS,
   "research",
-  "resolve_target",
 ] as const;
 export const STABLE_MCP_SMOKE_CONFIG = "[experimental]\ntools = false\n";
 
@@ -205,7 +203,7 @@ async function assertExperimentalMcpSession(
       !quickStart.includes("`ask`") &&
       quickStart.includes("resolve_target") &&
       quickStart.includes("code_diff") &&
-      quickStart.includes("site:<host[/path]>") &&
+      quickStart.includes("A selected `site:` is docs-only") &&
       quickStart.includes('source:"docs"') &&
       quickStart.includes("`read`") &&
       quickStart.includes("credentials") &&
@@ -343,6 +341,17 @@ async function runRegistrationSmoke(target: CliLaunchTarget): Promise<void> {
           .code === "AUTH_REQUIRED",
         "stable code_diff must reach auth without experimental opt-in",
       );
+      const resolveResult = (await client.callTool({
+        name: "resolve_target",
+        arguments: { name: "express", format: "json" },
+      })) as McpSmokeToolResult;
+      assert(
+        assertCleanErrorEnvelope(
+          resolveResult,
+          "stable resolve_target registration",
+        ).code === "AUTH_REQUIRED",
+        "stable resolve_target must reach auth without experimental opt-in",
+      );
       await runMcpSmoke(createSmokeCaller(client), {
         includeLiveTools: false,
         logger: console,
@@ -390,62 +399,11 @@ async function runExperimentalRegistrationSmoke(
             "research registration should require auth",
           );
         }
-
-        const resolveResult = (await trackSmokeStep(
-          'mcp resolve_target {"name":"express"} registration',
-          () =>
-            client.callTool({
-              name: "resolve_target",
-              arguments: { name: "express", format: "json" },
-            }),
-        )) as McpSmokeToolResult;
-        assert(
-          assertCleanErrorEnvelope(resolveResult, "resolve_target registration")
-            .code === "AUTH_REQUIRED",
-          "resolve_target registration should require auth",
-        );
       },
     );
     console.log("MCP experimental registration smoke passed");
   } finally {
     isolated.cleanup();
-  }
-}
-
-export function assertExperimentalMcpResolveText(
-  resolveTextBody: string,
-): void {
-  assert(
-    resolveTextBody.includes("npm:express") &&
-      !resolveTextBody.includes("githits ") &&
-      !resolveTextBody.includes("--"),
-    "experimental resolve text should include MCP-native candidate guidance",
-  );
-  const directTarget = resolveTextBody.match(
-    /Next: pass the canonical target "([^"]+)"/,
-  )?.[1];
-  if (directTarget) {
-    assert(
-      isResolveDirectTargetUnwarned(resolveTextBody, directTarget),
-      "experimental direct resolve action should target a listed direct candidate without a warning",
-    );
-    return;
-  }
-  if (resolveTextBody.includes("Warning:")) {
-    assert(
-      !resolveTextBody.includes("Next:"),
-      "experimental malicious-blocked resolve text should omit the normal next action",
-    );
-  } else if (resolveTextBody.includes("Ambiguous:")) {
-    assert(
-      resolveTextBody.includes("do not auto-select a candidate"),
-      "experimental ambiguous resolve text should require an explicit choice",
-    );
-  } else {
-    assert(
-      resolveTextBody.includes("do not pass the best result automatically"),
-      "experimental unconfirmed resolve text should require an explicit choice",
-    );
   }
 }
 
@@ -563,163 +521,6 @@ async function runExperimentalLiveSmoke(
           assertDefaultText(researchText, "experimental research text").trim()
             .length > 0,
           "experimental research should return nonempty backend display text",
-        );
-
-        const resolveText = (await trackSmokeStep(
-          "mcp resolve_target default text experimental live",
-          () =>
-            client.callTool({
-              name: "resolve_target",
-              arguments: { name: "express" },
-            }),
-        )) as McpSmokeToolResult;
-        if (resolveText.isError === true) {
-          const resolveErrorJson = (await client.callTool({
-            name: "resolve_target",
-            arguments: { name: "express", format: "json" },
-          })) as McpSmokeToolResult;
-          const envelope = assertCleanErrorEnvelope(
-            resolveErrorJson,
-            "experimental resolve auth probe",
-          );
-          assert(
-            envelope.code === "AUTH_REQUIRED",
-            `experimental resolve auth probe returned ${envelope.code}`,
-          );
-          console.log("AUTH_REQUIRED: live MCP experimental smoke skipped");
-          return;
-        }
-        const resolveTextBody = assertDefaultText(
-          resolveText,
-          "experimental resolve default text",
-        );
-        assertExperimentalMcpResolveText(resolveTextBody);
-        for (const expected of [
-          "Targets:",
-          "npm:express",
-          "github:expressjs/express",
-          "site:expressjs.com",
-          "Related targets:",
-        ]) {
-          assert(
-            resolveTextBody.includes(expected),
-            `experimental MCP express resolution missing ${expected}`,
-          );
-        }
-
-        const fuzzyResolveText = (await trackSmokeStep(
-          "mcp resolve_target fuzzy evidence experimental live",
-          () =>
-            client.callTool({
-              name: "resolve_target",
-              arguments: { name: "lodahs", preferred_kind: "package" },
-            }),
-        )) as McpSmokeToolResult;
-        const fuzzyResolveTextBody = assertDefaultText(
-          fuzzyResolveText,
-          "experimental fuzzy resolve default text",
-        );
-        assert(
-          !fuzzyResolveTextBody.includes("name similarity") &&
-            !fuzzyResolveTextBody.includes("coarse lexical support") &&
-            fuzzyResolveTextBody.includes("indexed package snapshot") &&
-            !fuzzyResolveTextBody.includes("readiness") &&
-            !fuzzyResolveTextBody.includes("no code") &&
-            !fuzzyResolveTextBody.includes("no docs"),
-          "experimental fuzzy resolve default text should omit lexical and negative availability detail",
-        );
-
-        const fuzzyResolveVerbose = (await trackSmokeStep(
-          "mcp resolve_target fuzzy verbose text experimental live",
-          () =>
-            client.callTool({
-              name: "resolve_target",
-              arguments: {
-                name: "lodahs",
-                preferred_kind: "package",
-                verbose: true,
-              },
-            }),
-        )) as McpSmokeToolResult;
-        const fuzzyResolveVerboseBody = assertDefaultText(
-          fuzzyResolveVerbose,
-          "experimental fuzzy resolve verbose text",
-        );
-        assert(
-          /\d+% name similarity/.test(fuzzyResolveVerboseBody) &&
-            fuzzyResolveVerboseBody.includes(
-              "Name similarity is coarse lexical support; candidate order follows broader backend policy.",
-            ),
-          "experimental fuzzy resolve verbose text should qualify lexical evidence",
-        );
-
-        const resolveJson = (await trackSmokeStep(
-          "mcp resolve_target JSON experimental live",
-          () =>
-            client.callTool({
-              name: "resolve_target",
-              arguments: { name: "express", format: "json" },
-            }),
-        )) as McpSmokeToolResult;
-        const resolvePayload = assertJsonResult(
-          resolveJson,
-          "experimental resolve JSON",
-        );
-        assert(
-          resolvePayload !== null && typeof resolvePayload === "object",
-          "experimental resolve JSON should be an object",
-        );
-        const resolveRecord = resolvePayload as Record<string, unknown>;
-        const resolveCandidates = resolveRecord.candidates;
-        assert(
-          Array.isArray(resolveCandidates) &&
-            resolveCandidates.some(
-              (candidate: unknown) =>
-                candidate !== null &&
-                typeof candidate === "object" &&
-                "target" in candidate &&
-                candidate.target === "npm:express" &&
-                "latestVersionMaliciousStatus" in candidate &&
-                typeof candidate.latestVersionMaliciousStatus === "string",
-            ),
-          "experimental resolve JSON should preserve malicious-content status for the full npm:express candidate",
-        );
-        assert(
-          typeof resolveRecord.targetsTruncated === "boolean",
-          "experimental resolve JSON should expose target truncation",
-        );
-
-        const fuzzyResolveJson = (await trackSmokeStep(
-          "mcp resolve_target fuzzy JSON experimental live",
-          () =>
-            client.callTool({
-              name: "resolve_target",
-              arguments: {
-                name: "lodahs",
-                preferred_kind: "package",
-                format: "json",
-              },
-            }),
-        )) as McpSmokeToolResult;
-        const fuzzyResolvePayload = assertJsonResult(
-          fuzzyResolveJson,
-          "experimental fuzzy resolve JSON",
-        );
-        assert(
-          fuzzyResolvePayload !== null &&
-            typeof fuzzyResolvePayload === "object" &&
-            "candidates" in fuzzyResolvePayload &&
-            Array.isArray(fuzzyResolvePayload.candidates) &&
-            fuzzyResolvePayload.candidates.some(
-              (candidate: unknown) =>
-                candidate !== null &&
-                typeof candidate === "object" &&
-                "target" in candidate &&
-                candidate.target === "npm:lodash" &&
-                "nameSimilarity" in candidate &&
-                typeof candidate.nameSimilarity === "number",
-            ),
-          "experimental fuzzy resolve JSON should preserve numeric name similarity for npm:lodash",
         );
       },
     );

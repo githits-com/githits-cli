@@ -6,6 +6,7 @@ import type {
   ListService,
   PackageIntelligenceService,
   ReadService,
+  ResolveTargetService,
 } from "@githits/core-internal";
 
 /**
@@ -21,4 +22,5 @@ export interface McpToolServices {
   listService: ListService;
   readService: ReadService;
   grepService: GrepService;
+  resolveTargetService: ResolveTargetService;
 }

@@ -9,6 +9,7 @@ import {
   createMockListService,
   createMockPackageIntelligenceService,
   createMockReadService,
+  createMockResolveTargetService,
 } from "../services/test-helpers.js";
 
 function createTestServices(
@@ -21,6 +22,7 @@ function createTestServices(
     listService: createMockListService(),
     readService: createMockReadService(),
     grepService: createMockGrepService(),
+    resolveTargetService: createMockResolveTargetService(),
     ...overrides,
   };
 }
@@ -32,6 +34,7 @@ const KNOWN_TOOLS = [
   "list",
   "read",
   "grep",
+  "resolve_target",
   "code_diff",
   "pkg_info",
   "pkg_vulns",
@@ -186,7 +189,7 @@ describe("buildMcpQuickStart", () => {
     const mentioned = mentionedTools(buildMcpQuickStart());
     const registered = registeredTools(services);
 
-    expect(registered.size).toBe(13);
+    expect(registered.size).toBe(14);
     expect(mentioned).toEqual(new Set(KNOWN_TOOLS));
     for (const name of mentioned) {
       expect(registered.has(name)).toBe(true);

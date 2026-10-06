@@ -112,10 +112,10 @@ guide is stale instead of adding a second runtime bootstrap path.
 
 ### Local experimental surface
 
-The static skill does not include `resolve_target`, `code_diff`, experimental
-privacy wording, or opt-in issue-reporting policy because those tools are
-config-gated and absent from the public/remote MCP surface. That packaging
-boundary does not change the session bootstrap invariant. Local experimental
+The static skill includes stable `resolve_target` and `code_diff` guidance;
+package availability and hosted adoption/deployment are separate milestones.
+Only local experimental `research` guidance stays in the runtime appendix.
+That boundary does not change the session bootstrap invariant. Local experimental
 descriptors receive the same prerequisite footer as every other evidence tool:
 call `quick_start` once when the skill is absent and skip it when the skill is
 loaded.

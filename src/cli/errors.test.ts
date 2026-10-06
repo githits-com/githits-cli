@@ -93,7 +93,7 @@ describe("handleCliError", () => {
 
   it("prints experimental policy errors as concise user-facing failures", () => {
     const disabled = captureCliError(
-      new ExperimentalToolsDisabledError("resolve", "/tmp/config.toml"),
+      new ExperimentalToolsDisabledError("research", "/tmp/config.toml"),
     );
     expect(disabled.output).toContain("[experimental]\ntools = true");
     expect(disabled.output).not.toContain("githits doctor");
@@ -109,13 +109,13 @@ describe("handleCliError", () => {
 
   it("renders experimental policy errors as clean JSON when requested", () => {
     const disabled = captureCliError(
-      new ExperimentalToolsDisabledError("resolve", "/tmp/config.toml"),
+      new ExperimentalToolsDisabledError("research", "/tmp/config.toml"),
       true,
     );
     expect(disabled.output.trim()).toBe(
       JSON.stringify({
         error:
-          'Experimental CLI command "resolve" is disabled. Enable it in /tmp/config.toml by adding:\n[experimental]\ntools = true',
+          'Experimental CLI command "research" is disabled. Enable it in /tmp/config.toml by adding:\n[experimental]\ntools = true',
         code: "INVALID_ARGUMENT",
         retryable: false,
       }),

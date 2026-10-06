@@ -7,7 +7,7 @@ import {
   type PkgseerRegistry,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
-} from "@githits/core-internal";
+} from "@githits/core-internal/browser";
 
 /**
  * Lowercase user-facing kind values → the backend's uppercase

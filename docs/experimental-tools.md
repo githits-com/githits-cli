@@ -1,12 +1,11 @@
 # Experimental Tools
 
-GitHits includes two opt-in local MCP tools with matching CLI commands for
+GitHits includes one opt-in local MCP tool with matching CLI commands for
 dogfooding before they are considered for the stable surface:
 
 | MCP tool | CLI command | Purpose |
 |---|---|---|
 | `research` | `githits research` (`githits ask` alias) | Research a grounded question about one canonical open-source target and return executable source-reading calls or original upstream URLs. |
-| `resolve_target` | `githits resolve` | Rank canonical package, public GitHub repository, or standalone documentation-site targets for a fuzzy, misspelled, or ambiguous name. |
 
 Experimental means the tools are disabled and hidden from CLI help by default,
 their contracts may change based on dogfood evidence, and they may be revised or
@@ -15,8 +14,8 @@ requirements applied to stable GitHits tools.
 
 ## Availability
 
-Both experimental commands are available in the published `githits` CLI
-and both tools are available in its local stdio MCP server. None are
+The research command and ask alias are available in the published `githits` CLI
+and the research tool is available in its local stdio MCP server. Research is not
 registered by:
 
 - the hosted MCP at `https://mcp.githits.com`
@@ -55,10 +54,9 @@ Confirm the CLI opt-in:
 ```sh
 githits --help
 githits research --help
-githits resolve --help
 ```
 
-The first command should list `research|ask` and `resolve`. If an explicit experimental command is still disabled, its error
+The first command should list `research|ask`. If an explicit experimental command is still disabled, its error
 names the config path GitHits read.
 
 The hidden `githits mcp start --experimental-tools` flag is development and
@@ -111,39 +109,10 @@ clarification with resolver candidates in `display_markdown`, omitting run/threa
 IDs. There is no separate JSON outcome variant. Repeat the question with a selected
 target; do not infer identity from popularity or silently pick an ambiguous hit.
 
-Resolve a noncanonical name before calling another GitHits command:
-
-```sh
-githits resolve "testing library for react" --query "upgrade component tests"
-githits resolve requests --registry pypi --prefer-kind package --json
-githits resolve "Express docs" --prefer-kind site
-```
-
-Canonical targets such as `npm:express`, `github:expressjs/express`, or
-`site:expressjs.com` do not need resolution. Passing a target already accepted
-by downstream tools is rejected locally with `INVALID_ARGUMENT`; pass that
-target directly to the next GitHits tool instead. A selected site candidate is
-a standalone documentation target. Search it in docs mode and read relevant
-results with `read` (or `githits read`):
-
-```sh
-githits search "router parameters" --in site:expressjs.com --source docs
-```
-
-Structured output preserves each candidate's latest-version malicious-content
-decision. Text stays silent for `clear` and `not_applicable`; affected, uncertain,
-or unsupported decisions produce a concise warning, red in the terminal.
-Affected and uncertain warnings link the bounded, status-relevant `MAL-*`
-advisories returned by the resolver and explain uncertain classification reasons.
-Ordinary continuation is offered only for a non-ambiguous `EXACT`/`HIGH`
-identity with `clear` or `not_applicable` status. Other or missing decisions are
-non-actionable and suppress the normal next-tool handoff. `clear` is not a
-vulnerability-free claim.
-
-The local MCP server registers `research` and `resolve_target` after opt-in.
-`code_diff` and `githits code diff` are stable and do not require this setting;
-see [source diff](implementation/code-diff.md). Hosted availability follows
-adoption of the released MCP package, separately from local configuration.
+`resolve_target` and `githits resolve` are stable and do not require this
+setting; see [target resolution](implementation/resolve-target.md).
+`code_diff` is also stable; see [source diff](implementation/code-diff.md).
+Hosted availability follows adoption/deployment of the released MCP package.
 
 ## Disable the tools
 
