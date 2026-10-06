@@ -113,8 +113,12 @@ The existing exact readTarget, use-hits-now action, conditional wait, lifecycle,
 partial/completeness signals, attribution and zero-hit/withheld rules are unchanged.
 
 **Rollout prerequisite:** confirm production backend schema deployment before
-client release or hosted MCP adoption. This increment was verified against the
-supplied backend dev records, not production. If deployed too early, all `read`
+client release or hosted MCP adoption. Initial implementation validation used
+the supplied backend dev records.
+Production accepted the complete read, compact/detailed list and search/status
+query documents on 2026-10-06 during 0.27.0 release preparation; see the
+[production validation record](indexing-estimates.md#deployment-prerequisite).
+If deployed too early, all `read`
 requests fail because `ReadService` has no schema fallback: the code fragment
 selects the field, and GraphQL validates the whole document before returning
 either code or docs. Public list text and JSON likewise require schema support: its query document includes the date field even when the provenance directive is false. Search/status and legacy navigation instead make sequential

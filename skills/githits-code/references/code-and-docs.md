@@ -41,7 +41,9 @@ released MCP package.
 
 Search text shows producer-proven matched source and structural documentation previews. Path-only matches render as compact file headers; they do not prove a source-content match. Follow the emitted read locator when source context is needed. JSON carries indexed-field provenance, matched source, semantic context, and documentation previews; retired summary, summary-highlight, content-safety, and compatibility focused-source fields are absent.
 
-Useful filters: `--kind`, `--category`, `--path-prefix`, `--intent`, `--public`, `--name`, `--lang`, `--limit`, `--offset`, `--wait`, `--allow-partial`, `--json`.
+Useful filters: `--kind`, `--category`, `--path-prefix`, `--intent`, `--public`, `--name`, `--lang`, `--limit`, `--offset`, `--wait`, `--no-allow-partial`, `--json`.
+
+Search returns partial results by default so ready sources contribute while others prepare. Use `--no-allow-partial` to request atomic results; MCP uses `allow_partial_results: false`. Follow the displayed Source and Preparing rows for served snapshots and active work. Known commit dates are independent provenance, not freshness or remaining-time guarantees.
 
 `--path-prefix` filters code results only. Omit it for `--source docs`, `--source symbol`, and standalone site searches. Use it with `--source code` on a package/repository, or with automatic source selection that includes a package/repository.
 
