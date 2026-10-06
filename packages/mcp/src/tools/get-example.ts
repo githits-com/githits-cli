@@ -19,6 +19,8 @@ export interface GetExampleInput {
 /** Search parameters required by the browser-callable example tool. */
 export interface GetExampleSearchParams {
   query: string;
+  /** Source read syntax requested by the calling surface. */
+  sourceFormat?: "cli" | "mcp" | "url";
   language?: string;
   licenseMode?: "strict" | "yolo" | "custom";
   includeExplanation?: boolean;
@@ -83,8 +85,9 @@ export function createGetExampleTool(
       return withErrorHandling(
         "get example",
         async () => {
-          const searchParams = {
+          const searchParams: GetExampleSearchParams = {
             query: args.query,
+            sourceFormat: "mcp",
             language: args.language,
             licenseMode: args.license_mode,
             includeExplanation: false,

@@ -59,6 +59,14 @@ The dual-surface tools today are:
 - `resolve_target` ↔ `githits resolve` *(stable public MCP and CLI)*
 - `code_diff` ↔ `githits code diff` *(stable public MCP and CLI)*
 
+Example success envelopes retain identical JSON keys (`result`, optional
+`solution_id`), while their Markdown deliberately uses each surface's source-read
+syntax. CLI explicitly requests `source_format: "cli"`; MCP requests `"mcp"`.
+Neither surface reconstructs backend references. Text-only CLI sanitization removes
+terminal controls; JSON preserves the response bytes. MCP text retains its trailing
+`solution_id` line. The frozen example contract and real read-handler replay tests
+cover source calls, quoting, exact revisions, paths, and line bounds.
+
 The retained `githits code grep` command is a CLI-only compatibility surface;
 it has no exact MCP alias and keeps its legacy source-only controls.
 

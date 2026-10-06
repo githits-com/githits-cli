@@ -1,0 +1,57 @@
+[
+  {
+    "name": "--json",
+    "cli": "npx githits@latest read --lines 20-319 -- github:veriqta/DEVOPS-WORLD@release/v1 --json",
+    "mcp": "read({\"target\":\"github:veriqta/DEVOPS-WORLD@release/v1\",\"path\":\"--json\",\"start_line\":20,\"end_line\":319})",
+    "expected": {
+      "target": "github:veriqta/DEVOPS-WORLD@release/v1",
+      "path": "--json",
+      "start_line": 20,
+      "end_line": 319
+    }
+  },
+  {
+    "name": "src/café's file.py",
+    "cli": "npx githits@latest read --lines 20-319 -- github:veriqta/DEVOPS-WORLD@release/v1 'src/café'\"'\"'s file.py'",
+    "mcp": "read({\"target\":\"github:veriqta/DEVOPS-WORLD@release/v1\",\"path\":\"src/café's file.py\",\"start_line\":20,\"end_line\":319})",
+    "expected": {
+      "target": "github:veriqta/DEVOPS-WORLD@release/v1",
+      "path": "src/café's file.py",
+      "start_line": 20,
+      "end_line": 319
+    }
+  },
+  {
+    "name": "name;$command.py",
+    "cli": "npx githits@latest read --lines 20-319 -- github:veriqta/DEVOPS-WORLD@release/v1 'name;$command.py'",
+    "mcp": "read({\"target\":\"github:veriqta/DEVOPS-WORLD@release/v1\",\"path\":\"name;$command.py\",\"start_line\":20,\"end_line\":319})",
+    "expected": {
+      "target": "github:veriqta/DEVOPS-WORLD@release/v1",
+      "path": "name;$command.py",
+      "start_line": 20,
+      "end_line": 319
+    }
+  },
+  {
+    "name": "a%20b.py",
+    "cli": "npx githits@latest read --lines 20-319 -- github:veriqta/DEVOPS-WORLD@release/v1 a%20b.py",
+    "mcp": "read({\"target\":\"github:veriqta/DEVOPS-WORLD@release/v1\",\"path\":\"a%20b.py\",\"start_line\":20,\"end_line\":319})",
+    "expected": {
+      "target": "github:veriqta/DEVOPS-WORLD@release/v1",
+      "path": "a%20b.py",
+      "start_line": 20,
+      "end_line": 319
+    }
+  },
+  {
+    "name": "percent-ref",
+    "cli": "npx githits@latest read --lines 2-7 -- github:veriqta/DEVOPS-WORLD@release%2Fv1 example.py",
+    "mcp": "read({\"target\":\"github:veriqta/DEVOPS-WORLD@release%2Fv1\",\"path\":\"example.py\",\"start_line\":2,\"end_line\":7})",
+    "expected": {
+      "target": "github:veriqta/DEVOPS-WORLD@release%2Fv1",
+      "path": "example.py",
+      "start_line": 2,
+      "end_line": 7
+    }
+  }
+]

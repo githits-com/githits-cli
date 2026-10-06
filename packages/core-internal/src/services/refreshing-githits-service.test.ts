@@ -105,14 +105,14 @@ describe("RefreshingGitHitsService", () => {
         factory,
       );
 
-      await service.search({ query: "test" }, options);
+      await service.search({ query: "test", sourceFormat: "mcp" }, options);
 
       expect(failingService.search).toHaveBeenCalledWith(
-        { query: "test" },
+        { query: "test", sourceFormat: "mcp" },
         options,
       );
       expect(successService.search).toHaveBeenCalledWith(
-        { query: "test" },
+        { query: "test", sourceFormat: "mcp" },
         options,
       );
     });

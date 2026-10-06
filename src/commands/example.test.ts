@@ -11,6 +11,33 @@ import { type ExampleDependencies, exampleAction } from "./example.js";
 describe("exampleAction", () => {
   const mcpUrl = "https://mcp.githits.com";
 
+  it.each([false, true])(
+    "sanitizes terminal controls only outside JSON (json=%s)",
+    async (json) => {
+      const markdown = "# Café\r\n\t\u001b[31mexample\u001b[0m\n\u0000\u0085";
+      const search = mock(() => Promise.resolve(markdown));
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await exampleAction(
+          "example",
+          { json },
+          createDeps({
+            githitsService: createMockGitHitsService({ search }),
+          }),
+        );
+        const output = String(log.mock.calls[0]?.[0]);
+        expect(json ? JSON.parse(output).result : output).toBe(
+          json ? markdown : "# Café\n\texample\n",
+        );
+        expect(search).toHaveBeenCalledWith(
+          expect.objectContaining({ sourceFormat: "cli" }),
+        );
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
+
   function createDeps(
     overrides: Partial<ExampleDependencies> = {},
   ): ExampleDependencies {
@@ -40,6 +67,7 @@ describe("exampleAction", () => {
       language: "python",
       licenseMode: "yolo",
       includeExplanation: undefined,
+      sourceFormat: "cli",
     });
     consoleSpy.mockRestore();
   });
@@ -58,6 +86,7 @@ describe("exampleAction", () => {
       language: undefined,
       licenseMode: undefined,
       includeExplanation: undefined,
+      sourceFormat: "cli",
     });
     consoleSpy.mockRestore();
   });

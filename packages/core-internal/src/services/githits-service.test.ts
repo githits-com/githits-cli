@@ -77,6 +77,21 @@ describe("GitHitsServiceImpl", () => {
   });
 
   describe("search", () => {
+    it.each(["cli", "mcp", "url"] as const)(
+      "serializes explicit %s source presentation and preserves Markdown",
+      async (sourceFormat) => {
+        const markdown = '# Source\n\nread({"path":"a b.ts"})\n';
+        const fn = mockFetch(() => Promise.resolve(new Response(markdown)));
+        expect(await service.search({ query: "example", sourceFormat })).toBe(
+          markdown,
+        );
+        const call = fn.mock.calls[0] as unknown as [string, RequestInit];
+        expect(JSON.parse(String(call[1].body)).source_format).toBe(
+          sourceFormat,
+        );
+      },
+    );
+
     it("recognises the canonical terms-required 403 contract", async () => {
       mockFetch(() =>
         Promise.resolve(
@@ -137,6 +152,7 @@ describe("GitHitsServiceImpl", () => {
       expect(body.language).toBe("javascript");
       expect(body.license_mode).toBe("strict");
       expect(body.include_explanation).toBe(false);
+      expect(body).not.toHaveProperty("source_format");
 
       const headers = call[1].headers as Record<string, string>;
       expect(headers.Authorization).toBe("Bearer test-token");
