@@ -93,8 +93,8 @@ the whole page by physical scope, hit kind and exact read target/path, in first
 file/page appearance order, then sorts rows by line and slice position. It does
 not gather all files from one source into a separate section. Display
 paths alone never establish file identity. Physical scope `targetIndex` differs
-from caller attribution in `requestedInputIndices`; text shows input attribution
-when explaining coverage gaps.
+from caller attribution in `requestedInputIndices`. Human text uses target labels;
+backend input numbers remain in JSON only.
 
 Identical `(line, startByte, endByte, content)` windows share one numbered row,
 with every native match span retained. Match rows use `:`, context uses `-`, and
@@ -153,21 +153,22 @@ secondary `[page: ...]` metadata after the actual read locator.
 Sources:
   - github:expressjs/express@dbac741a (source files)
   - site:expressjs.com (hosted documentation)
-# Read files: read --lines $start-$end -- $target $path
-# Read pages: read --lines $start-$end -- $url
-
 [1] github:expressjs/express@dbac741a lib/express.js
 19: var Router = require('router');
 
 [2] https://expressjs.com/en/4x/api/
 51: ...
+
+# Read files: read --lines $start-$end -- $target $path
+# Read pages: read --lines $start-$end -- $url
 ```
 
-Read templates appear once for each returned hit kind. Substitute the chosen
+Read templates appear after all matches and before pagination/retry guidance,
+once for each returned hit kind. Substitute the chosen
 row range and copy the target/path or page URL from its header. CLI uses
 `--lines` and `--` for both structures; MCP templates use `target`, `path`,
-`start_line` and `end_line`. There is no per-hit executable command, numeric
-source alias or read footer. JSON retains original display paths and every
+`start_line` and `end_line`. There is no per-hit executable command or numeric
+source alias. JSON retains original display paths and every
 backend action with its exact bounds. Unversioned package grep does not expose
 the resolved package version, so text uses the supplied pinned repository read
 target rather than inventing a version. The stable MCP catalog registers
@@ -179,7 +180,7 @@ routine input indices stay quiet in text. Repository files and hosted pages
 have their own numbered locator headers. A normal page limit says more is
 available and prints one opaque cursor instruction below all evidence, with the
 identical ordered operands/controls rule. The continuation guidance and cursor
-option use the same dim styling as the header read templates when colors are
+option use the same dim styling as the read templates when colors are
 enabled; wrapping happens before ANSI styling and the cursor stays on one line.
 Plain and NO_COLOR output retain the same text. Coverage and expiry warnings
 remain above evidence. `--cursor` help explains that hosted pages can change
@@ -275,7 +276,7 @@ Human output uses the shared `Sources` row grammar for served repository pins
 and hosted documentation. It preserves separate corpora, readiness, coverage
 and input aliases. Pending repository/documentation omissions move under
 `Preparing`; other omissions remain under `Omitted`. Each supplied estimate is
-printed once, with requested inputs and input-specific suggestions beneath it.
+printed once, with each requested target alias once and input-specific suggestions beneath it.
 Grep does not fetch commit dates or resolved HEAD intent, so it does not claim
 either. Scan counts, skipped files, issues, cursors and backend read actions stay
 with their original scopes.

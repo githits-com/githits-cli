@@ -1388,6 +1388,7 @@ function compactSourceStatusEntry(
         !(targetResolution.freshness === "indexing" && options.completed)) ||
       (targetResolution.freshness === "current" && hasRetryCandidates);
     if (
+      options.includeHealthy ||
       !contributors ||
       targetResolutionCarriesNotes ||
       targetResolutionIsInteresting
@@ -1436,7 +1437,7 @@ function compactSourceStatusEntry(
     !contributors &&
     !options.includeEmptyResultContext &&
     typeof entry.resultCount === "number" &&
-    entry.resultCount > 0
+    (entry.resultCount > 0 || options.includeHealthy)
   ) {
     payload.resultCount = entry.resultCount;
   }

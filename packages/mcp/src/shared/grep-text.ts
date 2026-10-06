@@ -108,17 +108,22 @@ export function formatGrepText(
             ? "REPOSITORY"
             : "DOCUMENTATION"),
     );
-    for (const omitted of inputs) {
-      attached.add(omitted);
+    for (const omitted of inputs) attached.add(omitted);
+    for (const target of new Set(inputs.map((omitted) => omitted.target))) {
+      const targetInputs = inputs.filter(
+        (omitted) => omitted.target === target,
+      );
       const needsAlias =
         inputs.length > 1 ||
         entry.targets.length > 1 ||
         Boolean(entry.repositoryUrl && entry.commitSha) ||
-        Boolean(omitted.suggestedSiteTargets?.length);
-      if (needsAlias)
-        prose(`    Requested: ${omitted.target} (input ${omitted.inputIndex})`);
-      for (const target of omitted.suggestedSiteTargets ?? [])
-        prose(`      Suggested site: ${target}`);
+        targetInputs.some((omitted) =>
+          Boolean(omitted.suggestedSiteTargets?.length),
+        );
+      if (needsAlias) prose(`    Requested: ${target}`);
+      for (const omitted of targetInputs)
+        for (const suggested of omitted.suggestedSiteTargets ?? [])
+          prose(`      Suggested site: ${suggested}`);
     }
     if (entry.repositoryUrl && entry.commitSha) {
       const remaining = entry.targets.filter(
@@ -129,7 +134,7 @@ export function formatGrepText(
   }
   for (const omitted of pending.filter((entry) => !attached.has(entry))) {
     prose(
-      `  - ${formatProvenanceRow(omitted.target, [omitted.reason === "repository_indexing" ? "indexing" : "preparing documentation"])}${pending.filter((entry) => entry.target === omitted.target).length > 1 ? ` (input ${omitted.inputIndex})` : ""}`,
+      `  - ${formatProvenanceRow(omitted.target, [omitted.reason === "repository_indexing" ? "indexing" : "preparing documentation"])}`,
     );
     for (const target of omitted.suggestedSiteTargets ?? [])
       prose(`    Suggested site: ${target}`);
@@ -139,34 +144,12 @@ export function formatGrepText(
   );
   if (otherOmissions.length) lines.push("Omitted:");
   for (const omitted of otherOmissions) {
-    prose(
-      `  - ${omitted.target}${otherOmissions.filter((entry) => entry.target === omitted.target).length > 1 ? ` (input ${omitted.inputIndex})` : ""} (${grepPreparationReason(omitted.reason)})`,
-    );
+    prose(`  - ${omitted.target} (${grepPreparationReason(omitted.reason)})`);
     for (const target of omitted.suggestedSiteTargets ?? [])
       prose(`    Suggested site: ${target}`);
   }
   for (const scope of result.targets) renderCoverage(scope, prose);
 
-  if (groups.length) {
-    if (kinds.has("GrepRepositoryHit"))
-      lines.push(
-        dim(
-          options.syntax === "mcp"
-            ? "# Read files: read target=$target path=$path start_line=$start end_line=$end"
-            : "# Read files: read --lines $start-$end -- $target $path",
-          options.useColors === true,
-        ),
-      );
-    if (kinds.has("GrepSiteHit"))
-      lines.push(
-        dim(
-          options.syntax === "mcp"
-            ? "# Read pages: read target=$url start_line=$start end_line=$end"
-            : "# Read pages: read --lines $start-$end -- $url",
-          options.useColors === true,
-        ),
-      );
-  }
   if (result.traversal === "CURSOR_EXPIRED")
     prose(
       "Cursor expired. Restart explicitly without the cursor; retained matches and omissions are included.",
@@ -209,6 +192,27 @@ export function formatGrepText(
         "Safety normalization applied; physical source coordinates remain in JSON.",
       );
   }
+  if (groups.length) {
+    lines.push("");
+    if (kinds.has("GrepRepositoryHit"))
+      lines.push(
+        dim(
+          options.syntax === "mcp"
+            ? "# Read files: read target=$target path=$path start_line=$start end_line=$end"
+            : "# Read files: read --lines $start-$end -- $target $path",
+          options.useColors === true,
+        ),
+      );
+    if (kinds.has("GrepSiteHit"))
+      lines.push(
+        dim(
+          options.syntax === "mcp"
+            ? "# Read pages: read target=$url start_line=$start end_line=$end"
+            : "# Read pages: read --lines $start-$end -- $url",
+          options.useColors === true,
+        ),
+      );
+  }
   if (result.nextCursor) {
     const footerLines = [
       ...wrap(
@@ -238,7 +242,7 @@ function renderCoverage(
   scope: GrepTargetStatus,
   prose: (value: string) => void,
 ): void {
-  const prefix = `${scope.kind === "REPOSITORY" ? "Repository" : "Hosted docs"} ${scope.target} (inputs ${scope.requestedInputIndices.join(", ")})`;
+  const prefix = `${scope.kind === "REPOSITORY" ? "Repository" : "Hosted docs"} ${scope.target}`;
   const notes: string[] = [];
   if (scope.readiness !== "UNSPECIFIED" && scope.readiness !== "CURRENT")
     notes.push(readinessNote(scope));

@@ -877,126 +877,202 @@ describe("usable snapshot presentation parity", () => {
 });
 
 describe("healthy source provenance through actual search adapters", () => {
-  it("preserves healthy source dates for initial and status text while keeping JSON compact", async () => {
-    if (defaultUnifiedSearchOutcome.state !== "completed")
-      throw new Error("expected completed fixture");
-    const original = defaultUnifiedSearchOutcome.result;
-    const repoUrl = "https://github.com/n8n-io/n8n";
-    const sha = "4fdfc9f9db35702b64a8f15044a454044e47f6fc";
-    const target = "npm:n8n@2.36.6";
-    const outcome: UnifiedSearchOutcome = {
-      state: "completed",
-      completed: true,
-      searchRef: "healthy-search",
-      result: {
-        ...original,
-        partialResults: false,
-        results: [
-          {
-            ...original.results[0]!,
-            targetLabel: target,
-            locator: {
-              ...original.results[0]!.locator,
-              repoUrl,
-              commitSha: sha,
-              gitRef: sha,
-            },
-            readTarget: { target, path: "src/index.ts" },
-          },
-        ],
-        sourceStatus: [
-          {
-            ...original.sourceStatus[0]!,
-            source: "CODE",
-            targetLabel: target,
-            codeIndexState: "CURRENT",
-            indexingStatus: "INDEXED",
-            resultCount: 1,
-            targetResolution: {
-              requested: {
-                kind: "package_exact_version",
-                registry: "npm",
-                packageName: "n8n",
-                version: "2.36.6",
-              },
-              resolvedRequested: {
+  it.each(["code", "repository-docs", "mixed-zero", "no-resolution"])(
+    "preserves healthy source provenance %s through initial/status text and compact JSON",
+    async (mode) => {
+      if (defaultUnifiedSearchOutcome.state !== "completed")
+        throw new Error("expected completed fixture");
+      const original = defaultUnifiedSearchOutcome.result;
+      const repoUrl = "https://github.com/n8n-io/n8n";
+      const sha = "4fdfc9f9db35702b64a8f15044a454044e47f6fc";
+      const target = "npm:n8n@2.36.6";
+      const outcome: UnifiedSearchOutcome = {
+        state: "completed",
+        completed: true,
+        searchRef: "healthy-search",
+        result: {
+          ...original,
+          partialResults: false,
+          results: [
+            {
+              ...original.results[0]!,
+              targetLabel: target,
+              locator: {
+                ...original.results[0]!.locator,
                 repoUrl,
-                gitRef: "n8n@2.36.6",
                 commitSha: sha,
-                committedAt: "2026-08-24T00:00:00Z",
+                gitRef: sha,
               },
-              served: {
-                repoUrl,
-                gitRef: "n8n@2.36.6",
-                commitSha: sha,
-                committedAt: "2026-08-24T00:00:00Z",
-              },
-              freshness: "current",
-              freshnessReason: "exact_current",
-              availableVersions: [],
-              availableRefs: [],
+              readTarget: { target, path: "src/index.ts" },
             },
-          },
-        ],
-      },
-    };
-    for (const text of [
-      await cliTextForOutcome(outcome),
-      await mcpTextForOutcome(outcome),
-    ]) {
-      expect(text).toContain("Sources:");
-      expect(text.replace(/\s+/g, " ")).toContain(
-        "github:n8n-io/n8n@4fdfc9f9 (committed 2026-08-24, indexed from ref n8n@2.36.6",
-      );
-      expect(text).not.toContain("If you need current HEAD");
-      expect(text).not.toContain("sourceStatusForText");
-    }
-    const service = createMockCodeNavigationService({
-      searchStatus: mock(async () => outcome),
-    });
-    const log = spyOn(console, "log").mockImplementation(() => {});
-    let cliStatus = "";
-    try {
-      await searchStatusAction(
-        "healthy-search",
-        { wait: "0" },
-        {
-          codeNavigationService: service,
-          codeNavigationUrl: "https://pkgseer.dev",
-          hasValidToken: true,
-          mcpUrl: "https://mcp.example.com",
+          ],
+          sourceStatus: [
+            {
+              ...original.sourceStatus[0]!,
+              source: "CODE",
+              targetLabel: target,
+              codeIndexState: "CURRENT",
+              indexingStatus: "INDEXED",
+              resultCount: 1,
+              targetResolution: {
+                requested: {
+                  kind: "package_exact_version",
+                  registry: "npm",
+                  packageName: "n8n",
+                  version: "2.36.6",
+                },
+                resolvedRequested: {
+                  repoUrl,
+                  gitRef: "n8n@2.36.6",
+                  commitSha: sha,
+                  committedAt: "2026-08-24T00:00:00Z",
+                },
+                served: {
+                  repoUrl,
+                  gitRef: "n8n@2.36.6",
+                  commitSha: sha,
+                  committedAt: "2026-08-24T00:00:00Z",
+                },
+                freshness: "current",
+                freshnessReason: "exact_current",
+                availableVersions: [],
+                availableRefs: [],
+              },
+            },
+          ],
         },
+      };
+      if (mode === "repository-docs") {
+        const source = outcome.result.sourceStatus[0]!;
+        source.source = "DOCS";
+        source.contributors = [
+          {
+            kind: "REPOSITORY_DOCS",
+            state: "SEARCHED",
+            freshness: "CURRENT",
+            resultCount: 1,
+            repositoryUrl: repoUrl,
+            commitSha: sha,
+          },
+        ];
+        outcome.result.results[0]!.resultType = "REPOSITORY_DOC";
+        outcome.result.results[0]!.locator.pageId = "repository-doc-page";
+      } else if (mode === "mixed-zero") {
+        const zeroSha = "a".repeat(40);
+        outcome.result.sourceStatus.push({
+          ...outcome.result.sourceStatus[0]!,
+          targetLabel: `github:n8n-io/n8n@${zeroSha}`,
+          resultCount: 0,
+          targetResolution: {
+            requested: { kind: "repo_commit", repoUrl, gitRef: zeroSha },
+            served: {
+              repoUrl,
+              commitSha: zeroSha,
+              committedAt: "2026-08-23T00:00:00Z",
+            },
+            freshness: "current",
+            availableVersions: [],
+            availableRefs: [],
+          },
+        });
+        outcome.result.partialResults = true;
+      } else if (mode === "no-resolution") {
+        outcome.result.sourceStatus[0]!.targetResolution = undefined;
+        outcome.result.sourceStatus[0]!.resultCount = 2;
+        outcome.result.results.push({
+          ...outcome.result.results[0]!,
+          id: "second-hit",
+          locator: {
+            ...outcome.result.results[0]!.locator,
+            filePath: "src/other.ts",
+          },
+        });
+        outcome.result.page.returned = 2;
+      }
+      for (const text of [
+        await cliTextForOutcome(outcome),
+        await mcpTextForOutcome(outcome),
+      ]) {
+        expect(text).toContain("Sources:");
+        expect(text).toContain("github:n8n-io/n8n@4fdfc9f9");
+        expect(text.match(/ {2}- github:n8n-io\/n8n@4fdfc9f9/g)).toHaveLength(
+          1,
+        );
+        if (mode === "no-resolution") {
+          expect(text).not.toContain("committed");
+          expect(text).not.toContain("indexed from ref");
+        } else
+          expect(text.replace(/\s+/g, " ")).toContain(
+            "committed 2026-08-24, indexed from ref n8n@2.36.6",
+          );
+        if (mode === "mixed-zero")
+          expect(text.replace(/\s+/g, " ")).toMatch(
+            /github:n8n-io\/n8n@aaaaaaaa \(committed 2026-08-23[^)]*no results\)/,
+          );
+        expect(text).not.toContain("If you need current HEAD");
+        expect(text).not.toContain("sourceStatusForText");
+      }
+      const service = createMockCodeNavigationService({
+        searchStatus: mock(async () => outcome),
+      });
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      let cliStatus = "";
+      try {
+        await searchStatusAction(
+          "healthy-search",
+          { wait: "0" },
+          {
+            codeNavigationService: service,
+            codeNavigationUrl: "https://pkgseer.dev",
+            hasValidToken: true,
+            mcpUrl: "https://mcp.example.com",
+          },
+        );
+        cliStatus = String(log.mock.calls[0]?.[0]);
+      } finally {
+        log.mockRestore();
+      }
+      const statusTool = createParityMcpTool("search_status", {
+        codeNavigationService: service,
+      });
+      const mcpStatus = await statusTool.handler(
+        { search_ref: "healthy-search", wait_timeout_ms: 0 },
+        {},
       );
-      cliStatus = String(log.mock.calls[0]?.[0]);
-    } finally {
-      log.mockRestore();
-    }
-    const statusTool = createParityMcpTool("search_status", {
-      codeNavigationService: service,
-    });
-    const mcpStatus = await statusTool.handler(
-      { search_ref: "healthy-search", wait_timeout_ms: 0 },
-      {},
-    );
-    for (const text of [cliStatus, mcpStatus.content[0]?.text ?? ""]) {
-      expect(text).toContain("Sources:");
-      expect(text).toContain("committed 2026-08-24");
-      expect(text).not.toContain("sourceStatusForText");
-    }
-    const cli = await cliJsonForOutcome(outcome);
-    const mcp = await mcpJsonForOutcome(outcome);
-    expect(cli).toEqual(mcp);
-    expect(JSON.stringify(cli)).not.toContain("sourceStatusForText");
-    expect(cli).not.toHaveProperty("sourceStatus");
-    const jsonStatus = await statusTool.handler(
-      { search_ref: "healthy-search", format: "json" },
-      {},
-    );
-    expect(jsonStatus.content[0]?.text).not.toContain("sourceStatusForText");
-    expect(
-      JSON.parse(jsonStatus.content[0]?.text ?? "{}").result,
-    ).not.toHaveProperty("sourceStatus");
-  });
+      for (const text of [cliStatus, mcpStatus.content[0]?.text ?? ""]) {
+        expect(text).toContain("Sources:");
+        expect(text).toContain("github:n8n-io/n8n@4fdfc9f9");
+        if (mode === "no-resolution") expect(text).not.toContain("committed");
+        else expect(text).toContain("committed 2026-08-24");
+        if (mode === "mixed-zero")
+          expect(text.replace(/\s+/g, " ")).toMatch(
+            /github:n8n-io\/n8n@aaaaaaaa \(committed 2026-08-23[^)]*no results\)/,
+          );
+        expect(text).not.toContain("sourceStatusForText");
+      }
+      const cli = await cliJsonForOutcome(outcome);
+      const mcp = await mcpJsonForOutcome(outcome);
+      expect(cli).toEqual(mcp);
+      expect(JSON.stringify(cli)).not.toContain("sourceStatusForText");
+      if (mode === "repository-docs")
+        expect(
+          (cli as { sourceStatus: Array<{ targetResolution?: unknown }> })
+            .sourceStatus[0],
+        ).not.toHaveProperty("targetResolution");
+      else expect(cli).not.toHaveProperty("sourceStatus");
+      const jsonStatus = await statusTool.handler(
+        { search_ref: "healthy-search", format: "json" },
+        {},
+      );
+      expect(jsonStatus.content[0]?.text).not.toContain("sourceStatusForText");
+      const statusJson = JSON.parse(jsonStatus.content[0]?.text ?? "{}");
+      if (mode === "repository-docs")
+        expect(statusJson.result.sourceStatus[0]).not.toHaveProperty(
+          "targetResolution",
+        );
+      else expect(statusJson.result).not.toHaveProperty("sourceStatus");
+    },
+  );
 });
 
 describe("partial search default across adapters", () => {

@@ -130,6 +130,56 @@ describe("grep text formatting", () => {
     expect(rendered).not.toMatch(/\(\d+ matches\)/);
   });
 
+  it("read recipes follow matches before continuation", () => {
+    const result = parseGrepResult(mixed100);
+    expect(result.hits).toHaveLength(100);
+    expect(result.nextCursor).not.toBeNull();
+
+    for (const syntax of ["cli", "mcp"] as const) {
+      const text = formatGrepText(result, {
+        useColors: false,
+        width: 200,
+        syntax,
+      });
+      const lines = text.split("\n");
+      const finalContentRowIndex = lines.reduce(
+        (lastIndex, line, index) =>
+          /^\s*\d+[:-] /.test(line) ? index : lastIndex,
+        -1,
+      );
+      const fileRecipe =
+        syntax === "cli"
+          ? "# Read files: read --lines $start-$end -- $target $path"
+          : "# Read files: read target=$target path=$path start_line=$start end_line=$end";
+      const pageRecipe =
+        syntax === "cli"
+          ? "# Read pages: read --lines $start-$end -- $url"
+          : "# Read pages: read target=$url start_line=$start end_line=$end";
+      const fileRecipeIndex = lines.indexOf(fileRecipe);
+      const pageRecipeIndex = lines.indexOf(pageRecipe);
+      const continuationIndex = lines.indexOf(
+        "More matches: repeat this grep, adding:",
+      );
+
+      expect(finalContentRowIndex).toBeGreaterThanOrEqual(0);
+      expect(lines[finalContentRowIndex + 1]).toBe("");
+      expect(lines.filter((line) => line === fileRecipe)).toHaveLength(1);
+      expect(lines.filter((line) => line === pageRecipe)).toHaveLength(1);
+      expect(fileRecipeIndex).toBeGreaterThan(finalContentRowIndex);
+      expect(pageRecipeIndex).toBeGreaterThan(finalContentRowIndex);
+      expect(fileRecipeIndex).toBeLessThan(pageRecipeIndex);
+      expect(fileRecipeIndex).toBeLessThan(continuationIndex);
+      expect(pageRecipeIndex).toBeLessThan(continuationIndex);
+
+      const emptyText = formatGrepText(
+        { ...result, hits: [], totalMatches: 0 },
+        { useColors: false, width: 200, syntax },
+      );
+      expect(emptyText).not.toContain("# Read files:");
+      expect(emptyText).not.toContain("# Read pages:");
+    }
+  });
+
   it("does not repeat a site target as its own source identity", () => {
     const parsedOriginal = parseGrepResult(mixed100);
     const originalSiteScope = parsedOriginal.targets.find(
@@ -541,13 +591,78 @@ describe("grep text formatting", () => {
     for (const syntax of ["cli", "mcp"] as const) {
       const text = formatGrepText(result, { syntax, width: 200 });
       expect(text).toContain(
-        "Preparing:\n  - github:owner/repo@bbbbbbbb (indexing, estimated total: 100-120s)\n    Requested: npm:cold (input 0)\n    Requested: npm:cold (input 2)\n      Suggested site: site:docs.example.test",
+        "Preparing:\n  - github:owner/repo@bbbbbbbb (indexing, estimated total: 100-120s)\n    Requested: npm:cold\n      Suggested site: site:docs.example.test",
       );
+      expect(text.match(/Requested: npm:cold/g)).toHaveLength(1);
+      expect(
+        text.match(/Suggested site: site:docs\.example\.test/g),
+      ).toHaveLength(1);
       expect(text.match(/estimated total: 100-120s/g)).toHaveLength(1);
+      expect(text).not.toMatch(/\(inputs? \d/);
       expect(text).not.toContain("observed HEAD");
       expect(text).not.toContain("opaque");
       expect(text.indexOf("Preparing:")).toBeLessThan(text.indexOf("[1]"));
     }
+    expect(result.unavailableTargets.map((entry) => entry.inputIndex)).toEqual([
+      0, 2,
+    ]);
+
+    const interleaved: GrepResult = {
+      ...original,
+      unavailableTargets: [
+        {
+          inputIndex: 0,
+          target: "npm:cold",
+          reason: "repository_indexing",
+          retryable: true,
+          progressRef: "opaque-cold-0",
+          suggestedSiteTargets: null,
+        },
+        {
+          inputIndex: 1,
+          target: "npm:alias",
+          reason: "repository_indexing",
+          retryable: true,
+          progressRef: "opaque-alias",
+          suggestedSiteTargets: null,
+        },
+        {
+          inputIndex: 2,
+          target: "npm:cold",
+          reason: "repository_indexing",
+          retryable: true,
+          progressRef: "opaque-cold-2",
+          suggestedSiteTargets: ["site:docs.example.test"],
+        },
+      ],
+      indexingEstimates: [
+        {
+          kind: "REPOSITORY",
+          targets: ["npm:cold", "npm:alias"],
+          repositoryUrl: "https://github.com/owner/repo",
+          commitSha: "b".repeat(40),
+          estimate: { lowerSeconds: 100, upperSeconds: 120 },
+        },
+      ],
+    };
+    for (const syntax of ["cli", "mcp"] as const) {
+      const text = formatGrepText(interleaved, { syntax, width: 200 });
+      const requestedCold = text.indexOf("Requested: npm:cold");
+      const suggestedSite = text.indexOf(
+        "Suggested site: site:docs.example.test",
+      );
+      const requestedAlias = text.indexOf("Requested: npm:alias");
+      expect(text.match(/Requested: npm:cold/g)).toHaveLength(1);
+      expect(
+        text.match(/Suggested site: site:docs\.example\.test/g),
+      ).toHaveLength(1);
+      expect(text.match(/Requested: npm:alias/g)).toHaveLength(1);
+      expect(suggestedSite).toBeGreaterThan(requestedCold);
+      expect(suggestedSite).toBeLessThan(requestedAlias);
+    }
+    expect(
+      interleaved.unavailableTargets.map((entry) => entry.inputIndex),
+    ).toEqual([0, 1, 2]);
   });
   it("shared preparing rows retain a single explicit ref and unmatched job aliases", () => {
     const original = parseGrepResult(mixed100);
@@ -575,10 +690,14 @@ describe("grep text formatting", () => {
       ],
     };
     const text = formatGrepText(value, { width: 200 });
-    expect(text).toContain("Requested: github:owner/repo@release (input 2)");
+    expect(text).toContain("Requested: github:owner/repo@release");
     expect(text).toContain("Requested: npm:alias");
+    expect(text).not.toMatch(/\(inputs? \d/);
     expect(text.match(/estimated total: 100-120s/g)).toHaveLength(1);
     expect(text).not.toContain("observed HEAD");
+    expect(value.unavailableTargets.map((entry) => entry.inputIndex)).toEqual([
+      2,
+    ]);
   });
   it("shared preparing rows retain label-only pending inputs and non-preparation omissions", () => {
     const original = parseGrepResult(mixed100);

@@ -714,3 +714,47 @@ partial docs during repo ff712f31 preparation and same shared row layout.
 Main advanced to d2cfc30 (stable resolver promotion); rebase and ensuing package
 validation are next. All non-unit-test TS changes total 1,907 lines against the
 prior main base, including smoke assertions; do not grow past 2,000 lines.
+
+User grep polish (2026-10-06): input N is backend correlation, not useful human
+metadata. Remove it from Requested, duplicate pending/omitted and coverage prose;
+JSON indices remain unchanged. Ordered mechanical slices: dispatch15 owns only
+that removal and named duplicate/unmatched preparation proofs; dispatch16 moves
+read recipes after matches, before continuation/retry, with an ordering assertion.
+Root owns source attribution and private compaction fixes, evidence, docs and final
+review. No builds/tests run while Luna is active. Latest rebasebase d2cfc30, focused
+1240pass0fail6009expect, type/build/smokes/packagevalidator0; private zero-count and
+DOCS targetResolution losses discovered internally need closure before external2.
+
+
+CI d7d09ce found four old output assertions outside the focused 36 files.
+Received text retains the same source pin, requested ref, deferred-branch reason
+and indexed versions; only the approved grammar differs. Ordered mechanical
+closure: dispatch17 updates two legacy INDEXING assertions to Indexed alternatives;
+dispatch18 updates legacy grep/read assertions to shared source/requested rows.
+Then run full bun test (CI scope) in addition to required focused/path checks.
+No production changes are needed for those four failures.
+
+Internal revised full-delta direction sound; no correctness findings after private
+source closures. One minor quality finding accepted: after hiding indices, two
+aliases for the same known grep preparation job become identical. Dispatch19
+(only after17/18) renders each Requested alias once per actual estimate while
+retaining each input's suggestions and raw JSON indices. Unmatched omissions
+remain separate: no actual job identity proves they are duplicate work. Existing
+grep presentation owns input attribution; shared row copy remains neutral.
+
+Final integrated checkpoint: dispatch15 (2 pass/19 assertions),16 (1/24),17
+(2/8),18 (2/16),19 corrected grouping (1/28) all accepted after root hunks and
+causal proof. Dispatch17 returned without edits on compaction and resumed with
+a narrowed two-literal brief; no interrupts. One fresh Luna preflight and internal
+full revised review plus final grouping check: direction sound, no findings.
+Full bun test now5594pass0fail22300expect across234files; typecheck, both builds,
+all four requiredsmokes and public-packagevalidator pass. CI old four assertion
+failures closed. Production delta1981non-unit-testTSlines inclsmokeassertions.
+Externalround2 and live captures are next; plan remains untilclean external review.
+
+Fresh dev captures blocked on macOS Keychain local approval (sample confirms
+SecKeychain/keyring stack); MCP timedout60s beforequeryoutput. User asked via
+asyncinput to approve localOSprompt oruseearliercaptures; no password requested
+inchat. Prior R3authenticatedfourtoolCLI/MCPcaptures remainvalid forunchanged
+source/preparation contracts; newgrepandnoresolutionidentityshapes havecausal
+formatter/adapterproof. Continue independent commit/push/externalreview.

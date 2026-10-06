@@ -429,3 +429,37 @@ received the independently matching date 2011-02-07. Elapsed values were 0s,
 2s, 4s and 5s respectively. Live captures are observations at different moments,
 not guarantees of exact timing or order. Alternatives ordering/limits reflect
 the supplied backend facts and each tool's existing selection.
+
+
+Healthy repository-doc contributors retain matching known commit dates and
+historical refs in private text facts even when public JSON omits their healthy
+resolution. A searched zero-hit source retains its explicit zero count in those
+facts beside sources with hits, so its served pin appears with `no results` (or
+`no results on this page` when pagination applies).
+
+When a searched source has no resolution, search presentation attributes exact
+repository/full-SHA pins from that source's returned hits and deduplicates them.
+It does not copy the hit locator's read ref into historical-ref metadata or borrow
+a date from another command. Dev ready search for `npm:n8n@2.36.6` supplied pin
+`4fdfc9f9db35702b64a8f15044a454044e47f6fc` in hits but no resolution/date.
+Both initial and status adapter regressions cover this shape, repository-doc
+provenance, mixed hit/zero-hit scopes, and compact JSON parity/omission.
+
+Grep Requested and coverage prose uses target labels without backend input
+indices. Its read templates follow the matches, before pagination and retries;
+empty results offer no read template. JSON correlation fields remain unchanged.
+
+
+Final integrated validation after the partial-default and grep corrections:
+`bun test` passed 5,594 tests across 234 files, with zero failures and 22,300
+assertions. Typecheck, CLI/MCP builds, source/built CLI/MCP smoke suites and public
+package validation passed. The smoke suites validate unauthenticated handling
+and registration; authenticated dev CLI/local MCP captures separately verify the
+four business-query surfaces. Qualitative Claude agent workloads remained blocked
+by provider login before any tool use, so no agent-quality claim follows.
+
+A fresh authenticated capture after the final grep polish was blocked in macOS
+Keychain before query output; local stdio MCP timed out waiting for authentication.
+Earlier authenticated four-tool dev captures establish source/preparation behavior;
+final grep placement/alias grouping and hit-pin-only provenance are proved by
+actual adapter and formatter regressions above. No credentials were printed.
