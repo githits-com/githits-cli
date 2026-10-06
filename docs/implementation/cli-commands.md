@@ -44,7 +44,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `search <query>` | `--in <target>` | `--source <source>`, `--kind <kind>`, `--category <category>`, `--path-prefix <prefix>`, `--intent <intent>`, `--public`, `--name <name>`, `--lang <language>`, `--allow-partial`, `--limit <n>`, `--offset <n>`, `--wait <seconds>`, `--json` | Unified indexed search across dependency/repository code, docs, and symbols. Defaults to 10 results. |
 | `search-status <search-ref>` | `<search-ref>` | `--wait <seconds>`, `--json` | Check progress, fetch partial hits, or fetch final results for a prior unified search; waits up to 30 seconds by default |
 | `doctor` | — | `--json` | Print redacted diagnostics for GitHits runtime, environment, service URLs, config, and auth storage |
-| `resolve <name>` | package or public repository name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--verbose`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
+| `resolve <name>` | package, public repository, or documentation-site name | `--query`, `--registry`, `--prefer-kind`, repeatable `--intent-hint`, `--limit`, `--verbose`, `--json` | Resolve a human-provided name to ranked concrete targets for follow-up commands |
 | `settings` | — | `--json` | Show canonical preferences, privacy and terms, and account limits |
 | `settings show` | — | `--json` | Explicit form of `settings` for showing all account settings |
 | `settings get <key>` | setting key | `--json` | Read one writable setting using its public CLI name |
@@ -539,8 +539,8 @@ The original command was config-gated. Enabling `[experimental] tools = true`
 exposed `resolve` and the local MCP adapter; disabled calls reported the config
 path and enable snippet. This opt-in requirement is removed by GA. Compact text,
 JSON contract, privacy guidance, and structured error mapping reuse the shared
-resolver request/service contracts; local experimental instructions are
-composed only for the enabled local tool inventory.
+resolver request/service contracts. Resolver guidance is now part of the stable
+routing guide.
 
 The initial remote/public MCP and Agent Skill promotion proposal called for
 additional corpus, ambiguity, volume and popularity evidence. The 2026-10-06

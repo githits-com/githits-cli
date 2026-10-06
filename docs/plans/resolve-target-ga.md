@@ -2,8 +2,9 @@
 
 ## Objective and status
 
-**Status:** IN PROGRESS. Phase 1 implementation authorized through `orchestrate`
-on 2026-10-06. Plan reviews are clean; implementation gets a fresh review loop.
+**Status:** COMPLETE for Phase 1 after review wording closure. Release and hosted
+adoption remain pending. Implementation was authorized through `orchestrate`
+on 2026-10-06.
 
 Make `resolve_target` a default stable MCP tool and `githits resolve` a default
 CLI command, including the released public MCP package and hosted MCP used by
@@ -101,8 +102,8 @@ proposed, so no performance benchmark is needed for this promotion.
 
 | Phase | Status | Observable outcome |
 | --- | --- | --- |
-| 1. Stable CLI and package promotion | IN PROGRESS | Default CLI/local MCP and public package provide the existing resolver with stable guidance and tested public composition. |
-| 2. Release and hosted adoption | WAITING ON PHASE 1 | Published artifacts and the hosted endpoint expose the same stable resolver; plugins receive it through their existing hosted connection. |
+| 1. Stable CLI and package promotion | COMPLETE | Default CLI/local MCP and public package provide the existing resolver with stable guidance and tested public composition. |
+| 2. Release and hosted adoption | WAITING ON MERGE/RELEASE | Published artifacts and the hosted endpoint expose the same stable resolver; plugins receive it through their existing hosted connection. |
 
 ## Phase 1: stable CLI and package promotion
 
@@ -235,7 +236,7 @@ round before treating the increment as complete.
 
 ## Phase 2: release and hosted adoption
 
-**Status:** WAITING ON PHASE 1. **Dependencies:** reviewed/merged Phase 1 and
+**Status:** WAITING ON MERGE/RELEASE. **Dependencies:** reviewed/merged Phase 1 and
 separate human authorizations for merge, release/publish and deployment steps.
 **Assumptions:** hosted MCP consumes the released canonical package; plugins
 continue using their existing hosted URL. **Unknowns:** exact versions, remote
@@ -307,4 +308,14 @@ Luna completed three serial dispatches: CLI availability; one correction to
 restore the narrow experimental-command type and update stale error fixtures;
 stable workload migration. The correction came from a fixture omission in the
 coordinator brief. No worker interrupts or architecture decisions were delegated.
-Fresh implementation preflight/internal/external reviews remain pending.
+Fresh Luna implementation preflight marked all acceptance MET; its transient-ID
+suggestion was rejected because the plan is temporary and the audit baseline
+is explicitly historical provenance. Internal code review was clean. External
+Claude Opus 5.5 round 1 found no code issues and three minor wording fixes:
+remove an experimental resolver smoke label; include sites in CLI argument
+documentation; remove stale experimental guidance wording from historical CLI
+notes. Applied these and scanned related labels/help/docs for the same omissions.
+The round is clean under the minor-wording policy once the help correction is
+verified. Two final Luna wording dispatches changed only Getting started help;
+one clarified the coordinator wording. Total five serial dispatches, zero
+interrupts. All durable evidence/checklists are in the implementation doc.

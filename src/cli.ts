@@ -264,7 +264,7 @@ ${colorizeBrand("Getting started:", "primary", useColors, { bold: true })}
   githits login                        Sign in to your GitHits account
   githits mcp                          Show MCP setup instructions
   githits example "query"              Find real-world implementations${experimentalResearch}
-  githits resolve express              Resolve a package or repository name
+  githits resolve express              Resolve a package, repository, or documentation site
 
 Learn more at https://githits.com
 Docs: https://docs.githits.com

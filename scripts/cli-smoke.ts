@@ -1265,7 +1265,7 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
     );
     assert(
       helpResult.stdout.includes("githits resolve express"),
-      "experimental root help should include resolve in Getting started",
+      "root help with opt-in should include stable resolve in Getting started",
     );
 
     for (const command of ["research", "ask"] as const) {
@@ -1327,7 +1327,7 @@ async function assertExperimentalUnauthenticatedBehavior(): Promise<void> {
     );
     assertJsonErrorCode(
       resolveJson,
-      "experimental unauthenticated resolve",
+      "stable resolve auth probe with experimental opt-in",
       "AUTH_REQUIRED",
     );
     const researchJson = await runCliWithEnv(
@@ -1459,7 +1459,7 @@ async function runResolveLiveSmoke(env: Record<string, string>): Promise<void> {
 
   const siteResolveText = assertTerminalOutput(
     await runCliWithEnv(["resolve", "expressjs.com"], env),
-    "experimental site resolve terminal",
+    "site resolve terminal",
   );
   assertCliResolveText(siteResolveText);
   assert(
