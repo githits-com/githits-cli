@@ -97,7 +97,7 @@ describe("buildLocalMcpQuickStart", () => {
     const guide = buildMcpQuickStart();
     for (const phrase of [
       "`resolve_target`",
-      "vague or misspelled public OSS name",
+      "canonical candidates for an OSS dependency name",
       "skip known canonical targets",
       "EXACT/HIGH",
       "CLEAR or NOT_APPLICABLE",
@@ -157,7 +157,9 @@ describe("buildLocalMcpQuickStart", () => {
     expect(instructions).toContain("`resolve_target`");
     expect(instructions).toContain("`code_diff`");
     expect(instructions).toContain("skip known canonical targets");
-    expect(instructions).toContain("vague or misspelled public OSS name");
+    expect(instructions).toContain(
+      "canonical candidates for an OSS dependency name",
+    );
     expect(instructions).toContain("A selected `site:` is docs-only");
     expect(instructions).toContain('or `search` with `source:"docs"`');
     expect(instructions).toContain("`list` to browse");

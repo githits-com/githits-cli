@@ -7,7 +7,7 @@ Choose a route, discover that tool, and read its schema for syntax and defaults.
 
 | Question | Tool to discover |
 | --- | --- |
-| Identify a package, repository, or docs site from a vague or misspelled name | \`resolve_target\` |
+| Identify the package, repository, or docs site for an OSS dependency | \`resolve_target\` |
 | Find a known regex or literal in public source or documentation | \`grep\` |
 | Find relevant source, symbols, tests, or documentation for a topic | \`search\` |
 | Browse files or documentation pages in a known package, repository, or site | \`list\` |
@@ -34,8 +34,8 @@ Use public repository targets for full repositories or sibling packages:
 A ref may be a branch, tag, or commit and contain later \`@\`; \`#\` is for
 semantic fragments, not revisions.
 
-\`resolve_target\` turns a vague or misspelled public OSS name into candidates
-for evidence lookup; skip known canonical targets. Follow its continuation:
+\`resolve_target\` identifies canonical candidates for an OSS dependency name
+before evidence lookup; skip known canonical targets. Follow its continuation:
 only an unambiguous EXACT/HIGH best with CLEAR or NOT_APPLICABLE malicious-content
 status allows direct reuse. Other or missing statuses are non-actionable; CLEAR
 is not a vulnerability-free claim. For MEDIUM/LOW or ambiguity, narrow or

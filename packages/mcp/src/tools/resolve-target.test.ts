@@ -128,7 +128,7 @@ describe("resolve_target MCP adapter", () => {
       destructiveHint: false,
     });
     expect(DESCRIPTION.slice(0, 80)).toStartWith(
-      "Find canonical package, repo, or docs targets for vague or misspelled names.",
+      "Resolve OSS dependency names to canonical package, repository, or docs targets.",
     );
     expect(DESCRIPTION.split(".")[0]!.length + 1).toBeLessThanOrEqual(79);
     expect(Object.keys(tool.schema)).toEqual([
@@ -173,7 +173,7 @@ describe("resolve_target MCP adapter", () => {
     });
     expect(tool.description).not.toContain("Experimental");
     for (const phrase of [
-      "vague or misspelled",
+      "OSS dependency names",
       "Use known canonical targets directly",
       "non-ambiguous EXACT or HIGH",
       "CLEAR or NOT_APPLICABLE",

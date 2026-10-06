@@ -151,9 +151,9 @@ retired in the promotion PR; the rollout checklist above remains authoritative.
 
 ## Guidance refinement
 
-The resolver's standalone discovery sentence is 76 characters:
-“Find canonical package, repo, or docs targets for vague or misspelled names.”
-It exposes both the identity benefit and vague-name trigger within the first 80
+The resolver's standalone discovery sentence is 79 characters:
+“Resolve OSS dependency names to canonical package, repository, or docs targets.”
+It frames selection around OSS dependency identity within the first 80
 characters. The catalog contracts cover the raw prefix and complete sentence.
 
 Selected schemas own argument syntax, defaults and per-argument privacy.
@@ -169,10 +169,10 @@ content blocks; these are text sizes, not provider token counts:
 
 | Content | Before | After |
 | --- | ---: | ---: |
-| Resolver description | 1,121 | 577 |
-| Resolver definition including unchanged schema/annotations | 3,342 | 2,796 |
-| quick_start guide | 7,807 | 7,557 |
-| Public MCP skill file | 8,338 | 8,088 |
+| Resolver description | 1,121 | 580 |
+| Resolver definition including unchanged schema/annotations | 3,342 | 2,799 |
+| quick_start guide | 7,807 | 7,551 |
+| Public MCP skill file | 8,338 | 8,082 |
 
 Real dev `lodahs` and `Express docs` output confirmed bounded grouped evidence.
 The MCP formatter now gives uncertainty/empty-result instructions once and
@@ -215,9 +215,8 @@ were corrected and affected checks rerun. Authenticated dev stable CLI/MCP
 smokes passed, including resolver text/verbose/JSON and selected-target inventory.
 The unchanged experimental Research cohort also passed.
 
-
-Refinement review completed on 2026-10-06. Internal review's optional actionable-
-candidate qualifier was restored in guide/skill; its 25 targeted tests passed.
+Refinement review completed on 2026-10-06. Internal review's optional actionable candidate
+qualifier was restored in guide/skill; its 25 targeted tests passed.
 Claude Opus 5.5 refinement round 1 found a small missing filter-narrowing remedy
 and minor release/doc wording; all were fixed. The sole ambiguous Next action
 now retains "name or filters", with 159 affected tests passing. Internal
@@ -226,3 +225,25 @@ check confirmed preserved gates, warnings, locators and narrowing remedies.
 Cosmetic reflow/test-literal suggestions were set aside; they did not identify
 a behavior or contract defect. Build and plugin checks passed again. The
 refinement plan was retired in the final commit after clean review.
+
+The user subsequently requested OSS dependency framing rather than a vague or
+misspelled-name trigger. The descriptor, route row and guide/skill paragraph now
+state that task; the table above records the updated sizes. Known canonical
+targets still skip resolution. Argument schemas, continuation gates, output and
+ranking remain unchanged. Earlier trace observations describe the prior wording
+and do not establish performance or discovery gains for this correction.
+
+Dependency-framing rechecks passed: 70 focused catalog/guide/adapter/skill tests,
+full `bun test` (5,486 passing, zero failures), plugin generation/check, build,
+format check, MCP registration smoke and CLI unauthenticated smoke. Prior live
+body/JSON checks remain applicable because only discovery/routing wording changed.
+Two new local dev traces used Claude descriptor-only fuzzy resolution and Codex
+full-guidance site resolution. Claude called quick_start/resolver/grep/read
+(4 recorded events); Codex called resolver twice, docs search and three reads
+(6 logical calls), without quick_start. Both distinguished MEDIUM identity
+inference from subsequent evidence; both produced structured answers with zero
+recorded isolation violations or CLI calls. Claude usage remains unknown;
+Codex recorded 30,808 uncached / 114,176 cached / 1,427 output tokens, estimated
+$0.0049 for the whole run. These are neutral observations, not a quality grade or
+causal token/discovery improvement. Artifacts are ignored under
+`.agent-eval/resolve-dependency-framing-2026-10-06/`.
