@@ -213,3 +213,16 @@ The smoke assertions now check both explicit choice and no automatic selection.
 Initial checks caught stale local-catalog and smoke wording expectations; these
 were corrected and affected checks rerun. Authenticated dev stable CLI/MCP
 smokes passed, including resolver text/verbose/JSON and selected-target inventory.
+The unchanged experimental Research cohort also passed.
+
+
+Refinement review completed on 2026-10-06. Internal review's optional actionable-
+candidate qualifier was restored in guide/skill; its 25 targeted tests passed.
+Claude Opus 5.5 refinement round 1 found a small missing filter-narrowing remedy
+and minor release/doc wording; all were fixed. The sole ambiguous Next action
+now retains "name or filters", with 159 affected tests passing. Internal
+re-review and Claude round 2 were clean. Claude's single fresh-context final
+check confirmed preserved gates, warnings, locators and narrowing remedies.
+Cosmetic reflow/test-literal suggestions were set aside; they did not identify
+a behavior or contract defect. Build and plugin checks passed again. The
+refinement plan was retired in the final commit after clean review.
