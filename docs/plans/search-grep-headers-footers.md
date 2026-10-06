@@ -2,11 +2,12 @@
 
 ## Status and destination
 
-- Overall: **READY FOR IMPLEMENTATION**.
-- Phase 1: **READY** — one implementation increment makes search/status and
+- Overall: **DESIGN REVISION — headline wording under discussion**.
+- Phase 1: **DESIGN REVISION** — one implementation increment makes search/status and
   grep headers and footers consistent on CLI and local/published MCP package text.
-- Product decisions: **none open**. This document selects a concrete presentation
-  for the user-requested follow-up. The user can revise the examples before coding.
+- Product decisions: settle the revised plain-language headline examples. On
+  2026-10-06 the user rejected the pipe-separated counters and unexplained partial
+  label as ambiguous, including for agents. The earlier readiness is superseded.
 - Dependencies: merged PR #454 (`c71ffb5`), current main `bc295b3`, existing source/preparation facts,
   existing read actions, search offset and grep cursor contracts.
 
@@ -84,89 +85,92 @@ not needed for choosing these text layouts; no optimization is part of scope.
 
 ## Selected output design
 
-### Header
+### Header — revised proposal after user feedback
 
-Use the same ASCII ` | ` separator for outcome, tool-specific counts and short
-qualifiers. Keep the headline free of request parameter names and readiness
-fractions. Preserve pluralization and each tool's definition of its counts.
+The earlier pipe-separated design is superseded. It counted one documentation
+hit twice (`1 result | 1 docs page`) and used `partial` without saying what was
+missing. The user contested this on 2026-10-06; do not implement that shape.
 
-```text
-1 result | 1 docs page | partial | more available
-1 match in 1 line across 1 page | more available
-3 results | 2 repo code hits, 1 docs page
-4 matches in 3 lines across 2 files | coverage incomplete
-```
-
-Search `partial` follows backend partialResults for active and completed pages.
-An active, non-partial snapshot with hits uses `interim` instead. `more available`
-follows hasMore / nextCursor and never implies exhaustive coverage.
-For grep, classify gaps from the existing facts before choosing a headline:
-
-- Actual coverage gaps: a scope has readiness other than CURRENT, excluding
-  UNSPECIFIED paired with RESUMABLE_LIMIT (documented unvisited pagination);
-  traversal other than COMPLETE/RESUMABLE_LIMIT, an error or recorded scan omissions/issues,
-  or overall traversal is NON_RESUMABLE_PARTIAL, FAILED or CURSOR_EXPIRED.
-- Retryable omissions only: at least one unavailableTarget, every omission is
-  retryable, and no actual coverage gap above. This includes preparing work and
-  existing retryable non-preparing reasons. Use the pagination exception in the
-  formatter-local omissions-only classification.
-- Non-retryable omissions: any unavailableTarget with retryable=false.
-
-Hit-bearing pages use `partial` for retryable omissions only, and
-`coverage incomplete` for any actual coverage gap or non-retryable omission
-(the stronger qualification wins, so never print both). Append `more available`
-independently for a supplied nextCursor. Both CURRENT+RESUMABLE_LIMIT and
-UNSPECIFIED+RESUMABLE_LIMIT with no error/scan issues are ordinary pagination
-and add neither partial nor incomplete-coverage copy. Apply this exemption
-consistently to headline, omissions-only and zero-page decisions. Preserve the
-unvisited source row and its existing no-results-on-this-page qualifier; do not
-pretend that unvisited content was searched.
-Keep the existing exhaustive predicate for claiming a full no-match search.
-Do not change service validation or source-evidence projection.
-
-Search prints lifecycle separately immediately below its headline when active,
-terminal or unknown; completed search needs no lifecycle line:
+Lead with one plain sentence describing this returned page. Count each search
+result once, either as a known kind or in a mixed-kind breakdown; do not add a
+redundant total. Documentation results are returned hits, not a newly invented
+count of unique URLs (multiple sections can come from one page).
 
 ```text
-1 result | 1 docs page | partial | more available
-Search: indexing
+Found 1 documentation result.
+Found 2 code results and 1 documentation result.
+Found 4 matches on 3 lines in 2 files.
 ```
 
-This preserves INDEXING/SEARCHING/PENDING/deferred/timeout/failed/unknown distinctions
-without presenting target counts as result readiness. Grep has no persistent
-search session and does not invent this line. Existing grep cursor-expiry and
-scope coverage explanations remain before matches.
+Search labels should distinguish repository documentation, hosted documentation
+and symbols when supplied by existing hit kinds; unknown kinds retain a plain
+result count rather than acquiring an invented classification. Grep's matches,
+lines and files/pages are different quantities, so retain their useful relation
+in the sentence. Both start with Found and use normal pluralization.
 
-Zero/no-snapshot outcomes keep their precise meanings:
+Do not append `partial`, `interim`, readiness fractions or pagination parameters.
+More results belongs solely in its footer. Preparation and limitations are
+explained in sentences or their existing attributed sections, not compact flags.
+For the captured documentation-ready/code-pending case, the proposed anatomy is:
 
-- Completed search with no hits: `No results`; when hasMore is true:
-  `No results on this page | more available`. Add `partial` before the pagination
-  clause when the actual snapshot has partialResults=true.
-- Active search with an empty snapshot: `No results yet`; absent snapshot:
-  `No result snapshot yet`, each followed by its Search lifecycle line. Empty
-  snapshots append `| partial` when true; absent snapshots cannot claim partial.
-- Terminal/unknown search keeps `No results` versus `No result snapshot`, followed
-  by its explicit lifecycle line and existing recovery disposition. Retained
-  empty snapshots keep the same partial qualifier when supplied.
+```text
+Found 1 documentation result.
 
-Grep's zero-hit headlines use these exact cases (pagination is independent):
+Sources:
+  - site:expressjs.com (hosted documentation)
+
+Preparing:
+  - github:expressjs/express@1bb798d9 (indexing, estimated total: 25-61s)
+    Requested: npm:express@2.3.10
+```
+
+If a brief lifecycle explanation is needed, use a sentence with its actual
+meaning, for example `Repository code is still indexing; these documentation
+results are usable now.` Only name repository code when supplied source/work
+facts establish it; a preparing refresh does not prove no code was searched.
+Avoid repeating an equivalent existing Preparing/scope explanation. Preserve
+existing use-now and conditional-wait wording in the footer.
+
+Search backend partialResults remains meaningful, including empty/completed
+snapshots. If attributed source/preparation/coverage notes already explain the
+missing scope, do not repeat an abstract warning. If partialResults=true has no
+such explanation, say `These results do not cover the full request.` without
+guessing an indexing cause. Retain this fact in the private availability model;
+public JSON stays unchanged. Active work not explained by Preparing can say
+`Search is still running.` Known terminal states retain explicit ended/failed
+reason sentences and unknown states remain unknown; do not imply completion.
+
+Grep classification keeps the reviewed distinction, but it now drives prose and
+empty outcomes rather than abstract headline qualifiers:
+
+- Actual gaps: readiness other than CURRENT except the documented unvisited
+  UNSPECIFIED+RESUMABLE_LIMIT case; non-pagination traversal, errors, skips and
+  scan issues, or overall NON_RESUMABLE_PARTIAL/FAILED/CURSOR_EXPIRED.
+- Only retryable omissions: no actual gap, at least one unavailableTarget and
+  all omissions retryable. Preparing/Omitted rows explain the temporary omission.
+- Non-retryable omissions or actual gaps: existing attributed coverage/reason
+  notes explain the limit. When no existing note conveys the overall limitation,
+  use `Some requested content could not be searched.` without inventing a cause.
+- CURRENT+RESUMABLE_LIMIT and unvisited UNSPECIFIED+RESUMABLE_LIMIT without
+  independent errors/skips are ordinary pagination, not failures. Keep unvisited
+  source qualifiers and the exact cursor; no unnecessary retry.
+
+Preserve the strict exhaustive predicate. The revised zero-page examples are:
 
 | Returned page | Outcome |
 | --- | --- |
-| Exhaustive, no omissions, no cursor | `No matches.` |
-| Only retryable omissions, no cursor | `No matches yet.` |
-| No other coverage gap or omission, valid cursor | `No matches on this page | more available` |
-| Only retryable omissions, valid cursor | `No matches yet on this page | more available` |
-| Scope/scan/traversal failure or any non-retryable omission, no cursor | `Zero returned matches; coverage is incomplete.` |
-| Same incomplete case, valid cursor | `Zero returned matches | coverage incomplete | more available` |
+| Exhaustive search/grep | `No results found.` / `No matches found.` |
+| Active search or only retryable grep omissions | `No results available yet.` / `No matches available yet.` |
+| Empty continuation page | `No results on this page.` / `No matches on this page.` |
+| Empty continuation plus retryable grep omissions | `No matches available yet on this page.` |
+| Actual missing/failed scope | Plain no-results/no-matches outcome plus the attributed limitation explanation |
+| No search snapshot | `No results available yet.` while active, or explicit ended-search explanation otherwise |
 
-Retryable omissions include preparing repository/docs work as well as existing
-retryable non-preparing reasons. Preparing is not called a failure. Sources,
-Preparing and Omitted rows retain the exact reason and target attribution.
-The captured hit-bearing Express docs/pending-code example therefore becomes
-`1 match in 1 line across 1 page | partial | more available`;
-its zero-hit equivalent follows the fourth row, without losing either "yet" or
-the available continuation. No supplied cursor is silently hidden.
+Pagination remains independently available under More results. Partial empty
+snapshots must not imply an exhaustive no-result search; use the scope explanation
+or the full-request warning above. These new copy choices are proposed and need
+review once the user settles the headline shape; prior reviews covered the
+semantics, not this revised wording.
 
 ### Body and source sections
 
@@ -276,8 +280,10 @@ A Commander-level helper would duplicate MCP behavior; a core helper would put
 presentation in transport. Neither is appropriate.
 
 Use one small pure `packages/mcp/src/shared/search-grep-output-text.ts` helper for
-` | ` headline joining/wrapping/emphasis and the fixed Read/More results/Follow-up
-section skeleton. Its inputs are already-rendered headline clauses and optional
+the fixed Read/More results/Follow-up section skeleton only. Headline sentences
+reuse existing terminal prose wrapping and emphasis in each tool formatter;
+there is no reason for a separate shared counter/joining abstraction.
+Its inputs are optional
 read/more/follow-up lines; it knows no backend state, target identity or command
 arguments. Treat action lines as verbatim strings; only formatter-authored prose
 is wrapped before supplying it. No configurable section registry, formatter DSL,
@@ -307,21 +313,22 @@ contracts; this change concerns successful/retained result text, not auth errors
 
 ## Phase 1 — consistent and truthful result edges
 
-- Status: **READY**.
+- Status: **DESIGN REVISION**.
 - Expected outcome: the examples above hold for CLI/MCP search/status and grep;
   usable results, pending scopes and available actions are immediately clear.
 - Assumptions: existing nextOffset/cursor/read/lifecycle facts suffice (verified
   above); fixed three-section helper needs no new service data; long cursors
   remain unavoidable within the existing contract.
-- Unknowns/product decisions: **none**. Implementation evidence may expose a
-  contradiction; report it before widening the scope or changing the design.
+- Unknowns/product decisions: settle revised headline wording and its concrete
+  examples before implementation. Then review the revised design; no production
+  changes while this is open.
 - Dependencies: reviewed plan, merged source rows and current main baseline.
 
 Ordered implementation:
 
 1. Add behavioral fixtures for headers and independently optional footer actions
    in existing formatter tests. Add the small shared helper and integrate search
-   outcome/lifecycle lines and grep separator/coverage clauses.
+   plain outcome sentences and evidence-based limitation explanations.
 2. Separate search read/pagination/follow-up rendering while preserving its semantic
    action projection; integrate grep's existing actions through the same skeleton.
    Preserve exact locators/cursors/wait units and all target recovery/body output.
@@ -338,13 +345,15 @@ Ordered implementation:
 Acceptance cases:
 
 - Ready search code/docs/mixed hits and ready grep multiple occurrences on one
-  line: counts are correct, JSON unchanged, same separators/section labels.
+  line: counts are correct and not repeated, JSON unchanged, plain sentences and
+  the same footer section labels; no pipe-separated counters or unexplained flags.
 - Ready docs plus pending code, including multiple targets and duplicate aliases:
   Sources/Preparing stay truthful; no ambiguous readiness fraction; search and
-  grep both say partial for usable docs while code prepares; grep normal
+  grep explain pending work through attributed Preparing facts rather than an
+  unexplained partial label; grep normal
   pagination alone never claims incomplete coverage.
-- Active non-partial interim and completed partial search: retain interim/partial
-  truth independently of completed state. PENDING/INDEXING/SEARCHING and
+- Active interim and completed partial search: explain continuing work and
+  incomplete request coverage in plain language independently of completed state. PENDING/INDEXING/SEARCHING and
   DEFERRED/TIMEOUT/FAILED/unknown remain visible and receive only their valid actions.
 - Empty complete, empty active, absent snapshot, zero-hit continuation pages,
   withheld scopes, actual coverage issues and expired grep cursor: precise
@@ -419,7 +428,10 @@ this user-selected two-tool follow-up is an explicit narrow cross-tool increment
 One phase means no intermediate merge/reorientation boundary. If verified evidence
 requires another phase or a broader design, stop and replan with the user.
 
-Internal technical review is **clean** after correcting empty partial-search
+Historical review of the superseded pipe-separated proposal follows. It does
+not establish readiness of the current headline revision.
+
+Internal technical review was **clean** after correcting empty partial-search
 provenance, empty resumable grep wording and the known terminal status list.
 The private availability correction is the smallest boundary change needed;
 public JSON and service contracts stay unchanged. External Claude round 1 accepted direction and found five plan corrections:
@@ -441,3 +453,11 @@ scopes beside the matched source|retains an unvisited selected site'` — 2 pass
 All findings are corrected; no direction, scope or product question remains.
 There was no finding-free external round within the cap; implementation will
 receive its own fresh review loop and actual output verification. No production change or planning-only PR created.
+
+## User-directed headline revision (2026-10-06)
+
+The previous READY state and pipe-separated examples are superseded by the
+feedback above. The underlying reviewed continuation/coverage semantics and
+footer design remain available; headline copy and the smaller footer-only helper
+are proposed, not reviewed-ready. Do not treat historical review closure as
+approval of the revised words. No production code changed.
