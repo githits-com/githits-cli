@@ -139,3 +139,11 @@ traces; one rerun produced the structured answer. An initial Codex Express run
 failed at model capacity before calls; one rerun completed. Earlier unconfigured
 agent launches had no authentication/eval-home setup and are excluded. Local
 artifacts are under `.agent-eval/resolve-ga-2026-10-06/` and remain untracked.
+
+Review completed on 2026-10-06: Luna preflight marked the Phase 1 acceptance
+criteria met; internal code review found no issues. Claude Opus 5.5 round 1
+found no code issues. Three minor wording findings were applied, with a bounded
+scan of related smoke labels, CLI help and historical guidance. The round is
+clean under the minor-wording policy. The final help wording was checked through
+`bun run src/cli.ts --help`, and the build passed again. The temporary plan was
+retired in the promotion PR; the rollout checklist above remains authoritative.
