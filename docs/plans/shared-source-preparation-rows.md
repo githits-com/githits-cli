@@ -646,7 +646,7 @@ inside PR #454; this is not a separate plan-only PR.
   identity loss: requested repository/package fields were detailed-only, so a
   missing repository ref could render only `Requested: missing`. The ordinary
   unresolved input shape has bounded display impact; four existing identity fields
-  close it without new infrastructure. Wire and output regressions delegated as
+  close it without new infrastructure. Wire and output regressions completed and verified in
   one narrow follow-up. Default compact and silent provenance still opt out;
   recovery arrays and requested SHA remain detailed-only.
 
