@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <a href="https://index.githits.dev/repositories/github.com/githits-com/githits-cli/"><img alt="GitHits index status" src="https://index.githits.dev/badge/repositories/github.com/githits-com/githits-cli/index-status.svg"></a>
+</p>
+
+<p align="center">
   <a href="https://www.npmjs.com/package/githits"><img alt="npm version" src="https://img.shields.io/npm/v/githits.svg"></a>
   <a href="https://www.npmjs.com/package/githits"><img alt="npm downloads" src="https://img.shields.io/npm/dm/githits.svg"></a>
   <a href="https://github.com/githits-com/githits-cli/actions/workflows/main.yml"><img alt="Main" src="https://github.com/githits-com/githits-cli/actions/workflows/main.yml/badge.svg"></a>
