@@ -180,6 +180,16 @@ callable.
 | `read` | `target` (string), `path?`, `selector?`, `start_line?`, `end_line?`, `wait_timeout_ms?`, `format?` | Pass a code file target + path, an explicit `site:` target + target-relative page path, a compact `target#symbol` or selector, or another emitted docs target to unified backend read; the returned type determines code/docs presentation. Preserve emitted site action values exactly; do not repeat the target's scope in the path. `/` reads the site's landing page. HTTP(S) docs fragments select sections unless explicit bounds override them. Text displays 150/300 lines; exact-file code caps before fetching, while docs JSON keeps the backend selection. The backend applies wait where relevant. See [unified read](unified-read.md). |
 | `grep` | `targets` (ordered `{target, corpus?, path_selectors?}` objects), `pattern`, `pattern_type?`, `ignore_case?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `cursor?`, `wait_timeout_ms?`, `format?` | Search known regex or literal matches across package, repository, and explicit site targets. Regex, case-sensitive matching, zero context, all indexed repository files, 100 matches, and zero preparation wait are the defaults. Package targets also include selected hosted docs. Follow exact read locators and replay partial pages with the same targets and controls. Legacy repository-file filters remain on CLI `githits code grep`. See [unified grep](unified-grep.md). |
 
+`get_example` explicitly requests MCP source-read syntax from the backend.
+Supported code references include `read({...})` calls alongside their original
+links and licenses; unsupported references remain links. Both text and JSON use
+MCP syntax, with the existing `{result, solution_id?}` JSON envelope and trailing
+text solution ID unchanged. Calls inspect cited sources and are never executed
+automatically. `GetExampleSearchParams.sourceFormat` and the client service's
+`SearchParams.sourceFormat` accept optional `"cli" | "mcp" | "url"`; omission
+leaves server defaults in effect. This is service configuration, not a new tool
+argument.
+
 `quick_start`, `get_example`, `search`, `search_status`, `list`, `read`,
 `grep`, `pkg_info`, `pkg_vulns`, `pkg_deps`, `pkg_changelog`, and
 `pkg_upgrade_review` are registered by default. The package/source service URL

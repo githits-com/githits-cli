@@ -21,6 +21,7 @@ Use GitHits for evidence from real open-source code instead of guessing from mod
 
 ## Decision Flow
 
+- Need a canonical target for an OSS dependency name: use `githits resolve "<name>"`; skip resolution for known canonical targets. Reuse only an unambiguous EXACT/HIGH best with CLEAR or NOT_APPLICABLE malicious-content status. Other or missing statuses are non-actionable; narrow or explicitly choose an actionable candidate for MEDIUM/LOW or ambiguity. Never auto-select, and do not treat CLEAR as vulnerability-free. A selected `site:` is docs-only.
 - Need a canonical cross-project example or pattern: `githits example "<focused question>"`; include source repositories/citations from GitHits' generated references/provenance section. If GitHits cannot match `--lang`, retry with a suggested language from the error, or omit `--lang`.
 - Need package metadata, vulnerability/advisory status, dependency graphs, or release notes: stop and use the `githits-package` skill instead.
 - Exploring a topic in a known dependency or public repository: use `githits search` scoped by `--in`.

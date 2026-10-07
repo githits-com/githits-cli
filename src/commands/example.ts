@@ -9,6 +9,7 @@ import {
 import { type Command, Option } from "commander";
 import { startSpinner } from "../shared/spinner.js";
 import { SPINNER_MESSAGES } from "../shared/spinner-messages.js";
+import { sanitizeTerminalMarkdown } from "../shared/terminal-markdown.js";
 import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,
@@ -39,6 +40,7 @@ export async function exampleAction(
     const result = await deps.githitsService
       .search({
         query,
+        sourceFormat: "cli",
         language: options.lang,
         licenseMode: options.license,
         includeExplanation: options.explain,
@@ -52,7 +54,7 @@ export async function exampleAction(
         : { result };
       console.log(JSON.stringify(payload));
     } else {
-      console.log(result);
+      console.log(sanitizeTerminalMarkdown(result));
     }
   } catch (error) {
     if (error instanceof AuthRequiredError) {

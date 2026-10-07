@@ -194,6 +194,13 @@ githits example "react hooks patterns" -l typescript --json
 
 Default output is markdown with source provenance. `--lang` is optional; omit it to infer the language. If GitHits cannot match `--lang`, the error lists languages to retry with. With `--explain`, an AI-generated explanation is included alongside the code example. With `--json`, output is `{ "result": "<markdown>", "solution_id": "<uuid>" }` (`solution_id` is omitted only if the markdown lacks a solution URL). The MCP `get_example` tool always sends `include_explanation: false` since LLMs don't need the extra context.
 
+The command requests CLI source syntax from the backend in both text and JSON
+modes. Supported code references include copyable `npx githits@latest read ...`
+calls with the cited revision and path; original source links and licenses remain.
+Unsupported references remain links. Calls are suggestions and are never executed
+automatically. Text output removes terminal controls while preserving Markdown
+layout; JSON keeps the returned Markdown verbatim.
+
 API rate-limit and timeout responses use the shared structured error envelope.
 Example requests use a longer client deadline than shorter metadata operations.
 When the API supplies `Retry-After`, JSON output preserves it as

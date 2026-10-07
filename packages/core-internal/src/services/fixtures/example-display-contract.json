@@ -1,0 +1,44 @@
+{
+  "response": {
+    "example": {
+      "title": "Source example",
+      "content": "```python\nprint(\"example\")\n```"
+    },
+    "query": "Read a source example",
+    "solution_id": "01900000-0000-7000-8000-000000000012",
+    "explanation": "A short explanation.",
+    "references": [
+      {
+        "url": "https://github.com/veriqta/DEVOPS-WORLD/blob/464ce5d2074859f2f4924ef5a3e08ee20b8333a1/Tutorial%20Guide/02.%20AWS.md",
+        "license_spdx_id": "MIT",
+        "source": {
+          "target": {
+            "kind": "repository",
+            "repo_url": "https://github.com/veriqta/DEVOPS-WORLD",
+            "git_ref": "464ce5d2074859f2f4924ef5a3e08ee20b8333a1"
+          },
+          "path": "Tutorial Guide/02. AWS.md",
+          "start_line": 1,
+          "end_line": 5
+        }
+      },
+      {
+        "url": "https://github.com/owner/repo/issues/72",
+        "license_spdx_id": "NOASSERTION"
+      },
+      {
+        "url": "https://github.com/owner/repo",
+        "license_spdx_id": null
+      }
+    ]
+  },
+  "read": {
+    "target": "github:veriqta/DEVOPS-WORLD@464ce5d2074859f2f4924ef5a3e08ee20b8333a1",
+    "path": "Tutorial Guide/02. AWS.md",
+    "start_line": 1,
+    "end_line": 5
+  },
+  "url": "# GitHits Search Result for: \"Read a source example\"\n\n## Source example\n\n```python\nprint(\"example\")\n```\n\nA short explanation.\n\n---\n\n### References\n\nThis example was distilled from these open-source references:\n\n- [Source 1](https://github.com/veriqta/DEVOPS-WORLD/blob/464ce5d2074859f2f4924ef5a3e08ee20b8333a1/Tutorial%20Guide/02.%20AWS.md) (MIT)\n- [Source 2](https://github.com/owner/repo/issues/72) (NOASSERTION)\n- [Source 3](https://github.com/owner/repo)\n\n\n---\n\n[Open in GitHits Web App](https://app.githits.com/solutions/01900000-0000-7000-8000-000000000012)\n",
+  "cli": "# GitHits Search Result for: \"Read a source example\"\n\n## Source example\n\n```python\nprint(\"example\")\n```\n\nA short explanation.\n\n---\n\n### References\n\nThis example was distilled from these open-source references:\n\n- [Source 1](https://github.com/veriqta/DEVOPS-WORLD/blob/464ce5d2074859f2f4924ef5a3e08ee20b8333a1/Tutorial%20Guide/02.%20AWS.md) (MIT)\n  npx githits@latest read --lines 1-5 -- github:veriqta/DEVOPS-WORLD@464ce5d2074859f2f4924ef5a3e08ee20b8333a1 'Tutorial Guide/02. AWS.md'\n- [Source 2](https://github.com/owner/repo/issues/72) (NOASSERTION)\n- [Source 3](https://github.com/owner/repo)\n\nRead calls inspect the cited source; follow the read result for further navigation.\n\n\n---\n\n[Open in GitHits Web App](https://app.githits.com/solutions/01900000-0000-7000-8000-000000000012)\n",
+  "mcp": "# GitHits Search Result for: \"Read a source example\"\n\n## Source example\n\n```python\nprint(\"example\")\n```\n\nA short explanation.\n\n---\n\n### References\n\nThis example was distilled from these open-source references:\n\n- [Source 1](https://github.com/veriqta/DEVOPS-WORLD/blob/464ce5d2074859f2f4924ef5a3e08ee20b8333a1/Tutorial%20Guide/02.%20AWS.md) (MIT)\n  read({\"target\":\"github:veriqta/DEVOPS-WORLD@464ce5d2074859f2f4924ef5a3e08ee20b8333a1\",\"path\":\"Tutorial Guide/02. AWS.md\",\"start_line\":1,\"end_line\":5})\n- [Source 2](https://github.com/owner/repo/issues/72) (NOASSERTION)\n- [Source 3](https://github.com/owner/repo)\n\nRead calls inspect the cited source; follow the read result for further navigation.\n\n\n---\n\n[Open in GitHits Web App](https://app.githits.com/solutions/01900000-0000-7000-8000-000000000012)\n"
+}
