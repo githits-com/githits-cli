@@ -1069,6 +1069,22 @@ function formatChangesSection(
     lines.push(
       `  ${group.version === null ? "Unversioned notes" : safeRiskText(group.version)}`,
     );
+    const additionalNotes = group.entries.filter(
+      (entry) =>
+        entry.htmlUrl &&
+        !group.items.some(
+          (item) =>
+            item.source !== undefined && item.source === entry.detailSource,
+        ) &&
+        !keywords.some((keyword) => keyword.entry.htmlUrl === entry.htmlUrl),
+    );
+    if (
+      (group.items.length > 0 || keywords.length > 0) &&
+      additionalNotes.length > 0
+    )
+      lines.push(
+        `    Notes: ${[...new Set(additionalNotes.map((entry) => reference(entry.htmlUrl, entry.detailSource)))].join(" ")}`,
+      );
     for (const tier of ["must_act", "should_know", "unclassified"] as const) {
       const items = group.items.filter((item) => item.tier === tier);
       if (items.length === 0) continue;
@@ -1100,7 +1116,7 @@ function formatChangesSection(
           : "";
         appendWrappedText(
           lines,
-          "      ",
+          "      * ",
           `${kind}"${shown}" ${source}${item.textTruncated ? " [statement truncated by backend]" : ""}`,
           width,
           "        ",
@@ -1109,10 +1125,16 @@ function formatChangesSection(
         if (signals?.size)
           appendWrappedText(
             lines,
-            "        Heuristic: ",
+            "        Keyword match: ",
             safeRiskText([...signals].join(", ")),
             width,
             "          ",
+            (line) =>
+              colorizeSignalKeywords(
+                line,
+                [...signals],
+                options.useColors === true,
+              ),
           );
         if (options.verbose) {
           const details = [
@@ -1147,10 +1169,16 @@ function formatChangesSection(
         : quote;
       appendWrappedText(
         lines,
-        "    Heuristic / ",
-        `${safeRiskText(keyword.signals.join(", "))}: ${shown ? `"${shown}"` : "no excerpt returned"} ${source}`,
+        "    * Keyword match (",
+        `${safeRiskText(keyword.signals.join(", "))}): ${shown ? `"${shown}"` : "no excerpt returned"} ${source}`,
         width,
         "      ",
+        (line) =>
+          colorizeSignalKeywords(
+            line,
+            keyword.signals,
+            options.useColors === true,
+          ),
       );
     }
     if (options.verbose && group.items.length === 0 && keywords.length === 0) {
@@ -1162,7 +1190,7 @@ function formatChangesSection(
         );
         appendWrappedText(
           lines,
-          "    ",
+          "    * ",
           `${quote ? `"${quote}"` : "No statement text returned."} ${source}`,
           width,
           "      ",
@@ -1170,12 +1198,22 @@ function formatChangesSection(
       }
     }
   }
-  const keywords = changelogKeywordSummary(changelog);
-  if (keywords.length || changelog.totalKeywordEntries > 0)
+  const entrySignals = new Set(
+    [...entries.values()].flatMap((entry) => entry.signals ?? []),
+  );
+  const keywords = changelogKeywordSummary(changelog).filter(
+    (signal) => !entrySignals.has(signal),
+  );
+  if (
+    keywords.length ||
+    (entries.size === 0 && changelog.totalKeywordEntries > 0)
+  )
     appendWrappedText(
       lines,
-      "  Heuristic keywords: ",
-      safeRiskText(keywords.join(", ") || "unspecified"),
+      "  Keyword matches without excerpts: ",
+      safeRiskText(
+        keywords.join(", ") || `${changelog.totalKeywordEntries} entries`,
+      ),
       width,
       "    ",
       (line) =>

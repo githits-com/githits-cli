@@ -355,9 +355,9 @@ describe("package upgrade review response", () => {
     expect(text).toContain("+1 more not returned by backend page");
     expect(text).toContain("Target: deprecated: bad release");
     expect(text).toContain("Changes");
-    expect(text).toContain("Heuristic keywords: breaking");
+    expect(text).not.toContain("Heuristic keywords:");
     expect(text).toContain(
-      'Heuristic / breaking, removed: "Breaking: removed an API."',
+      'Keyword match (breaking, removed): "Breaking: removed an API."',
     );
     expect(text).toContain("Dependencies");
     expect(text).toContain("Direct: 1 added | 0 removed | 0 changed");
@@ -934,7 +934,9 @@ describe("package upgrade review response", () => {
     const text = formatPackageUpgradeReviewTerminal(response);
     expect(text.match(/^ {2}4\.4\.3$/gm)).toHaveLength(1);
     expect(text.split("https://example.com/release")).toHaveLength(2);
-    expect(text).toContain('Heuristic / breaking: "Breaking: removed an API."');
+    expect(text).toContain(
+      'Keyword match (breaking): "Breaking: removed an API."',
+    );
     expect(text).not.toContain("commit noise");
     expect(text).not.toContain("Sampled release entries");
     expect(text).not.toContain("Heuristic release entries");
@@ -986,8 +988,10 @@ describe("package upgrade review response", () => {
     expect(colored).toContain(
       "\x1b[1m\x1b[33mUnknown evidence\x1b[0m\n  - changelog evidence incomplete",
     );
-    expect(colored).toContain("  Heuristic keywords: \x1b[33mbreaking\x1b[0m");
-    expect(colored).toContain("Heuristic / breaking, removed:");
+    expect(colored).toContain(
+      "Keyword match (\x1b[33mbreaking\x1b[0m, \x1b[33mremoved\x1b[0m):",
+    );
+    expect(plain).toContain("* Keyword match (breaking, removed):");
     expect(colored).not.toContain("\x1b[33m  Heuristic keywords:");
     expect(colored).not.toContain("\x1b[33m  Heuristic release entries");
     expect(colored).not.toContain("\x1b[33m    - GHSA-new");
@@ -1065,11 +1069,11 @@ describe("package upgrade review response", () => {
     expect(unicodePlain).toContain(unicodeSummary);
     expect(unicodePlain).toContain(unicodeExcerpt);
     expect(stripAnsi(unicodeColored)).toBe(unicodePlain);
-    expect(unicodeColored).toContain(
-      'Heuristic / breaking: "breaking: 修复 parser 🚀',
+    expect(unicodePlain).toContain(
+      '* Keyword match (breaking): "breaking: 修复 parser 🚀',
     );
     expect(unicodeColored).toContain(
-      "Heuristic keywords: \x1b[33mbreaking\x1b[0m",
+      "Keyword match (\x1b[33mbreaking\x1b[0m):",
     );
   });
 
@@ -1223,7 +1227,15 @@ describe("upgrade review model statement evidence", () => {
       const urls = text.match(/https?:\/\/\S+/g) ?? [];
       expect(new Set(urls).size).toBe(urls.length);
       expect(text.split("IMPORTANT:")).toHaveLength(2);
-      expect(text).toContain("Heuristic: breaking");
+      expect(text).toContain("Keyword match: breaking");
+      expect(text).not.toContain("Heuristic keywords:");
+      expect(text).not.toContain("Keyword matches without excerpts:");
+      expect(text.match(/^ {6}\* /gm)).toHaveLength(11);
+      for (const entry of expressChangelog.entries.filter(
+        (entry) => entry.htmlUrl,
+      )) {
+        expect(text).toContain(entry.htmlUrl!);
+      }
       expect(compact).toContain(
         "There is no actual security vulnerability associated with this behavior",
       );
@@ -1256,8 +1268,8 @@ describe("upgrade review model statement evidence", () => {
       formatterResponse([review]),
     );
     expect(text.split("Read the migration guide.")).toHaveLength(2);
-    expect(text).toContain("Heuristic: breaking, removed");
-    expect(text).not.toContain("Heuristic /");
+    expect(text).toContain("Keyword match: breaking, removed");
+    expect(text).not.toContain("Keyword match (");
     const otherSource = {
       ...entry,
       detailSource: "changelog_file",
@@ -1270,8 +1282,30 @@ describe("upgrade review model statement evidence", () => {
     expect(
       both.replace(/\s+/g, " ").split("Read the migration guide."),
     ).toHaveLength(3);
-    expect(both).toContain("Heuristic / breaking, removed:");
+    expect(both).toContain("Keyword match (breaking, removed):");
     expect(both).toContain("Changelog: https://example.com/file");
+  });
+
+  it("retains aggregate keyword evidence when its matching excerpts were not returned", () => {
+    const review = riskReview([]);
+    review.changelog.entries = [];
+    review.changelog.sampledEntries = [];
+    review.changelog.keywordEntries = [];
+    review.changelog.breakingSignals = ["breaking"];
+    review.changelog.migrationSignals = ["migration"];
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    );
+    expect(text).toContain(
+      "Keyword matches without excerpts: breaking, migration",
+    );
+    expect(text).not.toContain("Heuristic keywords:");
+    review.changelog.breakingSignals = [];
+    review.changelog.migrationSignals = [];
+    review.changelog.totalKeywordEntries = 2;
+    expect(
+      formatPackageUpgradeReviewTerminal(formatterResponse([review])),
+    ).toContain("Keyword matches without excerpts: 2 entries");
   });
 
   it("keeps additional keyword evidence and risk versions beyond the entry sample", () => {
@@ -1290,7 +1324,7 @@ describe("upgrade review model statement evidence", () => {
       formatterResponse([review]),
     );
     expect(text).toContain(
-      'Heuristic / removed: "Removed different config setting."',
+      'Keyword match (removed): "Removed different config setting."',
     );
     expect(text).toContain('"Old API removed."');
     expect(text.match(/^ {2}4\.0\.0$/gm)).toHaveLength(1);
@@ -1558,9 +1592,8 @@ describe("upgrade review model statement evidence", () => {
     expect(text).not.toContain(terminalEscape);
     expect(text).not.toContain("\u0000");
     expect(text.replace(/\s+/g, " ")).toContain("quote red 漢字 next word");
-    expect(text.split("Heuristic keywords:")[0]).not.toContain(
-      "https://example.com/release",
-    );
+    expect(text).toContain("changelog_file (entry URL not returned)");
+    expect(text).toContain("Notes:");
     expect(JSON.stringify(review)).toBe(before);
   });
 

@@ -427,7 +427,7 @@ items first. No-impact statements appear only in `unitsNoImpact`. Keep existing
 hints, separate from model labels.
 
 Single-package text combines evidence from different sources under one heading
-per version. Requires action quotes are full; Should know and Unclassified
+per version. Each statement and additional keyword quote starts with `*`. Requires action quotes are full; Should know and Unclassified
 prefixes are up to 240 codepoints after Markdown link destinations become
 numbered source references. Bullet, blockquote and inline-code syntax renders as
 visible words; GitHub alert markers become e.g. `IMPORTANT:`. Words are not
@@ -446,9 +446,11 @@ batch; JSON retains them and lower-case entry `detailSource`.
 
 Keyword matching consumes `breakingSignals`, `migrationSignals` and entry
 `signals`. A matched full chunk already contained in a statement with the same
-version and defined source becomes a heuristic tag on that statement. Distinct
+version and defined source becomes a `Keyword match` tag on that statement. Distinct
 keyword text or source remains separate in the same version block. Commit-list
-noise and generic headings stay excluded. Sampled/other/heuristic entry sections
+noise and generic headings stay excluded. Keywords already displayed with quotes
+are not repeated in an aggregate footer; signals with no returned matching
+excerpt remain explicit as `Keyword matches without excerpts`. Sampled/other/heuristic entry sections
 are removed. All newly rendered strings use terminal sanitization; JSON stays
 raw.
 
@@ -586,3 +588,23 @@ The round limit prevents another external review of this fix. It is verified by
 a regression covering these paths and a clean internal closure review; no unresolved
 finding remains. Final focused checks passed 57 tests / 782 assertions, with
 post-fix typecheck/build/package validation.
+
+
+Owner follow-up: statement, keyword and verbose note items now use `*` bullets.
+The redundant `Heuristic keywords` footer was removed; lexical evidence is
+labeled `Keyword match` beside the quote, and aggregate-only signals retain an
+explicit missing-excerpt line. The old sampled-entry section also carried the Express 5.1.0 changelog URL,
+which was lost when that section was removed because its classified quotes
+came from releases. A version-level `Notes` reference now retains returned
+entry URLs whose source is not represented by a quote. Missing-locator
+references still describe absent exact version/source pairs; the notes link
+is never attributed to a quote from another source. The real
+Express fixture asserts all returned entry URLs remain visible and unique.
+
+Follow-up validation: 58 focused formatter/parity/MCP tests passed with 800
+assertions; typecheck, Biome, build and public-package validation passed. Source
+auth-handling and built CLI/MCP smokes passed. Normal-auth dev CLI Express and
+local stdio MCP four ranges plus batch passed. Express has 11 statement bullets,
+a version-level 5.1.0 Notes reference, all three returned changelog URLs and no
+repeated keyword footer. Internal follow-up review returned no findings; the
+existing three-round external-review limit remains in effect.

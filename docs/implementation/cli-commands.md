@@ -781,12 +781,14 @@ evidence renders `Target: deprecation unknown` so absence is not confused with
 verified non-deprecation. The formatter reports evidence and missing evidence;
 it does not make a package approval, safety, or risk claim. Agent-classified statements are grouped by version, combining releases and changelog
 files in one block and listing each source URL once via numbered references.
+Version-level `Notes` references retain additional returned sources.
 Requires action quotes are full; Should know and Unclassified quotes use compact
 240-character prefixes expanded by `--verbose`. Text shows agent attribution;
 model/formulation provenance stays in JSON. Every report shows classified,
 not-assessed and without-notes versions, positive unparseable/omitted counts,
 no-impact counts, and rerun guidance when classification is incomplete.
-Additional lexical keyword evidence appears in the same version block.
+Each statement begins with `*`. Additional lexical keyword evidence appears in
+the same version block as `Keyword match`, without a repeated keyword footer.
 Sampled-entry sections are removed; `--verbose` includes returned note previews
 for versions without statement evidence. Quotes are not a compatibility verdict. See [Upgrade review](pkg-upgrade-review.md).
 
@@ -794,7 +796,7 @@ The shared formatter wraps free prose to the caller width (minimum 20 columns).
 The CLI passes `process.stdout.columns` and enables ANSI only when supported;
 MCP disables ANSI and uses the 80-column default. Outcome and section headings
 are bold, package identity is bold cyan, and yellow is limited to compact
-attention summaries, labels, and matched signal terms. Heuristic labels remain plain; matched keywords are yellow. Detail
+attention summaries, labels, and matched signal terms. Keyword-match labels remain plain; matched keywords are yellow. Detail
 prose and locators remain plain. Color never carries information that is absent
 from the words. Formatter-authored punctuation stays ASCII while backend
 Unicode is preserved. `--verbose` expands the bounded evidence rows in place.
