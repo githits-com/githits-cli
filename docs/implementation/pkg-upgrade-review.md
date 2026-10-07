@@ -496,7 +496,7 @@ fields, and 284 including entry `detailSource` on the three existing entry
 selections, with both optional evidence subtrees enabled. Measurement used 501
 unique aliases of `summary.total`; dev rejected the probes with total operation
 complexities 763, 782 and 785 respectively, without executing resolvers. Each
-alias adds one unit. The original single-package 284 was below production’s 500 limit; no fields were trimmed or second query added in that original change. Current selection/batch measurements and the bounded large-batch correction are below. The historical near-494 number does
+alias adds one unit. The original single-package 284 was below production’s 500 limit; no fields were trimmed or second query added in that original change. Current selection/batch measurements and the pending backend budget correction are below. The historical near-494 number does
 not describe the current operation.
 
 
@@ -695,7 +695,7 @@ false is preserved in JSON. Required coverage fields are
 `itemsMustActConfident`, `itemsMustActAmbiguous`, `itemsShouldKnowConfident`,
 `itemsShouldKnowAmbiguous` and `itemsUnclassified`. The confident counters
 exclude ambiguous items; each classified tier total is confident plus ambiguous.
-All five totals precede the50-item cap, and zero values are preserved. Summaries and batch ordering consume these
+All five totals precede the 50-item cap, and zero values are preserved. Summaries and batch ordering consume these
 totals directly. Tier confidence is evidence only, with no client threshold.
 The Express fixture adds explicit mocked ambiguity/totals to an earlier captured
 response; these additions are not claimed as live dev observations.
@@ -707,31 +707,49 @@ configuration. All selected child fields use default complexity. The old
 single-package baseline reproduced 284; adding the six fields gives 290 for one,
 306 for three and 498 for 27 packages, with both optional sections enabled.
 
-The root callback adds20 plus 8 per package to child complexity 262. A single
-30-package operation would cost 522 (the prior query already cost 516). No
-selected field can be removed while retaining every consumer. Core service
-therefore splits only valid 28–30-package batches into27 plus remainder sequential
-aggregate requests. It preserves each backend review, input order and duplicate
-inputs, sums the six factual summary counters and rejects the whole call if
-one request fails. <= 27 remains one request; > 30 remains one request for backend rejection without splitting; the public
-request builder rejects it locally. GraphQL complexity may reject a direct-service
-call before resolver validation. This measured budget is the reason for a second query;
-there is no new public limit, retry, queue or backend change.
+The root callback adds 20 plus 8 per package to child complexity 262. A single
+30-package operation costs 522 (the prior query already cost 516), exceeding the
+production limit of 500. No selected field can be removed while retaining every
+consumer. The owner chose to correct the backend complexity budget. The client
+keeps one aggregate request and the public 30-package limit; it does not split
+requests or encode a package count derived from a private backend formula.
+These measurements precede that backend correction. The full supported batch
+range cannot be claimed to fit the budget until the backend fix is verified.
 
 Dev verification and server corroboration wait for the owner’s explicit #3072
-deployment notice. No dev or production query is authorized for
-this follow-up before that notice; production support is required before merge
-or release. PR #463 remains draft and unmerged.
+deployment notice. No dev or production query is authorized for this follow-up
+before that notice; production support and the budget correction are required
+before merge or release. PR #463 remains draft and unmerged.
 
-
-Local follow-up validation: full `bun test` passed 5,652 tests / 22,738 assertions;
-typecheck, Biome, build, public-package validation and all four secret-free
-source/built CLI/MCP smokes passed. Built smoke launches initially overlapped
-package validation rebuilding dist; both passed after that rebuild finished.
-Stable ambiguity/counter implementation internal review is clean. External plan
-review recommends a backend complexity correction instead of client splitting;
-the bounded split is a tested draft proposal awaiting the owner’s route decision,
-not a settled architecture decision. It would need a selection-complexity guard
-if retained. No fourth external code round under the existing PR limit. Targeted
+Before removal of the proposed client split, full `bun test` passed 5,652 tests /
+22,738 assertions; typecheck, Biome, build, public-package validation and all four
+secret-free source/built CLI/MCP smokes passed. Built smoke launches initially
+overlapped package validation rebuilding dist; both passed after that rebuild
+finished. After owner-directed split removal, the full suite passed 5,651 tests / 22,732
+assertions; typecheck, Biome, build, public-package validation and all four
+secret-free smokes passed again.
+Stable ambiguity/counter implementation internal review is clean. The existing
+three-round external code limit remains; no fourth external code round. Targeted
 live agent evaluation also waits for deployment; the earlier Claude eval was
 unavailable because its CLI was not logged in.
+
+## Known output limitations
+
+At 80 columns, an offline Express fixture with explicitly mocked #3072 flags and
+counters rendered 97 lines: the first quote on line 22 and source list on line 63.
+Two batch rows were 482 and 480 characters wide. These are layout measurements,
+not new dev results or a graded usability evaluation. Batch rows are currently
+unwrapped, and detailed security evidence precedes change quotes.
+
+Risk items have no source URL/location field. Quote locators depend on sampled
+entries, so some quotes render “entry URL not returned” despite available text.
+The client does not guess source URLs. Compact prefixes may hide qualifications;
+verbose expands every section rather than a focused item.
+
+Statement tiers do not establish consumer applicability or reconcile later
+reverts. Express evidence includes internal dependency removals/build changes
+and a fix later reverted with its CVE rejected. Backend facts can identify
+changed APIs and supersession; only the calling agent or user can inspect local
+usage and decide what migration/testing is needed. Current output does not guide
+that local investigation explicitly. UX proposals remain in the working plan
+until the owner decides; no redesign is shipped by this assessment.

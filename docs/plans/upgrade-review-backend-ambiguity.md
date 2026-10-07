@@ -1,37 +1,158 @@
 # Upgrade review backend ambiguity and totals
 
-Status: IMPLEMENTED and locally verified; owner route decision for large batches and dev verification pending. Same draft PR #463, base c6a2e26. No merge or backend edits.
+Status: implementation delivered in draft PR #463; owner-directed removal of the
+client split is being verified. Live dev verification waits for deployment.
+Base c6a2e26. No merge, backend edits or new infrastructure.
 
-## Outcome and boundaries
+## Outcome, ownership and verified state
 
-Backend owns ambiguity policy and pre-cap statement totals. Core service selects and exposes `ambiguous` plus five coverage counts; shared CLI/MCP formatter presents those facts without a confidence threshold or reconstructed totals. JSON keeps confidence and per-item provenance as evidence. Existing version/source grouping, keywords, sanitization, full action quotes and oversize semantics remain.
+Backend owns ambiguity policy, pre-cap totals and complexity accounting. Core
+selects required `ambiguous` and five required coverage counters; the shared
+CLI/MCP formatter presents them without a confidence threshold or reconstructed
+totals. JSON keeps numeric confidence and per-item provenance. Existing source
+and version grouping, keywords, sanitization and full action quotes remain.
 
-Verified: branch `jlitola/changelog-risk-ambiguous` SDL in pkgseer-backend declares Boolean! `ambiguous` and Int! `itemsMustActConfident`, `itemsMustActAmbiguous`, `itemsShouldKnowConfident`, `itemsShouldKnowAmbiguous`, `itemsUnclassified`. First and third are confident counts, second and fourth ambiguous counts; all precede the 50-item cap. Baseline c6a2e26 used tierConfidence <0.4 and returned-item totals; the implementation removes both client policies. User requires replacing both policies.
+Owner confirmed `itemsMustActConfident`, `itemsMustActAmbiguous`,
+`itemsShouldKnowConfident`, `itemsShouldKnowAmbiguous`, `itemsUnclassified` and
+Boolean! `ambiguous` against backend SDL bb3807cc. Confident counts exclude
+ambiguous items. Ambiguity describes uncertain tier reads, raised or unchanged,
+including SHOULD_KNOW. Latest checked branch head 3b2b2e484 has no SDL change.
+False and zero values are preserved, and all five totals precede the 50-item cap.
 
-Contract changed during planning: backend branch at bb3807cccee5b78d07aa865edccab2fc4f8e1c4b renames confident counts to itemsMustActConfident and itemsShouldKnowConfident and describes ambiguous as any uncertain tier read, raised or unchanged. Owner confirmed these names and semantics; there is no remaining contract ambiguity. Pin/recheck schema SHA before implementation commit.
+Offline Absinthe 1.11.0 analysis used the pinned SDL, exact query and backend
+root callback without resolvers, configuration, credentials or network. With
+both optional sections: prior one/three/27/30 package costs 284/300/492/516;
+new costs 290/306/498/522. The callback is 20 + 8 per package + child complexity
+262. The owner chose backend correction instead of the proposed client split.
+Single aggregate fetching and the public 30-package limit remain unchanged.
+Full-range budget compliance is blocked on the backend correction and subsequent
+verification, not claimed by the client tests.
 
-Assumptions: required fields are present after deployment. No compatibility fallback or client derivation. Unknowns: deployed values await the owner’s explicit dev deployment notice. Offline measurement against bb3807cc SDL with backend Absinthe 1.11.0 reproduced old 284; new 290 single / 306 three. Root has20 + 8 per package plus262selectedchildcomplexity. Unsplittable30 wouldcost 522 (old516);27 costs 498. Later dev validation can corroborate this. Product decisions: none. Dev must not be queried before that notice, including complexity probes or live smokes. PR cannot merge/release before required backend fields are deployed to production; owner handles merge and deployment.
+Assumptions: backend fields will be deployed before consuming them live. Unknowns:
+deployed values and corrected complexity await the owner's deployment notice.
+No client fallback, threshold, reconstructed totals or polling. No dev probe
+before that notice; production fields and budget support are merge/release gates.
 
-## One increment
+## Increment and acceptance
 
-Expected outcome: true ambiguous items render uncertain regardless of numeric confidence; false ambiguous items remain confident regardless of numeric confidence. Summary and batch totals/ranking use backend coverage, even when returned items are capped. Per-version headings count only displayed evidence.
+1. Required fields are selected, validated and exposed in core/public responses.
+2. Ambiguous alone controls uncertainty. Coverage totals control summary counts
+   and batch sorting by confident action count; ties preserve backend order.
+   Per-version headings count displayed quotes only.
+3. Remove the proposed 27-package split. Wire tests assert one aggregate call for
+   1, 3 and 30 packages, preserving options, order, all summary fields and risk
+   evidence. Oversized direct-service inputs remain unsplit for backend rejection;
+   the public request builder rejects more than 30 locally.
+4. Keep tests for confidence-independent flags, uncertain SHOULD_KNOW, false/zero
+   JSON, capped totals/ranking, stable ties, oversize/truncated statements, mixed
+   provenance, keyword/source handling and CLI/MCP parity. Fixture #3072 fields
+   are explicit mocks, not live observations. CLI and public MCP smoke helpers
+   assert the required flag and five counters.
+5. Run affected Bun tests, typecheck, build/package validation and secret-free
+   source/built CLI/MCP smokes. Build before built smokes; do not overlap them with
+   the package validator's rebuild. Commit/push/update the same draft PR.
+6. After explicit deployment notice, normal-auth dev CLI/local MCP for the three
+   owner ranges and their batch; corroborate complexity under 500 including the
+   largest supported batch. Report contract problems without backend edits.
+   Targeted agent evaluation waits for deployment; earlier Claude evaluation
+   could not run because its CLI was not logged in.
 
-1. Add required fields to core/public response types and the existing aggregate selection. Preserve boolean false, zero counts, optional confidence, enum normalization, conditional optional evidence and keyword fields.
-2. Core service splits only valid 28–30-package batches into27 plus remainder sequential aggregate requests, summing the six factual backend summary counters and concatenating backend review arrays in order. <= 27 remains one query; > 30 remains one query for backend rejection; public request builder rejects it locally. No field can be dropped without losing consumed evidence, so522measuredcost is the strong reason for a second query; backend/public 30limit unchanged. Tests27/28/30/31, all options preserved, all summary fields summed, risk data untouched, no partial result on second error. No retry or batching infrastructure beyond two calls.
-3. Replace uncertainty predicate with `item.ambiguous`; delete threshold constant and returned-item count helper. Read coverage totals directly for summary/batch counts and confident-action sorting. Update batch heading/footnote to state pre-cap totals and explain omitted quotes.
-4. Update typed mock defaults, service wire-field tests, formatter fixtures, parity tests, public MCP smoke helper and CLI smoke assertions, docs/implementation/cli-commands.md, docs/implementation/pkg-upgrade-review.md and release fragment. Assert every new counter and boolean ambiguity on returned items. Test ambiguity independently of numeric confidence, false/true faithful JSON, zero counts, pre-cap totals larger than returned quotes, ranking by totals despite returned counts, stable ties, oversize and mixed provenance. Existing Express fixture receives explicit mocked ambiguity/counters; do not describe added fields as captured dev facts until verified. Drop duplicate-source count claims; no client deduplication inference.
-5. Run affected Bun tests, full typecheck/build/package validation and secret-free source/built CLI/MCP smoke modes. Do not use dev for these before notice. Agent eval may remain unavailable under the already observed Claude login limitation; do not expose credentials or claim qualitative success.
-6. Measure the old/new query offline against the pinned schema using the backend Absinthe version without resolver execution, configuration/credential reads or network. Verify schema/default field complexity and old 284 baseline; new operation must stay below 500. Internal plan and final implementation review. External plan review is separate scope; existing PR's three external code rounds already exhausted, so no fourth code round. Commit/push/update PR while explicitly marking live verification pending if notice has not arrived.
-7. After notice, normal-auth dev CLI/local MCP all three owner ranges plus batch and optional server complexity corroboration with both optional selections; remain below 500. Prior complexity284 is historical only for old selection. Fix any verified client issue, report backend contradictions without editing backend. Transfer final evidence to implementation docs and delete this working plan only after final review/verification closure.
+Acceptance: no client confidence threshold; backend ambiguity and pre-cap totals
+are faithful in text/JSON. One aggregate request, required selection controls,
+CLI/MCP parity and coverage edge cases are tested. Live verification and full
+batch budget compliance remain required outstanding work. Do not delete this
+plan until those close and permanent docs contain the evidence.
 
-Acceptance: no client tierConfidence comparisons, threshold tests or active documentation prescribing a client threshold; ambiguous alone drives markers/grouping. Coverage counters alone drive summary/batch totals and sort. JSON retains all six new fields, including false/zero. Tests verify cap-independent totals and CLI/MCP parity. Changed operation is measured below 500 offline; dev corroboration waits for deployment. PR #463 stays draft/unmerged and depends on production backend support before merge/release. No new infrastructure, performance optimization claim or backend change.
+## Review and validation record
 
-Plan review1: direction sound. High contract rename finding verified at bb3807cc; owner confirmed the renamed counters and semantics; field selection can proceed. Medium production dependency recorded, no deployment/approval work added. Minor smoke/schema assertions and explicit documentation scope accepted; unsupported duplicate-source count wording dropped. Internal preflight was clean against the earlier schema, which changed during review. Revised plan is being re-reviewed after counter confirmation and the verified large-batch budget correction. Root cause is per-package root complexity, already over budget with the old 30-package selection; related service/formatter/CLI/MCP/summary contracts checked. Backend preserves every input row and all six summary counters are additive; no deduplication assumption.
+Internal review found the stable ambiguity/counter implementation sound with no
+findings. External plan round 1 found the counter rename, production dependency
+and minor schema/documentation omissions; all corrected after owner confirmation.
+Round 2 recommended backend budget correction over the client split. The owner
+chose backend handling; the split and its dependent tests/docs are removed.
+Related core service, request builder, wire tests, release fragment and CLI/
+implementation docs were checked for stale split claims. No fourth external
+code review: this PR has already reached its three-round limit. A final plan
+round closes the owner decision and reviews the UX assessment direction.
 
-Completion: implementation may be delivered before deployment, but live validation is still required work. Keep plan until these close; no model spend or cold-completion claims from fixtures.
+At HEAD 553e6de, before split removal: full Bun suite 5,652 passed / 22,738
+assertions; typecheck/Biome/build/package validation and four secret-free smokes
+passed; CI passed. After removal: full `bun test` passed 5,651 tests / 22,732 assertions;
+typecheck, Biome, build, public-package validation and all four secret-free
+source/built CLI/MCP smokes passed. No new dev query was made.
 
-Implementation evidence: owner confirmed the new counter names and uncertainty semantics. All six new fields are selected and validated; summaries/ranking use pre-cap counters and ambiguous alone drives rendering. Full Bun suite passed 5,652 tests / 22,738 assertions; typecheck/Biome pass. Source unauthenticated/registration smokes passed during the earlier independent flag work; final build/package/source/built validation is running. No dev query made. Current bounded split is local and uncommitted pending the owner’s route decision.
+## UX assessment and next design decisions
 
-Plan review 2: original closures hold; schema head 3b2b2e484 changes no SDL since pinned bb3807cc. Reviewer recommends backend complexity correction over client split; backend edits are out of scope, so the owner was asked whether to retain the client split or handle backend budget. If retained, add a selection-complexity regression. Minor stale evidence and spacing findings fixed. No clean external plan round claimed while the route decision is pending.
+The user's task is to identify what to investigate before an upgrade, inspect
+its evidence, and check relevance to their own usage. Statement classification
+cannot establish that an application is compatible. The current output protects
+that distinction with quotes, explicit uncertainty, honest coverage and lossless
+JSON, but still requires too much scanning and interpretation.
 
-Stable implementation final preflight: direction sound, no findings in field selection/validation, formatter, JSON, parity or smoke changes. The bounded split remains an owner route decision; no clean external plan round or settled direction is claimed for it. Minor wording clarified that oversized direct-service inputs may fail GraphQL complexity before resolver validation. Reviewer remains available for the route follow-up; no fourth external code round.
+An offline 80-column rendering of the Express fixture with explicitly mocked
+#3072 flags/counters produced 97 lines, with the first quote on line 22 and the
+source list on line 63. Two batch rows were 482 and 480 characters wide. These
+are layout measurements, not new dev results or a graded usability evaluation.
+The following are recommendations, not shipped behavior:
+
+- **Prioritize investigation.** Start with a concise overview of confident and
+  uncertain action statements, security changes and classification coverage.
+  Keep full action quotes and one block per version; move detailed fixed
+  vulnerability lists after change evidence or into verbose output. The shared
+  formatter owns hierarchy; the backend owns the facts. This improves scanning
+  without introducing a package verdict. Choosing between version chronology
+  and global action-first grouping requires an explicit product decision because
+  the current design promises to show each version once.
+- **Make batch triage scannable.** Retain confident-action sorting, separate
+  uncertain counts and always-visible classified/not-assessed/without-notes
+  coverage. Give added vulnerabilities and missing/omitted evidence visible
+  space; put routine zeros and supporting dependency details in verbose output.
+  Keep package identities and ranges intact. A compact table must handle long
+  names and caller width rather than relying on unwrapped hundreds-character
+  rows. No-impact statements remain a count, never a safety claim.
+- **Provide a source for every quote.** Risk items span the whole range, but their
+  locators currently come from sampled entry data. The backend risk item has no
+  URL/location field, so a quote can honestly render “entry URL not returned”.
+  Exact source locators belong to the backend that extracted the statement and
+  should be independent of the entry sample limit. The client should not guess
+  tag URLs or changelog lines. This is the smallest backend UX improvement.
+- **Connect statement facts to local usage.** Express quotes include
+  internal dependency removals and build-tool changes, and a security fix later
+  reverted with its CVE rejected. A tier/kind alone cannot tell whether the
+  consumer must change code, or whether a historical fix survives at the target
+  version. The client must not infer that context, discard statements or
+  reclassify them. The backend can supply affected API/option names and supersession within the
+  range, but cannot inspect the consumer's private code. The calling agent owns
+  local applicability: search the consumer repository for affected usage, inspect
+  relevant configuration, and propose migrations and targeted tests grounded in
+  those matches. The output should guide that follow-up rather than end at a
+  statement dump. Current quotes already support local investigation; structured
+  affected symbols would make it easier. This requires an explicit UX decision,
+  not a claim that the backend can decide compatibility.
+- **Support focused inspection.** Expanding every quote and all security and
+  dependency details with verbose output is a coarse follow-up. Compact prefixes
+  can hide qualifications, as in the Express revert note. Exact source links
+  are the first remedy; focused expansion would need a separate UX decision.
+  JSON already preserves complete returned evidence for agents.
+
+Recommended next client slice: concise overview and width-aware batch triage,
+while preserving current evidence and coverage rules. Backend source locators
+are the first data improvement; application relevance and range reconciliation
+are separate product work, not client heuristics. No UX redesign is implemented
+by this assessment.
+
+Before a redesign, broaden the evidence beyond this zero-confident-action minor
+range: inspect a major upgrade with confident action statements and a capped
+package. Use targeted agent evaluation to inspect local follow-up actions and
+token use as well as terminal layout. No usability-quality claim is supported
+by the current fixture measurement alone.
+
+## Final plan review closure
+
+External plan round 3: direction sound; split removal and deployment gates clean.
+Minor documentation findings accepted: distinguish backend statement facts from
+local consumer applicability, include the agent follow-up workflow, and move
+unshipped recommendations out of permanent implementation docs into this plan.
+The same ownership wording was checked in the PR description. No code findings
+and no fourth external round. After these wording fixes, the plan round is clean.
+Dev verification remains pending deployment; UX changes remain owner decisions.

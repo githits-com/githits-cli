@@ -3237,8 +3237,8 @@ describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
     },
   };
 
-  for (const count of [27, 28, 30]) {
-    it(`preserves ${count} upgrades while limiting each aggregate query to 27`, async () => {
+  for (const count of [1, 3, 30]) {
+    it(`sends all ${count} upgrades in one aggregate query`, async () => {
       const packages: PackageUpgradeReviewParams["packages"] = Array.from(
         { length: count },
         (_, index) => ({
@@ -3308,9 +3308,7 @@ describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
         changelogLimit: 20,
         minSeverity: 7,
       });
-      expect(requests.map((r) => r.variables.packages.length)).toEqual(
-        count === 27 ? [27] : [27, count - 27],
-      );
+      expect(requests.map((r) => r.variables.packages.length)).toEqual([count]);
       expect(requests.flatMap((r) => r.variables.packages)).toEqual(packages);
       for (const request of requests) {
         expect(request.variables).toMatchObject({
@@ -3379,36 +3377,6 @@ describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
       }),
     ).rejects.toThrow("packages must contain at most 30 upgrades");
     expect(fetchFn).toHaveBeenCalledTimes(1);
-  });
-
-  it("rejects a split batch if the second aggregate request fails", async () => {
-    const fetchFn = mock(
-      (): Promise<Response> =>
-        Promise.resolve(
-          fetchFn.mock.calls.length === 1
-            ? jsonResponse(upgradeReviewBody)
-            : jsonResponse({ errors: [{ message: "second batch failed" }] }),
-        ),
-    );
-    const service = new PackageIntelligenceServiceImpl(
-      ENDPOINT,
-      createMockTokenProvider(),
-      asFetchFn(fetchFn),
-    );
-    await expect(
-      service.packageUpgradeReview({
-        packages: Array.from({ length: 28 }, () => ({
-          registry: "NPM",
-          name: "express",
-          currentVersion: "4.0.0",
-          targetVersion: "5.0.0",
-        })),
-        includeTransitiveSecurity: true,
-        includeDependencyIssues: true,
-        changelogLimit: 20,
-      }),
-    ).rejects.toThrow("second batch failed");
-    expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
   it("sends aggregate upgrade-review variables and maps the typed response", async () => {

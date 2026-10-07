@@ -2159,9 +2159,6 @@ const packageUpgradeReviewGraphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
-// With both optional sections: 282 + 8 per package; 27 packages cost 498/500.
-const MAX_UPGRADE_REVIEW_PACKAGES_PER_QUERY = 27;
-
 const PACKAGE_UPGRADE_REVIEW_QUERY = `
 query PackageUpgradeReview(
   $packages: [PackageUpgradeReviewPackageInput!]!
@@ -3345,44 +3342,6 @@ export class PackageIntelligenceServiceImpl
   async packageUpgradeReview(
     params: PackageUpgradeReviewParams,
   ): Promise<PackageUpgradeReviewResponse> {
-    // Preserve the backend's public 30-package limit without exceeding its
-    // GraphQL complexity budget. Larger invalid inputs still reach validation.
-    if (
-      params.packages.length > MAX_UPGRADE_REVIEW_PACKAGES_PER_QUERY &&
-      params.packages.length <= 30
-    ) {
-      const first = await this.packageUpgradeReview({
-        ...params,
-        packages: params.packages.slice(
-          0,
-          MAX_UPGRADE_REVIEW_PACKAGES_PER_QUERY,
-        ),
-      });
-      const second = await this.packageUpgradeReview({
-        ...params,
-        packages: params.packages.slice(MAX_UPGRADE_REVIEW_PACKAGES_PER_QUERY),
-      });
-      return {
-        summary: {
-          total: first.summary.total + second.summary.total,
-          withUnknowns:
-            first.summary.withUnknowns + second.summary.withUnknowns,
-          withAddedAdvisories:
-            first.summary.withAddedAdvisories +
-            second.summary.withAddedAdvisories,
-          withBreakingSignals:
-            first.summary.withBreakingSignals +
-            second.summary.withBreakingSignals,
-          withDirectDependencyChanges:
-            first.summary.withDirectDependencyChanges +
-            second.summary.withDirectDependencyChanges,
-          withTransitiveVulnerabilityAdditions:
-            first.summary.withTransitiveVulnerabilityAdditions +
-            second.summary.withTransitiveVulnerabilityAdditions,
-        },
-        reviews: [...first.reviews, ...second.reviews],
-      };
-    }
     return withServiceDiagnostics(
       this.runtime.diagnostics,
       "pkg-intel.upgrade-review.request",

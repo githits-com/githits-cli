@@ -772,10 +772,10 @@ The human-readable CLI and MCP `pkg_upgrade_review` output use one shared
 formatter. It starts with `Upgrade review - N package(s)`, adds one
 `Across packages:` line and a triage table only for batches. Default batch rows
 are sorted by backend confident action-statement totals before the cap and include classification coverage,
-peer-change and compatibility-note counts;
-The public 30-package limit remains; valid 28–30-package batches use two
-sequential aggregate requests of at most 27 packages to stay below GraphQL 500
-complexity. Their reviews and factual summary counters are combined in order.
+peer-change and compatibility-note counts.
+The public 30-package limit and one aggregate request remain. The owner is
+addressing the measured large-batch complexity violation in the backend; see
+[Upgrade review](pkg-upgrade-review.md) for the measurement and deployment gate.
 `--verbose` adds full per-package reports. Single-package reports group identity,
 security, deprecation, changes, compatibility, dependencies, dependency
 issues, and unknown evidence. Empty optional groups are omitted, but a returned
