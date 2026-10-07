@@ -197,6 +197,10 @@ describe("package_upgrade_review parity", () => {
       expect(cli.trimEnd()).toBe(mcp);
       expect(mcp).toStartWith("Upgrade review - 1 package");
       expect(mcp).not.toContain("\x1b[");
+      expect(mcp.match(/^Verification$/gm)).toHaveLength(1);
+      expect(mcp.replace(/\s+/g, " ")).toEndWith(
+        "Run relevant tests and report verification gaps.",
+      );
     } finally {
       restoreProperty(process.stdout, "columns", stdoutColumnsDescriptor);
       restoreProperty(process.stdout, "isTTY", stdoutIsTTYDescriptor);
@@ -215,6 +219,8 @@ describe("package_upgrade_review parity", () => {
 
     expect(isError).toBeUndefined();
     expect(cli).toEqual(json);
+    expect(Object.keys(json as object).sort()).toEqual(["reviews", "summary"]);
+    expect(JSON.stringify(json)).not.toContain("verification gaps");
   });
 
   it("PARITY-JSON-KEYS: batch CLI === MCP", async () => {

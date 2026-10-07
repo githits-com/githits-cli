@@ -1386,6 +1386,13 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_upgrade_review default missing grouped evidence",
   );
   assert(
+    upgradeReviewText.match(/^Verification$/gm)?.length === 1 &&
+      upgradeReviewText.indexOf("\nVerification\n") >
+        upgradeReviewText.lastIndexOf("\nChanges\n") &&
+      upgradeReviewText.split("\nVerification\n")[1]?.trim().length,
+    "pkg_upgrade_review default missing final verification guidance",
+  );
+  assert(
     !upgradeReviewText.includes("pkg_upgrade_review") &&
       !/\b(?:recommendation|risk level|assessment)\b/i.test(upgradeReviewText),
     "pkg_upgrade_review default leaked assessment language",

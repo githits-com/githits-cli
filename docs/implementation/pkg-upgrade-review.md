@@ -272,7 +272,16 @@ default output leads with the outcome and groups each package in this order:
 5. `Compatibility` when it has evidence;
 6. `Dependencies` when the comparison object was returned;
 7. `Dependency issues` when that object was returned; and
-8. `Unknown evidence` last.
+8. `Unknown evidence` last within each package.
+
+Nonempty text reports end with one report-level `Verification` footer after all
+packages, in both compact and verbose output. It explains that changelog keyword
+signals are heuristics and asks callers to compare before/after behavior,
+including paths existing tests miss, preserve intended logic, API contracts and
+stored-data compatibility, run relevant tests, and report verification gaps.
+The existing prose wrapper respects the caller's terminal width. Empty reports
+retain their headline-only output. JSON contains only the existing evidence data.
+This guidance does not establish compatibility or authorize application changes.
 
 A batch of more than one package adds one `Across packages:` summary after the
 headline. Zero and one package omit it. The summary and package sections report
@@ -331,6 +340,14 @@ Security
 
 Changes
   Package versions (no release notes) | 2 entries | 0 with release notes
+
+Verification
+  Heuristic signals come from changelog keywords; their absence does not prove
+  the upgrade is compatible. Check how the code uses changed APIs and compare
+  behavior before and after the upgrade, including paths existing tests miss.
+  Preserve intended logic, public API contracts, and stored-data compatibility
+  unless the user asks otherwise. Run relevant tests and report verification
+  gaps.
 ```
 
 The formatter preserves stable follow-up locators and backend facts while

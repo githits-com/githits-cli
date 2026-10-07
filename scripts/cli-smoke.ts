@@ -1997,6 +1997,13 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "pkg upgrade-review terminal missing grouped evidence",
   );
   assert(
+    upgradeReviewText.match(/^Verification$/gm)?.length === 1 &&
+      upgradeReviewText.indexOf("\nVerification\n") >
+        upgradeReviewText.lastIndexOf("\nChanges\n") &&
+      upgradeReviewText.split("\nVerification\n")[1]?.trim().length,
+    "pkg upgrade-review terminal missing final verification guidance",
+  );
+  assert(
     !upgradeReviewText.includes("pkg_upgrade_review") &&
       !/\b(?:recommendation|risk level|assessment)\b/i.test(upgradeReviewText),
     "pkg upgrade-review terminal leaked assessment language",

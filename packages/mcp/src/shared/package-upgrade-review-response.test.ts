@@ -402,6 +402,68 @@ describe("package upgrade review response", () => {
     expect(single).not.toContain("Across packages:");
   });
 
+  it("ends single and batch reports with one wrapped verification reminder", () => {
+    const reminder =
+      "Heuristic signals come from changelog keywords; their absence does not prove the upgrade is compatible. " +
+      "Check how the code uses changed APIs and compare behavior before and after the upgrade, including paths existing tests miss. " +
+      "Preserve intended logic, public API contracts, and stored-data compatibility unless the user asks otherwise. " +
+      "Run relevant tests and report verification gaps.";
+    for (const reviews of [
+      [formatterReview()],
+      [formatterReview(), formatterReview({ name: "express" })],
+    ]) {
+      for (const verbose of [false, true]) {
+        const text = formatPackageUpgradeReviewTerminal(
+          formatterResponse(reviews),
+          { verbose, terminalWidth: 30 },
+        );
+        expect(text.match(/^Verification$/gm)).toHaveLength(1);
+        expect(text.lastIndexOf("Unknown evidence")).toBeLessThan(
+          text.indexOf("\nVerification\n"),
+        );
+        const footer = text.split("\nVerification\n")[1]!;
+        expect(footer.replace(/\s+/g, " ").trim()).toBe(reminder);
+        expect(
+          Math.max(
+            ...footer
+              .trimEnd()
+              .split("\n")
+              .map((line) => line.length),
+          ),
+        ).toBeLessThanOrEqual(30);
+      }
+    }
+  });
+
+  it("includes verification when release notes and heuristic signals are absent", () => {
+    const base = formatterReview();
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([
+        formatterReview({
+          changelog: {
+            ...base.changelog,
+            source: "package_versions",
+            fallback: "package_versions",
+            entries: [],
+            sampledEntries: [],
+            keywordEntries: [],
+            totalKeywordEntries: 0,
+            totalEntries: 0,
+            totalEntriesWithBodies: 0,
+            hasReleaseNoteBodies: false,
+            breakingSignals: [],
+            migrationSignals: [],
+          },
+          unknowns: [],
+        }),
+      ]),
+    );
+    expect(text).toContain("\nVerification\n");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "their absence does not prove the upgrade is compatible",
+    );
+  });
+
   it("maps changelog sources without inferring providers", () => {
     const base = formatterReview();
     const makeText = (changelog: typeof base.changelog): string =>

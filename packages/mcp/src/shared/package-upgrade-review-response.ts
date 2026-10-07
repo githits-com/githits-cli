@@ -510,6 +510,18 @@ export function formatPackageUpgradeReviewTerminal(
       appendSection(lines, unknownLines);
     }
   }
+  if (response.reviews.length > 0) {
+    lines.push("", sectionTitle("Verification", useColors));
+    appendWrappedText(
+      lines,
+      "  ",
+      "Heuristic signals come from changelog keywords; their absence does not prove the upgrade is compatible. " +
+        "Check how the code uses changed APIs and compare behavior before and after the upgrade, including paths existing tests miss. " +
+        "Preserve intended logic, public API contracts, and stored-data compatibility unless the user asks otherwise. " +
+        "Run relevant tests and report verification gaps.",
+      width,
+    );
+  }
   return `${lines.join("\n").trimEnd()}\n`;
 }
 

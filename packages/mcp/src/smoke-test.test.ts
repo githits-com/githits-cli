@@ -203,6 +203,28 @@ describe("MCP smoke-test helpers", () => {
 });
 
 describe("runMcpSmoke", () => {
+  for (const [label, footer] of [
+    ["missing", ""],
+    ["empty", "\n\nVerification\n"],
+    [
+      "repeated",
+      "\n\nVerification\n  Check behavior.\n\nVerification\n  Check tests.",
+    ],
+  ] as const) {
+    it(`rejects ${label} upgrade verification guidance`, async () => {
+      const caller = createCaller(async (name, args) => {
+        if (name === "pkg_upgrade_review" && args.format !== "json") {
+          const text = resultText(smokeResponse(name, args), "upgrade fixture");
+          return textResult(text.split("\n\nVerification\n")[0] + footer);
+        }
+        return smokeResponse(name, args);
+      });
+      await expect(runMcpSmoke(caller)).rejects.toThrow(
+        "pkg_upgrade_review default missing final verification guidance",
+      );
+    });
+  }
+
   it("accepts untruncated short changelog bodies with an explicit line budget", async () => {
     const caller = createCaller(async (name, args) => {
       if (
@@ -1392,7 +1414,9 @@ function smokeResponse(
           "  Direct: 0 affected -> 0 affected | 0 fixed | 0 added | 0 still present\n" +
           "  Transitive: not checked\n\n" +
           "Changes\n" +
-          "  Repository releases | 1 entry | 1 with release notes",
+          "  Repository releases | 1 entry | 1 with release notes\n\n" +
+          "Verification\n" +
+          "  Compare behavior before and after the upgrade and report verification gaps.",
       );
     case "list":
       return textResult(smokeListText(args));
