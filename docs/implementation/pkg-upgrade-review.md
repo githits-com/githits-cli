@@ -81,7 +81,7 @@ Validation rules:
 - Normalize exact Go current/target versions to canonical lowercase-`v` form while accepting either input form. Reject tag-style `v` versions for other registries except Swift, matching `pkg_vulns`, `pkg_deps`, and `pkg_changelog`.
 - Keep transitive security evidence enabled by default because direct-only security hides important dependency-tree evidence. Allow callers to pass `skip_transitive_security: true` when latency is more important than transitive vulnerability context.
 - Keep `include_dependency_issues` default `false` initially for the same reason. Turn it on automatically only when the caller explicitly asks for lockfile/dependency-tree evidence, or document that agents should pass it for lockfile reviews.
-- Changelog keyword detection scans the full backend range response and keyword-hit entries are surfaced separately so relevant signals are not hidden by the ordinary sample limit. The sampled-entry cap is internal; agents should not need to tune it.
+- Changelog keyword detection scans the full backend range response and keyword-hit evidence is retained within each version group so relevant signals are not hidden by the ordinary sample limit. The sampled-entry cap is internal; agents should not need to tune it.
 - `min_severity` maps to the same CVSS thresholds as `pkg_vulns` (`low=0.1`, `medium=4`, `high=7`, `critical=9`). It filters direct current/target vulnerability queries and transitive `vulnerabilitySummary(minSeverity:)` aggregates.
 
 CLI shape:
@@ -307,120 +307,65 @@ change and compatibility-note counts (or not checked when absent); `--verbose` a
 that order. JSON preserves backend review order. Zero and one package omit it. The summary and package sections report
 facts only; they never call an upgrade safe, risky, approved, or rejected.
 
-Representative verbose batch output:
+The Changes section uses one version block in backend release-entry order,
+then any statement-only versions outside the entry sample. Within each version,
+Requires action precedes Should know and Unclassified. All returned statements
+remain visible. Sources from release notes and changelog files are combined
+without claiming differently worded statements are equivalent.
 
 ```text
-Upgrade review - 2 packages
-Across packages: 1 with reported unknowns | 1 with added direct vulnerabilities | 1
-                 with added transitive vulnerabilities | 1 without transitive
-                 security evidence | 1 with heuristic change signals | 1 with
-                 direct dependency changes
-
-npm:zod 4.3.6 -> 4.4.3 (minor)
-
-Security
-  Direct: 0 affected -> 1 affected | 0 fixed | 1 added | 0 still present
-  Transitive: 0 affected packages -> 1 | 0 fixed | 2 added | 0 still affected
-  Added direct advisories
-    - GHSA-new high(7.5): new advisory | fixed in 4.4.4
-  Added transitive vulnerable packages
-    - npm:left-pad@1.0.0 affected=1 medium(4)
-      Advisories: GHSA-transitive
-    - ... +1 more not returned by backend page
-
-Deprecation
-  Target: deprecated: bad release
-
 Changes
-  Repository releases | 1 entry | 1 with release notes
-  Classification versions: 1 classified | 0 not assessed | 0 without notes | 0
-    unparseable
-  Statements: 0 returned | 0 labeled no impact
-  Missing or unparseable notes are not evidence of no risk.
-  Statement labels are model classifications. Not a compatibility verdict.
-  Heuristic signals: breaking | 1 matching entry
-  Heuristic release entries
-    - 4.4.3
-      [breaking]: Breaking: removed an API.
-
-Dependencies
-  Direct: 1 added | 0 removed | 0 changed
-  Direct added
-    - npm:left-pad@1.0.0
-  Transitive: 0 added | 0 removed | 0 changed
-
-Dependency issues
-  1 introduced | current total: 0 | target total: 1
-  Introduced deprecated
-    - npm:left-pad@1.0.0
-
-Unknown evidence
-  - changelog evidence incomplete
-
-npm:express 5.0.0 -> 5.2.1 (patch)
-
-Security
-  Direct: 0 affected -> 0 affected | 0 fixed | 0 added | 0 still present
-  Transitive: not checked
-
-Changes
-  Package versions (no release notes) | 2 entries | 0 with release notes
-  Classification versions: 0 classified | 0 not assessed | 2 without notes | 0
-    unparseable
-  Statements: 0 returned | 0 labeled no impact
-  Missing or unparseable notes are not evidence of no risk.
-  Statement labels are model classifications. Not a compatibility verdict.
+  0 require action | 6 should know | 5 unclassified
+  Classification versions: 4 classified | 0 not assessed | 0 without notes
+  130 statements labeled no impact
+  5.2.1
+    Unclassified - read if relevant (2)
+      "Revert security fix for CVE-2024-51999 [2] (GHSA-pj86-cfqh-vqx6 [3])" [1]
+      "IMPORTANT: The prior release ..." [4]
+        Heuristic: breaking
+  5.2.0
+    Should know (4)
+      security fix "Security fix for CVE-2024-51999 [2] (GHSA-pj86-cfqh-vqx6 [3])" [5]
+      ... remaining quotes in the same block
+  ... remaining versions, each once
+  Sources
+    [1] Changelog (entry URL not returned)
+    [2] https://www.cve.org/CVERecord?id=CVE-2024-51999
+    [3] https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6
+    [4] Release notes: https://github.com/expressjs/express/releases/tag/v5.2.1
+    ... each remaining URL once
+  Classified by an agent. Not a compatibility verdict.
 ```
 
-The formatter preserves stable follow-up locators and backend facts while
-removing internal tool headers, repeated field labels, and dense key/value
-rows. Formatter-authored punctuation is ASCII; backend Unicode is preserved.
-Free prose wraps with hanging indentation at the supplied terminal width (80 by
-default, clamped to a minimum of 20); package coordinates, versions, advisory
-IDs, and URLs are not split. The CLI passes `process.stdout.columns` and enables
-ANSI only when supported. MCP passes no ANSI and uses the 80-column default.
+The abbreviated example illustrates grouping; live output quotes every returned
+item. Default omits unrelated sampled headlines and versions with no statement
+or keyword evidence. No-impact stays a count. `--verbose` includes returned note
+previews and locators for those otherwise-hidden versions, within the same
+version grouping. Coverage remains visible in both modes; aggregate counts
+cannot identify which specific versions are pending.
 
-ANSI is semantic styling only: the outcome and section headings are bold, the
-package identity is bold cyan, and yellow is limited to compact attention
-summaries, labels, and matched signal terms. Heuristic section labels remain
-plain; only the matched keyword and excerpt marker are yellow. Evidence detail
-and locators remain plain instead of turning long excerpts into color blocks.
-Provenance may be dimmed; trust limits, unknown details, and follow-up guidance
-are not. Removing ANSI leaves the same words and hierarchy.
+The formatter preserves backend Unicode and uses ASCII for its own punctuation.
+Free prose wraps at the caller width (80 by default, minimum 20), while locators
+remain intact. CLI supplies terminal width and optional ANSI; MCP uses 80 and
+no ANSI. Headings and identity are styled, attention labels and matched keywords
+may be yellow; removing ANSI preserves words and hierarchy.
 
-Changelog source labels are exact: `releases` renders as `Repository releases`,
-`package_versions` fallback renders as `Package versions (no release notes)`,
-and any other non-empty normalized source is rendered verbatim without guessing
-a provider. A returned zero-valued `dependencyChanges` object remains visible as
-both `Direct: 0 added | 0 removed | 0 changed` and
-`Transitive: 0 added | 0 removed | 0 changed`; an undefined object is omitted.
-Likewise, zero-valued `dependencyIssues` says `none introduced` with current and
-target totals, while undefined evidence is omitted. Missing target security
-summary retains `Target: deprecation unknown`.
-
-Default samples remain bounded: direct advisories and transitive vulnerable
-package details and dependency-issue locators show up to five rows per category,
-peer changes up to ten, and dependency change details use the existing
-compact/verbose limits. Changelog keyword evidence renders first, followed by
-each distinct sampled release not already represented by keyword evidence, in
-sample source order. Identity-only samples retain their available version,
-publication date, URL, and headline without inventing a body. The existing
-`changelogEntryKey` identity prevents repeats across keyword, sampled, and
-verbose other tiers; verbose other entries remain body-preview-backed.
-`--verbose` expands the bounded row groups in place without changing the JSON
-response. Backend truncation and unknown evidence remain explicit rather than
-being presented as complete.
+Other compact evidence limits remain: five advisories, transitive package
+details and dependency-issue locators per group, ten peer changes, and bounded
+dependency examples. Verbose expands these. Defined zero-valued dependency
+comparisons remain visible; omitted comparisons stay omitted. Missing target
+security retains `Target: deprecation unknown`.
 
 ## Fact Reporting Rules
 
-The tool reports facts and missing evidence. It does not assign package-level `low` / `medium` / `high` risk, an overall score, or an accept/reject verdict. Per-statement model classifications are evidence: the quoted release-note statement, tier, optional kind, version, source, model and formulation. Labels describe the model's reading of that statement, never compatibility of the package with the caller's code. The calling agent or human reviewer owns that assessment.
+The tool reports facts and missing evidence. It does not assign package-level `low` / `medium` / `high` risk, an overall score, or an accept/reject verdict. Per-statement agent classifications are evidence: the quoted release-note statement, tier, optional kind, version and referenced source. JSON additionally preserves model and formulation provenance. Labels describe the classifier's reading of that statement, never compatibility of the package with the caller's code. The calling agent or human reviewer owns that assessment.
 
 The factual evidence includes:
 
 - Version relationship: major, prerelease, downgrade, same-version, or unknown version shape.
 - Target deprecation metadata: verified deprecated, verified not deprecated, or unavailable.
 - Direct advisory diff: added, fixed, and still-present vulnerabilities after alias-cluster deduplication.
-- Changelog evidence: source, body availability, sampled headline paragraphs, rudimentary keyword hints, and per-statement model labels with provenance and explicit coverage.
+- Changelog evidence: source, body availability, version-grouped quotes, lexical keyword hints, agent labels and explicit coverage; raw model provenance stays in JSON.
 - Peer dependency metadata changes.
 - Direct and transitive dependency graph changes.
 - Transitive vulnerability and dependency issue diffs when requested.
@@ -456,7 +401,7 @@ There is deliberately no compatibility fallback to the old client-side fanout. B
 - MCP `pkg_upgrade_review` and CLI `githits pkg upgrade-review` expose equivalent JSON envelopes for single-package and repeatable-package batch input.
 - The tool calls the aggregate backend `packageUpgradeReview` operation once per request.
 - The tool has no fallback to `packageSummary`, `packageVulnerabilities`, `packageChangelog`, `packageDependencies`, or the old upgrade dependency probe.
-- The tool never returns package-level risk levels or compatibility verdicts. Changelog statement labels include the quote and model/formulation provenance; all other evidence remains factual.
+- The tool never returns package-level risk levels or compatibility verdicts. Changelog statement labels include the quote and agent attribution, with model/formulation provenance in JSON; all other evidence remains factual.
 - Backend enum casing is normalised to the existing public JSON/text contract.
 - Transitive security defaults on and can be disabled with `skip_transitive_security` / `--no-transitive-security`; `include_dependency_issues` selects the backend `dependencyIssues` subtree only when requested.
 - Backend schema mismatch surfaces a protocol error; the owner confirms the aggregate and risk fields are already deployed.
@@ -481,29 +426,40 @@ items first. No-impact statements appear only in `unitsNoImpact`. Keep existing
 `breakingSignals`, `migrationSignals` and entry `signals`: these remain lexical
 hints, separate from model labels.
 
-Single-package text shows Requires action quotes in full, Should know excerpts
-up to 240 characters, and Unclassified excerpts up to 120. These are quoted
-prefixes, not generated paraphrases. Local excerpts say `[excerpt; expand with
-verbose]`; backend truncation at 1,000 characters separately says `[statement
-truncated by backend]`, including in verbose mode. Verbose expands returned
-quotes and shows headings and confidence. Kinds map to removal, behavior,
-runtime/platform, packaging/modules, deprecation, security fix and notable
-change; missing kinds add no invented category. Source, model and formulation
-are preserved. Entry `detailSource` is also exposed in lower-case JSON. Match entry `version`,
-not `sourceVersion`: statements belong to the reviewed version. Links use
-returned entry URLs only when the version and
-`detailSource` match the statement; absent source links are not fabricated.
-Each returned version/source locator is listed once beneath the statement
-groups, rather than repeating its URL per quote. New terminal strings use the
-existing sanitizer; JSON keeps source text.
+Single-package text combines evidence from different sources under one heading
+per version. Requires action quotes are full; Should know and Unclassified
+prefixes are up to 240 codepoints after Markdown link destinations become
+numbered source references. Bullet, blockquote and inline-code syntax renders as
+visible words; GitHub alert markers become e.g. `IMPORTANT:`. Words are not
+paraphrased or semantically deduplicated. Local prefixes end in `...`, with one
+expansion hint; backend truncation separately says `[statement truncated by
+backend]`, including verbose. Verbose expands quotes and shows headings and
+confidence. Kinds map to removal, behavior, runtime/platform, packaging/modules,
+deprecation, security fix and notable change; missing kinds add no category.
 
-Coverage always includes classified, not-assessed, without-notes and unparseable
-versions, plus the no-impact statement count. Omitted items are explicit and
-returned tier counts are not presented as complete when the backend cap applies.
-Not-assessed versions say to rerun: later requests fill stored classification
-labels. Missing notes, unparseable notes or an empty item list never mean no risk.
-A cold range can take a few seconds under the backend's shared six-second batch
-deadline and 20-version-per-package cap; the client does not add retries.
+Every entry/link URL appears once in the Sources list, referenced by quotes.
+Entry links require matching version and `detailSource`; a missing locator is
+identified by its source type and never borrowed from another source. Quoted
+HTTP(S) links are also available through references. Text identifies agent
+classification without model/formulation identifiers, including verbose and
+batch; JSON retains them and lower-case entry `detailSource`.
+
+Keyword matching consumes `breakingSignals`, `migrationSignals` and entry
+`signals`. A matched full chunk already contained in a statement with the same
+version and defined source becomes a heuristic tag on that statement. Distinct
+keyword text or source remains separate in the same version block. Commit-list
+noise and generic headings stay excluded. Sampled/other/heuristic entry sections
+are removed. All newly rendered strings use terminal sanitization; JSON stays
+raw.
+
+Coverage always shows classified, not-assessed and without-notes counts, plus
+no-impact units. Positive unparseable and omitted counts are explicit. Pending
+versions prompt a rerun: later requests fill stored labels. Missing/unparseable
+notes or an empty item list never imply no risk. Package-version fallback and
+entry/locator sampling limits remain visible when present; ordinary entry
+sampling never bounds statement classification. A cold range can take a few
+seconds under the backend six-second batch deadline and 20-version package cap;
+there are no client retries.
 
 Public JSON adds `changelog.riskItems` and `changelog.riskCoverage` on both CLI
 and MCP, retaining the existing envelope, lower-case enums and null-to-omission
@@ -587,3 +543,34 @@ and compatibility-note counts now retain it, including explicit missing evidence
 Round 2 and its fresh full-delta check returned no findings. Wire validation
 retains the verified three-tier, seven-kind and 0-1 confidence contract. No
 deferred implementation or refactoring work was identified.
+
+## Version-grouped UX revision (2026-10-07)
+
+The owner reviewed real Express `5.0.0..5.2.1` output and found repeated sources,
+versions and entry previews. The shared formatter now combines returned evidence
+under one version heading, replaces Markdown destinations with unique source
+references, removes the sampled/heuristic entry sections and keeps classifier
+identifiers exclusively in JSON. The same saved dev response's default Changes
+section went from 4,212 bytes / 69 lines to 2,717 bytes / 52 lines at width 80;
+this is an output-size observation, not a runtime performance claim.
+
+The full Bun suite passed 5,638 tests / 22,598 assertions. Focused formatter,
+CLI/MCP parity, handler and descriptor-catalog checks passed 55 tests / 769
+assertions. Typecheck, build, public-package validation, both built smokes and
+source auth-handling smokes passed. Source isolated live cohorts still skipped
+with AUTH_REQUIRED as described above. Normal-auth dev CLI verified the Express
+example; local stdio MCP verified that example, all three original requested
+ranges and their batch, with one heading per version, no model identifiers and
+no repeated entry sections. Query selections and JSON projection are unchanged,
+so complexity remains 284 / 500. The model owner remains the backend; no backend
+or remote-MCP changes were needed.
+
+Targeted descriptor-only Codex eval with GitHits intent completed successfully
+with medium confidence and nine logical MCP calls, including three
+`pkg_upgrade_review` calls. Trace/final/metrics were inspected; no isolation
+violation artifact was emitted. No quality grading ran. Internal review found
+that excerpts could leave unreferenced link URLs in Sources; filtering the
+source list to rendered references closes that gap for statements and keyword
+quotes. The final affected checks passed 56 tests / 774 assertions, with
+post-fix typecheck/build/package validation. The full-suite count above predates
+that final focused source-list regression.

@@ -1,8 +1,10 @@
 import { describe, expect, it, mock } from "bun:test";
 import type { PackageUpgradeReviewResponse } from "@githits/core-internal";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
+import expressChangelog from "./fixtures/upgrade-review-express-changelog.json";
 import { buildPackageUpgradeReviewRequest } from "./package-upgrade-review-request.js";
 import type {
+  UpgradeChangelog,
   UpgradeChangelogRiskItem,
   UpgradeReview,
   UpgradeReviewResponse,
@@ -353,10 +355,10 @@ describe("package upgrade review response", () => {
     expect(text).toContain("+1 more not returned by backend page");
     expect(text).toContain("Target: deprecated: bad release");
     expect(text).toContain("Changes");
+    expect(text).toContain("Heuristic keywords: breaking");
     expect(text).toContain(
-      "Repository releases | 1 entry | 1 with release notes",
+      'Heuristic / breaking, removed: "Breaking: removed an API."',
     );
-    expect(text).toContain("Heuristic signals: breaking | 1 matching entry");
     expect(text).toContain("Dependencies");
     expect(text).toContain("Direct: 1 added | 0 removed | 0 changed");
     expect(text).toContain("Dependency issues");
@@ -434,11 +436,20 @@ describe("package upgrade review response", () => {
       sampledEntries: [],
     });
     expect(packageVersions).toContain(
-      "Package versions (no release notes) | 0 entries | 0 with release notes",
+      "Release notes unavailable; using package versions.",
     );
-    expect(
-      makeText({ ...base.changelog, source: "hexdocs", fallback: undefined }),
-    ).toContain("hexdocs | 1 entry | 1 with release notes");
+    const entry = {
+      ...base.changelog.entries[0]!,
+      detailSource: "hexdocs",
+      htmlUrl: "https://example.com/notes",
+    };
+    const hexdocs = makeText({
+      ...base.changelog,
+      entries: [entry],
+      keywordEntries: [entry],
+    });
+    expect(hexdocs).toContain("hexdocs: https://example.com/notes");
+    expect(hexdocs).not.toContain("Repository releases");
   });
 
   it("renders zero-valued dependency issues and omits undefined evidence", () => {
@@ -715,7 +726,7 @@ describe("package upgrade review response", () => {
     );
     expect(plain).toContain("                  GHSA-extra-long-locator");
     expect(plain).toContain(
-      "    - 5.2.1 (2025-12-01T20:49:43.268Z)\n      https://github.com/expressjs/express/releases/tag/v5.2.1",
+      "    [1] https://github.com/expressjs/express/releases/tag/v5.2.1",
     );
     expect(Math.max(...lines.map((line) => line.length))).toBeLessThanOrEqual(
       80,
@@ -761,11 +772,11 @@ describe("package upgrade review response", () => {
             },
           }),
         ]),
-        { terminalWidth: 80 },
+        { terminalWidth: 80, verbose: true },
       ),
     );
     expect(ordinary).toContain(
-      "Sampled release entries\n    - 5.2.1 (2025-12-01T20:49:43.268Z)\n      https://github.com/expressjs/express/releases/tag/v5.2.1",
+      "    [1] https://github.com/expressjs/express/releases/tag/v5.2.1",
     );
     expect(
       Math.max(
@@ -840,328 +851,114 @@ describe("package upgrade review response", () => {
     ).toBe(true);
   });
 
-  it("renders identity-only sampled changelog entries without a preview", () => {
-    const base = formatterReview();
-    const sampledEntry = {
-      ...base.changelog.entries[0]!,
-      version: "4.4.3",
-      publishedAt: "2025-12-01T20:49:43.268Z",
-      htmlUrl: "https://example.com/releases/4.4.3",
-      body: undefined,
-      bodyPreview: undefined,
-      headline: "Identity-only release",
+  it("hides no-impact-only previews by default and keeps their locators in verbose", () => {
+    const review = riskReview([]);
+    const entry = {
+      version: "4.4.2",
+      headline: "Routine fixes.",
+      htmlUrl: "https://example.com/notes",
+      signals: [],
     };
-    const text = formatPackageUpgradeReviewTerminal(
-      formatterResponse([
-        formatterReview({
-          changelog: {
-            ...base.changelog,
-            entries: [sampledEntry],
-            sampledEntries: [sampledEntry],
-            keywordEntries: [],
-            totalKeywordEntries: 0,
-            breakingSignals: [],
-            migrationSignals: [],
-            riskItems: [],
-            riskCoverage: {
-              versionsClassified: 0,
-              versionsNotAssessed: 0,
-              versionsWithoutNotes: 0,
-              versionsUnparseable: 0,
-              unitsNoImpact: 0,
-              itemsOmitted: 0,
-            },
-          },
-        }),
-      ]),
-    );
-
-    expect(text).toContain(
-      "Sampled release entries\n    - 4.4.3 (2025-12-01T20:49:43.268Z) https://example.com/releases/4.4.3",
-    );
-    expect(text).toContain("      Identity-only release");
-    expect(text).not.toContain("Breaking: removed an API.");
+    review.changelog.entries = [entry];
+    review.changelog.sampledEntries = [entry];
+    review.changelog.keywordEntries = [];
+    review.changelog.breakingSignals = [];
+    review.changelog.totalKeywordEntries = 0;
+    const response = formatterResponse([review]);
+    const text = formatPackageUpgradeReviewTerminal(response);
+    expect(text).toContain("56 statements labeled no impact");
+    expect(text).not.toContain("Routine fixes.");
+    expect(text).not.toContain("https://example.com/notes");
+    const verbose = formatPackageUpgradeReviewTerminal(response, {
+      verbose: true,
+    });
+    expect(verbose).toContain('"Routine fixes."');
+    expect(verbose.split("https://example.com/notes")).toHaveLength(2);
+    expect(verbose.match(/^ {2}4\.4\.2$/gm)).toHaveLength(1);
+    expect(verbose).not.toContain("Sampled release entries");
   });
 
-  it("omits the sampled release heading when no entries are available", () => {
-    const base = formatterReview();
-    const text = formatPackageUpgradeReviewTerminal(
-      formatterResponse([
-        formatterReview({
-          changelog: {
-            ...base.changelog,
-            entries: [],
-            sampledEntries: [],
-            keywordEntries: [],
-            totalKeywordEntries: 0,
-            totalEntries: 0,
-            totalEntriesWithBodies: 0,
-            breakingSignals: [],
-            migrationSignals: [],
-            riskItems: [],
-            riskCoverage: {
-              versionsClassified: 0,
-              versionsNotAssessed: 0,
-              versionsWithoutNotes: 0,
-              versionsUnparseable: 0,
-              unitsNoImpact: 0,
-              itemsOmitted: 0,
-            },
-          },
-        }),
-      ]),
+  it("keeps unassessed entry locators in verbose without attributing per-version status", () => {
+    const review = riskReview([]);
+    review.changelog.riskCoverage.versionsClassified = 0;
+    review.changelog.riskCoverage.versionsNotAssessed = 2;
+    review.changelog.entries = [
+      {
+        version: "1.0.post2",
+        htmlUrl: "https://example.com/post2",
+        signals: [],
+      },
+      {
+        version: "1.0.post1",
+        htmlUrl: "https://example.com/post1",
+        signals: [],
+      },
+      { version: null, signals: [] },
+    ];
+    review.changelog.keywordEntries = [];
+    review.changelog.sampledEntries = [...review.changelog.entries];
+    const response = formatterResponse([review]);
+    const text = formatPackageUpgradeReviewTerminal(response);
+    expect(text).toContain("2 not assessed");
+    expect(text).toContain("Rerun to fill");
+    expect(text).not.toContain("1.0.post");
+    const verbose = formatPackageUpgradeReviewTerminal(response, {
+      verbose: true,
+    });
+    expect(verbose.indexOf("  1.0.post2")).toBeLessThan(
+      verbose.indexOf("  1.0.post1"),
     );
+    expect(verbose).toContain("Unversioned notes");
+    expect(verbose.split("https://example.com/post2")).toHaveLength(2);
+    expect(verbose).not.toContain("post2 not assessed");
+  });
 
+  it("combines overlapping entry views without losing keyword bodies or inventing sources", () => {
+    const review = riskReview([]);
+    const entry = {
+      version: "4.4.3",
+      detailSource: "releases",
+      htmlUrl: "https://example.com/release",
+      signals: ["breaking"],
+    };
+    review.changelog.entries = [entry];
+    review.changelog.sampledEntries = [entry];
+    review.changelog.keywordEntries = [
+      {
+        ...entry,
+        body: "## Commits\n- abcdef123 breaking commit noise\n## Changes\n- Breaking: removed an API.",
+      },
+    ];
+    const response = formatterResponse([review]);
+    const before = JSON.stringify(response);
+    const text = formatPackageUpgradeReviewTerminal(response);
+    expect(text.match(/^ {2}4\.4\.3$/gm)).toHaveLength(1);
+    expect(text.split("https://example.com/release")).toHaveLength(2);
+    expect(text).toContain('Heuristic / breaking: "Breaking: removed an API."');
+    expect(text).not.toContain("commit noise");
     expect(text).not.toContain("Sampled release entries");
+    expect(text).not.toContain("Heuristic release entries");
+    expect(JSON.stringify(response)).toBe(before);
   });
 
-  it("renders keyword and distinct sampled entries in source order", () => {
-    const base = formatterReview();
-    const keywordEntry = {
-      ...base.changelog.keywordEntries[0]!,
-      version: "4.4.3",
-      htmlUrl: "https://example.com/releases/4.4.3",
-      headline: "Keyword release",
-    };
-    const firstSample = {
-      ...keywordEntry,
-      version: "4.4.2",
-      htmlUrl: "https://example.com/releases/4.4.2",
-      headline: "First sampled release",
-      signals: [],
-    };
-    const secondSample = {
-      ...keywordEntry,
-      version: "4.4.1",
-      htmlUrl: "https://example.com/releases/4.4.1",
-      headline: "Second sampled release",
-      signals: [],
-    };
+  it("reports missing notes and entry sampling without implying statement coverage is sampled", () => {
+    const review = riskReview([]);
+    review.changelog.entries = [];
+    review.changelog.keywordEntries = [];
+    review.changelog.sampledEntries = [];
+    review.changelog.riskCoverage.versionsWithoutNotes = 2;
+    review.changelog.truncated = true;
+    review.changelog.fallback = "package_versions";
     const text = formatPackageUpgradeReviewTerminal(
-      formatterResponse([
-        formatterReview({
-          changelog: {
-            ...base.changelog,
-            entries: [keywordEntry, firstSample, secondSample],
-            sampledEntries: [firstSample, secondSample],
-            keywordEntries: [keywordEntry],
-            totalKeywordEntries: 1,
-            totalEntries: 3,
-            totalEntriesWithBodies: 3,
-            truncated: true,
-          },
-        }),
-      ]),
+      formatterResponse([review]),
     );
-
+    expect(text).toContain("2 without notes");
     expect(text.replace(/\s+/g, " ")).toContain(
-      "3 entries | 3 with release notes | 2 release entries sampled",
+      "Release-note entries and links are sampled; statement coverage spans the upgrade range.",
     );
-    expect(text).not.toContain("ordinary entries sampled");
-    expect(text).toContain("Heuristic release entries");
-    expect(text).toContain("Sampled release entries");
-    expect(text.indexOf("Heuristic release entries")).toBeLessThan(
-      text.indexOf("Sampled release entries"),
-    );
-    expect(text.indexOf("4.4.2")).toBeLessThan(text.indexOf("4.4.1"));
-    expect(text).toContain("First sampled release");
-    expect(text).toContain("Second sampled release");
-  });
-
-  it("renders an overlapping keyword and sampled entry only once", () => {
-    const base = formatterReview();
-    const keywordEntry = {
-      ...base.changelog.keywordEntries[0]!,
-      version: "4.4.3",
-      htmlUrl: "https://example.com/releases/overlap",
-      headline: "Overlapping release",
-    };
-    const distinctSample = {
-      ...keywordEntry,
-      version: "4.4.2",
-      htmlUrl: "https://example.com/releases/distinct",
-      headline: "Distinct sampled release",
-      signals: [],
-    };
-    const text = formatPackageUpgradeReviewTerminal(
-      formatterResponse([
-        formatterReview({
-          changelog: {
-            ...base.changelog,
-            entries: [keywordEntry, distinctSample],
-            sampledEntries: [keywordEntry, distinctSample],
-            keywordEntries: [keywordEntry],
-            totalKeywordEntries: 1,
-            totalEntries: 2,
-            totalEntriesWithBodies: 2,
-          },
-        }),
-      ]),
-    );
-
-    expect(text.split(keywordEntry.htmlUrl).length - 1).toBe(1);
-    expect(text).toContain("Sampled release entries");
-    expect(text).toContain(distinctSample.htmlUrl);
-  });
-
-  it("excludes keyword and sampled entries from verbose extras", () => {
-    const base = formatterReview();
-    const keywordEntry = {
-      ...base.changelog.keywordEntries[0]!,
-      version: "4.4.3",
-      htmlUrl: "https://example.com/releases/keyword",
-      headline: "Keyword release",
-    };
-    const sampledEntry = {
-      ...keywordEntry,
-      version: "4.4.2",
-      htmlUrl: "https://example.com/releases/sampled",
-      headline: "Sampled release",
-      signals: [],
-    };
-    const otherEntry = {
-      ...keywordEntry,
-      version: "4.4.1",
-      htmlUrl: "https://example.com/releases/other",
-      headline: "Other release",
-      body: "Other release body",
-      bodyPreview: "Other release body",
-      signals: [],
-    };
-    const text = formatPackageUpgradeReviewTerminal(
-      formatterResponse([
-        formatterReview({
-          changelog: {
-            ...base.changelog,
-            entries: [keywordEntry, sampledEntry, otherEntry],
-            sampledEntries: [sampledEntry],
-            keywordEntries: [keywordEntry],
-            totalKeywordEntries: 1,
-            totalEntries: 3,
-            totalEntriesWithBodies: 3,
-          },
-        }),
-      ]),
-      { verbose: true },
-    );
-    const otherSection = text.slice(text.indexOf("Other release entries"));
-
-    expect(text).toContain("Sampled release entries");
-    expect(text.split(keywordEntry.htmlUrl).length - 1).toBe(1);
-    expect(text.split(sampledEntry.htmlUrl).length - 1).toBe(1);
-    expect(text.split(otherEntry.htmlUrl).length - 1).toBe(1);
-    expect(otherSection).toContain(otherEntry.htmlUrl);
-    expect(otherSection).not.toContain(keywordEntry.htmlUrl);
-    expect(otherSection).not.toContain(sampledEntry.htmlUrl);
-  });
-
-  it("renders verbose extras when no keyword entries are available", () => {
-    const base = formatterReview();
-    const sampledEntry = {
-      ...base.changelog.entries[0]!,
-      version: "4.4.2",
-      htmlUrl: "https://example.com/releases/sampled-without-keywords",
-      headline: "Sampled release",
-      signals: [],
-    };
-    const otherEntry = {
-      ...sampledEntry,
-      version: "4.4.1",
-      htmlUrl: "https://example.com/releases/other-without-keywords",
-      headline: "Other release",
-      body: "Other release body",
-      bodyPreview: "Other release body",
-    };
-    const text = formatPackageUpgradeReviewTerminal(
-      formatterResponse([
-        formatterReview({
-          changelog: {
-            ...base.changelog,
-            entries: [sampledEntry, otherEntry],
-            sampledEntries: [sampledEntry],
-            keywordEntries: [],
-            totalKeywordEntries: 0,
-            totalEntries: 2,
-            totalEntriesWithBodies: 2,
-            breakingSignals: [],
-            migrationSignals: [],
-            riskItems: [],
-            riskCoverage: {
-              versionsClassified: 0,
-              versionsNotAssessed: 0,
-              versionsWithoutNotes: 0,
-              versionsUnparseable: 0,
-              unitsNoImpact: 0,
-              itemsOmitted: 0,
-            },
-          },
-        }),
-      ]),
-      { verbose: true },
-    );
-
-    expect(text).toContain("Sampled release entries");
-    expect(text).toContain("Other release entries");
-    expect(text).toContain(otherEntry.htmlUrl);
-    expect(text.split(sampledEntry.htmlUrl).length - 1).toBe(1);
-    expect(text.split(otherEntry.htmlUrl).length - 1).toBe(1);
-  });
-
-  it("deduplicates entries within each rendered changelog tier", () => {
-    const base = formatterReview();
-    const keywordEntry = {
-      ...base.changelog.keywordEntries[0]!,
-      version: "4.4.3",
-      htmlUrl: "https://example.com/releases/duplicate-keyword",
-      headline: "Keyword release",
-    };
-    const duplicateKeyword = {
-      ...keywordEntry,
-      headline: "Duplicate keyword release",
-    };
-    const sampledEntry = {
-      ...keywordEntry,
-      version: "4.4.2",
-      htmlUrl: "https://example.com/releases/duplicate-sampled",
-      headline: "Sampled release",
-      signals: [],
-    };
-    const duplicateSampled = {
-      ...sampledEntry,
-      headline: "Duplicate sampled release",
-    };
-    const otherEntry = {
-      ...sampledEntry,
-      version: "4.4.1",
-      htmlUrl: "https://example.com/releases/duplicate-other",
-      headline: "Other release",
-      body: "Other release body",
-      bodyPreview: "Other release body",
-    };
-    const duplicateOther = {
-      ...otherEntry,
-      headline: "Duplicate other release",
-    };
-    const text = formatPackageUpgradeReviewTerminal(
-      formatterResponse([
-        formatterReview({
-          changelog: {
-            ...base.changelog,
-            entries: [keywordEntry, sampledEntry, otherEntry, duplicateOther],
-            sampledEntries: [sampledEntry, duplicateSampled],
-            keywordEntries: [keywordEntry, duplicateKeyword],
-            totalKeywordEntries: 2,
-            totalEntries: 4,
-            totalEntriesWithBodies: 4,
-          },
-        }),
-      ]),
-      { verbose: true },
-    );
-
-    expect(text.split(keywordEntry.htmlUrl).length - 1).toBe(1);
-    expect(text.split(sampledEntry.htmlUrl).length - 1).toBe(1);
-    expect(text.split(otherEntry.htmlUrl).length - 1).toBe(1);
+    expect(text).toContain("Release notes unavailable");
+    expect(text).not.toContain("  Sources");
+    expect(text).not.toMatch(/\bsafe\b/);
   });
 
   it("keeps no-color text ASCII-authored and colors attention without changing words", () => {
@@ -1189,11 +986,9 @@ describe("package upgrade review response", () => {
     expect(colored).toContain(
       "\x1b[1m\x1b[33mUnknown evidence\x1b[0m\n  - changelog evidence incomplete",
     );
-    expect(colored).toContain(
-      "  Heuristic signals: \x1b[33mbreaking\x1b[0m | 1 matching entry",
-    );
-    expect(colored).toContain("\n  Heuristic release entries\n");
-    expect(colored).not.toContain("\x1b[33m  Heuristic signals:");
+    expect(colored).toContain("  Heuristic keywords: \x1b[33mbreaking\x1b[0m");
+    expect(colored).toContain("Heuristic / breaking, removed:");
+    expect(colored).not.toContain("\x1b[33m  Heuristic keywords:");
     expect(colored).not.toContain("\x1b[33m  Heuristic release entries");
     expect(colored).not.toContain("\x1b[33m    - GHSA-new");
     expect(colored).not.toContain("\x1b[33m    - npm:left-pad@1.0.0");
@@ -1271,10 +1066,10 @@ describe("package upgrade review response", () => {
     expect(unicodePlain).toContain(unicodeExcerpt);
     expect(stripAnsi(unicodeColored)).toBe(unicodePlain);
     expect(unicodeColored).toContain(
-      "\x1b[33m      [breaking]:\x1b[0m breaking: 修复 parser 🚀",
+      'Heuristic / breaking: "breaking: 修复 parser 🚀',
     );
-    expect(unicodeColored).not.toContain(
-      "\x1b[33m      [breaking]: breaking: 修复 parser 🚀",
+    expect(unicodeColored).toContain(
+      "Heuristic keywords: \x1b[33mbreaking\x1b[0m",
     );
   });
 
@@ -1413,6 +1208,157 @@ function riskReview(
 }
 
 describe("upgrade review model statement evidence", () => {
+  it("renders the real Express range once per version with unique sources and no sample dump", () => {
+    const review = formatterReview({
+      changelog: expressChangelog as UpgradeChangelog,
+    });
+    const response = formatterResponse([review]);
+    const before = JSON.stringify(response);
+    for (const verbose of [false, true]) {
+      const text = formatPackageUpgradeReviewTerminal(response, { verbose });
+      const compact = text.replace(/\s+/g, " ");
+      expect(
+        [...text.matchAll(/^ {2}(5\.\d+\.\d+)$/gm)].map((match) => match[1]),
+      ).toEqual(["5.2.1", "5.2.0", "5.1.0", "5.0.1"]);
+      const urls = text.match(/https?:\/\/\S+/g) ?? [];
+      expect(new Set(urls).size).toBe(urls.length);
+      expect(text.split("IMPORTANT:")).toHaveLength(2);
+      expect(text).toContain("Heuristic: breaking");
+      expect(compact).toContain(
+        "There is no actual security vulnerability associated with this behavior",
+      );
+      expect(text).not.toContain("Sampled release entries");
+      expect(text).not.toContain("Heuristic release entries");
+      expect(text).not.toContain("Other release entries");
+      expect(text).not.toContain("jev-1.13.0");
+      expect(text).not.toContain("d-hier-v1");
+      expect(text).toContain("Release notes (entry URL not returned)");
+      expect(text).toContain("Changelog (entry URL not returned)");
+      expect(compact).toContain(
+        "4 classified | 0 not assessed | 0 without notes",
+      );
+      expect(text).toContain("130 statements labeled no impact");
+    }
+    expect(JSON.stringify(response)).toBe(before);
+  });
+
+  it("suppresses only full keyword chunks covered by a same-source statement", () => {
+    const body =
+      "> [!IMPORTANT]\n> Breaking: removed an API. Read the migration guide.";
+    const review = riskReview([riskItem({ text: body })]);
+    const entry = {
+      ...review.changelog.entries[0]!,
+      body,
+      signals: ["breaking", "removed"],
+    };
+    review.changelog.keywordEntries = [entry];
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    );
+    expect(text.split("Read the migration guide.")).toHaveLength(2);
+    expect(text).toContain("Heuristic: breaking, removed");
+    expect(text).not.toContain("Heuristic /");
+    const otherSource = {
+      ...entry,
+      detailSource: "changelog_file",
+      htmlUrl: "https://example.com/file",
+    };
+    review.changelog.keywordEntries = [entry, otherSource];
+    const both = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    );
+    expect(
+      both.replace(/\s+/g, " ").split("Read the migration guide."),
+    ).toHaveLength(3);
+    expect(both).toContain("Heuristic / breaking, removed:");
+    expect(both).toContain("Changelog: https://example.com/file");
+  });
+
+  it("keeps additional keyword evidence and risk versions beyond the entry sample", () => {
+    const review = riskReview([
+      riskItem(),
+      riskItem({ version: "4.0.0", text: "Old API removed." }),
+    ]);
+    review.changelog.keywordEntries = [
+      {
+        ...review.changelog.entries[0]!,
+        body: "Removed different config setting.",
+        signals: ["removed"],
+      },
+    ];
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    );
+    expect(text).toContain(
+      'Heuristic / removed: "Removed different config setting."',
+    );
+    expect(text).toContain('"Old API removed."');
+    expect(text.match(/^ {2}4\.0\.0$/gm)).toHaveLength(1);
+    expect(text).toContain("Release notes (entry URL not returned)");
+  });
+
+  it("renders link labels as evidence and lists each URL once, retaining raw JSON", () => {
+    const text =
+      "- Removed `API` documented in [migration guide](https://example.com/guide). See https://example.com/guide.";
+    const review = riskReview([riskItem({ text })]);
+    review.changelog.keywordEntries = [];
+    const before = JSON.stringify(review);
+    const output = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    );
+    expect(output).toContain(
+      '"Removed API documented in migration guide [2]. See [2]."',
+    );
+    expect(output.split("https://example.com/guide")).toHaveLength(2);
+    expect(JSON.stringify(review)).toBe(before);
+    expect(review.changelog.riskItems[0]!.text).toBe(text);
+  });
+
+  it("omits in-note URLs clipped out of compact statement and keyword quotes", () => {
+    const text = `Important change. ${"context ".repeat(50)}See [details](https://example.com/late).`;
+    const review = riskReview([riskItem({ tier: "should_know", text })]);
+    review.changelog.keywordEntries = [
+      {
+        version: "4.4.2",
+        detailSource: "changelog_file",
+        signals: ["removed"],
+        body: `Removed something. ${"context ".repeat(50)}See https://example.com/late-keyword.`,
+      },
+    ];
+    const response = formatterResponse([review]);
+    const compact = formatPackageUpgradeReviewTerminal(response);
+    expect(compact).toContain("https://example.com/release");
+    expect(compact).not.toContain("https://example.com/late");
+    const verbose = formatPackageUpgradeReviewTerminal(response, {
+      verbose: true,
+    });
+    expect(verbose).toContain("https://example.com/late");
+    expect(verbose).toContain("https://example.com/late-keyword");
+    expect(review.changelog.riskItems[0]!.text).toBe(text);
+  });
+
+  it("omits classifier identifiers from batch text while preserving per-item JSON provenance", () => {
+    const review = riskReview([
+      riskItem({ formulation: "other-formulation" }),
+      riskItem({ model: "other-model" }),
+    ]);
+    const response = formatterResponse([review, { ...review, name: "other" }]);
+    for (const verbose of [false, true]) {
+      const text = formatPackageUpgradeReviewTerminal(response, { verbose });
+      expect(text).toContain("Classified by an agent.");
+      expect(text).not.toContain("jev-1.13.0");
+      expect(text).not.toContain("other-model");
+      expect(text).not.toContain("d-hier-v1");
+      expect(text).not.toContain("other-formulation");
+    }
+    expect(response.reviews[0]!.changelog.riskItems[0]!.model).toBe(
+      "jev-1.13.0",
+    );
+    expect(response.reviews[0]!.changelog.riskItems[1]!.model).toBe(
+      "other-model",
+    );
+  });
+
   it("shows tier, optional kind, full action quotes, matching source links and provenance", () => {
     const longText = `Removed an API. ${"evidence ".repeat(100)}END`;
     const review = riskReview([
@@ -1443,13 +1389,17 @@ describe("upgrade review model statement evidence", () => {
     expect(text.indexOf("Should know")).toBeLessThan(
       text.indexOf("Unclassified"),
     );
-    expect(compact).toContain('removal 4.4.3 "Removed an API.');
+    expect(compact).toContain('removal "Removed an API.');
     expect(text).toContain("https://example.com/release");
-    expect(text).toContain("jev-1.13.0 / d-hier-v1");
+    expect(text).toContain("Classified by an agent.");
+    expect(text).not.toContain("jev-1.13.0");
+    expect(text).not.toContain("d-hier-v1");
     expect(compact).toContain("Not a compatibility verdict.");
     expect(text).not.toContain("KNOW_END");
     expect(text).not.toContain("READ_END");
-    expect(text).toContain("[excerpt; expand with verbose]");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "Quotes ending in ... are excerpts; use verbose for full text.",
+    );
     const verbose = formatPackageUpgradeReviewTerminal(
       formatterResponse([review]),
       { verbose: true },
@@ -1466,13 +1416,14 @@ describe("upgrade review model statement evidence", () => {
       riskItem({ text: "Removed another API." }),
       riskItem({ source: "changelog_file", text: "Other source." }),
       riskItem({ version: "4.4.2", text: "Other version." }),
-      riskItem({ tier: "unclassified", text: `${"x".repeat(119)}😀TAIL` }),
+      riskItem({ tier: "unclassified", text: `${"x".repeat(239)}😀TAIL` }),
     ]);
     const text = formatPackageUpgradeReviewTerminal(
       formatterResponse([review]),
-    ).split("Heuristic signals:")[0]!;
+    ).split("\nDependencies\n")[0]!;
     expect(text.match(/https:\/\/example.com\/release/g)).toHaveLength(1);
-    expect(text).toContain("Statement sources");
+    expect(text).not.toContain("Statement sources");
+    expect(text).toContain("Changelog (entry URL not returned)");
     expect(text).toContain('😀..."');
     expect(text).not.toContain("TAIL");
     expect(text).not.toContain("4.4.2 [releases] https:");
@@ -1497,7 +1448,7 @@ describe("upgrade review model statement evidence", () => {
     expect(response.summary.withUnknowns).toBe(0);
   });
 
-  it("always reports every coverage counter, including zero items and entirely unassessed ranges", () => {
+  it("reports required coverage, zero items and entirely unassessed ranges", () => {
     const review = riskReview([]);
     review.changelog.riskCoverage = {
       versionsClassified: 0,
@@ -1513,7 +1464,7 @@ describe("upgrade review model statement evidence", () => {
     expect(text).toContain(
       "0 classified | 20 not assessed | 2 without notes | 1 unparseable",
     );
-    expect(text).toContain("0 returned | 0 labeled no impact");
+    expect(text).toContain("0 statements labeled no impact");
     expect(text).toContain("Rerun to fill not-assessed versions");
     expect(text).toContain(
       "Missing or unparseable notes are not evidence of no risk",
@@ -1525,7 +1476,7 @@ describe("upgrade review model statement evidence", () => {
       formatterResponse([review]),
     );
     expect(empty).not.toContain("Rerun to fill");
-    expect(empty).toContain("0 labeled no impact");
+    expect(empty).toContain("0 statements labeled no impact");
   });
 
   it("distinguishes omitted items and backend-truncated quotes from local excerpts", () => {
@@ -1541,7 +1492,7 @@ describe("upgrade review model statement evidence", () => {
     const text = formatPackageUpgradeReviewTerminal(
       formatterResponse([review]),
     );
-    expect(text).toContain("7 omitted by backend");
+    expect(text).toContain("7 statements omitted by backend");
     expect(text).toContain("[statement truncated by backend]");
     expect(text).toContain("X".repeat(1000));
     expect(text).not.toContain("[excerpt;");
@@ -1568,7 +1519,7 @@ describe("upgrade review model statement evidence", () => {
     expect(text).not.toContain(terminalEscape);
     expect(text).not.toContain("\u0000");
     expect(text.replace(/\s+/g, " ")).toContain("quote red 漢字 next word");
-    expect(text.split("Heuristic signals:")[0]).not.toContain(
+    expect(text.split("Heuristic keywords:")[0]).not.toContain(
       "https://example.com/release",
     );
     expect(JSON.stringify(review)).toBe(before);

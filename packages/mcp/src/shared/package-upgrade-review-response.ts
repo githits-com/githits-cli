@@ -595,7 +595,8 @@ function appendWrappedText(
       current += `${separator}${word}`;
       continue;
     }
-    lines.push(style ? style(current.trimEnd()) : current.trimEnd());
+    if (current.trim())
+      lines.push(style ? style(current.trimEnd()) : current.trimEnd());
     current = `${continuationPrefix}${word}`;
   }
   lines.push(style ? style(current.trimEnd()) : current.trimEnd());
@@ -894,78 +895,366 @@ function formatTransitivePackageLines(
   return lines;
 }
 
+interface ChangelogVersionEvidence {
+  version: string | null;
+  items: UpgradeChangelogRiskItem[];
+  entries: UpgradeChangelogEntry[];
+}
+
+/** Combine the overlapping backend views for presentation only; JSON stays raw. */
 function formatChangesSection(
   changelog: UpgradeChangelog,
   options: FormatPackageUpgradeReviewTerminalOptions,
 ): string[] {
   const width = normaliseTerminalWidth(options.terminalWidth);
-  const useColors = options.useColors === true;
-  const source = formatChangelogSource(changelog);
-  const entryWord = changelog.totalEntries === 1 ? "entry" : "entries";
-  const lines = [sectionTitle("Changes", useColors)];
-  let coverage = `${source} | ${changelog.totalEntries} ${entryWord} | ${changelog.totalEntriesWithBodies} with release notes`;
-  if (changelog.truncated)
-    coverage += ` | ${changelog.sampledEntries.length} release entries sampled`;
-  appendWrappedText(lines, "  ", coverage, width, "  ");
-  lines.push(...formatRiskStatements(changelog, options));
-  const keywords = changelogKeywordSummary(changelog);
-  if (keywords.length > 0 || changelog.totalKeywordEntries > 0) {
-    const keywordWord =
-      changelog.totalKeywordEntries === 1
-        ? "matching entry"
-        : "matching entries";
+  const lines = [sectionTitle("Changes", options.useColors === true)];
+  appendWrappedText(
+    lines,
+    "  ",
+    `${countRiskTier(changelog, "must_act")} require action | ${countRiskTier(changelog, "should_know")} should know | ${countRiskTier(changelog, "unclassified")} unclassified`,
+    width,
+    "  ",
+  );
+  appendWrappedText(
+    lines,
+    "  Classification versions: ",
+    riskCoverageText(changelog),
+    width,
+    "    ",
+  );
+  appendWrappedText(
+    lines,
+    "  ",
+    `${changelog.riskCoverage.unitsNoImpact} statements labeled no impact`,
+    width,
+    "  ",
+  );
+  const coverage = changelog.riskCoverage;
+  if (coverage.itemsOmitted > 0)
     appendWrappedText(
       lines,
-      "  Heuristic signals: ",
-      `${keywords.length > 0 ? keywords.join(", ") : "unspecified"} | ${changelog.totalKeywordEntries} ${keywordWord}`,
+      "  ",
+      `${coverage.itemsOmitted} statements omitted by backend (lowest priority first).`,
       width,
-      "                    ",
-      (line) => colorizeSignalKeywords(line, keywords, useColors),
+      "  ",
+    );
+  if (coverage.versionsNotAssessed > 0)
+    appendWrappedText(
+      lines,
+      "  ",
+      "Rerun to fill not-assessed versions; later requests fill stored labels.",
+      width,
+      "  ",
+    );
+  if (coverage.versionsWithoutNotes > 0 || coverage.versionsUnparseable > 0)
+    appendWrappedText(
+      lines,
+      "  ",
+      "Missing or unparseable notes are not evidence of no risk.",
+      width,
+      "  ",
+    );
+  if (changelog.fallback === "package_versions")
+    appendWrappedText(
+      lines,
+      "  ",
+      "Release notes unavailable; using package versions.",
+      width,
+      "  ",
+    );
+  if (changelog.truncated)
+    appendWrappedText(
+      lines,
+      "  ",
+      "Release-note entries and links are sampled; statement coverage spans the upgrade range.",
+      width,
+      "  ",
+    );
+
+  const sources = new Map<string, { number: number; label: string }>();
+  const reference = (url: string | undefined, source?: string): string => {
+    const cleanUrl = url ? safeRiskText(url) : undefined;
+    const key = cleanUrl ?? `missing:${source ?? "unknown"}`;
+    let record = sources.get(key);
+    if (!record) {
+      const name =
+        source === "releases"
+          ? "Release notes"
+          : source === "changelog_file"
+            ? "Changelog"
+            : source
+              ? safeRiskText(source)
+              : undefined;
+      record = {
+        number: sources.size + 1,
+        label: cleanUrl
+          ? `${name ? `${name}: ` : ""}${cleanUrl}`
+          : `${name ?? "Source unavailable"} (entry URL not returned)`,
+      };
+      sources.set(key, record);
+    }
+    return `[${record.number}]`;
+  };
+  const groups = new Map<string | null, ChangelogVersionEvidence>();
+  const groupFor = (version: string | null): ChangelogVersionEvidence => {
+    let group = groups.get(version);
+    if (!group) {
+      group = { version, items: [], entries: [] };
+      groups.set(version, group);
+    }
+    return group;
+  };
+  // Keep backend release order, then append versions outside its entry sample.
+  const entries = new Map<string, UpgradeChangelogEntry>();
+  for (const entry of [
+    ...changelog.entries,
+    ...changelog.sampledEntries,
+    ...changelog.keywordEntries,
+  ]) {
+    const key = JSON.stringify([
+      entry.version,
+      entry.detailSource,
+      entry.htmlUrl,
+      entry.publishedAt,
+    ]);
+    const previous = entries.get(key);
+    entries.set(
+      key,
+      previous
+        ? {
+            ...previous,
+            body: previous.body ?? entry.body,
+            headline: previous.headline ?? entry.headline,
+            bodyPreview: previous.bodyPreview ?? entry.bodyPreview,
+            signals: [
+              ...new Set([
+                ...(previous.signals ?? []),
+                ...(entry.signals ?? []),
+              ]),
+            ],
+          }
+        : entry,
     );
   }
-  const renderedKeys = new Set<string>();
-  const keywordEntries = changelog.keywordEntries.filter((entry) => {
-    const key = changelogEntryKey(entry);
-    if (renderedKeys.has(key)) return false;
-    renderedKeys.add(key);
-    return true;
-  });
-  if (keywordEntries.length > 0) {
-    lines.push("  Heuristic release entries");
-    for (const entry of keywordEntries) {
-      lines.push(
-        ...formatKeywordChangelogEntry(entry, options, width, useColors),
+  for (const entry of entries.values())
+    groupFor(entry.version).entries.push(entry);
+  for (const item of changelog.riskItems)
+    groupFor(item.version).items.push(item);
+  let excerpted = false;
+  for (const group of groups.values()) {
+    const heuristicTags = new Map<UpgradeChangelogRiskItem, Set<string>>();
+    const keywords: Array<{
+      text: string;
+      signals: string[];
+      entry: UpgradeChangelogEntry;
+    }> = [];
+    for (const entry of group.entries) {
+      const chunks = changelogExcerptChunks(
+        entry.body ?? entry.headline ?? entry.bodyPreview ?? "",
+      );
+      const matches = new Map<string, string[]>();
+      for (const signal of entry.signals ?? []) {
+        const chunk = chunks.find((chunk) => matchesSignalTerm(chunk, signal));
+        const text = chunk ?? "";
+        matches.set(text, [...(matches.get(text) ?? []), signal]);
+      }
+      for (const [text, signals] of matches) {
+        const plain = releaseNoteText(text, () => "");
+        const item =
+          plain && entry.detailSource !== undefined
+            ? group.items.find(
+                (item) =>
+                  item.source === entry.detailSource &&
+                  releaseNoteText(item.text, () => "").includes(plain),
+              )
+            : undefined;
+        if (item) {
+          const tags = heuristicTags.get(item) ?? new Set<string>();
+          for (const signal of signals) tags.add(signal);
+          heuristicTags.set(item, tags);
+        } else keywords.push({ text, signals, entry });
+      }
+    }
+    if (group.items.length === 0 && keywords.length === 0 && !options.verbose)
+      continue;
+    lines.push(
+      `  ${group.version === null ? "Unversioned notes" : safeRiskText(group.version)}`,
+    );
+    for (const tier of ["must_act", "should_know", "unclassified"] as const) {
+      const items = group.items.filter((item) => item.tier === tier);
+      if (items.length === 0) continue;
+      const label =
+        tier === "must_act"
+          ? "Requires action"
+          : tier === "should_know"
+            ? "Should know"
+            : "Unclassified - read if relevant";
+      lines.push(`    ${label} (${items.length})`);
+      for (const item of items) {
+        const entry = group.entries.find(
+          (entry) =>
+            item.source !== undefined &&
+            entry.detailSource === item.source &&
+            entry.htmlUrl,
+        );
+        const source = reference(entry?.htmlUrl, item.source);
+        const quote = releaseNoteText(item.text, (url) => reference(url));
+        const limit = tier === "must_act" || options.verbose ? Infinity : 240;
+        const characters = Array.from(quote);
+        const shortened = characters.length > limit;
+        excerpted ||= shortened;
+        const shown = shortened
+          ? `${characters.slice(0, limit).join("").trimEnd()}...`
+          : quote;
+        const kind = item.kind
+          ? `${RISK_KIND_LABELS[item.kind] ?? safeRiskText(item.kind)} `
+          : "";
+        appendWrappedText(
+          lines,
+          "      ",
+          `${kind}"${shown}" ${source}${item.textTruncated ? " [statement truncated by backend]" : ""}`,
+          width,
+          "        ",
+        );
+        const signals = heuristicTags.get(item);
+        if (signals?.size)
+          appendWrappedText(
+            lines,
+            "        Heuristic: ",
+            safeRiskText([...signals].join(", ")),
+            width,
+            "          ",
+          );
+        if (options.verbose) {
+          const details = [
+            item.heading ? `heading: ${safeRiskText(item.heading)}` : undefined,
+            item.tierConfidence !== undefined
+              ? `tier confidence: ${item.tierConfidence}`
+              : undefined,
+            item.kindConfidence !== undefined
+              ? `kind confidence: ${item.kindConfidence}`
+              : undefined,
+          ]
+            .filter(Boolean)
+            .join(" | ");
+          if (details)
+            appendWrappedText(lines, "        ", details, width, "        ");
+        }
+      }
+    }
+    for (const keyword of keywords) {
+      const source = reference(
+        keyword.entry.htmlUrl,
+        keyword.entry.detailSource,
+      );
+      const quote = releaseNoteText(keyword.text, (url) => reference(url));
+      const characters = Array.from(quote);
+      const shortened = !options.verbose && characters.length > 240;
+      excerpted ||= shortened;
+      const shown = shortened
+        ? `${characters.slice(0, 240).join("").trimEnd()}...`
+        : quote;
+      appendWrappedText(
+        lines,
+        "    Heuristic / ",
+        `${safeRiskText(keyword.signals.join(", "))}: ${shown ? `"${shown}"` : "no excerpt returned"} ${source}`,
+        width,
+        "      ",
       );
     }
+    if (options.verbose && group.items.length === 0 && keywords.length === 0) {
+      for (const entry of group.entries) {
+        const source = reference(entry.htmlUrl, entry.detailSource);
+        const quote = releaseNoteText(
+          entry.bodyPreview ?? entry.headline ?? "",
+          (url) => reference(url),
+        );
+        appendWrappedText(
+          lines,
+          "    ",
+          `${quote ? `"${quote}"` : "No statement text returned."} ${source}`,
+          width,
+          "      ",
+        );
+      }
+    }
   }
-  const sampledEntries = changelog.sampledEntries.filter((entry) => {
-    const key = changelogEntryKey(entry);
-    if (renderedKeys.has(key)) return false;
-    renderedKeys.add(key);
-    return true;
-  });
-  appendPlainChangelogEntries(
-    lines,
-    "Sampled release entries",
-    sampledEntries,
-    width,
-  );
-  if (options.verbose === true) {
-    const otherEntries = changelog.entries.filter((entry) => {
-      if (!entry.bodyPreview) return false;
-      const key = changelogEntryKey(entry);
-      if (renderedKeys.has(key)) return false;
-      renderedKeys.add(key);
-      return true;
-    });
-    appendPlainChangelogEntries(
+  const keywords = changelogKeywordSummary(changelog);
+  if (keywords.length || changelog.totalKeywordEntries > 0)
+    appendWrappedText(
       lines,
-      "Other release entries",
-      otherEntries,
+      "  Heuristic keywords: ",
+      safeRiskText(keywords.join(", ") || "unspecified"),
       width,
+      "    ",
+      (line) =>
+        colorizeSignalKeywords(line, keywords, options.useColors === true),
     );
+  // Excerpting may remove an in-note link: list only references still visible.
+  const cited = new Set(
+    [...lines.join("\n").matchAll(/\[(\d+)\]/g)].map((match) =>
+      Number(match[1]),
+    ),
+  );
+  const visibleSources = [...sources.values()].filter((source) =>
+    cited.has(source.number),
+  );
+  if (visibleSources.length) {
+    lines.push("  Sources");
+    for (const source of visibleSources)
+      lines.push(`    [${source.number}] ${source.label}`);
   }
+  if (excerpted)
+    appendWrappedText(
+      lines,
+      "  ",
+      "Quotes ending in ... are excerpts; use verbose for full text.",
+      width,
+      "  ",
+    );
+  appendWrappedText(
+    lines,
+    "  ",
+    "Classified by an agent. Not a compatibility verdict.",
+    width,
+    "  ",
+  );
   return lines;
+}
+
+/** Render the observed release-note Markdown as visible words and source references. */
+function releaseNoteText(
+  text: string,
+  reference: (url: string) => string,
+): string {
+  const plain = safeRiskText(
+    text
+      .split(/\r?\n/)
+      .map((line) =>
+        line
+          .replace(/^\s*(?:>\s*)+/, "")
+          .replace(/^\s*(?:[-*+]\s+|\d+[.)]\s+)/, "")
+          .replace(/\[!([A-Z]+)\]/g, "$1:"),
+      )
+      .join(" "),
+  ).replace(/`([^`]+)`/g, "$1");
+  return plain
+    .replace(
+      /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>]+)/g,
+      (
+        _match: string,
+        label: string | undefined,
+        linkedUrl: string | undefined,
+        bareUrl: string | undefined,
+      ): string => {
+        if (linkedUrl) return `${label ?? ""} ${reference(linkedUrl)}`.trim();
+        const rawUrl = bareUrl ?? "";
+        const url = rawUrl.replace(/[.,;:!?)]*$/, "");
+        return `${reference(url)}${rawUrl.slice(url.length)}`;
+      },
+    )
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 const RISK_KIND_LABELS: Record<string, string> = {
@@ -987,152 +1276,11 @@ function countRiskTier(
 
 function riskCoverageText(changelog: UpgradeChangelog): string {
   const c = changelog.riskCoverage;
-  return `${c.versionsClassified} classified | ${c.versionsNotAssessed} not assessed | ${c.versionsWithoutNotes} without notes | ${c.versionsUnparseable} unparseable`;
-}
-
-function riskProvenance(item: UpgradeChangelogRiskItem): string {
-  return safeRiskText(`${item.model} / ${item.formulation}`);
+  return `${c.versionsClassified} classified | ${c.versionsNotAssessed} not assessed | ${c.versionsWithoutNotes} without notes${c.versionsUnparseable > 0 ? ` | ${c.versionsUnparseable} unparseable` : ""}`;
 }
 
 function safeRiskText(value: string): string {
   return sanitizeTerminalText(value.replace(/\s+/g, " ")).trim();
-}
-
-function formatRiskStatements(
-  changelog: UpgradeChangelog,
-  options: FormatPackageUpgradeReviewTerminalOptions,
-): string[] {
-  const width = normaliseTerminalWidth(options.terminalWidth);
-  const lines: string[] = [];
-  appendWrappedText(
-    lines,
-    "  Classification versions: ",
-    riskCoverageText(changelog),
-    width,
-    "    ",
-  );
-  const omitted = changelog.riskCoverage.itemsOmitted;
-  appendWrappedText(
-    lines,
-    "  Statements: ",
-    `${changelog.riskItems.length} returned | ${changelog.riskCoverage.unitsNoImpact} labeled no impact${omitted > 0 ? ` | ${omitted} omitted by backend (lowest priority first)` : ""}`,
-    width,
-    "    ",
-  );
-  if (changelog.riskCoverage.versionsNotAssessed > 0) {
-    appendWrappedText(
-      lines,
-      "  ",
-      "Rerun to fill not-assessed versions; later requests fill stored labels.",
-      width,
-      "  ",
-    );
-  }
-  appendWrappedText(
-    lines,
-    "  ",
-    "Missing or unparseable notes are not evidence of no risk.",
-    width,
-    "  ",
-  );
-  const provenance = [...new Set(changelog.riskItems.map(riskProvenance))];
-  const sourceLinks = new Set<string>();
-  const groups: Array<{
-    tier: UpgradeChangelogRiskItem["tier"];
-    label: string;
-    limit: number;
-  }> = [
-    { tier: "must_act", label: "Requires action", limit: Infinity },
-    { tier: "should_know", label: "Should know", limit: 240 },
-    {
-      tier: "unclassified",
-      label: "Unclassified - read if relevant",
-      limit: 120,
-    },
-  ];
-  for (const group of groups) {
-    const items = changelog.riskItems.filter(
-      (item) => item.tier === group.tier,
-    );
-    if (items.length === 0) continue;
-    lines.push(`  ${group.label} (${items.length})`);
-    for (const item of items) {
-      const quote = safeRiskText(item.text);
-      const characters = Array.from(quote);
-      const excerpted = !options.verbose && characters.length > group.limit;
-      const shown = excerpted
-        ? `${characters.slice(0, group.limit).join("").trimEnd()}...`
-        : quote;
-      const kind = item.kind
-        ? `${RISK_KIND_LABELS[item.kind] ?? safeRiskText(item.kind)} `
-        : "";
-      const source = item.source ? ` [${safeRiskText(item.source)}]` : "";
-      const truncation = item.textTruncated
-        ? " [statement truncated by backend]"
-        : "";
-      const excerpt = excerpted ? " [excerpt; expand with verbose]" : "";
-      appendWrappedText(
-        lines,
-        "    ",
-        `${kind}${safeRiskText(item.version)} "${shown}"${source}${truncation}${excerpt}`,
-        width,
-        "      ",
-      );
-      // A range may include statements from several sources for the same version.
-      const entry = [
-        ...changelog.entries,
-        ...changelog.keywordEntries,
-        ...changelog.sampledEntries,
-      ].find(
-        (entry) =>
-          item.source !== undefined &&
-          entry.version === item.version &&
-          entry.detailSource === item.source &&
-          entry.htmlUrl,
-      );
-      if (entry?.htmlUrl)
-        sourceLinks.add(
-          `${safeRiskText(item.version)} [${safeRiskText(item.source ?? "")}] ${safeRiskText(entry.htmlUrl)}`,
-        );
-      if (options.verbose) {
-        const details = [
-          item.heading ? `heading: ${safeRiskText(item.heading)}` : undefined,
-          item.tierConfidence !== undefined
-            ? `tier confidence: ${item.tierConfidence}`
-            : undefined,
-          item.kindConfidence !== undefined
-            ? `kind confidence: ${item.kindConfidence}`
-            : undefined,
-        ]
-          .filter(Boolean)
-          .join(" | ");
-        if (details)
-          appendWrappedText(lines, "      ", details, width, "      ");
-      }
-      if (provenance.length > 1)
-        appendWrappedText(
-          lines,
-          "      Model: ",
-          riskProvenance(item),
-          width,
-          "        ",
-        );
-    }
-  }
-  if (sourceLinks.size > 0) {
-    lines.push("  Statement sources");
-    for (const link of sourceLinks) lines.push(`    ${link}`);
-  }
-  appendWrappedText(
-    lines,
-    "  ",
-    provenance.length === 0
-      ? "Statement labels are model classifications. Not a compatibility verdict."
-      : `Classified by a model${provenance.length === 1 ? ` (${provenance[0]})` : ""}. Not a compatibility verdict.`,
-    width,
-    "  ",
-  );
-  return lines;
 }
 
 function formatBatchTriage(
@@ -1173,10 +1321,9 @@ function formatBatchTriage(
         issues.introducedConflicts.length +
         issues.introducedOutdated.length
       : undefined;
-    const provenance = [...new Set(c.riskItems.map(riskProvenance))].join(", ");
     // Rows stay intact as a table; prose footers use the caller's width.
     lines.push(
-      `  ${safeRiskText(`${review.registry}:${review.name} ${review.currentVersion} -> ${review.targetVersion} (${review.versionDelta})`)} | ${countRiskTier(c, "must_act")} act | ${countRiskTier(c, "should_know")} know | ${countRiskTier(c, "unclassified")} unclassified | versions: ${riskCoverageText(c)} | ${c.riskCoverage.unitsNoImpact} labeled no impact | ${c.riskCoverage.itemsOmitted} omitted | ${deprecation} | ${security} | ${transitiveText} | ${c.totalKeywordEntries} keyword entries | ${review.compatibility?.peerDependencyChanges.length ?? "not checked"} peer dependency changes | ${review.compatibility?.notes.length ?? "not checked"} compatibility notes | ${dependencyCount ?? "not checked"} direct dependency changes | ${issueCount ?? "not checked"} dependency issues | ${review.unknowns.length} unknowns${provenance ? ` | model: ${provenance}` : ""}`,
+      `  ${safeRiskText(`${review.registry}:${review.name} ${review.currentVersion} -> ${review.targetVersion} (${review.versionDelta})`)} | ${countRiskTier(c, "must_act")} act | ${countRiskTier(c, "should_know")} know | ${countRiskTier(c, "unclassified")} unclassified | versions: ${riskCoverageText(c)} | ${c.riskCoverage.unitsNoImpact} labeled no impact | ${c.riskCoverage.itemsOmitted} omitted | ${deprecation} | ${security} | ${transitiveText} | ${c.totalKeywordEntries} keyword entries | ${review.compatibility?.peerDependencyChanges.length ?? "not checked"} peer dependency changes | ${review.compatibility?.notes.length ?? "not checked"} compatibility notes | ${dependencyCount ?? "not checked"} direct dependency changes | ${issueCount ?? "not checked"} dependency issues | ${review.unknowns.length} unknowns`,
     );
   }
   const width = normaliseTerminalWidth(options.terminalWidth);
@@ -1202,37 +1349,11 @@ function formatBatchTriage(
   appendWrappedText(
     lines,
     "  ",
-    "Missing or unparseable notes are not evidence of no risk. Use verbose for full per-package quotes and evidence.",
+    "Classified by an agent. Missing or unparseable notes are not evidence of no risk. Use verbose for full per-package quotes and evidence.",
     width,
     "  ",
   );
   return lines;
-}
-
-function formatChangelogSource(changelog: UpgradeChangelog): string {
-  const source = changelog.source || changelog.fallback;
-  const sourceKey = source?.toLowerCase();
-  if (sourceKey === "releases") return "Repository releases";
-  if (sourceKey === "package_versions")
-    return "Package versions (no release notes)";
-  return source ?? "Changelog source unavailable";
-}
-
-function appendPlainChangelogEntries(
-  lines: string[],
-  label: string,
-  entries: UpgradeChangelogEntry[],
-  width: number,
-): void {
-  if (entries.length === 0) return;
-  lines.push(`  ${label}`);
-  for (const entry of entries) {
-    lines.push(...formatPlainChangelogEntry(entry, width));
-  }
-}
-
-function changelogEntryKey(entry: UpgradeChangelogEntry): string {
-  return `${entry.version ?? "unknown"}:${entry.publishedAt ?? ""}:${entry.htmlUrl ?? ""}`;
 }
 
 function formatCompatibilitySection(
@@ -1268,27 +1389,6 @@ function changelogKeywordSummary(changelog: UpgradeChangelog): string[] {
   ];
 }
 
-function formatKeywordChangelogEntry(
-  entry: UpgradeChangelogEntry,
-  options: FormatPackageUpgradeReviewTerminalOptions,
-  width: number,
-  useColors: boolean,
-): string[] {
-  const lines = formatChangelogEntryHeader(entry, width);
-  const matched = formatMatchedExcerpts(entry, options.verbose === true);
-  for (const excerpt of matched) {
-    appendWrappedText(lines, "      ", excerpt, width, "      ", (line) =>
-      colorizeSignalMarker(line, useColors),
-    );
-  }
-  return lines;
-}
-
-function colorizeSignalMarker(line: string, useColors: boolean): string {
-  if (!useColors) return line;
-  return line.replace(/^(\s*\[[^\]]+\]:)/, `${colors.yellow}$1${colors.reset}`);
-}
-
 function colorizeSignalKeywords(
   line: string,
   keywords: string[],
@@ -1305,79 +1405,11 @@ function colorizeSignalKeywords(
   return result;
 }
 
-function formatPlainChangelogEntry(
-  entry: UpgradeChangelogEntry,
-  width: number,
-): string[] {
-  const lines = formatChangelogEntryHeader(entry, width);
-  if (entry.headline) {
-    appendWrappedText(
-      lines,
-      "      ",
-      preview(entry.headline) ?? entry.headline,
-      width,
-      "      ",
-    );
-  }
-  return lines;
-}
-
-function formatChangelogEntryHeader(
-  entry: UpgradeChangelogEntry,
-  width: number,
-): string[] {
-  const version = entry.version ?? "unknown-version";
-  const header = `    - ${version}${entry.publishedAt ? ` (${entry.publishedAt})` : ""}`;
-  if (!entry.htmlUrl) return [header];
-  if (header.length + 1 + entry.htmlUrl.length <= width)
-    return [`${header} ${entry.htmlUrl}`];
-  return [header, `      ${entry.htmlUrl}`];
-}
-
-function formatMatchedExcerpts(
-  entry: UpgradeChangelogEntry,
-  verbose: boolean,
-): string[] {
-  if (!entry.body || !entry.signals?.length) return [];
-  const excerpts: string[] = [];
-  const chunks = changelogExcerptChunks(entry.body);
-  const seen = new Set<string>();
-  for (const signal of entry.signals) {
-    for (const chunk of chunks) {
-      if (!matchesSignalTerm(chunk, signal)) continue;
-      const excerpt = excerptAroundSignal(chunk, signal, verbose);
-      const key = `${signal}:${excerpt}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      excerpts.push(`[${signal}]: ${excerpt}`);
-      break;
-    }
-  }
-  return excerpts;
-}
-
 function changelogExcerptChunks(body: string): string[] {
   return changelogSignalText(body)
     .split(/\r?\n+/)
     .map((line) => normaliseChangelogLine(line))
     .filter((line) => line.length > 0 && !isGenericChangelogHeading(line));
-}
-
-function excerptAroundSignal(
-  text: string,
-  signal: string,
-  verbose: boolean,
-): string {
-  if (verbose) return text;
-  const lower = text.toLowerCase();
-  const index = lower.indexOf(signal.toLowerCase());
-  if (index < 0) return preview(text) ?? text;
-  const radius = 120;
-  const start = Math.max(0, index - radius);
-  const end = Math.min(text.length, index + signal.length + radius);
-  const prefix = start > 0 ? "..." : "";
-  const suffix = end < text.length ? "..." : "";
-  return `${prefix}${text.slice(start, end).trim()}${suffix}`;
 }
 
 function normaliseChangelogLine(line: string): string {

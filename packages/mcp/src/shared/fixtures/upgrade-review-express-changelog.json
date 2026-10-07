@@ -1,0 +1,236 @@
+{
+  "riskItems": [
+    {
+      "version": "5.2.0",
+      "tier": "should_know",
+      "tierConfidence": 1,
+      "kind": "security_fix",
+      "kindConfidence": 0.98,
+      "text": "* Security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6))",
+      "textTruncated": false,
+      "source": "changelog_file",
+      "model": "jev-1.13.0",
+      "formulation": "d-hier-v1"
+    },
+    {
+      "version": "5.2.0",
+      "tier": "should_know",
+      "tierConfidence": 0.98,
+      "kind": "deprecates_without_removal",
+      "kindConfidence": 0.98,
+      "text": "* add deprecation warnings for redirect arguments undefined by @bjohansebas in https://github.com/expressjs/express/pull/6405",
+      "textTruncated": false,
+      "heading": "What's Changed",
+      "source": "releases",
+      "model": "jev-1.13.0",
+      "formulation": "d-hier-v1"
+    },
+    {
+      "version": "5.2.0",
+      "tier": "should_know",
+      "tierConfidence": 0.98,
+      "kind": "security_fix",
+      "kindConfidence": 0.92,
+      "text": "* fix: upgrade body-parser to 2.2.1 to address CVE-2025-13466 by @shivarm in https://github.com/expressjs/express/pull/6922",
+      "textTruncated": false,
+      "heading": "What's Changed",
+      "source": "releases",
+      "model": "jev-1.13.0",
+      "formulation": "d-hier-v1"
+    },
+    {
+      "version": "5.0.1",
+      "tier": "should_know",
+      "tierConfidence": 0.98,
+      "kind": "security_fix",
+      "kindConfidence": 0.95,
+      "text": "* Update `cookie` semver lock to address [CVE-2024-47764](https://nvd.nist.gov/vuln/detail/CVE-2024-47764)",
+      "textTruncated": false,
+      "source": "changelog_file",
+      "model": "jev-1.13.0",
+      "formulation": "d-hier-v1"
+    },
+    {
+      "version": "5.1.0",
+      "tier": "should_know",
+      "tierConfidence": 0.97,
+      "kind": "security_fix",
+      "kindConfidence": 0.92,
+      "text": "* fix(securite): fix vulnerabilities by @Abdel-Monaam-Aouini in https://github.com/expressjs/express/pull/6211",
+      "textTruncated": false,
+      "heading": "What's Changed",
+      "source": "releases",
+      "model": "jev-1.13.0",
+      "formulation": "d-hier-v1"
+    },
+    {
+      "version": "5.2.0",
+      "tier": "should_know",
+      "tierConfidence": 0.95,
+      "text": "* A deprecation warning was added when using `res.redirect` with undefined arguments, Express now emits a warning to help detect calls that pass undefined as the status or URL and make them easier to fix.",
+      "textTruncated": false,
+      "source": "changelog_file",
+      "model": "jev-1.13.0",
+      "formulation": "d-hier-v1"
+    },
+    {
+      "version": "5.2.1",
+      "tier": "unclassified",
+      "tierConfidence": 0.46,
+      "text": "* Revert security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6))",
+      "textTruncated": false,
+      "source": "changelog_file",
+      "model": "jev-1.13.0",
+      "formulation": "d-hier-v1"
+    },
+    {
+      "version": "5.1.0",
+      "tier": "unclassified",
+      "tierConfidence": 0.43,
+      "text": "* fix(deps): qs@^6.14.0 by @wesleytodd in https://github.com/expressjs/express/pull/6374",
+      "textTruncated": false,
+      "heading": "What's Changed",
+      "source": "releases",
+      "model": "jev-1.13.0",
+      "formulation": "d-hier-v1"
+    },
+    {
+      "version": "5.1.0",
+      "tier": "unclassified",
+      "tierConfidence": 0.4,
+      "text": "* Remove Object.setPrototypeOf polyfill by @Phillip9587 in https://github.com/expressjs/express/pull/6081",
+      "textTruncated": false,
+      "heading": "What's Changed",
+      "source": "releases",
+      "model": "jev-1.13.0",
+      "formulation": "d-hier-v1"
+    },
+    {
+      "version": "5.2.0",
+      "tier": "unclassified",
+      "tierConfidence": 0.35,
+      "text": "* deps: `body-parser@^2.2.1`",
+      "textTruncated": false,
+      "source": "changelog_file",
+      "model": "jev-1.13.0",
+      "formulation": "d-hier-v1"
+    },
+    {
+      "version": "5.2.1",
+      "tier": "unclassified",
+      "tierConfidence": 0.09,
+      "text": "> [!IMPORTANT]  \n> The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted in this release.",
+      "textTruncated": false,
+      "heading": "What's Changed",
+      "source": "releases",
+      "model": "jev-1.13.0",
+      "formulation": "d-hier-v1"
+    }
+  ],
+  "riskCoverage": {
+    "versionsClassified": 4,
+    "versionsNotAssessed": 0,
+    "versionsWithoutNotes": 0,
+    "versionsUnparseable": 0,
+    "unitsNoImpact": 130,
+    "itemsOmitted": 0
+  },
+  "source": "changelog_file",
+  "entries": [
+    {
+      "detailSource": "releases",
+      "version": "5.2.1",
+      "publishedAt": "2025-12-01T20:49:43.268Z",
+      "htmlUrl": "https://github.com/expressjs/express/releases/tag/v5.2.1",
+      "body": "## What's Changed\r\n\r\n> [!IMPORTANT]  \r\n> The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted in this release.\r\n\r\n* Release: 5.2.1 by @UlisesGascon in https://github.com/expressjs/express/pull/6933\r\n\r\n**Full Changelog**: https://github.com/expressjs/express/compare/v5.2.0...v5.2.1",
+      "bodyPreview": "## What's Changed > [!IMPORTANT] > The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted ...",
+      "headline": "> [!IMPORTANT] > The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted in this release.",
+      "signals": ["breaking"]
+    },
+    {
+      "detailSource": "changelog_file",
+      "version": "5.2.0",
+      "publishedAt": "2025-12-01T16:23:57.541Z",
+      "htmlUrl": "https://github.com/expressjs/express/blob/dbac741a49a5a64336b70c06e85c2e2706e36336/History.md#L6-L12",
+      "body": "* Security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6))\n* deps: `body-parser@^2.2.1`\n* A deprecation warning was added when using `res.redirect` with undefined arguments, Express now emits a warning to help detect calls that pass undefined as the status or URL and make them easier to fix.",
+      "bodyPreview": "* Security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6)) * deps: `body-parser@^2.2.1` * A deprecation warning was added when using `res.redirect` with...",
+      "headline": "* Security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6)) * deps: `body-parser@^2.2.1` * A deprecation warning was added when using `res.redirect` with..."
+    },
+    {
+      "detailSource": "changelog_file",
+      "version": "5.1.0",
+      "publishedAt": "2025-03-31T14:01:22.509Z",
+      "htmlUrl": "https://github.com/expressjs/express/blob/dbac741a49a5a64336b70c06e85c2e2706e36336/History.md#L13-L35",
+      "body": "* Add support for `Uint8Array` in `res.send()`\n* Add support for ETag option in `res.sendFile()`\n* Add support for multiple links with the same rel in `res.links()`\n* Add funding field to package.json\n* perf: use loop for acceptParams\n* refactor: prefix built-in node module imports\n* deps: remove `setprototypeof`\n* deps: remove `safe-buffer`\n* deps: remove `utils-merge`\n* deps: remove `methods`\n* deps: remove `depd`\n* deps: `debug@^4.4.0`\n* deps: `body-parser@^2.2.0`\n* deps: `router@^2.2.0`\n* deps: `content-type@^1.0.5`\n* deps: `finalhandler@^2.1.0`\n* deps: `qs@^6.14.0`\n* deps: `server-static@2.2.0`\n* deps: `type-is@2.0.1`",
+      "bodyPreview": "* Add support for `Uint8Array` in `res.send()` * Add support for ETag option in `res.sendFile()` * Add support for multiple links with the same rel in `res.links()` * Add funding field to package.json * perf: use loop for acceptParams * refactor: prefix built-in node module impor...",
+      "headline": "* Add support for `Uint8Array` in `res.send()` * Add support for ETag option in `res.sendFile()` * Add support for multiple links with the same rel in `res.links()` * Add funding field to package.json * perf: use loop for acceptParams * refactor: prefix built-in node module impor..."
+    },
+    {
+      "detailSource": "changelog_file",
+      "version": "5.0.1",
+      "publishedAt": "2024-10-08T19:42:44.129Z",
+      "htmlUrl": "https://github.com/expressjs/express/blob/dbac741a49a5a64336b70c06e85c2e2706e36336/History.md#L36-L40",
+      "body": "* Update `cookie` semver lock to address [CVE-2024-47764](https://nvd.nist.gov/vuln/detail/CVE-2024-47764)",
+      "bodyPreview": "* Update `cookie` semver lock to address [CVE-2024-47764](https://nvd.nist.gov/vuln/detail/CVE-2024-47764)",
+      "headline": "* Update `cookie` semver lock to address [CVE-2024-47764](https://nvd.nist.gov/vuln/detail/CVE-2024-47764)"
+    }
+  ],
+  "sampledEntries": [
+    {
+      "detailSource": "releases",
+      "version": "5.2.1",
+      "publishedAt": "2025-12-01T20:49:43.268Z",
+      "htmlUrl": "https://github.com/expressjs/express/releases/tag/v5.2.1",
+      "body": "## What's Changed\r\n\r\n> [!IMPORTANT]  \r\n> The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted in this release.\r\n\r\n* Release: 5.2.1 by @UlisesGascon in https://github.com/expressjs/express/pull/6933\r\n\r\n**Full Changelog**: https://github.com/expressjs/express/compare/v5.2.0...v5.2.1",
+      "bodyPreview": "## What's Changed > [!IMPORTANT] > The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted ...",
+      "headline": "> [!IMPORTANT] > The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted in this release.",
+      "signals": ["breaking"]
+    },
+    {
+      "detailSource": "changelog_file",
+      "version": "5.2.0",
+      "publishedAt": "2025-12-01T16:23:57.541Z",
+      "htmlUrl": "https://github.com/expressjs/express/blob/dbac741a49a5a64336b70c06e85c2e2706e36336/History.md#L6-L12",
+      "body": "* Security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6))\n* deps: `body-parser@^2.2.1`\n* A deprecation warning was added when using `res.redirect` with undefined arguments, Express now emits a warning to help detect calls that pass undefined as the status or URL and make them easier to fix.",
+      "bodyPreview": "* Security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6)) * deps: `body-parser@^2.2.1` * A deprecation warning was added when using `res.redirect` with...",
+      "headline": "* Security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6)) * deps: `body-parser@^2.2.1` * A deprecation warning was added when using `res.redirect` with..."
+    },
+    {
+      "detailSource": "changelog_file",
+      "version": "5.1.0",
+      "publishedAt": "2025-03-31T14:01:22.509Z",
+      "htmlUrl": "https://github.com/expressjs/express/blob/dbac741a49a5a64336b70c06e85c2e2706e36336/History.md#L13-L35",
+      "body": "* Add support for `Uint8Array` in `res.send()`\n* Add support for ETag option in `res.sendFile()`\n* Add support for multiple links with the same rel in `res.links()`\n* Add funding field to package.json\n* perf: use loop for acceptParams\n* refactor: prefix built-in node module imports\n* deps: remove `setprototypeof`\n* deps: remove `safe-buffer`\n* deps: remove `utils-merge`\n* deps: remove `methods`\n* deps: remove `depd`\n* deps: `debug@^4.4.0`\n* deps: `body-parser@^2.2.0`\n* deps: `router@^2.2.0`\n* deps: `content-type@^1.0.5`\n* deps: `finalhandler@^2.1.0`\n* deps: `qs@^6.14.0`\n* deps: `server-static@2.2.0`\n* deps: `type-is@2.0.1`",
+      "bodyPreview": "* Add support for `Uint8Array` in `res.send()` * Add support for ETag option in `res.sendFile()` * Add support for multiple links with the same rel in `res.links()` * Add funding field to package.json * perf: use loop for acceptParams * refactor: prefix built-in node module impor...",
+      "headline": "* Add support for `Uint8Array` in `res.send()` * Add support for ETag option in `res.sendFile()` * Add support for multiple links with the same rel in `res.links()` * Add funding field to package.json * perf: use loop for acceptParams * refactor: prefix built-in node module impor..."
+    },
+    {
+      "detailSource": "changelog_file",
+      "version": "5.0.1",
+      "publishedAt": "2024-10-08T19:42:44.129Z",
+      "htmlUrl": "https://github.com/expressjs/express/blob/dbac741a49a5a64336b70c06e85c2e2706e36336/History.md#L36-L40",
+      "body": "* Update `cookie` semver lock to address [CVE-2024-47764](https://nvd.nist.gov/vuln/detail/CVE-2024-47764)",
+      "bodyPreview": "* Update `cookie` semver lock to address [CVE-2024-47764](https://nvd.nist.gov/vuln/detail/CVE-2024-47764)",
+      "headline": "* Update `cookie` semver lock to address [CVE-2024-47764](https://nvd.nist.gov/vuln/detail/CVE-2024-47764)"
+    }
+  ],
+  "keywordEntries": [
+    {
+      "detailSource": "releases",
+      "version": "5.2.1",
+      "publishedAt": "2025-12-01T20:49:43.268Z",
+      "htmlUrl": "https://github.com/expressjs/express/releases/tag/v5.2.1",
+      "body": "## What's Changed\r\n\r\n> [!IMPORTANT]  \r\n> The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted in this release.\r\n\r\n* Release: 5.2.1 by @UlisesGascon in https://github.com/expressjs/express/pull/6933\r\n\r\n**Full Changelog**: https://github.com/expressjs/express/compare/v5.2.0...v5.2.1",
+      "bodyPreview": "## What's Changed > [!IMPORTANT] > The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted ...",
+      "headline": "> [!IMPORTANT] > The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted in this release.",
+      "signals": ["breaking"]
+    }
+  ],
+  "totalKeywordEntries": 1,
+  "totalEntries": 4,
+  "totalEntriesWithBodies": 4,
+  "truncated": false,
+  "hasReleaseNoteBodies": true,
+  "breakingSignals": ["breaking"],
+  "migrationSignals": []
+}

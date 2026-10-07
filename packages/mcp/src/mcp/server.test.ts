@@ -225,7 +225,7 @@ const DESCRIPTION_ROUTING: Record<
     body: [
       "facts only",
       "does not assign package-level risk",
-      "model-classified",
+      "agent-classified",
       "triage rows",
       "at most 30 upgrades",
       "Use signals as a starting point",
