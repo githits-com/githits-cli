@@ -2036,6 +2036,13 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     Array.isArray(firstUpgradeReview.changelog.riskItems),
     "pkg upgrade-review missing riskItems",
   );
+  for (const item of firstUpgradeReview.changelog.riskItems) {
+    assertRecord(item, "pkg upgrade-review risk item");
+    assert(
+      typeof item.ambiguous === "boolean",
+      "pkg upgrade-review missing item ambiguous flag",
+    );
+  }
   assertRecord(
     firstUpgradeReview.changelog.riskCoverage,
     "pkg upgrade-review riskCoverage",
@@ -2046,6 +2053,11 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "versionsWithoutNotes",
     "versionsUnparseable",
     "unitsNoImpact",
+    "itemsMustActConfident",
+    "itemsMustActAmbiguous",
+    "itemsShouldKnowConfident",
+    "itemsShouldKnowAmbiguous",
+    "itemsUnclassified",
     "itemsOmitted",
   ]) {
     assert(

@@ -327,7 +327,8 @@ describe("statement classification CLI/MCP parity", () => {
     const item = {
       version: "5.0.0",
       tier: "MUST_ACT" as const,
-      tierConfidence: 0.399,
+      ambiguous: true,
+      tierConfidence: 0.95,
       kind: undefined,
       kindConfidence: undefined,
       text: "Removed internal dependency.",
@@ -342,15 +343,17 @@ describe("statement classification CLI/MCP parity", () => {
       {
         ...item,
         tier: "SHOULD_KNOW",
-        tierConfidence: 0.4,
+        ambiguous: false,
+        tierConfidence: 0.1,
         kind: "SECURITY_FIX",
-        kindConfidence: 0.4,
+        kindConfidence: 0.2,
         text: "Fixed an advisory.",
         formulation: "s-hier-v3",
       },
       {
         ...item,
         tier: "UNCLASSIFIED",
+        ambiguous: false,
         tierConfidence: undefined,
         text: "Oversize release-note statement.",
         textTruncated: true,
@@ -358,6 +361,21 @@ describe("statement classification CLI/MCP parity", () => {
         formulation: "older-formulation",
       },
     ];
+    response.reviews[0]!.changelog.riskItems.push({
+      ...item,
+      tier: "SHOULD_KNOW",
+      ambiguous: true,
+      tierConfidence: 0.9,
+      text: "Possibly deprecated usage.",
+    });
+    response.reviews[0]!.changelog.riskCoverage = {
+      ...response.reviews[0]!.changelog.riskCoverage,
+      itemsMustActConfident: 0,
+      itemsMustActAmbiguous: 1,
+      itemsShouldKnowConfident: 1,
+      itemsShouldKnowAmbiguous: 1,
+      itemsUnclassified: 1,
+    };
     const service = createMockPackageIntelligenceService({
       packageUpgradeReview: mock(async () => response),
     });
@@ -378,6 +396,11 @@ describe("statement classification CLI/MCP parity", () => {
     expect(mcp).toContain('(uncertain) "Removed internal dependency."');
     expect(mcp).toContain("Too long to classify - read it (1)");
     expect(mcp).not.toContain('(uncertain) "Oversize release-note statement."');
+    expect(mcp).toContain('(uncertain) "Possibly deprecated usage."');
+    expect(mcp).not.toContain("escalated");
+    expect(mcp.replace(/\s+/g, " ")).toContain(
+      "0 require action (+1 uncertain) | 1 should know (+1 uncertain) | 1 too long to classify",
+    );
     expect(mcp).toContain('[security fix] "Fixed an advisory."');
     const cliEnvelope = await cliJson(
       "npm:express@4.18.0..5.0.0",
@@ -393,14 +416,16 @@ describe("statement classification CLI/MCP parity", () => {
             riskItems: [
               {
                 tier: "must_act",
-                tierConfidence: 0.399,
+                ambiguous: true,
+                tierConfidence: 0.95,
                 model: "jev-1.13.0",
                 formulation: "s-hier-v2",
               },
               {
                 tier: "should_know",
-                tierConfidence: 0.4,
-                kindConfidence: 0.4,
+                ambiguous: false,
+                tierConfidence: 0.1,
+                kindConfidence: 0.2,
                 formulation: "s-hier-v3",
               },
               {
@@ -408,6 +433,11 @@ describe("statement classification CLI/MCP parity", () => {
                 textTruncated: true,
                 model: "jev-other",
                 formulation: "older-formulation",
+              },
+              {
+                tier: "should_know",
+                ambiguous: true,
+                tierConfidence: 0.9,
               },
             ],
           },
@@ -428,6 +458,7 @@ describe("statement classification CLI/MCP parity", () => {
       {
         version: "5.0.0",
         tier: "MUST_ACT",
+        ambiguous: false,
         tierConfidence: 0.9,
         kind: "CHANGES_BEHAVIOR_OR_DEFAULT",
         kindConfidence: 0.8,
@@ -445,6 +476,11 @@ describe("statement classification CLI/MCP parity", () => {
       versionsWithoutNotes: 3,
       versionsUnparseable: 4,
       unitsNoImpact: 5,
+      itemsMustActConfident: 7,
+      itemsMustActAmbiguous: 0,
+      itemsShouldKnowConfident: 0,
+      itemsShouldKnowAmbiguous: 0,
+      itemsUnclassified: 0,
       itemsOmitted: 6,
     };
     review.changelog.breakingSignals = ["removed"];
@@ -496,6 +532,15 @@ describe("statement classification CLI/MCP parity", () => {
     const other = structuredClone(review);
     other.name = "other";
     other.changelog.riskItems = [];
+    other.changelog.riskCoverage = {
+      ...other.changelog.riskCoverage,
+      itemsMustActConfident: 0,
+      itemsMustActAmbiguous: 0,
+      itemsShouldKnowConfident: 0,
+      itemsShouldKnowAmbiguous: 0,
+      itemsUnclassified: 0,
+      itemsOmitted: 0,
+    };
     response.reviews.unshift(other);
     response.summary.total = 2;
     const packages = [{ ...args, package_name: "other" }, args];

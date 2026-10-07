@@ -6,7 +6,7 @@ Dependency-upgrade reviews are a distinct agent workflow. Agents should not infe
 
 `pkg_upgrade_review` is the MCP/CLI-facing tool for this workflow. It answers: "What changed between the currently used version and the target version, and what evidence is available or missing?"
 
-Risk fields were verified against the latest backend `priv/graphql/schema.graphql` and authenticated dev field selection on 2026-10-07. Dev disables introspection; the schema file confirms names, enums and nullability.
+Original risk fields were verified against backend `priv/graphql/schema.graphql` and authenticated dev field selection on 2026-10-07. The #3072 additions are verified against branch SDL at bb3807cc; their dev verification is pending deployment notice. Dev disables introspection; the schema file confirms names, enums and nullability.
 
 ## Current Schema Fit
 
@@ -21,7 +21,7 @@ packageUpgradeReview(
 ): PackageUpgradeReviewResponse!
 ```
 
-The CLI/MCP implementation must not fall back to composing `packageSummary`, `packageVulnerabilities`, `packageChangelog`, or `packageDependencies` calls. If the aggregate query is unavailable, surface the backend protocol error. The backend owner confirms aggregate and risk-field support is already deployed in production and dev; this change needs no backend deployment.
+The CLI/MCP implementation must not fall back to composing `packageSummary`, `packageVulnerabilities`, `packageChangelog`, or `packageDependencies` calls. If the aggregate query is unavailable, surface the backend protocol error. The original aggregate and risk fields are deployed. The ambiguity flag and pre-cap counts added by backend #3072 require backend deployment before this PR can merge or release. Dev verification waits for the owner’s explicit deployment notice.
 
 Optional evidence is controlled by GraphQL field selection and local query variables:
 
@@ -232,6 +232,11 @@ interface UpgradeChangelog {
     versionsWithoutNotes: number;
     versionsUnparseable: number;
     unitsNoImpact: number;
+    itemsMustActConfident: number;
+    itemsMustActAmbiguous: number;
+    itemsShouldKnowConfident: number;
+    itemsShouldKnowAmbiguous: number;
+    itemsUnclassified: number;
     itemsOmitted: number;
   };
 }
@@ -239,6 +244,7 @@ interface UpgradeChangelog {
 interface UpgradeChangelogRiskItem {
   version: string;
   tier: "must_act" | "should_know" | "unclassified";
+  ambiguous: boolean;
   tierConfidence?: number;
   kind?: string;
   kindConfidence?: number;
@@ -298,11 +304,10 @@ default output leads with the outcome and groups each package in this order:
 8. `Unknown evidence` last.
 
 A batch of more than one package adds one `Across packages:` summary after the
-headline and a triage table sorted by returned confident `must_act` statement count (`tierConfidence >= 0.4`). The aggregate line labels the backend `withUnknowns` counter as reported
+headline and a triage table sorted by the backend coverage count of confident `must_act` statements before the item cap. The aggregate line labels the backend `withUnknowns` counter as reported
 unknowns and independently counts reviews with not-assessed, missing-note or
 unparseable classification coverage. This avoids claiming zero evidence gaps
-while the classifier is still pending. Equal confident-action counts keep backend order; uncertain counts are never a secondary sort key. Counts can include a statement from
-multiple sources. Default batch output has one unwrapped row per package, including peer dependency
+while the classifier is still pending. Equal confident-action counts keep backend order; uncertain counts are never a secondary sort key. Totals are computed by the backend before its statement cap; returned quote counts may be smaller. Default batch output has one unwrapped row per package, including peer dependency
 change and compatibility-note counts (or not checked when absent); `--verbose` adds the detailed reports in
 that order. JSON preserves backend review order. Zero and one package omit it. The summary and package sections report
 facts only; they never call an upgrade safe, risky, approved, or rejected.
@@ -434,19 +439,23 @@ kind means no confident category was returned; the tier still applies. Those
 quotes retain a bullet and no invented kind label. Coverage and no-impact units
 share one summary, wrapping naturally at the caller width.
 
-A numeric `tierConfidence < 0.4` is uncertain; exactly 0.4 is confident.
-Low-confidence MUST_ACT appears as Possibly requires action with a muted
-`(uncertain)` marker, never in the confident Requires action section. This is
-presentation of the backend tier, not client reclassification. Low-confidence
-SHOULD_KNOW retains its tier with the same marker, after confident items.
-UNCLASSIFIED now means only a statement too large to classify; its section says
+Only backend `ambiguous` controls uncertainty. MUST_ACT with `ambiguous: true`
+appears as Possibly requires action with a muted `(uncertain)` marker; false
+appears as Requires action. SHOULD_KNOW retains its tier and marks true items
+uncertain, after false items. Numeric tier confidence remains evidence in JSON
+and verbose text and never drives a client policy. The backend can change its
+ambiguity policy without a client release; ambiguous tiers may be raised or
+unchanged. A supplied kind is rendered without a client threshold; missing
+kinds still retain their tier.
+
+UNCLASSIFIED means only a statement too large to classify; its section says
 Too long to classify - read it. Null confidence normalizes to omission for that
-case and is not counted as an uncertain escalation. The backend resolves
-ambiguous classifications toward impact; the CLI never infers a replacement
-tier from the text. Counts separately show confident and uncertain act/know
-items; batch ranking uses only confident action counts. Kinds are now reported
-by the backend from kind confidence 0.4; the client renders any supplied kind
-and never applies another kind threshold.
+case. Summary and batch counts use the backend coverage totals before the
+50-item cap, not counts reconstructed from returned quotes. Confident and
+ambiguous act/know totals stay separate; batch ranking uses only the confident
+action total, preserving backend order on ties. Per-version section counts
+refer to the quoted items actually shown. Positive omitted counts explain the
+difference without guessing classifications of absent statements.
 
 
 Every entry/link URL appears once in the Sources list, referenced by quotes.
@@ -482,13 +491,12 @@ convention. Thus null tier confidence (too-large unclassified statements), kind,
 kind confidence, heading or source are omitted. Confidence zero remains zero.
 All quote text, truncation flags and per-item model/formulation values are preserved. Stored labels survive classifier changes, so a review may contain different models or formulations (for example s-hier-v2 and s-hier-v3); no review-level provenance assumption is made.
 
-The query measured 262 complexity units before the change, 281 with all risk
+The original query measured 262 complexity units before the change, 281 with all risk
 fields, and 284 including entry `detailSource` on the three existing entry
 selections, with both optional evidence subtrees enabled. Measurement used 501
 unique aliases of `summary.total`; dev rejected the probes with total operation
 complexities 763, 782 and 785 respectively, without executing resolvers. Each
-alias adds one unit. The final 284 is below production's 500 limit; no fields
-were trimmed and no second query was added. The historical near-494 number does
+alias adds one unit. The original single-package 284 was below production’s 500 limit; no fields were trimmed or second query added in that original change. Current selection/batch measurements and the bounded large-batch correction are below. The historical near-494 number does
 not describe the current operation.
 
 
@@ -639,7 +647,7 @@ probe passed sequentially, and the cause is unconfirmed. Internal full-follow-up
 review was clean; no additional external round under the existing limit.
 
 
-## Background classification and confidence contract follow-up
+## Historical background classification and confidence contract follow-up
 
 Backend #3060/#3063/#3064 are deployed on dev; production deployment was pending
 at verification. No production probes or backend edits were performed. Field
@@ -678,3 +686,52 @@ an unavailable qualitative check, not a passing eval. No credentials were read
 or exposed and no app login was started. Internal final review returned no findings; the existing external code-review round limit remains in effect.
 
 Final confidence-contract review: direction sound, no findings. No deferred implementation or refactoring work. The working plan is removed after review closure; no additional external code round under the existing limit.
+
+
+## Backend-owned ambiguity and pre-cap totals (#3072)
+
+Implementation targets the backend PR schema. `ambiguous` is required per item;
+false is preserved in JSON. Required coverage fields are
+`itemsMustActConfident`, `itemsMustActAmbiguous`, `itemsShouldKnowConfident`,
+`itemsShouldKnowAmbiguous` and `itemsUnclassified`. The confident counters
+exclude ambiguous items; each classified tier total is confident plus ambiguous.
+All five totals precede the50-item cap, and zero values are preserved. Summaries and batch ordering consume these
+totals directly. Tier confidence is evidence only, with no client threshold.
+The Express fixture adds explicit mocked ambiguity/totals to an earlier captured
+response; these additions are not claimed as live dev observations.
+
+Offline measurement used the exact query and SDL from backend
+`bb3807cccee5b78d07aa865edccab2fc4f8e1c4b`, Absinthe 1.11.0 and the root field’s
+actual complexity callback, without running resolvers or loading backend
+configuration. All selected child fields use default complexity. The old
+single-package baseline reproduced 284; adding the six fields gives 290 for one,
+306 for three and 498 for 27 packages, with both optional sections enabled.
+
+The root callback adds20 plus 8 per package to child complexity 262. A single
+30-package operation would cost 522 (the prior query already cost 516). No
+selected field can be removed while retaining every consumer. Core service
+therefore splits only valid 28–30-package batches into27 plus remainder sequential
+aggregate requests. It preserves each backend review, input order and duplicate
+inputs, sums the six factual summary counters and rejects the whole call if
+one request fails. <= 27 remains one request; > 30 remains one request for backend rejection without splitting; the public
+request builder rejects it locally. GraphQL complexity may reject a direct-service
+call before resolver validation. This measured budget is the reason for a second query;
+there is no new public limit, retry, queue or backend change.
+
+Dev verification and server corroboration wait for the owner’s explicit #3072
+deployment notice. No dev or production query is authorized for
+this follow-up before that notice; production support is required before merge
+or release. PR #463 remains draft and unmerged.
+
+
+Local follow-up validation: full `bun test` passed 5,652 tests / 22,738 assertions;
+typecheck, Biome, build, public-package validation and all four secret-free
+source/built CLI/MCP smokes passed. Built smoke launches initially overlapped
+package validation rebuilding dist; both passed after that rebuild finished.
+Stable ambiguity/counter implementation internal review is clean. External plan
+review recommends a backend complexity correction instead of client splitting;
+the bounded split is a tested draft proposal awaiting the owner’s route decision,
+not a settled architecture decision. It would need a selection-complexity guard
+if retained. No fourth external code round under the existing PR limit. Targeted
+live agent evaluation also waits for deployment; the earlier Claude eval was
+unavailable because its CLI was not logged in.

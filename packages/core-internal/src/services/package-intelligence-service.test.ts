@@ -4,6 +4,7 @@ import {
   AuthenticationError,
   TermsAcceptanceRequiredError,
 } from "./githits-service.js";
+import type { PackageUpgradeReviewParams } from "./package-intelligence-service.js";
 import {
   MalformedPackageIntelligenceResponseError,
   PackageIntelligenceAccessError,
@@ -3144,97 +3145,277 @@ describe("PackageIntelligenceServiceImpl — package docs targets", () => {
 describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
   const ENDPOINT = "https://pkgseer.dev";
 
+  const upgradeReviewBody = {
+    data: {
+      packageUpgradeReview: {
+        summary: {
+          total: 1,
+          withUnknowns: 0,
+          withAddedAdvisories: 1,
+          withBreakingSignals: 0,
+          withDirectDependencyChanges: 0,
+          withTransitiveVulnerabilityAdditions: 0,
+        },
+        reviews: [
+          {
+            registry: "NPM",
+            name: "express",
+            currentVersion: "4.18.0",
+            targetVersion: "5.0.0",
+            latestVersion: "5.0.0",
+            versionDelta: "MAJOR",
+            security: {
+              current: null,
+              target: null,
+              added: [
+                {
+                  id: "GHSA-test",
+                  aliases: [],
+                  summary: "Example advisory",
+                  severity: 7.5,
+                  severityLabel: "HIGH",
+                  fixedIn: ["5.0.1"],
+                  isMalicious: false,
+                },
+              ],
+              removed: [],
+              notAddressed: [],
+              fixed: [],
+              introduced: [],
+              unchanged: [],
+            },
+            changelog: {
+              source: null,
+              fallback: "PACKAGE_VERSIONS",
+              entries: [],
+              sampledEntries: [],
+              keywordEntries: [],
+              totalKeywordEntries: 0,
+              totalEntries: 0,
+              totalEntriesWithBodies: 0,
+              truncated: false,
+              hasReleaseNoteBodies: false,
+              breakingSignals: [],
+              migrationSignals: [],
+              riskItems: [
+                {
+                  version: "5.0.0",
+                  tier: "UNCLASSIFIED",
+                  ambiguous: false,
+                  tierConfidence: null,
+                  kind: null,
+                  kindConfidence: null,
+                  text: "raw quote\u001b[31m",
+                  textTruncated: true,
+                  heading: null,
+                  source: null,
+                  model: "jev-1.13.0",
+                  formulation: "d-hier-v1",
+                },
+              ],
+              riskCoverage: {
+                versionsClassified: 0,
+                versionsNotAssessed: 20,
+                versionsWithoutNotes: 2,
+                versionsUnparseable: 1,
+                unitsNoImpact: 0,
+                itemsMustActConfident: 0,
+                itemsMustActAmbiguous: 0,
+                itemsShouldKnowConfident: 0,
+                itemsShouldKnowAmbiguous: 0,
+                itemsUnclassified: 0,
+                itemsOmitted: 8,
+              },
+            },
+            compatibility: null,
+            dependencyChanges: null,
+            dependencyIssues: null,
+            unknowns: [],
+          },
+        ],
+      },
+    },
+  };
+
+  for (const count of [27, 28, 30]) {
+    it(`preserves ${count} upgrades while limiting each aggregate query to 27`, async () => {
+      const packages: PackageUpgradeReviewParams["packages"] = Array.from(
+        { length: count },
+        (_, index) => ({
+          registry: "NPM",
+          name: `package-${index}`,
+          currentVersion: "1.0.0",
+          targetVersion: "2.0.0",
+        }),
+      );
+      const requests: Array<{
+        query: string;
+        variables: PackageUpgradeReviewParams;
+      }> = [];
+      const fetchFn = mock((_url: string, init?: RequestInit) => {
+        const request = JSON.parse(String(init?.body));
+        requests.push(request);
+        const batch = request.variables
+          .packages as PackageUpgradeReviewParams["packages"];
+        const base = upgradeReviewBody.data.packageUpgradeReview.reviews[0]!;
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              packageUpgradeReview: {
+                summary: {
+                  total: batch.length,
+                  withUnknowns: batch.length,
+                  withAddedAdvisories: batch.length,
+                  withBreakingSignals: batch.length,
+                  withDirectDependencyChanges: batch.length,
+                  withTransitiveVulnerabilityAdditions: batch.length,
+                },
+                reviews: batch.map((pkg) => ({
+                  ...base,
+                  ...pkg,
+                  changelog: {
+                    ...base.changelog,
+                    riskItems: [
+                      {
+                        ...base.changelog.riskItems[0],
+                        tier: "MUST_ACT",
+                        ambiguous: true,
+                        tierConfidence: 0.95,
+                      },
+                    ],
+                    riskCoverage: {
+                      ...base.changelog.riskCoverage,
+                      versionsClassified: 1,
+                      versionsNotAssessed: 0,
+                      itemsMustActAmbiguous: 1,
+                    },
+                  },
+                })),
+              },
+            },
+          }),
+        );
+      });
+      const service = new PackageIntelligenceServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+      const result = await service.packageUpgradeReview({
+        packages,
+        includeTransitiveSecurity: true,
+        includeDependencyIssues: true,
+        changelogLimit: 20,
+        minSeverity: 7,
+      });
+      expect(requests.map((r) => r.variables.packages.length)).toEqual(
+        count === 27 ? [27] : [27, count - 27],
+      );
+      expect(requests.flatMap((r) => r.variables.packages)).toEqual(packages);
+      for (const request of requests) {
+        expect(request.variables).toMatchObject({
+          includeTransitiveSecurity: true,
+          includeDependencyIssues: true,
+          changelogLimit: 20,
+          minSeverity: 7,
+        });
+        expect(request.query).toBe(requests[0]!.query);
+      }
+      expect(result.summary).toEqual({
+        total: count,
+        withUnknowns: count,
+        withAddedAdvisories: count,
+        withBreakingSignals: count,
+        withDirectDependencyChanges: count,
+        withTransitiveVulnerabilityAdditions: count,
+      });
+      expect(result.reviews.map((r) => r.name)).toEqual(
+        packages.map((p) => p.name),
+      );
+      expect(
+        result.reviews.every(
+          (r) =>
+            r.changelog.riskItems[0]!.ambiguous &&
+            r.changelog.riskItems[0]!.tierConfidence === 0.95 &&
+            r.changelog.riskCoverage.itemsMustActAmbiguous === 1 &&
+            r.changelog.riskCoverage.itemsMustActConfident === 0,
+        ),
+      ).toBe(true);
+    });
+  }
+
+  it("preserves backend validation for more than 30 packages", async () => {
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body)).variables.packages).toHaveLength(
+        31,
+      );
+      return Promise.resolve(
+        jsonResponse({
+          errors: [
+            {
+              message: "packages must contain at most 30 upgrades",
+              extensions: { code: "VALIDATION_ERROR" },
+            },
+          ],
+        }),
+      );
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    await expect(
+      service.packageUpgradeReview({
+        packages: Array.from({ length: 31 }, () => ({
+          registry: "NPM",
+          name: "express",
+          currentVersion: "4.0.0",
+          targetVersion: "5.0.0",
+        })),
+        includeTransitiveSecurity: true,
+        includeDependencyIssues: true,
+        changelogLimit: 20,
+      }),
+    ).rejects.toThrow("packages must contain at most 30 upgrades");
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a split batch if the second aggregate request fails", async () => {
+    const fetchFn = mock(
+      (): Promise<Response> =>
+        Promise.resolve(
+          fetchFn.mock.calls.length === 1
+            ? jsonResponse(upgradeReviewBody)
+            : jsonResponse({ errors: [{ message: "second batch failed" }] }),
+        ),
+    );
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    await expect(
+      service.packageUpgradeReview({
+        packages: Array.from({ length: 28 }, () => ({
+          registry: "NPM",
+          name: "express",
+          currentVersion: "4.0.0",
+          targetVersion: "5.0.0",
+        })),
+        includeTransitiveSecurity: true,
+        includeDependencyIssues: true,
+        changelogLimit: 20,
+      }),
+    ).rejects.toThrow("second batch failed");
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
   it("sends aggregate upgrade-review variables and maps the typed response", async () => {
     let capturedBody: string | undefined;
     const fetchFn = mock((_url: string, init?: RequestInit) => {
       capturedBody = init?.body as string;
-      return Promise.resolve(
-        jsonResponse({
-          data: {
-            packageUpgradeReview: {
-              summary: {
-                total: 1,
-                withUnknowns: 0,
-                withAddedAdvisories: 1,
-                withBreakingSignals: 0,
-                withDirectDependencyChanges: 0,
-                withTransitiveVulnerabilityAdditions: 0,
-              },
-              reviews: [
-                {
-                  registry: "NPM",
-                  name: "express",
-                  currentVersion: "4.18.0",
-                  targetVersion: "5.0.0",
-                  latestVersion: "5.0.0",
-                  versionDelta: "MAJOR",
-                  security: {
-                    current: null,
-                    target: null,
-                    added: [
-                      {
-                        id: "GHSA-test",
-                        aliases: [],
-                        summary: "Example advisory",
-                        severity: 7.5,
-                        severityLabel: "HIGH",
-                        fixedIn: ["5.0.1"],
-                        isMalicious: false,
-                      },
-                    ],
-                    removed: [],
-                    notAddressed: [],
-                    fixed: [],
-                    introduced: [],
-                    unchanged: [],
-                  },
-                  changelog: {
-                    source: null,
-                    fallback: "PACKAGE_VERSIONS",
-                    entries: [],
-                    sampledEntries: [],
-                    keywordEntries: [],
-                    totalKeywordEntries: 0,
-                    totalEntries: 0,
-                    totalEntriesWithBodies: 0,
-                    truncated: false,
-                    hasReleaseNoteBodies: false,
-                    breakingSignals: [],
-                    migrationSignals: [],
-                    riskItems: [
-                      {
-                        version: "5.0.0",
-                        tier: "UNCLASSIFIED",
-                        tierConfidence: null,
-                        kind: null,
-                        kindConfidence: null,
-                        text: "raw quote\u001b[31m",
-                        textTruncated: true,
-                        heading: null,
-                        source: null,
-                        model: "jev-1.13.0",
-                        formulation: "d-hier-v1",
-                      },
-                    ],
-                    riskCoverage: {
-                      versionsClassified: 0,
-                      versionsNotAssessed: 20,
-                      versionsWithoutNotes: 2,
-                      versionsUnparseable: 1,
-                      unitsNoImpact: 0,
-                      itemsOmitted: 8,
-                    },
-                  },
-                  compatibility: null,
-                  dependencyChanges: null,
-                  dependencyIssues: null,
-                  unknowns: [],
-                },
-              ],
-            },
-          },
-        }),
-      );
+      return Promise.resolve(jsonResponse(upgradeReviewBody));
     });
     const service = new PackageIntelligenceServiceImpl(
       ENDPOINT,
@@ -3269,6 +3450,7 @@ describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
     for (const field of [
       "version",
       "tier",
+      "ambiguous",
       "tierConfidence",
       "kind",
       "kindConfidence",
@@ -3287,6 +3469,11 @@ describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
       "versionsWithoutNotes",
       "versionsUnparseable",
       "unitsNoImpact",
+      "itemsMustActConfident",
+      "itemsMustActAmbiguous",
+      "itemsShouldKnowConfident",
+      "itemsShouldKnowAmbiguous",
+      "itemsUnclassified",
       "itemsOmitted",
     ]) {
       expect(parsed.query.match(/riskCoverage \{([^}]+)\}/)?.[1]).toContain(
@@ -3323,6 +3510,7 @@ describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
       {
         version: "5.0.0",
         tier: "UNCLASSIFIED",
+        ambiguous: false,
         text: "raw quote\u001b[31m",
         textTruncated: true,
         model: "jev-1.13.0",
@@ -3335,6 +3523,11 @@ describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
       versionsWithoutNotes: 2,
       versionsUnparseable: 1,
       unitsNoImpact: 0,
+      itemsMustActConfident: 0,
+      itemsMustActAmbiguous: 0,
+      itemsShouldKnowConfident: 0,
+      itemsShouldKnowAmbiguous: 0,
+      itemsUnclassified: 0,
       itemsOmitted: 8,
     });
   });

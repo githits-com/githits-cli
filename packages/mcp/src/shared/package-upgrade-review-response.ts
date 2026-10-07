@@ -93,6 +93,7 @@ export interface UpgradeChangelogEntry {
 export interface UpgradeChangelogRiskItem {
   version: string;
   tier: "must_act" | "should_know" | "unclassified";
+  ambiguous: boolean;
   tierConfidence?: number;
   kind?: string;
   kindConfidence?: number;
@@ -491,8 +492,8 @@ export function formatPackageUpgradeReviewTerminal(
     response.reviews.length > 1
       ? [...response.reviews].sort(
           (a, b) =>
-            countRiskTier(b.changelog, "must_act", "confident") -
-            countRiskTier(a.changelog, "must_act", "confident"),
+            b.changelog.riskCoverage.itemsMustActConfident -
+            a.changelog.riskCoverage.itemsMustActConfident,
         )
       : response.reviews;
   if (reviews.length > 1) {
@@ -900,7 +901,7 @@ function formatChangesSection(
   appendWrappedText(
     lines,
     "  ",
-    `${formatRiskTierCount(changelog, "must_act", "require action")} | ${formatRiskTierCount(changelog, "should_know", "should know")} | ${countRiskTier(changelog, "unclassified")} too long to classify`,
+    `${formatRiskTierCount(changelog, "must_act", "require action")} | ${formatRiskTierCount(changelog, "should_know", "should know")} | ${changelog.riskCoverage.itemsUnclassified} too long to classify`,
     width,
     "  ",
   );
@@ -1327,28 +1328,11 @@ const RISK_KIND_LABELS: Record<string, string> = {
   notable_change: "notable change",
 };
 
-const MIN_CONFIDENT_TIER_CONFIDENCE = 0.4;
 const PENDING_CLASSIFICATION_MESSAGE =
   "Classification is still running or may have failed. Rerun in a few seconds to a minute to fill not-assessed versions from completed stored labels, without rerunning the model.";
 
 function isUncertainRiskItem(item: UpgradeChangelogRiskItem): boolean {
-  return (
-    item.tierConfidence !== undefined &&
-    item.tierConfidence < MIN_CONFIDENT_TIER_CONFIDENCE
-  );
-}
-
-function countRiskTier(
-  changelog: UpgradeChangelog,
-  tier: UpgradeChangelogRiskItem["tier"],
-  confidence: "all" | "confident" | "uncertain" = "all",
-): number {
-  return changelog.riskItems.filter(
-    (item) =>
-      item.tier === tier &&
-      (confidence === "all" ||
-        isUncertainRiskItem(item) === (confidence === "uncertain")),
-  ).length;
+  return item.ambiguous;
 }
 
 function formatRiskTierCount(
@@ -1356,8 +1340,16 @@ function formatRiskTierCount(
   tier: "must_act" | "should_know",
   label: string,
 ): string {
-  const uncertain = countRiskTier(changelog, tier, "uncertain");
-  return `${countRiskTier(changelog, tier, "confident")} ${label}${uncertain ? ` (+${uncertain} uncertain)` : ""}`;
+  const coverage = changelog.riskCoverage;
+  const confident =
+    tier === "must_act"
+      ? coverage.itemsMustActConfident
+      : coverage.itemsShouldKnowConfident;
+  const uncertain =
+    tier === "must_act"
+      ? coverage.itemsMustActAmbiguous
+      : coverage.itemsShouldKnowAmbiguous;
+  return `${confident} ${label}${uncertain ? ` (+${uncertain} uncertain)` : ""}`;
 }
 
 function riskCoverageText(changelog: UpgradeChangelog): string {
@@ -1374,10 +1366,7 @@ function formatBatchTriage(
   options: FormatPackageUpgradeReviewTerminalOptions,
 ): string[] {
   const lines = [
-    sectionTitle(
-      "Batch triage - returned statement counts",
-      options.useColors === true,
-    ),
+    sectionTitle("Batch triage - statement totals", options.useColors === true),
   ];
   for (const review of reviews) {
     const c = review.changelog;
@@ -1409,7 +1398,7 @@ function formatBatchTriage(
       : undefined;
     // Rows stay intact as a table; prose footers use the caller's width.
     lines.push(
-      `  ${safeRiskText(`${review.registry}:${review.name} ${review.currentVersion} -> ${review.targetVersion} (${review.versionDelta})`)} | ${formatRiskTierCount(c, "must_act", "act")} | ${formatRiskTierCount(c, "should_know", "know")} | ${countRiskTier(c, "unclassified")} too long to classify | versions: ${riskCoverageText(c)} | ${c.riskCoverage.unitsNoImpact} labeled no impact | ${c.riskCoverage.itemsOmitted} omitted | ${deprecation} | ${security} | ${transitiveText} | ${c.totalKeywordEntries} keyword entries | ${review.compatibility?.peerDependencyChanges.length ?? "not checked"} peer dependency changes | ${review.compatibility?.notes.length ?? "not checked"} compatibility notes | ${dependencyCount ?? "not checked"} direct dependency changes | ${issueCount ?? "not checked"} dependency issues | ${review.unknowns.length} unknowns`,
+      `  ${safeRiskText(`${review.registry}:${review.name} ${review.currentVersion} -> ${review.targetVersion} (${review.versionDelta})`)} | ${formatRiskTierCount(c, "must_act", "act")} | ${formatRiskTierCount(c, "should_know", "know")} | ${c.riskCoverage.itemsUnclassified} too long to classify | versions: ${riskCoverageText(c)} | ${c.riskCoverage.unitsNoImpact} labeled no impact | ${c.riskCoverage.itemsOmitted} omitted | ${deprecation} | ${security} | ${transitiveText} | ${c.totalKeywordEntries} keyword entries | ${review.compatibility?.peerDependencyChanges.length ?? "not checked"} peer dependency changes | ${review.compatibility?.notes.length ?? "not checked"} compatibility notes | ${dependencyCount ?? "not checked"} direct dependency changes | ${issueCount ?? "not checked"} dependency issues | ${review.unknowns.length} unknowns`,
     );
   }
   const width = normaliseTerminalWidth(options.terminalWidth);
@@ -1422,7 +1411,7 @@ function formatBatchTriage(
   appendWrappedText(
     lines,
     "  ",
-    "Counts separate confident statements (confidence >= 0.4) from uncertain ones; ranking uses only confident action counts. Returned counts include too-long statements, may include duplicates from different sources, and exclude omitted items. Not a compatibility verdict.",
+    "Counts separate backend-confident statements from uncertain ones; ranking uses only confident action totals. Totals include omitted statements; quotes are capped by the backend. Not a compatibility verdict.",
     width,
     "  ",
   );

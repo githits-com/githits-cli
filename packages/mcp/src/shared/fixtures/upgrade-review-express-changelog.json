@@ -11,7 +11,8 @@
       "heading": "What's Changed",
       "source": "releases",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": true
     },
     {
       "version": "5.1.0",
@@ -24,7 +25,8 @@
       "heading": "What's Changed",
       "source": "releases",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": true
     },
     {
       "version": "5.2.1",
@@ -36,7 +38,8 @@
       "textTruncated": false,
       "source": "changelog_file",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": true
     },
     {
       "version": "5.1.0",
@@ -46,7 +49,8 @@
       "textTruncated": false,
       "source": "changelog_file",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": true
     },
     {
       "version": "5.1.0",
@@ -56,7 +60,8 @@
       "textTruncated": false,
       "source": "changelog_file",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": true
     },
     {
       "version": "5.1.0",
@@ -66,7 +71,8 @@
       "textTruncated": false,
       "source": "changelog_file",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": true
     },
     {
       "version": "5.1.0",
@@ -76,7 +82,8 @@
       "textTruncated": false,
       "source": "changelog_file",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": true
     },
     {
       "version": "5.1.0",
@@ -86,7 +93,8 @@
       "textTruncated": false,
       "source": "changelog_file",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": true
     },
     {
       "version": "5.2.0",
@@ -98,7 +106,8 @@
       "textTruncated": false,
       "source": "changelog_file",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": false
     },
     {
       "version": "5.2.0",
@@ -108,7 +117,8 @@
       "textTruncated": false,
       "source": "changelog_file",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": false
     },
     {
       "version": "5.2.0",
@@ -121,7 +131,8 @@
       "heading": "What's Changed",
       "source": "releases",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": false
     },
     {
       "version": "5.2.0",
@@ -134,7 +145,8 @@
       "heading": "What's Changed",
       "source": "releases",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": false
     },
     {
       "version": "5.0.1",
@@ -146,7 +158,8 @@
       "textTruncated": false,
       "source": "changelog_file",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": false
     },
     {
       "version": "5.1.0",
@@ -159,7 +172,8 @@
       "heading": "What's Changed",
       "source": "releases",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": false
     },
     {
       "version": "5.2.0",
@@ -172,7 +186,8 @@
       "heading": "What's Changed",
       "source": "releases",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": true
     },
     {
       "version": "5.2.1",
@@ -185,7 +200,8 @@
       "heading": "What's Changed",
       "source": "releases",
       "model": "jev-1.13.0",
-      "formulation": "s-hier-v2"
+      "formulation": "s-hier-v2",
+      "ambiguous": true
     }
   ],
   "riskCoverage": {
@@ -194,7 +210,12 @@
     "versionsWithoutNotes": 0,
     "versionsUnparseable": 0,
     "unitsNoImpact": 125,
-    "itemsOmitted": 0
+    "itemsOmitted": 0,
+    "itemsMustActConfident": 0,
+    "itemsMustActAmbiguous": 8,
+    "itemsShouldKnowConfident": 6,
+    "itemsShouldKnowAmbiguous": 2,
+    "itemsUnclassified": 0
   },
   "source": "changelog_file",
   "entries": [

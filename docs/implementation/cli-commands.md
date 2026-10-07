@@ -771,8 +771,11 @@ delimiter is rejected with guidance to use `..`.
 The human-readable CLI and MCP `pkg_upgrade_review` output use one shared
 formatter. It starts with `Upgrade review - N package(s)`, adds one
 `Across packages:` line and a triage table only for batches. Default batch rows
-are sorted by confident returned action-statement count (tier confidence >= 0.4) and include classification coverage,
+are sorted by backend confident action-statement totals before the cap and include classification coverage,
 peer-change and compatibility-note counts;
+The public 30-package limit remains; valid 28–30-package batches use two
+sequential aggregate requests of at most 27 packages to stay below GraphQL 500
+complexity. Their reviews and factual summary counters are combined in order.
 `--verbose` adds full per-package reports. Single-package reports group identity,
 security, deprecation, changes, compatibility, dependencies, dependency
 issues, and unknown evidence. Empty optional groups are omitted, but a returned
@@ -789,10 +792,10 @@ not-assessed and without-notes versions, positive unparseable/omitted counts,
 no-impact counts, and rerun guidance when background classification is still running or failed. A rerun a few seconds to a minute later retrieves completed stored labels without rerunning the model.
 Each statement begins with `*`; optional kind labels use brackets such as
 `[security fix]`, colored in color-enabled output. Quotes without a kind retain
-their tier and bullet without inventing a category. Numeric tier confidence
-below 0.4 adds a muted `(uncertain)` marker; uncertain MUST_ACT items appear
+their tier and bullet without inventing a category. Backend `ambiguous: true`
+adds a muted `(uncertain)` marker; uncertain MUST_ACT items appear
 under Possibly requires action. Batch act/know counts separate uncertain
-statements, such as `4 act (+2 uncertain)`, and ties never use uncertain counts.
+statements using pre-cap coverage totals, such as `4 act (+2 uncertain)`, and ties never use uncertain counts. Per-version counts describe displayed quotes; omitted quotes do not reduce summary totals. Tier confidence stays evidence, never a client threshold.
 UNCLASSIFIED means only oversize statements and renders as Too long to classify
 - read it. Coverage and no-impact
 counts share one summary. Lexical hints have a separate `Keyword matches`

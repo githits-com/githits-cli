@@ -136,6 +136,11 @@ const backendResponse: PackageUpgradeReviewResponse = {
           versionsWithoutNotes: 0,
           versionsUnparseable: 0,
           unitsNoImpact: 0,
+          itemsMustActConfident: 0,
+          itemsMustActAmbiguous: 0,
+          itemsShouldKnowConfident: 0,
+          itemsShouldKnowAmbiguous: 0,
+          itemsUnclassified: 0,
           itemsOmitted: 0,
         },
       },
@@ -765,6 +770,11 @@ describe("package upgrade review response", () => {
                 versionsWithoutNotes: 0,
                 versionsUnparseable: 0,
                 unitsNoImpact: 0,
+                itemsMustActConfident: 0,
+                itemsMustActAmbiguous: 0,
+                itemsShouldKnowConfident: 0,
+                itemsShouldKnowAmbiguous: 0,
+                itemsUnclassified: 0,
                 itemsOmitted: 0,
               },
             },
@@ -1165,6 +1175,7 @@ function riskItem(
   return {
     version: "4.4.3",
     tier: "must_act",
+    ambiguous: false,
     tierConfidence: 0.98,
     kind: "removes_or_renames_api",
     kindConfidence: 0.99,
@@ -1193,6 +1204,20 @@ function riskReview(
         versionsWithoutNotes: 0,
         versionsUnparseable: 0,
         unitsNoImpact: 56,
+        itemsMustActConfident: items.filter(
+          (item) => item.tier === "must_act" && !item.ambiguous,
+        ).length,
+        itemsMustActAmbiguous: items.filter(
+          (item) => item.tier === "must_act" && item.ambiguous,
+        ).length,
+        itemsShouldKnowConfident: items.filter(
+          (item) => item.tier === "should_know" && !item.ambiguous,
+        ).length,
+        itemsShouldKnowAmbiguous: items.filter(
+          (item) => item.tier === "should_know" && item.ambiguous,
+        ).length,
+        itemsUnclassified: items.filter((item) => item.tier === "unclassified")
+          .length,
         itemsOmitted: 0,
       },
       entries: [
@@ -1208,34 +1233,106 @@ function riskReview(
 }
 
 describe("upgrade review model statement evidence", () => {
-  it("separates confidence below 0.4 from confident actions and marks uncertain knowledge", () => {
+  it("uses all pre-cap coverage totals while version sections count displayed quotes", () => {
     const review = riskReview([
-      riskItem({ tierConfidence: 0, text: "Action at zero." }),
+      ...Array.from({ length: 13 }, () => riskItem()),
+      ...Array.from({ length: 28 }, () => riskItem({ ambiguous: true })),
+      ...Array.from({ length: 9 }, () => riskItem({ tier: "should_know" })),
+    ]);
+    Object.assign(review.changelog.riskCoverage, {
+      itemsMustActConfident: 13,
+      itemsMustActAmbiguous: 28,
+      itemsShouldKnowConfident: 9,
+      itemsShouldKnowAmbiguous: 10,
+      itemsUnclassified: 3,
+      itemsOmitted: 13,
+    });
+    const before = JSON.stringify(review);
+    const detail = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+      {
+        terminalWidth: 200,
+      },
+    );
+    expect(detail).toContain(
+      "13 require action (+28 uncertain) | 9 should know (+10 uncertain) | 3 too long to classify",
+    );
+    expect(detail).toContain("Requires action (13)");
+    expect(detail).toContain("Possibly requires action (28)");
+    expect(detail).toContain("Should know (9)");
+    expect(detail).not.toContain("Should know (19)");
+    expect(detail).not.toContain("Too long to classify - read it (");
+    expect(detail).toContain("13 statements omitted by backend");
+    const batch = formatPackageUpgradeReviewTerminal(
+      formatterResponse([riskReview([]), review]),
+      { terminalWidth: 200 },
+    );
+    expect(batch).toContain(
+      "13 act (+28 uncertain) | 9 know (+10 uncertain) | 3 too long to classify",
+    );
+    expect(batch).toContain("13 omitted");
+    expect(batch).toContain("Totals include omitted statements");
+    expect(JSON.stringify(review)).toBe(before);
+  });
+
+  it("ranks capped packages by backend totals even when returned action counts tie", () => {
+    const lower = riskReview(Array.from({ length: 50 }, () => riskItem()));
+    lower.name = "lower";
+    lower.changelog.riskCoverage.itemsMustActConfident = 52;
+    lower.changelog.riskCoverage.itemsOmitted = 2;
+    const higher = structuredClone(lower);
+    higher.name = "higher";
+    higher.changelog.riskCoverage.itemsMustActConfident = 61;
+    higher.changelog.riskCoverage.itemsOmitted = 11;
+    const response = formatterResponse([lower, higher]);
+    for (const verbose of [false, true]) {
+      const text = formatPackageUpgradeReviewTerminal(response, { verbose });
+      expect(text.indexOf("npm:higher")).toBeLessThan(
+        text.indexOf("npm:lower"),
+      );
+      expect(text).toContain("61 act");
+      expect(text).toContain("52 act");
+      if (verbose) expect(text).toContain("Requires action (50)");
+    }
+    expect(response.reviews.map((review) => review.name)).toEqual([
+      "lower",
+      "higher",
+    ]);
+  });
+
+  it("uses backend ambiguity alone for action and knowledge uncertainty", () => {
+    const review = riskReview([
+      riskItem({ ambiguous: true, tierConfidence: 0, text: "Action at zero." }),
       riskItem({
-        tierConfidence: 0.399,
+        ambiguous: true,
+        tierConfidence: 0.95,
         kind: undefined,
         kindConfidence: undefined,
         text: "Possibly removed API.",
       }),
       riskItem({
-        tierConfidence: 0.4,
-        kindConfidence: 0.4,
-        text: "Action at boundary.",
+        ambiguous: false,
+        tierConfidence: 0.1,
+        kindConfidence: 0.2,
+        text: "Confident low-confidence action.",
       }),
       riskItem({ tierConfidence: 1, text: "Action at one." }),
       riskItem({
         tier: "should_know",
+        ambiguous: true,
         tierConfidence: 0,
         text: "Knowledge at zero.",
       }),
       riskItem({
         tier: "should_know",
-        tierConfidence: 0.399,
+        ambiguous: true,
+        tierConfidence: 0.95,
         text: "Uncertain knowledge.",
       }),
       riskItem({
         tier: "should_know",
-        tierConfidence: 0.4,
+        ambiguous: false,
+        tierConfidence: 0.1,
         text: "Confident knowledge.",
       }),
       riskItem({
@@ -1263,7 +1360,7 @@ describe("upgrade review model statement evidence", () => {
     expect(text).toContain("Requires action (2)");
     expect(text).toContain("Possibly requires action (2)");
     expect(text).toContain('(uncertain) "Possibly removed API."');
-    expect(text).toContain('[removal] "Action at boundary."');
+    expect(text).toContain('[removal] "Confident low-confidence action."');
     expect(text).toContain('(uncertain) "Uncertain knowledge."');
     expect(text.indexOf("Confident knowledge.")).toBeLessThan(
       text.indexOf("Uncertain knowledge."),
@@ -1286,11 +1383,13 @@ describe("upgrade review model statement evidence", () => {
     const zero = riskReview([]);
     zero.name = "zero";
     const uncertain = riskReview([
-      riskItem({ tierConfidence: 0.1 }),
-      riskItem({ tierConfidence: 0.3 }),
+      riskItem({ ambiguous: true, tierConfidence: 0.9 }),
+      riskItem({ ambiguous: true, tierConfidence: 0.1 }),
     ]);
     uncertain.name = "uncertain";
-    const confident = riskReview([riskItem({ tierConfidence: 0.4 })]);
+    const confident = riskReview([
+      riskItem({ ambiguous: false, tierConfidence: 0.1 }),
+    ]);
     confident.name = "confident";
     const response = formatterResponse([zero, uncertain, confident]);
     for (const verbose of [false, true]) {
@@ -1302,7 +1401,9 @@ describe("upgrade review model statement evidence", () => {
         text.indexOf("npm:uncertain"),
       );
       expect(text).toContain("0 act (+2 uncertain)");
-      expect(text).toContain("ranking uses only confident action counts");
+      expect(text.replace(/\s+/g, " ")).toContain(
+        "ranking uses only confident action totals",
+      );
     }
     expect(response.reviews.map((review) => review.name)).toEqual([
       "zero",
@@ -1348,7 +1449,7 @@ describe("upgrade review model statement evidence", () => {
     expect(colored.replace(ANSI_SGR_PATTERN, "")).toBe(plain);
   });
 
-  it("renders the real Express range once per version with unique sources and no sample dump", () => {
+  it("renders captured Express evidence with mocked backend flags once per version and unique sources", () => {
     const review = formatterReview({
       changelog: expressChangelog as UpgradeChangelog,
     });
@@ -1684,6 +1785,11 @@ describe("upgrade review model statement evidence", () => {
       versionsWithoutNotes: 2,
       versionsUnparseable: 1,
       unitsNoImpact: 0,
+      itemsMustActConfident: 0,
+      itemsMustActAmbiguous: 0,
+      itemsShouldKnowConfident: 0,
+      itemsShouldKnowAmbiguous: 0,
+      itemsUnclassified: 0,
       itemsOmitted: 0,
     };
     const text = formatPackageUpgradeReviewTerminal(
