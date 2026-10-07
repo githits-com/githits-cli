@@ -580,3 +580,10 @@ plugin checks and both built smokes were rerun.
 
 Integration retained main PRs #460 and #461 plus release metadata #462; changelog/source-diff follow-up
 guidance and all existing catalog assertions remain in place.
+
+Implementation review: internal full-delta review passed. External Claude round
+1 identified default-batch compatibility evidence being suppressed; peer-change
+and compatibility-note counts now retain it, including explicit missing evidence.
+Round 2 and its fresh full-delta check returned no findings. Wire validation
+retains the verified three-tier, seven-kind and 0-1 confidence contract. No
+deferred implementation or refactoring work was identified.
