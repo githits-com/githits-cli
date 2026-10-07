@@ -156,3 +156,48 @@ unshipped recommendations out of permanent implementation docs into this plan.
 The same ownership wording was checked in the PR description. No code findings
 and no fourth external round. After these wording fixes, the plan round is clean.
 Dev verification remains pending deployment; UX changes remain owner decisions.
+
+## Owner-directed data sufficiency audit
+
+The owner will handle CLI-side design; do not implement the proposed layout or
+navigation changes above. This audit concerns data availability only. Selection
+and public JSON expose all current risk-item and coverage fields. There is no
+verified missing client selection to fix, so the operation and its measured
+complexity are unchanged. No live dev call before deployment notice.
+
+Backend requirements to support complete evidence inspection, independent of
+presentation (proposed outcomes, not approved backend implementation):
+
+1. Each returned statement identifies its exact source entry/location, without
+   depending on sampled entry lists. A view must be able to retrieve/read the
+   full context, including text cut by the 1,000-character cap. Exact URLs can
+   satisfy human source navigation; structured lookup is needed only if a later
+   consumer must retrieve that evidence programmatically through the tool.
+2. Provide a bounded follow-up path to the classified statements omitted by the
+   50-item aggregate cap, preserving their labels, ambiguity and provenance.
+   Keep the aggregate bounded; do not raise its limit or add a default second
+   query. References needed for lookup/continuation belong to the backend that
+   stores the statements. Acceptance: a capped range's complete flagged evidence
+   can be inspected, and repeating the same aggregate is not the only option.
+3. Expose coverage membership per version if a view needs to identify gaps:
+   classified, not assessed, without notes and unparseable. Sampled entries or
+   absence of risk items cannot reconstruct this. Do not infer job completion
+   or failure from a not-assessed count; distinguish those states only if the
+   backend exposes them. Acceptance: every reported gap can be tied to a version
+   without treating missing notes as no impact.
+
+Useful richer evidence, separate from those completeness gaps: affected public
+API/configuration identifiers and explicit reverted/superseded relationships.
+They could reduce local investigation work, but do not make the backend owner of
+consumer applicability. Local usage matching and migration/testing remain the
+calling agent/user's responsibility. No new classifier output, automatic
+reconciliation, compatibility verdict or infrastructure is introduced here.
+
+Contract changes need schema verification, minimal selections, JSON propagation,
+CLI/MCP parity and a fresh complexity measurement. Those cannot be implemented
+against guessed field names in this PR. Current audit validation uses existing
+wire-field and JSON/parity tests; no formatter or CLI command files are changed.
+
+Audit check: targeted Bun wire-field/JSON/parity run passed 6 tests / 76
+assertions, with no failures. No query, formatter or command implementation
+changed; existing complexity measurements therefore remain applicable.

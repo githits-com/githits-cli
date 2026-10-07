@@ -753,3 +753,30 @@ changed APIs and supersession; only the calling agent or user can inspect local
 usage and decide what migration/testing is needed. Current output does not guide
 that local investigation explicitly. UX proposals remain in the working plan
 until the owner decides; no redesign is shipped by this assessment.
+
+## Data available to a separately designed view
+
+CLI text design belongs to the owner. The data audit does not change rendering,
+query selections or client classification policy. All 12 current risk-item fields
+and all 11 coverage fields are selected, validated and preserved in the public
+CLI/MCP JSON, subject to the documented enum/null normalization. Numeric
+confidence, false ambiguity, zero totals, raw quotes and mixed per-item provenance
+remain available independently of text/verbose mode. Existing entry URLs/bodies,
+keyword signals, security deltas, compatibility and dependency evidence remain.
+
+| View requirement | Data available now | Limitation |
+| --- | --- | --- |
+| Statement grouping and uncertainty | version, tier, ambiguous, kind, heading, confidence | Missing kind is not a missing tier; consumer relevance is not established. |
+| Accurate triage totals | five pre-cap tier/ambiguity counters | Returned quotes are capped at 50; totals alone cannot supply omitted evidence. |
+| Quoted evidence and provenance | text, textTruncated, model, formulation | Text is cut at 1,000 characters; verbose cannot restore backend-cut text. |
+| Source navigation | item source enum; entry htmlUrl keyed by version/source | Entry lists are sampled independently of risk items; not every quote has a locator, and the item has no exact entry reference. |
+| Coverage overview | classified, not-assessed, without-notes, unparseable version counts | Counts cannot enumerate the affected versions or distinguish a failed job from ongoing classification. |
+| Investigation beyond returned evidence | source text where a URL/body is returned; separate changelog/source tools | No risk-item continuation or item lookup is exposed by this aggregate contract. Reruns can fill classification coverage, not bypass the item/text caps. |
+| Range interpretation | version and original quoted statements; endpoint security/dependency comparisons | No explicit relationship identifies a statement later reverted or superseded. |
+| Consumer applicability | statements, kinds/headings, optional compatibility/dependency facts | The calling agent/user must inspect local usage; the backend cannot determine private application compatibility. |
+
+These are backend data limitations rather than dropped client fields. A useful
+view can display the current evidence honestly, but cannot promise a source link
+for every quote, enumerate every coverage gap, or inspect every classified item
+using the aggregate response alone. Prospective contract requirements are recorded
+in the working plan; no backend fields or CLI design are changed by this audit.
