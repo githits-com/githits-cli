@@ -576,4 +576,14 @@ zero tool calls, no final/isolation artifacts, unknown usage. No comprehension
 claim follows. Internal review accepted and closed an overall grep traversal
 warning hidden by a sibling cursor and two stale documentation paragraphs.
 The eight-file closure passes 244 tests, zero failures and 913 assertions; no
-new infrastructure or major deferred item. External review result follows.
+new infrastructure or major deferred item. External round 1 accepted a cursor-page
+headline inconsistency: cursor presence
+now controls the page qualifier independently of coverage and terminal omissions,
+while attributed/global warnings retain the limitation. Headline regressions cover
+skips, failed/partial overall traversal and non-retryable omissions with cursors.
+
+The nine-file finding closure passes 354 tests, zero failures and 1,353
+assertions. Internal review of the revised delta is clean: cursor presence scopes
+zero-hit pages, while strict source-level exhaustive claims remain unchanged.
+Typecheck, both builds and source/built CLI/MCP smoke checks pass after this
+correction.

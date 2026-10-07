@@ -74,16 +74,10 @@ export function formatGrepText(
       : kinds.has("GrepSiteHit")
         ? `page${groups.length === 1 ? "" : "s"}`
         : `file${groups.length === 1 ? "" : "s"}`;
-  const pageGap =
-    result.targets.some(hasPageCoverageGap) ||
-    (!omissionsOnly &&
-      !["COMPLETE", "RESUMABLE_LIMIT"].includes(result.traversal));
   prose(
     result.hits.length
       ? `Found ${result.totalMatches} match${result.totalMatches === 1 ? "" : "es"} on ${matchingLines} line${matchingLines === 1 ? "" : "s"} in ${groups.length} ${noun}.`
-      : result.nextCursor &&
-          !pageGap &&
-          (result.unavailableTargets.length === 0 || retryableOmissionsOnly)
+      : result.nextCursor
         ? retryableOmissionsOnly
           ? "No matches available yet on this page."
           : "No matches on this page."

@@ -2311,9 +2311,9 @@ describe("renderUnifiedSearchSuccess", () => {
   });
 
   it.each([
-    ["PENDING", "preparing"],
-    ["INDEXING", "indexing"],
-    ["SEARCHING", "searching"],
+    ["PENDING", "Search is preparing requested sources."],
+    ["INDEXING", "Requested sources are still indexing."],
+    ["SEARCHING", "Search is still running."],
   ] as const)(
     "keeps %s lifecycle distinct without a snapshot",
     (status, label) => {
@@ -2328,6 +2328,7 @@ describe("renderUnifiedSearchSuccess", () => {
         }),
       );
       expect(firstLine(text)).toBe("No results available yet.");
+      expect(text).toContain(label);
     },
   );
 

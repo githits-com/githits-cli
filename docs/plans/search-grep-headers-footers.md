@@ -516,3 +516,21 @@ traversal branches, target gap/exhaustive predicates, parser enum/cursor contrac
 zero/hit pages and related documentation. Added both statuses with zero/hit pages;
 no service/state change or speculative mechanism. Two stale grep-doc outcome
 paragraphs now match current prose. Internal revised-delta closure is clean; 244 tests/zero failures/913 assertions across eight affected files prove the fix. Closure typecheck, both builds and source/built CLI/MCP smoke checks passed.
+
+
+External round 1: direction sound, not clean (one code finding, one doc nit).
+F1 accepted: empty cursor pages gated their page qualifier on coverage/omission
+classification, so ordinary skipped-file + cursor and terminal-omission + cursor
+pages could sound exhaustive. Root invariant is that a returned cursor scopes the
+outcome to this page independently of missing coverage; warnings own limitations.
+Removed that gate. Closure scan covers all empty grep branches, source exhaustive
+qualifiers, target and overall failure warnings, retryable/non-retryable omissions,
+normal/unvisited pagination and search/status's corresponding page qualifier.
+Tests assert headlines for skipped-file and failed/partial cursor pages, plus a
+non-retryable-omission cursor page. F2 accepted: replaced a dangling permanent-doc
+review placeholder with the verified closure. Also restored explicit lifecycle
+sentence assertions where a migrated test left an unused label. No machinery or
+scope expansion. Nine-file closure passes 354 tests, zero failures and 1,353
+assertions. Internal revised-delta closure is clean. Typecheck, both builds, and
+source/built CLI/MCP smoke checks pass after the external correction; external
+round 2 pending.

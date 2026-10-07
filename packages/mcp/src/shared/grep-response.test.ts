@@ -463,6 +463,7 @@ describe("grep page and omission outcomes", () => {
         nextCursor: "cursor",
       }),
     );
+    expect(output.split("\n")[0]).toBe("No matches on this page.");
     expect(output).toContain("Repository npm:x:");
     expect(output).toContain("Skipped 1 binary file(s).");
     expect(output).toContain("--cursor 'cursor'");
@@ -498,4 +499,29 @@ describe("overall grep traversal limitations", () => {
       }
     },
   );
+});
+
+it("scopes an empty cursor page independently of non-retryable omissions", () => {
+  const output = formatGrepText(
+    result({
+      hits: [],
+      totalMatches: 0,
+      traversal: "RESUMABLE_LIMIT",
+      nextCursor: "cursor",
+      unavailableTargets: [
+        {
+          inputIndex: 0,
+          target: "npm:unsupported",
+          reason: "unsupported",
+          retryable: false,
+          progressRef: null,
+          suggestedSiteTargets: null,
+        },
+      ],
+    }),
+  );
+  expect(output.split("\n")[0]).toBe("No matches on this page.");
+  expect(output).toContain("Omitted:\n  - npm:unsupported (unsupported)");
+  expect(output).toContain("--cursor 'cursor'");
+  expect(output).not.toContain("To retry omitted targets");
 });
