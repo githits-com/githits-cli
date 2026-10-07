@@ -1,10 +1,5 @@
 # Open backlog
 
-## Unify search and grep headers and footers
-
-Selected for design on 2026-10-06. The concrete design and implementation
-acceptance criteria now live in [search-grep-headers-footers.md](search-grep-headers-footers.md).
-
 ## Optimize overall tool routing and investigation instructions
 
 User deferred this follow-up until after unified MCP grep adoption on

@@ -532,8 +532,9 @@ Healthy searches offer one exact read example without use-now prose. When a wait
 is offered beside usable hits, the read comes first with short use-now advice;
 the wait remains conditional. Readless usable results put `Use these results now.`
 first in Follow-up. Grep templates follow all matches; CLI templates include
-`githits`. Exact operands are never split by prose wrapping, and ANSI changes
-only emphasis. Empty outputs omit read advice.
+`githits`. Standalone read, pagination and status actions remain unwrapped;
+grep omitted-target retry remains wrapped guidance, as in the approved copy.
+ANSI changes only emphasis. Empty outputs omit read advice.
 
 Pagination always lives in More results, independently of lifecycle. Search/status
 instruct repeating the original search with the exact next offset, preserving
@@ -573,23 +574,10 @@ adds actionable read/pagination footers the baseline omitted. These are output
 bytes, not tokens, latency or proof of agent quality. Targeted Claude agent:e2e
 search-investigation and grep-mixed-docs remained blocked by `Not logged in`:
 zero tool calls, no final/isolation artifacts, unknown usage. No comprehension
-claim follows. Internal review accepted and closed an overall grep traversal
-warning hidden by a sibling cursor and two stale documentation paragraphs.
-The eight-file closure passes 244 tests, zero failures and 913 assertions; no
-new infrastructure or major deferred item. External round 1 accepted a cursor-page
-headline inconsistency: cursor presence now controls the page qualifier independently of coverage and terminal omissions,
-while attributed/global warnings retain the limitation. Headline regressions cover
-skips, failed/partial overall traversal and non-retryable omissions with cursors.
-
-The nine-file finding closure passes 354 tests, zero failures and 1,353
-assertions. Internal review of the revised delta is clean: cursor presence scopes
-zero-hit pages, while strict source-level exhaustive claims remain unchanged.
-Typecheck, both builds and source/built CLI/MCP smoke checks pass after this
-correction.
-
-External round 2 confirmed the behavior but found a missing headline assertion
-in the overall failed/partial fixture. Both zero/hit shapes now assert the
-headline for both overall states; warning/cursor assertions remain. The omission
-regression is grouped with its related cases. This closure changes tests only.
-Focused closure passes 19 tests, zero failures and 118 assertions. Internal
-review of the revised delta is clean.
+claim follows. The revised cursor/coverage closure passes 354 focused tests,
+zero failures and 1,353 assertions; the final headline-assertion closure passes
+19 tests, zero failures and 118 assertions. Typecheck, both builds and
+source/built CLI/MCP smoke checks pass after the production correction.
+Internal review and fresh Claude Opus 5.5 review, including its final
+fresh-context check, are clean for implementation commit 384e9c2. No major
+deferred item or new infrastructure was introduced.
