@@ -749,7 +749,7 @@ describe("searchTool", () => {
     expect(result.isError).toBeUndefined();
     const text = result.content[0]?.text ?? "";
     expect(text.split("\n")[0]).not.toContain("search | ");
-    expect(text.split("\n")[0]).toContain("1 result");
+    expect(text.split("\n")[0]).toContain("Found 1 code result.");
     // Confirm the text payload is not valid JSON.
     expect(() => JSON.parse(text)).toThrow();
   });

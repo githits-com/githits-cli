@@ -39,6 +39,8 @@ export interface UnifiedSearchAvailability {
   kind: UnifiedSearchAvailabilityKind;
   hasSnapshot: boolean;
   resultCount: number;
+  /** Backend subset truth survives even an empty snapshot; text-only facts. */
+  partialResults: boolean;
 }
 
 export type UnifiedSearchActiveStatus = "PENDING" | "INDEXING" | "SEARCHING";
@@ -429,7 +431,12 @@ function projectAvailability(
   lifecycle: UnifiedSearchLifecycle,
 ): UnifiedSearchAvailability {
   if (!snapshot) {
-    return { kind: "no_snapshot", hasSnapshot: false, resultCount: 0 };
+    return {
+      kind: "no_snapshot",
+      hasSnapshot: false,
+      resultCount: 0,
+      partialResults: false,
+    };
   }
   const resultCount = snapshot.results.length;
   const kind =
@@ -440,7 +447,12 @@ function projectAvailability(
         : lifecycle.kind === "active"
           ? "interim"
           : "final";
-  return { kind, hasSnapshot: true, resultCount };
+  return {
+    kind,
+    hasSnapshot: true,
+    resultCount,
+    partialResults: snapshot.partialResults,
+  };
 }
 
 function projectSources(

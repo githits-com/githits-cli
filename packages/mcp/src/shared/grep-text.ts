@@ -4,10 +4,15 @@ import type {
   GrepResult,
   GrepTargetStatus,
 } from "@githits/core-internal";
-import { colors, dim, highlightMatch } from "./colors.js";
+import { colors, highlightMatch } from "./colors.js";
 import { grepPreparationReason } from "./grep-preparation-text.js";
 import { formatPreparationRow } from "./indexing-estimates-text.js";
 import { indexingWaitMs } from "./indexing-wait.js";
+import {
+  appendSearchGrepFooter,
+  footerAction,
+  footerProse,
+} from "./search-grep-output-text.js";
 import { shellQuoteExact } from "./shell-quote.js";
 import {
   formatProvenanceRow,
@@ -54,9 +59,8 @@ export function formatGrepText(
   const groups = groupFiles(result.hits);
   const omissionsOnly =
     result.unavailableTargets.length > 0 &&
-    result.targets.every((scope) => !hasCoverageGap(scope)) &&
-    result.traversal !== "FAILED" &&
-    result.traversal !== "CURSOR_EXPIRED";
+    result.targets.every((scope) => !hasPageCoverageGap(scope)) &&
+    !["FAILED", "CURSOR_EXPIRED"].includes(result.traversal);
   const retryableOmissionsOnly =
     omissionsOnly &&
     result.unavailableTargets.every((target) => target.retryable);
@@ -71,13 +75,15 @@ export function formatGrepText(
         ? `page${groups.length === 1 ? "" : "s"}`
         : `file${groups.length === 1 ? "" : "s"}`;
   prose(
-    result.hits.length === 0
-      ? isExhaustive(result)
-        ? "No matches."
+    result.hits.length
+      ? `Found ${result.totalMatches} match${result.totalMatches === 1 ? "" : "es"} on ${matchingLines} line${matchingLines === 1 ? "" : "s"} in ${groups.length} ${noun}.`
+      : result.nextCursor
+        ? retryableOmissionsOnly
+          ? "No matches available yet on this page."
+          : "No matches on this page."
         : retryableOmissionsOnly
-          ? "No matches yet."
-          : "Zero returned matches; coverage is incomplete."
-      : `${result.totalMatches} match${result.totalMatches === 1 ? "" : "es"} in ${matchingLines} line${matchingLines === 1 ? "" : "s"} across ${groups.length} ${noun}${result.nextCursor ? "; more available" : ""}`,
+          ? "No matches available yet."
+          : "No matches found.",
   );
   if (options.useColors) lines[0] = `${colors.bold}${lines[0]}${colors.reset}`;
   if (result.targets.length) {
@@ -156,10 +162,14 @@ export function formatGrepText(
     );
   else if (
     result.traversal !== "COMPLETE" &&
-    !result.nextCursor &&
+    (!result.nextCursor || result.traversal !== "RESUMABLE_LIMIT") &&
     !omissionsOnly
   )
-    prose("Traversal is incomplete and has no continuation cursor.");
+    prose(
+      result.nextCursor
+        ? "Some requested content could not be searched."
+        : "Traversal is incomplete and has no continuation cursor.",
+    );
   for (const [index, group] of groups.entries()) {
     const first = group.first;
     const target = first.read.target;
@@ -192,49 +202,53 @@ export function formatGrepText(
         "Safety normalization applied; physical source coordinates remain in JSON.",
       );
   }
+  const read: string[] = [];
+  const more: string[] = [];
+  const followUp: string[] = [];
+  const proseLines = (value: string): string[] =>
+    footerProse(escapeText(value), options.width ?? 80);
+  const operand = (value: string): string =>
+    footerAction(value, options.useColors === true);
   if (groups.length) {
-    lines.push("");
     if (kinds.has("GrepRepositoryHit"))
-      lines.push(
-        dim(
+      read.push(
+        operand(
           options.syntax === "mcp"
-            ? "# Read files: read target=$target path=$path start_line=$start end_line=$end"
-            : "# Read files: read --lines $start-$end -- $target $path",
-          options.useColors === true,
+            ? "Files: read target=$target path=$path start_line=$start end_line=$end"
+            : "Files: githits read --lines $start-$end -- $target $path",
         ),
       );
     if (kinds.has("GrepSiteHit"))
-      lines.push(
-        dim(
+      read.push(
+        operand(
           options.syntax === "mcp"
-            ? "# Read pages: read target=$url start_line=$start end_line=$end"
-            : "# Read pages: read --lines $start-$end -- $url",
-          options.useColors === true,
+            ? "Pages: read target=$url start_line=$start end_line=$end"
+            : "Pages: githits read --lines $start-$end -- $url",
         ),
       );
   }
-  if (result.nextCursor) {
-    const footerLines = [
-      ...wrap(
-        escapeText("More matches: repeat this grep, adding:"),
-        options.width ?? 80,
+  if (result.nextCursor)
+    more.push(
+      ...proseLines("Repeat the original grep, adding:"),
+      operand(
+        options.syntax === "mcp"
+          ? `cursor=${JSON.stringify(result.nextCursor)}`
+          : `--cursor ${shellQuoteExact(result.nextCursor)}`,
       ),
-      options.syntax === "mcp"
-        ? `  cursor=${JSON.stringify(result.nextCursor)}`
-        : `  --cursor ${shellQuoteExact(result.nextCursor)}`,
-    ];
-    lines.push(
-      "",
-      ...footerLines.map((line) => dim(line, options.useColors === true)),
     );
-  }
   if (result.unavailableTargets.some((target) => target.retryable)) {
     const wait = indexingWaitMs(result.indexingEstimates);
-    lines.push("");
-    prose(
-      `To retry omitted targets, rerun the original query with ${options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`}.`,
+    followUp.push(
+      ...proseLines(
+        `To retry omitted targets, rerun the original query with ${options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`}.`,
+      ),
     );
   }
+  appendSearchGrepFooter(
+    lines,
+    { read, more, followUp },
+    options.useColors === true,
+  );
   return lines.join("\n");
 }
 
@@ -244,7 +258,12 @@ function renderCoverage(
 ): void {
   const prefix = `${scope.kind === "REPOSITORY" ? "Repository" : "Hosted docs"} ${scope.target}`;
   const notes: string[] = [];
-  if (scope.readiness !== "UNSPECIFIED" && scope.readiness !== "CURRENT")
+  if (
+    scope.readiness === "UNSPECIFIED" &&
+    scope.traversal !== "RESUMABLE_LIMIT"
+  )
+    notes.push("source readiness unknown");
+  else if (scope.readiness !== "UNSPECIFIED" && scope.readiness !== "CURRENT")
     notes.push(readinessNote(scope));
   if (scope.traversal !== "COMPLETE" && scope.traversal !== "RESUMABLE_LIMIT")
     notes.push(traversalNote(scope));
@@ -331,10 +350,15 @@ function isExhaustive(result: GrepResult): boolean {
     result.targets.every((scope) => !hasCoverageGap(scope))
   );
 }
-function hasCoverageGap(scope: GrepTargetStatus): boolean {
+/** Resumable, unvisited scopes are pagination; errors and skips remain gaps. */
+function hasPageCoverageGap(scope: GrepTargetStatus): boolean {
   return (
-    scope.readiness !== "CURRENT" ||
-    scope.traversal !== "COMPLETE" ||
+    (scope.readiness !== "CURRENT" &&
+      !(
+        scope.readiness === "UNSPECIFIED" &&
+        scope.traversal === "RESUMABLE_LIMIT"
+      )) ||
+    !["COMPLETE", "RESUMABLE_LIMIT"].includes(scope.traversal) ||
     scope.errorCode !== null ||
     Boolean(
       scope.binaryFilesSkipped ||
@@ -344,6 +368,14 @@ function hasCoverageGap(scope: GrepTargetStatus): boolean {
     )
   );
 }
+function hasCoverageGap(scope: GrepTargetStatus): boolean {
+  return (
+    scope.readiness !== "CURRENT" ||
+    scope.traversal !== "COMPLETE" ||
+    hasPageCoverageGap(scope)
+  );
+}
+
 function formatSources(
   scopes: GrepTargetStatus[],
   matchedScopes: Set<number>,

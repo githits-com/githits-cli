@@ -30,42 +30,46 @@ import {
 import { toStdioLaunch } from "./smoke-launch-target.ts";
 
 describe("CLI search smoke contract", () => {
-  const valid = `No results yet | indexing | 0/1 ready
+  const valid = `No results available yet.
 
 - npm:n8n
   indexing: code, repository docs; available: n8n.io docs (1,480 pages; capped);
   indexed: versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master
 
-Next: githits search-status smoke-ref --wait 20`;
-  const completedWithTargetReadiness = `No results
+Follow-up:
+  githits search-status smoke-ref --wait 20`;
+  const completedWithTargetReadiness = `No results found.
 
 - npm:express@4.18.2
   searched: repository docs
 
-Next: shorten or broaden query; use githits grep.`;
-  const completed = `1 result | 1 repo code hit | next_offset=10
+Follow-up:
+  Try: shorten or broaden query; use githits grep.`;
+  const completed = `Found 1 code result.
 
 [1] npm:express@5.2.1 lib/application.js [repo code]`;
-  const completedDocs = `1 result | 1 docs page
+  const completedDocs = `Found 1 documentation result.
 
 [1] page-1 [docs page] npm:express - docs.example.com/getting-started - Getting started | API - section`;
 
   it("accepts outcome-first text with CLI-native actions", () => {
-    expect(valid.split("\n")[0]).toBe("No results yet | indexing | 0/1 ready");
+    expect(valid.split("\n")[0]).toBe("No results available yet.");
     expect(valid).toContain("- npm:n8n");
     expect(valid).toContain("  indexing: code, repository docs; available:");
     expect(valid).not.toContain("Search smoke-ref");
-    expect(valid).toContain("Next: githits search-status smoke-ref --wait 20");
+    expect(valid).toContain(
+      "Follow-up:\n  githits search-status smoke-ref --wait 20",
+    );
     expect(() => assertSearchTerminalText(valid, "search")).not.toThrow();
     expect(() =>
       assertSearchTerminalText(
-        "No results\nNext: shorten or broaden query; use githits grep.",
+        "No results found.\nFollow-up:\n  Try: shorten or broaden query; use githits grep.",
         "search",
       ),
     ).not.toThrow();
     expect(() =>
       assertSearchTerminalText(
-        "No result snapshot | failed | 0/1 ready\nNext: rerun search later.",
+        "No result snapshot available.\nFollow-up:\n  Search again later.",
         "search",
       ),
     ).not.toThrow();
@@ -78,7 +82,7 @@ Next: shorten or broaden query; use githits grep.`;
       completed.replace(" lib/application.js [repo code]", ""),
       "missing result follow-up",
     ],
-    ["1 result from npm:express@5.2.1", "missing result follow-up"],
+    ["Found 1 code result.", "missing result follow-up"],
   ])("rejects invalid search text", (text, message) => {
     expect(() => assertSearchTerminalText(text, "search")).toThrow(message);
   });
@@ -90,7 +94,7 @@ Next: shorten or broaden query; use githits grep.`;
   it("accepts unified repository headers with focused or equal evidence", () => {
     expect(() =>
       assertSearchTerminalText(
-        "1 result | 1 repo code hit\n\n" +
+        "Found 1 code result.\n\n" +
           "[1] github:owner/repo@abc123 packages/pkg/src/compact.ts:920-930 [repo code] - compact (function at lines 858-964)\n" +
           "  // Merge into single summary",
         "search",
@@ -98,7 +102,7 @@ Next: shorten or broaden query; use githits grep.`;
     ).not.toThrow();
     expect(() =>
       assertSearchTerminalText(
-        "1 result | 1 repo symbol\n\n" +
+        "Found 1 symbol result.\n\n" +
           "[1] github:owner/repo@abc123 packages/pkg/src/compact.ts:858-964 [repo symbol] - compact (function)",
         "search",
       ),
@@ -107,7 +111,7 @@ Next: shorten or broaden query; use githits grep.`;
 
   it("accepts structural search evidence text", () => {
     const structuralText =
-      "1 result | 1 repo code hit\n\n" +
+      "Found 1 code result.\n\n" +
       "[1] npm:express@4.18.2 lib/client.ts:142-145 [repo code]\n" +
       "  - class Client | lines 20-220\n" +
       "    - method Client.send | lines 120-165\n" +
@@ -124,7 +128,7 @@ Next: shorten or broaden query; use githits grep.`;
 
   it("accepts compact path matches but rejects their arbitrary numbered snippets", () => {
     const path =
-      "1 result | 1 repo code hit\n\n[1] npm:express@4.21.2 examples/route-middleware/index.js [repo code, path match]";
+      "Found 1 code result.\n\n[1] npm:express@4.21.2 examples/route-middleware/index.js [repo code, path match]";
     expect(() => assertSearchTerminalText(path, "search")).not.toThrow();
     expect(() =>
       assertSearchTerminalText(
@@ -150,7 +154,7 @@ Next: shorten or broaden query; use githits grep.`;
   it("accepts documentation hits that disclose a missing source URL", () => {
     expect(() =>
       assertSearchTerminalText(
-        "1 result | 1 docs page\n\n[1] page-1 [docs page] npm:express - source URL unavailable - README",
+        "Found 1 documentation result.\n\n[1] page-1 [docs page] npm:express - source URL unavailable - README",
         "search",
       ),
     ).not.toThrow();
@@ -159,7 +163,7 @@ Next: shorten or broaden query; use githits grep.`;
   it("accepts wrapped documentation and repository title tails", () => {
     expect(() =>
       assertSearchTerminalText(
-        "2 results | 1 repo code hit, 1 docs page\n\n" +
+        "Found 1 code result and 1 documentation result.\n\n" +
           "[1] page-1 [docs page] npm:express - docs.example.com/getting-started -\n" +
           "  A long documentation title\n\n" +
           "[2] npm:express@5.2.1 lib/application.js [repo code] -\n" +
@@ -172,7 +176,7 @@ Next: shorten or broaden query; use githits grep.`;
   it("accepts a wrapped repository title without a documentation hit", () => {
     expect(() =>
       assertSearchTerminalText(
-        "1 result | 1 repo code hit\n\n" +
+        "Found 1 code result.\n\n" +
           "[1] npm:express@5.2.1 lib/application.js [repo code] -\n" +
           "  A long repository title",
         "search",
@@ -182,41 +186,43 @@ Next: shorten or broaden query; use githits grep.`;
 
   it.each([
     [
-      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  This payload mentions githits code read but has no locator",
+      "Found 1 code result.\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  This payload mentions githits code read but has no locator",
     ],
     [
-      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  githits code read 'npm:express@5.2.1' --lines 1-10",
+      "Found 1 code result.\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  githits code read 'npm:express@5.2.1' --lines 1-10",
     ],
     [
-      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  ordinary title\n  githits code read 'npm:express@5.2.1' 'index.js'",
+      "Found 1 code result.\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n  ordinary title\n  githits code read 'npm:express@5.2.1' 'index.js'",
     ],
     [
-      "1 result\n\n[1] page-1 [docs page] npm:express - README\n" +
+      "Found 1 code result.\n\n[1] page-1 [docs page] npm:express - README\n" +
         "  githits docs read --lines 1-10",
     ],
     [
-      "1 result\n\n[1] page-1 [docs page] npm:express -\n" +
+      "Found 1 code result.\n\n[1] page-1 [docs page] npm:express -\n" +
         "  README without a source locator",
     ],
     [
-      "1 result\n\n[1] page ID unavailable [docs page] npm:express - docs.example.com/readme -\n" +
+      "Found 1 code result.\n\n[1] page ID unavailable [docs page] npm:express - docs.example.com/readme -\n" +
         "  Wrapped title without a page locator",
     ],
     [
-      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code] -\n" +
+      "Found 1 code result.\n\n[1] npm:express@5.2.1 location unavailable [repo code] -\n" +
         "  Wrapped title without a locator",
     ],
-    ["1 result\n\n[1] npm:express@5.2.1 lib/application.js [repo code] -"],
     [
-      "1 result\n\n[1] compact - function defined at packages/pkg/src/compact.ts:858-964",
+      "Found 1 code result.\n\n[1] npm:express@5.2.1 lib/application.js [repo code] -",
     ],
     [
-      "1 result\n\n" +
+      "Found 1 code result.\n\n[1] compact - function defined at packages/pkg/src/compact.ts:858-964",
+    ],
+    [
+      "Found 1 code result.\n\n" +
         "[1] compact - function defined at packages/pkg/src/compact.ts:858-964\n" +
         "  github:owner/repo@abc123 evidence at 920-930 [repo code]",
     ],
     [
-      "1 result\n\n[1] compact - function defined at location unavailable\n" +
+      "Found 1 code result.\n\n[1] compact - function defined at location unavailable\n" +
         "  github:owner/repo@abc123 evidence at 920-930 [repo code]",
     ],
   ])("rejects incomplete or prose-only hit follow-ups", (text) => {
@@ -228,9 +234,12 @@ Next: shorten or broaden query; use githits grep.`;
   it.each([
     [
       "Fix",
-      "No results\n\n- npm:missing@1.0.0\n  Fix: verify the package coordinate.",
+      "No results found.\n\n- npm:missing@1.0.0\n  Fix: verify the package coordinate.",
     ],
-    ["Try", "No results\n\n- npm:missing latest\n  Try: npm:missing@1.0.0"],
+    [
+      "Try",
+      "No results found.\n\n- npm:missing latest\n  Try: npm:missing@1.0.0",
+    ],
   ])(
     "accepts target-local %s recovery without a hit or Next",
     (_kind, text) => {
@@ -241,10 +250,10 @@ Next: shorten or broaden query; use githits grep.`;
   it("accepts terminal target rows with a global rerun action", () => {
     expect(() =>
       assertSearchTerminalText(
-        "No results | failed | 0/1 ready\n\n" +
+        "No results found.\nSearch failed.\n\n" +
           "- npm:express@4.18.2\n" +
           "  searched: code; not found: symbols\n\n" +
-          "Next: rerun search later.",
+          "Follow-up:\n  Search again later.",
         "search",
       ),
     ).not.toThrow();
@@ -259,7 +268,8 @@ Next: shorten or broaden query; use githits grep.`;
   ])("recognizes grouped target state detail: %s", (detail) => {
     expect(() =>
       assertSearchTerminalText(
-        `No results\n\n- npm:express@4.18.2\n  ${detail}\n\nNext: rerun search later.`,
+        `No results found.\n\n- npm:express@4.18.2\n  ${detail}\n\nFollow-up:
+  Search again later.`,
         "search",
       ),
     ).not.toThrow();
@@ -274,7 +284,8 @@ Next: shorten or broaden query; use githits grep.`;
   ])("rejects ungrouped target state detail: %s", (detail) => {
     expect(() =>
       assertSearchTerminalText(
-        `No results\n  ${detail}\n\nNext: rerun search later.`,
+        `No results found.\n  ${detail}\n\nFollow-up:
+  Search again later.`,
         "search",
       ),
     ).toThrow("readiness details must be grouped under a target");
@@ -326,20 +337,18 @@ Next: shorten or broaden query; use githits grep.`;
 
   it("rejects duplicate lifecycle, status, and Next lines", () => {
     expect(() =>
-      assertSearchTerminalText(
-        `${valid}\nNo results yet | indexing | 0/1 ready`,
-        "search",
-      ),
-    ).toThrow("duplicate lifecycle outcome lines");
+      assertSearchTerminalText(`${valid}\nNo results available yet.`, "search"),
+    ).toThrow("duplicate outcome lines");
     expect(() =>
       assertSearchTerminalText(`${valid}\nstatus: indexing`, "search"),
     ).toThrow("duplicated lifecycle status line");
     expect(() =>
       assertSearchTerminalText(
-        `${valid}\nNext: githits search-status other --wait 20`,
+        `${valid}\nFollow-up:
+  githits search-status other --wait 20`,
         "search",
       ),
-    ).toThrow("multiple Next actions");
+    ).toThrow("duplicated footer section");
   });
 
   it("rejects target diagnostics and missing target grouping", () => {
@@ -379,7 +388,7 @@ Next: shorten or broaden query; use githits grep.`;
   });
 
   it("ignores formatter-like words and diagnostics in indented hit content", () => {
-    const hitText = `1 result
+    const hitText = `Found 1 code result.
 
 [1] npm:express@5.2.1 lib/application.js [repo code]
   Ready: payload text
@@ -401,7 +410,7 @@ Next: shorten or broaden query; use githits grep.`;
 
   it("keeps multiline hit-body diagnostics opaque after a blank line", () => {
     const hitText =
-      "1 result | 1 repo code hit\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
+      "Found 1 code result.\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
       "  First summary paragraph.\n\n" +
       "  status: payload text\n" +
       "  searchRef=payload text\n" +
@@ -409,6 +418,25 @@ Next: shorten or broaden query; use githits grep.`;
       "  search_ref=payload text";
 
     expect(() => assertSearchTerminalText(hitText, "search")).not.toThrow();
+  });
+});
+
+describe("search footer structure", () => {
+  it("rejects a status command without its Follow-up section", () => {
+    expect(() =>
+      assertSearchTerminalText(
+        "No results available yet.\n  githits search-status ref --wait 30",
+        "search",
+      ),
+    ).toThrow("status action must be in Follow-up");
+  });
+  it("rejects out-of-order footer sections", () => {
+    expect(() =>
+      assertSearchTerminalText(
+        "Found 1 code result.\n\nMore results:\n  --offset 1\n\nRead:\n  githits read target path",
+        "search",
+      ),
+    ).toThrow("footer sections out of order");
   });
 });
 

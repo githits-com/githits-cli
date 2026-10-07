@@ -16,7 +16,7 @@ githits grep -F -- '--foo' github:example/repository
 
 Pending repository and documentation preparation is described in plain language,
 with advisory total indexing duration when available and a fresh-request retry
-action. Opaque progress IDs stay in JSON. An empty page says "No matches yet"
+action. Opaque progress IDs stay in JSON. An empty page says "No matches available yet."
 only when retryable unavailable targets account for every coverage gap; independent
 failures, cursor expiry and skipped evidence retain their warnings. Partial hits
 and real continuation cursors remain usable. Retry with the same ordered targets,
@@ -159,8 +159,9 @@ Sources:
 [2] https://expressjs.com/en/4x/api/
 51: ...
 
-# Read files: read --lines $start-$end -- $target $path
-# Read pages: read --lines $start-$end -- $url
+Read:
+  Files: githits read --lines $start-$end -- $target $path
+  Pages: githits read --lines $start-$end -- $url
 ```
 
 Read templates appear after all matches and before pagination/retry guidance,
@@ -195,9 +196,11 @@ the source with `(no results on this page)` instead of a separate unvisited-scop
 message. JSON preserves the backend enum and full status.
 
 Stale/failed scopes, skips, issues, omitted issue counts, safety normalization
-and unavailable targets stay visible on zero-hit pages. `No matches.` is
-exhaustive only for complete traversal without coverage gaps. Other empty
-pages report incomplete coverage. Cursors and terminal omissions can coexist;
+and unavailable targets stay visible on zero-hit pages. `No matches found.`
+with source `(no results)` is exhaustive only for complete traversal without
+coverage gaps. Empty continuation pages say `No matches on this page.`; real gaps
+retain attributed explanations. Overall non-pagination traversal still gets a
+limitation notice even when a sibling cursor remains. Cursors and terminal omissions can coexist;
 both are shown. Continue with identical ordered operands and controls.
 `CURSOR_EXPIRED` is a successful result requiring explicit restart; retained
 sibling hits and omissions remain visible.
@@ -280,3 +283,18 @@ printed once, with each requested target alias once and input-specific suggestio
 Grep does not fetch commit dates or resolved HEAD intent, so it does not claim
 either. Scan counts, skipped files, issues, cursors and backend read actions stay
 with their original scopes.
+
+
+Search/grep share optional Read, More results and Follow-up footers in that
+order. Grep leads with a page count such as `Found 4 matches on 3 lines in
+2 files.` Multiple occurrences on one physical line count as separate matches
+but one line; file/page groups use exact read identities. Sources/Preparing and
+attributed failure notes explain limitations without an abstract partial label.
+Healthy pagination does not claim a coverage failure, including unvisited
+UNSPECIFIED+RESUMABLE_LIMIT targets. The strict exhaustive predicate still owns
+source `no results` claims. Retryable-only omissions say `No matches available
+yet.`; empty continuation pages say `No matches on this page.` (or `No matches
+available yet on this page.` with retryable omissions). Independent gaps retain
+their warning beside the exact cursor. Read templates are absent without hits;
+cursor and retry instructions remain independent. Auth, requests and JSON are
+unchanged. The shared helper owns only footer layout; grep owns these semantics.

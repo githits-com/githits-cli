@@ -17,11 +17,16 @@ stored and could not obtain later evidence.
 With returned hits, an active search now leads with:
 
 ```text
-Next: use these hits now; read for details:
-read target="github:anomalyco/opencode@bbd72fb8" path="..." start_line=480 end_line=490
-For a specific ref, search github:anomalyco/opencode@<ref>.
-If you need current HEAD, wait (hits and order may change):
-search_status search_ref="..." wait_timeout_ms=120000
+Found 1 code result.
+
+Read:
+  Use these results now; example read:
+  read target="github:anomalyco/opencode@bbd72fb8" path="..." start_line=480 end_line=490
+  For a specific ref, search github:anomalyco/opencode@<ref>.
+
+Follow-up:
+  If you need current HEAD, wait (hits and order may change):
+  search_status search_ref="..." wait_timeout_ms=120000
 ```
 
 The specific-ref advice and HEAD-specific conditional appear only for proved
@@ -502,3 +507,77 @@ guideline against default-true agent booleans, preserving the existing
 flag. Compact query echo omits true as a default; false remains explicit. The
 parameter/status description changes are in this same user-directed increment;
 qualitative eval authentication limits above remain unchanged.
+
+
+## Concise search and grep headers and footers
+
+The shared `search-grep-output-text.ts` owns only the fixed footer order and
+indentation: optional **Read**, **More results**, then **Follow-up**. Each tool
+renderer owns its outcome, limitations, lifecycle and exact native operands.
+There is no command reconstruction or new service/state layer. Initial search
+and search status continue to share their semantic projection and renderer.
+
+Search counts each returned result once by kind, for example `Found 2 code
+results and 1 documentation result.` Grep counts page occurrences, distinct
+physical lines and exact file/page identities: `Found 4 matches on 3 lines in
+2 files.` Headlines omit pipe separators, readiness fractions, pagination and
+abstract partial/interim labels. Sources/Preparing and attributed coverage notes
+explain available evidence and missing scope. Only otherwise unexplained facts
+get a short notice: `These results do not cover the full request.` for backend
+partialResults, or explicit running/terminal/unknown lifecycle prose. The private
+availability projection retains partialResults, including completed empty
+snapshots; public JSON is unchanged. Dates do not drive these decisions.
+
+Healthy searches offer one exact read example without use-now prose. When a wait
+is offered beside usable hits, the read comes first with short use-now advice;
+the wait remains conditional. Readless usable results put `Use these results now.`
+first in Follow-up. Grep templates follow all matches; CLI templates include
+`githits`. Standalone read, pagination and status actions remain unwrapped;
+grep omitted-target retry remains wrapped guidance, as in the approved copy.
+ANSI changes only emphasis. Empty outputs omit read advice.
+
+Pagination always lives in More results, independently of lifecycle. Search/status
+instruct repeating the original search with the exact next offset, preserving
+its target/query/filter controls; status itself cannot paginate. A missing offset
+gets a truthful availability hint with no invented value. Active search pages
+warn that results can change. Grep preserves the opaque cursor for the original
+ordered targets and controls. Follow-up retains seconds for CLI search-status
+and milliseconds for MCP status and grep retries. Ended references never poll.
+Counted alternatives say `(+N more)`; unknown `+more` remains unknown.
+
+For grep, CURRENT+RESUMABLE_LIMIT and UNSPECIFIED+RESUMABLE_LIMIT are ordinary
+pagination absent independent errors/skips. The strict exhaustive predicate
+still controls source-level `no results` claims. Retryable-only omitted targets
+use `No matches available yet.` (adding `on this page` beside a cursor), even
+when omission accounting yields NON_RESUMABLE_PARTIAL overall. Preparing/Omitted
+already explains that limit. Independent failed traversal, stale readiness,
+errors/skips/issues and expired cursors retain attributed warnings. Unspecified
+readiness outside unvisited pagination is explicitly unknown. Search/grep empty
+continuation pages say `No results on this page.` / `No matches on this page.`
+
+
+Follow-up verification (2026-10-07): full `bun test` passes 5,624 tests across
+235 files, zero failures and 22,404 assertions. Typecheck, both builds, source
+and built CLI/MCP smoke checks, and packed public-package validation pass. Smoke
+business cohorts skipped AUTH_REQUIRED; authenticated dev calls separately
+prove output. Pending CLI search/grep used registry-confirmed Express 2.3.12;
+MCP grep used 2.4.0 and fresh pending MCP search/status used 2.4.1. Both pending
+search surfaces returned one hosted-doc result with actual repository Preparing,
+indexed alternatives, native read, offset1 and conditional status. Immediate
+MCP status returned byte-identical text. Once indexed, healthy CLI/MCP search
+returned code with Sources, Read and More results, without a wait. Initial MCP
+search's transient Keychain error was retried successfully; no auth code changed.
+
+The same fixed renderer fixtures measure ready search 89 -> 163 bytes (+74),
+preparing search 459 -> 553 (+94) and mixed paged grep 6992 -> 6985 (-7). Search
+adds actionable read/pagination footers the baseline omitted. These are output
+bytes, not tokens, latency or proof of agent quality. Targeted Claude agent:e2e
+search-investigation and grep-mixed-docs remained blocked by `Not logged in`:
+zero tool calls, no final/isolation artifacts, unknown usage. No comprehension
+claim follows. The revised cursor/coverage closure passes 354 focused tests,
+zero failures and 1,353 assertions; the final headline-assertion closure passes
+19 tests, zero failures and 118 assertions. Typecheck, both builds and
+source/built CLI/MCP smoke checks pass after the production correction.
+Internal review and fresh Claude Opus 5.5 review, including its final
+fresh-context check, are clean for implementation commit 384e9c2. No major
+deferred item or new infrastructure was introduced.

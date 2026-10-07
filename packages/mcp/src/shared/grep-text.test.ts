@@ -72,12 +72,8 @@ describe("grep text formatting", () => {
       "Sources: - github:expressjs/express@dbac741a - site:expressjs.com (hosted documentation)",
     );
     expect(normalizedText.match(/site:expressjs\.com/g) ?? []).toHaveLength(1);
-    expect(
-      lines.filter((line) => line.startsWith("# Read files:")),
-    ).toHaveLength(1);
-    expect(
-      lines.filter((line) => line.startsWith("# Read pages:")),
-    ).toHaveLength(1);
+    expect(lines.filter((line) => line.startsWith("  Files:"))).toHaveLength(1);
+    expect(lines.filter((line) => line.startsWith("  Pages:"))).toHaveLength(1);
     expect(rendered).not.toContain("Read recipes");
     expect(rendered).not.toContain("Hosted page reads");
     const expectedRows = new Map<string, number>();
@@ -149,22 +145,26 @@ describe("grep text formatting", () => {
       );
       const fileRecipe =
         syntax === "cli"
-          ? "# Read files: read --lines $start-$end -- $target $path"
-          : "# Read files: read target=$target path=$path start_line=$start end_line=$end";
+          ? "Files: githits read --lines $start-$end -- $target $path"
+          : "Files: read target=$target path=$path start_line=$start end_line=$end";
       const pageRecipe =
         syntax === "cli"
-          ? "# Read pages: read --lines $start-$end -- $url"
-          : "# Read pages: read target=$url start_line=$start end_line=$end";
-      const fileRecipeIndex = lines.indexOf(fileRecipe);
-      const pageRecipeIndex = lines.indexOf(pageRecipe);
+          ? "Pages: githits read --lines $start-$end -- $url"
+          : "Pages: read target=$url start_line=$start end_line=$end";
+      const fileRecipeIndex = lines.indexOf(`  ${fileRecipe}`);
+      const pageRecipeIndex = lines.indexOf(`  ${pageRecipe}`);
       const continuationIndex = lines.indexOf(
-        "More matches: repeat this grep, adding:",
+        "  Repeat the original grep, adding:",
       );
 
       expect(finalContentRowIndex).toBeGreaterThanOrEqual(0);
       expect(lines[finalContentRowIndex + 1]).toBe("");
-      expect(lines.filter((line) => line === fileRecipe)).toHaveLength(1);
-      expect(lines.filter((line) => line === pageRecipe)).toHaveLength(1);
+      expect(lines.filter((line) => line === `  ${fileRecipe}`)).toHaveLength(
+        1,
+      );
+      expect(lines.filter((line) => line === `  ${pageRecipe}`)).toHaveLength(
+        1,
+      );
       expect(fileRecipeIndex).toBeGreaterThan(finalContentRowIndex);
       expect(pageRecipeIndex).toBeGreaterThan(finalContentRowIndex);
       expect(fileRecipeIndex).toBeLessThan(pageRecipeIndex);
@@ -175,8 +175,8 @@ describe("grep text formatting", () => {
         { ...result, hits: [], totalMatches: 0 },
         { useColors: false, width: 200, syntax },
       );
-      expect(emptyText).not.toContain("# Read files:");
-      expect(emptyText).not.toContain("# Read pages:");
+      expect(emptyText).not.toContain("Files:");
+      expect(emptyText).not.toContain("Pages:");
     }
   });
 
@@ -274,7 +274,7 @@ describe("grep text formatting", () => {
       expect(text).not.toContain("Run grep again");
       expect(text).not.toContain("Use the cursor below");
       expect(lines.at(-1)).toBe(
-        `To retry omitted targets, rerun the original query with ${syntax === "cli" ? "--wait 100000" : "wait_timeout_ms=100000"}.`,
+        `  To retry omitted targets, rerun the original query with ${syntax === "cli" ? "--wait 100000" : "wait_timeout_ms=100000"}.`,
       );
       const cursor = syntax === "cli" ? "  --cursor " : "  cursor=";
       expect(
@@ -333,7 +333,7 @@ describe("grep text formatting", () => {
       expect(text).not.toContain("not visited");
       expect(text).not.toContain("Omitted:");
       expect(text).not.toContain("To retry omitted targets");
-      expect(text).toContain("More matches: repeat this grep, adding:");
+      expect(text).toContain("Repeat the original grep, adding:");
       expect(text).toContain(syntax === "cli" ? "  --cursor " : "  cursor=");
     }
     expect(result).toEqual(before);
@@ -490,10 +490,10 @@ describe("grep text formatting", () => {
         indexingEstimates: [],
       };
       expect(formatGrepText(complete, { syntax })).toContain(
-        "No matches.\n\nSources:\n  - site:expressjs.com (no results, hosted documentation)",
+        "No matches found.\n\nSources:\n  - site:expressjs.com (no results, hosted documentation)",
       );
       expect(formatGrepText({ ...complete, targets: [] }, { syntax })).toBe(
-        "No matches.",
+        "No matches found.",
       );
     }
   });

@@ -369,25 +369,17 @@ readiness, trust limits, and action selection; the text renderer owns wording,
 wrapping, hit anatomy, and ordering. Callers provide ANSI enablement,
 surface-native action syntax, and an optional output width. CLI supplies its
 current terminal width; MCP uses the formatter's 80-column default. The order is
-an outcome headline carrying count/breakdown, lifecycle, readiness, and
-pagination when applicable; shared `Sources:` bullet rows for searched evidence,
+one plain outcome sentence counting each returned kind once, without lifecycle,
+readiness fractions or pagination; shared `Sources:` rows for searched evidence,
 then `Preparing:` rows for actual work before ranked hits. Known repository rows
-use an 8-character display SHA, optional independent date and historical ref;
-current healthy evidence uses the same shape. Documentation rows retain exact
-site scope/corpus and package attribution. Unknown identities retain supplied
-labels. Zero-hit searched sources disclose their scope; unsearched/withheld
-sources retain target-local readiness/recovery instead. Different full SHAs,
-corpora, readiness or coverage remain distinct. Target-local limitations and
-global warnings remain visible, followed by at most one final `Next:` action.
+use an 8-character display SHA, optional independent date and historical ref.
+Target/source limitations remain attributed. Backend partialResults gets a short
+full-request warning only when those rows do not explain the missing scope.
+Terminal and unknown states retain explicit prose; active work gets a notice
+only when otherwise unexplained. Empty active output says `No results available
+yet.`; empty continuation pages say `No results on this page.`
 
-`PENDING`, `INDEXING`, and `SEARCHING` remain distinct. Active empty output uses
-`No results yet | indexing | 0/1 ready`; an active response without a snapshot
-uses `No result snapshot yet | indexing | 0/1 ready`, with corresponding
-lower-case lifecycle labels for other active states. Active result counts use
-`partial` only when `partialResults` is true; otherwise they say `results`
-beside the lifecycle. Terminal
-or unknown progress retains lifecycle/readiness in the headline, while completed
-output omits them. Target rows keep deterministic `commit`/`using`, `searched`,
+Target rows keep deterministic `commit`/`using`, `searched`,
 `indexing`, terminal/unavailable, `available`, `indexed`, and constraint segments;
 exact terminal reasons remain lane-readable, and a target gets at most one
 inline `Fix:` or replayable `Try:` line. Site suggestions and indexed alternatives
@@ -401,14 +393,16 @@ codes, indexing references, and opaque evidence text stay out of default text.
 Reissuing the same search is valid and waits on the same underlying work; text
 does not emit negative repeat or poll policy directives.
 
-MCP renders `Next: search_status search_ref=... wait_timeout_ms=...`; CLI renders
-`Next: githits search-status ... --wait ...`. An active continuation reference
-appears exactly once, in that surface-native final `Next:` action; stopped terminal
-references are not rendered. Raw diagnostic fields are never rendered.
-Search results omit per-hit read commands from both text surfaces. ANSI-stripped
-CLI output shares the same hierarchy and wording as no-color MCP text; line
-breaks can differ because CLI uses the terminal width while MCP uses the
-80-column default.
+Search and grep share optional `Read:`, `More results:` and `Follow-up:` footers
+in that order. Search offers one exact read example, including healthy completed
+results; grep offers file/page templates after matches. MCP actions use native
+`read`, `search_status` and argument syntax; CLI actions use `githits` commands.
+A status reference appears once under Follow-up. With usable hits, reading is
+first and waiting conditional; stopped references never poll. Pagination repeats
+the original search with its exact offset or grep with its opaque cursor,
+preserving original controls. Search status cannot paginate. ANSI changes only
+emphasis; widths can differ. See [snapshot presentation](search-snapshot-presentation.md#concise-search-and-grep-headers-and-footers)
+for zero-page, limitation and continuation rules. JSON remains unchanged.
 
 Documentation JSON retains `docsReadTarget`, compatible `pageId`, and provenance
 `sourceUrl`. Search/status JSON follow-ups consume the backend `ReadTarget`
