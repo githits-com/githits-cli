@@ -583,6 +583,6 @@ labels now render as words, and note-authored `[n]` markers render as `(n)`
 before formatter citations are inserted. The same rendering covers statement
 quotes, keyword excerpts, verbose note previews and headings; JSON remains raw.
 The round limit prevents another external review of this fix. It is verified by
-a regression covering these paths and internal closure review; no unresolved
+a regression covering these paths and a clean internal closure review; no unresolved
 finding remains. Final focused checks passed 57 tests / 782 assertions, with
 post-fix typecheck/build/package validation.
