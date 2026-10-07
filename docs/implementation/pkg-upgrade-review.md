@@ -555,8 +555,8 @@ section went from 4,212 bytes / 69 lines to 2,717 bytes / 52 lines at width 80;
 this is an output-size observation, not a runtime performance claim.
 
 The full Bun suite passed 5,638 tests / 22,598 assertions. Focused formatter,
-CLI/MCP parity, handler and descriptor-catalog checks passed 55 tests / 769
-assertions. Typecheck, build, public-package validation, both built smokes and
+CLI/MCP parity, handler and descriptor-catalog checks initially passed 55 tests /
+769 assertions. Typecheck, build, public-package validation, both built smokes and
 source auth-handling smokes passed. Source isolated live cohorts still skipped
 with AUTH_REQUIRED as described above. Normal-auth dev CLI verified the Express
 example; local stdio MCP verified that example, all three original requested
@@ -574,3 +574,15 @@ source list to rendered references closes that gap for statements and keyword
 quotes. The final affected checks passed 56 tests / 774 assertions, with
 post-fix typecheck/build/package validation. The full-suite count above predates
 that final focused source-list regression.
+
+
+External UX review (round 3): direction sound. One low finding showed
+note-authored numeric Markdown references could impersonate Sources citations
+and keep an otherwise clipped link in the source list. Reference-style link
+labels now render as words, and note-authored `[n]` markers render as `(n)`
+before formatter citations are inserted. The same rendering covers statement
+quotes, keyword excerpts, verbose note previews and headings; JSON remains raw.
+The round limit prevents another external review of this fix. It is verified by
+a regression covering these paths and internal closure review; no unresolved
+finding remains. Final focused checks passed 57 tests / 782 assertions, with
+post-fix typecheck/build/package validation.

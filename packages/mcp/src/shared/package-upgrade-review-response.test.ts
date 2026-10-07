@@ -1314,6 +1314,45 @@ describe("upgrade review model statement evidence", () => {
     expect(review.changelog.riskItems[0]!.text).toBe(text);
   });
 
+  it("distinguishes note-authored references from source citations in every note path", () => {
+    const text = `See the [migration guide][1] and [reference][named] before upgrading. Footnote [3]. Link [2](https://example.com/numeric). ${"context ".repeat(50)}See https://example.com/clipped.`;
+    const review = riskReview([
+      riskItem({ tier: "should_know", text, heading: "Migration [3]" }),
+    ]);
+    review.changelog.keywordEntries = [
+      {
+        version: "4.4.2",
+        detailSource: "changelog_file",
+        signals: ["removed"],
+        body: "Removed API; see [migration guide][1]. Footnote [3].",
+      },
+    ];
+    review.changelog.entries.push({
+      version: "4.4.1",
+      detailSource: "releases",
+      signals: [],
+      bodyPreview: "See [documentation][docs]. Footnote [3].",
+    });
+    const before = JSON.stringify(review);
+    const response = formatterResponse([review]);
+    const compact = formatPackageUpgradeReviewTerminal(response);
+    expect(compact.replace(/\s+/g, " ")).toContain(
+      "See the migration guide and reference before upgrading. Footnote (3).",
+    );
+    expect(compact).toContain(
+      '"Removed API; see migration guide. Footnote (3)."',
+    );
+    expect(compact).not.toContain("https://example.com/clipped");
+    expect(compact).toContain("Link 2 [2].");
+    const verbose = formatPackageUpgradeReviewTerminal(response, {
+      verbose: true,
+    });
+    expect(verbose).toContain("heading: Migration (3)");
+    expect(verbose).toContain('"See documentation. Footnote (3)."');
+    expect(verbose).toContain("https://example.com/clipped");
+    expect(JSON.stringify(review)).toBe(before);
+  });
+
   it("omits in-note URLs clipped out of compact statement and keyword quotes", () => {
     const text = `Important change. ${"context ".repeat(50)}See [details](https://example.com/late).`;
     const review = riskReview([riskItem({ tier: "should_know", text })]);

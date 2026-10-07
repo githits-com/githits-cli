@@ -75,3 +75,12 @@ Changes - 0 require action | 6 should know | 5 unclassified
 Verification: 5,638 full tests / 22,598 assertions and 55 focused tests / 769 assertions passed; typecheck/build/package, source auth-handling smokes and both built smokes passed. Normal-auth dev CLI Express and local MCP four ranges plus batch passed. Saved Express Changes 4,212 bytes / 69 lines -> 2,717 bytes / 52 lines at width 80, no runtime performance claim. Targeted descriptor eval passed with medium confidence, nine completed logical calls (three upgrade reviews), trace inspected, no quality grade. Final code review pending.
 
 Internal code preflight: direction sound. Accepted source-list finding: quote excerpting removed a reference while still listing its late URL. Sources are now filtered by references in the actual rendered lines; no two-phase numbering mechanism needed. Checked statement and keyword paths, full action/verbose behavior and JSON preservation. Regression covers late links in both paths; full/verbose references remain visible.
+
+
+Final external round3: direction sound; accepted low numeric-reference citation
+collision. Root cause note-authored Markdown numbers shared display syntax with
+formatter citations and source pruning. Fixed reference-style labels and numeric
+markers in shared rendering, including verbose headings. Sibling scan all quote,
+keyword and preview paths; raw JSON unchanged. Regression tests added. No fourth
+external round under review limit; fix requires internal closure and verification
+before final delivery. No deferred finding or backend change.

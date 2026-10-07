@@ -1116,7 +1116,9 @@ function formatChangesSection(
           );
         if (options.verbose) {
           const details = [
-            item.heading ? `heading: ${safeRiskText(item.heading)}` : undefined,
+            item.heading
+              ? `heading: ${releaseNoteText(item.heading, (url) => reference(url))}`
+              : undefined,
             item.tierConfidence !== undefined
               ? `tier confidence: ${item.tierConfidence}`
               : undefined,
@@ -1226,7 +1228,11 @@ function releaseNoteText(
           .replace(/\[!([A-Z]+)\]/g, "$1:"),
       )
       .join(" "),
-  ).replace(/`([^`]+)`/g, "$1");
+  )
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\[[^\]]*\]/g, "$1")
+    // Note-authored numbers must not impersonate our source citations.
+    .replace(/\[(\d+)\](?!\()/g, "($1)");
   return plain
     .replace(
       /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>]+)/g,
