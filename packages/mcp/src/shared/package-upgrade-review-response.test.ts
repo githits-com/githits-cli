@@ -1574,6 +1574,30 @@ describe("upgrade review model statement evidence", () => {
     expect(JSON.stringify(review)).toBe(before);
   });
 
+  it("retains peer changes and compatibility notes in default batch triage", () => {
+    const changed = riskReview();
+    changed.compatibility = {
+      peerDependencyChanges: ["react: ^18 -> ^19"],
+      notes: ["Runtime requirement changed", "Peer support changed"],
+    };
+    const unchecked = riskReview([]);
+    unchecked.compatibility = undefined;
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([changed, unchecked]),
+    );
+    expect(text).toContain("1 peer dependency changes | 2 compatibility notes");
+    expect(text).toContain(
+      "not checked peer dependency changes | not checked compatibility notes",
+    );
+    expect(text).not.toContain("Runtime requirement changed");
+    const verbose = formatPackageUpgradeReviewTerminal(
+      formatterResponse([changed, unchecked]),
+      { verbose: true },
+    );
+    expect(verbose).toContain("react: ^18 -> ^19");
+    expect(verbose).toContain("Runtime requirement changed");
+  });
+
   it("renders sorted batch triage once per package, honest coverage and verbose detail without mutating JSON order", () => {
     const noItems = riskReview([]);
     noItems.name = "none";

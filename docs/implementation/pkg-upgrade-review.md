@@ -302,7 +302,8 @@ headline and a triage table sorted by returned `must_act` statement count. The a
 unknowns and independently counts reviews with not-assessed, missing-note or
 unparseable classification coverage. This avoids claiming zero evidence gaps
 while the classifier is still pending. Equal action counts keep backend order. Counts can include a statement from
-multiple sources. Default batch output has one unwrapped row per package; `--verbose` adds the detailed reports in
+multiple sources. Default batch output has one unwrapped row per package, including peer dependency
+change and compatibility-note counts (or not checked when absent); `--verbose` adds the detailed reports in
 that order. JSON preserves backend review order. Zero and one package omit it. The summary and package sections report
 facts only; they never call an upgrade safe, risky, approved, or rejected.
 
@@ -573,5 +574,9 @@ single requests. An immediate raw aggregate replay with identical options
 returned equal zero-valued transitive blocks for both shapes; the cause is
 unconfirmed and outside the new risk fields. No backend changes were made.
 
-Integration retained main PRs #460 and #461; changelog/source-diff follow-up
+After the batch-compatibility review fix, shared formatter/CLI-MCP parity
+tests passed 35 tests / 241 assertions; typecheck/build, package validation,
+plugin checks and both built smokes were rerun.
+
+Integration retained main PRs #460 and #461 plus release metadata #462; changelog/source-diff follow-up
 guidance and all existing catalog assertions remain in place.

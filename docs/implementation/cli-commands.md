@@ -771,7 +771,8 @@ delimiter is rejected with guidance to use `..`.
 The human-readable CLI and MCP `pkg_upgrade_review` output use one shared
 formatter. It starts with `Upgrade review - N package(s)`, adds one
 `Across packages:` line and a triage table only for batches. Default batch rows
-are sorted by returned action-statement count and include classification coverage;
+are sorted by returned action-statement count and include classification coverage,
+peer-change and compatibility-note counts;
 `--verbose` adds full per-package reports. Single-package reports group identity,
 security, deprecation, changes, compatibility, dependencies, dependency
 issues, and unknown evidence. Empty optional groups are omitted, but a returned
