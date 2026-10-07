@@ -3,6 +3,7 @@ import type { PackageUpgradeReviewResponse } from "@githits/core-internal";
 import { createMockPackageIntelligenceService } from "../services/test-helpers.js";
 import { buildPackageUpgradeReviewRequest } from "./package-upgrade-review-request.js";
 import type {
+  UpgradeChangelogRiskItem,
   UpgradeReview,
   UpgradeReviewResponse,
 } from "./package-upgrade-review-response.js";
@@ -126,6 +127,15 @@ const backendResponse: PackageUpgradeReviewResponse = {
         hasReleaseNoteBodies: true,
         breakingSignals: ["breaking"],
         migrationSignals: [],
+        riskItems: [],
+        riskCoverage: {
+          versionsClassified: 0,
+          versionsNotAssessed: 0,
+          versionsWithoutNotes: 0,
+          versionsUnparseable: 0,
+          unitsNoImpact: 0,
+          itemsOmitted: 0,
+        },
       },
       compatibility: { peerDependencyChanges: [], notes: [] },
       dependencyChanges: {
@@ -197,6 +207,10 @@ function formatterReview(
     },
     changelog: {
       ...review.changelog,
+      riskItems: review.changelog.riskItems.map((item) => ({
+        ...item,
+        tier: item.tier.toLowerCase() as UpgradeChangelogRiskItem["tier"],
+      })),
       source: "releases",
       fallback: undefined,
       entries: review.changelog.entries.map(normalizeEntry),
@@ -363,6 +377,7 @@ describe("package upgrade review response", () => {
     const response = formatterResponse([first, second]);
     const text = formatPackageUpgradeReviewTerminal(response, {
       terminalWidth: 80,
+      verbose: true,
     });
 
     expect(
@@ -734,6 +749,15 @@ describe("package upgrade review response", () => {
               totalKeywordEntries: 0,
               breakingSignals: [],
               migrationSignals: [],
+              riskItems: [],
+              riskCoverage: {
+                versionsClassified: 0,
+                versionsNotAssessed: 0,
+                versionsWithoutNotes: 0,
+                versionsUnparseable: 0,
+                unitsNoImpact: 0,
+                itemsOmitted: 0,
+              },
             },
           }),
         ]),
@@ -838,6 +862,15 @@ describe("package upgrade review response", () => {
             totalKeywordEntries: 0,
             breakingSignals: [],
             migrationSignals: [],
+            riskItems: [],
+            riskCoverage: {
+              versionsClassified: 0,
+              versionsNotAssessed: 0,
+              versionsWithoutNotes: 0,
+              versionsUnparseable: 0,
+              unitsNoImpact: 0,
+              itemsOmitted: 0,
+            },
           },
         }),
       ]),
@@ -865,6 +898,15 @@ describe("package upgrade review response", () => {
             totalEntriesWithBodies: 0,
             breakingSignals: [],
             migrationSignals: [],
+            riskItems: [],
+            riskCoverage: {
+              versionsClassified: 0,
+              versionsNotAssessed: 0,
+              versionsWithoutNotes: 0,
+              versionsUnparseable: 0,
+              unitsNoImpact: 0,
+              itemsOmitted: 0,
+            },
           },
         }),
       ]),
@@ -1043,6 +1085,15 @@ describe("package upgrade review response", () => {
             totalEntriesWithBodies: 2,
             breakingSignals: [],
             migrationSignals: [],
+            riskItems: [],
+            riskCoverage: {
+              versionsClassified: 0,
+              versionsNotAssessed: 0,
+              versionsWithoutNotes: 0,
+              versionsUnparseable: 0,
+              unitsNoImpact: 0,
+              itemsOmitted: 0,
+            },
           },
         }),
       ]),
@@ -1310,5 +1361,235 @@ describe("package upgrade review response", () => {
     expect(packageUpgradeReview.mock.calls[0]?.[0]).toMatchObject({
       minSeverity: undefined,
     });
+  });
+});
+
+function riskItem(
+  overrides: Partial<UpgradeChangelogRiskItem> = {},
+): UpgradeChangelogRiskItem {
+  return {
+    version: "4.4.3",
+    tier: "must_act",
+    tierConfidence: 0.98,
+    kind: "removes_or_renames_api",
+    kindConfidence: 0.99,
+    text: "Removed an API.",
+    textTruncated: false,
+    heading: "Removed",
+    source: "releases",
+    model: "jev-1.13.0",
+    formulation: "d-hier-v1",
+    ...overrides,
+  };
+}
+
+function riskReview(
+  items: UpgradeChangelogRiskItem[] = [riskItem()],
+): UpgradeReview {
+  const base = formatterReview();
+  return {
+    ...base,
+    changelog: {
+      ...base.changelog,
+      riskItems: items,
+      riskCoverage: {
+        versionsClassified: 1,
+        versionsNotAssessed: 0,
+        versionsWithoutNotes: 0,
+        versionsUnparseable: 0,
+        unitsNoImpact: 56,
+        itemsOmitted: 0,
+      },
+      entries: [
+        {
+          version: "4.4.3",
+          detailSource: "releases",
+          htmlUrl: "https://example.com/release",
+          signals: [],
+        },
+      ],
+    },
+  };
+}
+
+describe("upgrade review model statement evidence", () => {
+  it("shows tier, optional kind, full action quotes, matching source links and provenance", () => {
+    const longText = `Removed an API. ${"evidence ".repeat(100)}END`;
+    const review = riskReview([
+      riskItem({ text: longText }),
+      riskItem({
+        tier: "should_know",
+        kind: "deprecates_without_removal",
+        text: `Deprecated API. ${"detail ".repeat(50)}KNOW_END`,
+      }),
+      riskItem({
+        tier: "unclassified",
+        kind: undefined,
+        kindConfidence: undefined,
+        text: `Uncertain. ${"detail ".repeat(50)}READ_END`,
+      }),
+    ]);
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    );
+    const compact = text.replace(/\s+/g, " ");
+    expect(compact).toContain(longText.trim());
+    expect(text).toContain("Requires action (1)");
+    expect(text).toContain("Should know (1)");
+    expect(text).toContain("Unclassified - read if relevant (1)");
+    expect(text.indexOf("Requires action")).toBeLessThan(
+      text.indexOf("Should know"),
+    );
+    expect(text.indexOf("Should know")).toBeLessThan(
+      text.indexOf("Unclassified"),
+    );
+    expect(compact).toContain('removal 4.4.3 "Removed an API.');
+    expect(text).toContain("https://example.com/release");
+    expect(text).toContain("jev-1.13.0 / d-hier-v1");
+    expect(compact).toContain("Not a compatibility verdict.");
+    expect(text).not.toContain("KNOW_END");
+    expect(text).not.toContain("READ_END");
+    expect(text).toContain("[excerpt; expand with verbose]");
+    const verbose = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+      { verbose: true },
+    );
+    expect(verbose).toContain("KNOW_END");
+    expect(verbose).toContain("READ_END");
+    expect(verbose).toContain("tier confidence: 0.98");
+    expect(verbose).toContain("heading: Removed");
+  });
+
+  it("keeps source links unique, matches version and source exactly, and preserves Unicode in excerpts", () => {
+    const review = riskReview([
+      riskItem(),
+      riskItem({ text: "Removed another API." }),
+      riskItem({ source: "changelog_file", text: "Other source." }),
+      riskItem({ version: "4.4.2", text: "Other version." }),
+      riskItem({ tier: "unclassified", text: `${"x".repeat(119)}😀TAIL` }),
+    ]);
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    ).split("Heuristic signals:")[0]!;
+    expect(text.match(/https:\/\/example.com\/release/g)).toHaveLength(1);
+    expect(text).toContain("Statement sources");
+    expect(text).toContain('😀..."');
+    expect(text).not.toContain("TAIL");
+    expect(text).not.toContain("4.4.2 [releases] https:");
+    expect(text).not.toContain("4.4.3 [changelog_file] https:");
+  });
+
+  it("always reports every coverage counter, including zero items and entirely unassessed ranges", () => {
+    const review = riskReview([]);
+    review.changelog.riskCoverage = {
+      versionsClassified: 0,
+      versionsNotAssessed: 20,
+      versionsWithoutNotes: 2,
+      versionsUnparseable: 1,
+      unitsNoImpact: 0,
+      itemsOmitted: 0,
+    };
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    ).replace(/\s+/g, " ");
+    expect(text).toContain(
+      "0 classified | 20 not assessed | 2 without notes | 1 unparseable",
+    );
+    expect(text).toContain("0 returned | 0 labeled no impact");
+    expect(text).toContain("Rerun to fill not-assessed versions");
+    expect(text).toContain(
+      "Missing or unparseable notes are not evidence of no risk",
+    );
+    expect(text).not.toContain("Requires action");
+    expect(text).not.toMatch(/\bsafe\b/);
+    review.changelog.riskCoverage.versionsNotAssessed = 0;
+    const empty = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    );
+    expect(empty).not.toContain("Rerun to fill");
+    expect(empty).toContain("0 labeled no impact");
+  });
+
+  it("distinguishes omitted items and backend-truncated quotes from local excerpts", () => {
+    const review = riskReview([
+      riskItem({
+        text: "X".repeat(1000),
+        textTruncated: true,
+        kind: undefined,
+        kindConfidence: undefined,
+      }),
+    ]);
+    review.changelog.riskCoverage.itemsOmitted = 7;
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    );
+    expect(text).toContain("7 omitted by backend");
+    expect(text).toContain("[statement truncated by backend]");
+    expect(text).toContain("X".repeat(1000));
+    expect(text).not.toContain("[excerpt;");
+    expect(text).not.toContain("undefined");
+  });
+
+  it("sanitizes new release-note text and metadata only at presentation, without mismatched links", () => {
+    const terminalEscape = String.fromCharCode(27);
+    const review = riskReview([
+      riskItem({
+        text: `quote ${terminalEscape}[31mred${terminalEscape}[0m 漢字\nnext\tword\u0000`,
+        version: `4.4.3${terminalEscape}[2J`,
+        heading: `Removed${terminalEscape}[2J`,
+        source: `changelog_file${terminalEscape}[2J`,
+        model: `jev${terminalEscape}[2J`,
+        formulation: `d${terminalEscape}[2J`,
+      }),
+    ]);
+    const before = JSON.stringify(review);
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+      { verbose: true, terminalWidth: 40 },
+    );
+    expect(text).not.toContain(terminalEscape);
+    expect(text).not.toContain("\u0000");
+    expect(text.replace(/\s+/g, " ")).toContain("quote red 漢字 next word");
+    expect(text.split("Heuristic signals:")[0]).not.toContain(
+      "https://example.com/release",
+    );
+    expect(JSON.stringify(review)).toBe(before);
+  });
+
+  it("renders sorted batch triage once per package, honest coverage and verbose detail without mutating JSON order", () => {
+    const noItems = riskReview([]);
+    noItems.name = "none";
+    noItems.changelog.riskCoverage.versionsClassified = 0;
+    noItems.changelog.riskCoverage.versionsNotAssessed = 2;
+    const one = riskReview();
+    one.name = "one";
+    const two = riskReview([
+      riskItem(),
+      riskItem({ text: "Removed other API." }),
+    ]);
+    two.name = "two";
+    two.changelog.riskCoverage.itemsOmitted = 4;
+    const response = formatterResponse([noItems, one, two]);
+    const text = formatPackageUpgradeReviewTerminal(response);
+    expect(text.indexOf("npm:two")).toBeLessThan(text.indexOf("npm:one"));
+    expect(text.indexOf("npm:one")).toBeLessThan(text.indexOf("npm:none"));
+    expect(
+      text.split("\n").filter((line) => line.includes("npm:two")),
+    ).toHaveLength(1);
+    expect(text).toContain("2 act | 0 know | 0 unclassified");
+    expect(text).toContain("0 classified"); // pending coverage independently returned
+    expect(text).toContain("Rerun to fill not-assessed versions");
+    expect(text).not.toContain("Requires action (");
+    expect(text).toContain("verbose");
+    expect(response.reviews.map((review) => review.name)).toEqual([
+      "none",
+      "one",
+      "two",
+    ]);
+    const verbose = formatPackageUpgradeReviewTerminal(response, {
+      verbose: true,
+    });
+    expect(verbose).toContain('"Removed other API."');
+    expect(verbose).toContain("Security");
   });
 });

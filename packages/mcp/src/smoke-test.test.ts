@@ -1392,7 +1392,10 @@ function smokeResponse(
           "  Direct: 0 affected -> 0 affected | 0 fixed | 0 added | 0 still present\n" +
           "  Transitive: not checked\n\n" +
           "Changes\n" +
-          "  Repository releases | 1 entry | 1 with release notes",
+          "  Repository releases | 1 entry | 1 with release notes\n" +
+          "  Classification versions: 1 classified | 0 not assessed | 0 without notes | 0 unparseable\n" +
+          "  Statements: 0 returned | 1 labeled no impact\n" +
+          "  Classified by a model. Not a compatibility verdict.",
       );
     case "list":
       return textResult(smokeListText(args));
@@ -1552,7 +1555,24 @@ function smokeJsonResponse(
       }
       return jsonResult({ entries: {} });
     case "pkg_upgrade_review":
-      return jsonResult({ summary: {}, reviews: [{}] });
+      return jsonResult({
+        summary: {},
+        reviews: [
+          {
+            changelog: {
+              riskItems: [],
+              riskCoverage: {
+                versionsClassified: 1,
+                versionsNotAssessed: 0,
+                versionsWithoutNotes: 0,
+                versionsUnparseable: 0,
+                unitsNoImpact: 1,
+                itemsOmitted: 0,
+              },
+            },
+          },
+        ],
+      });
     case "list":
       return jsonResult(smokeListResult(args));
     case "read": {

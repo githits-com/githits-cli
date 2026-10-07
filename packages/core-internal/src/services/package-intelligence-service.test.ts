@@ -3201,6 +3201,29 @@ describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
                     hasReleaseNoteBodies: false,
                     breakingSignals: [],
                     migrationSignals: [],
+                    riskItems: [
+                      {
+                        version: "5.0.0",
+                        tier: "UNCLASSIFIED",
+                        tierConfidence: null,
+                        kind: null,
+                        kindConfidence: null,
+                        text: "raw quote\u001b[31m",
+                        textTruncated: true,
+                        heading: null,
+                        source: null,
+                        model: "jev-1.13.0",
+                        formulation: "d-hier-v1",
+                      },
+                    ],
+                    riskCoverage: {
+                      versionsClassified: 0,
+                      versionsNotAssessed: 20,
+                      versionsWithoutNotes: 2,
+                      versionsUnparseable: 1,
+                      unitsNoImpact: 0,
+                      itemsOmitted: 8,
+                    },
                   },
                   compatibility: null,
                   dependencyChanges: null,
@@ -3237,6 +3260,42 @@ describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
     const parsed = JSON.parse(capturedBody ?? "{}");
     expect(parsed.query).toContain("packageUpgradeReview(");
     expect(parsed.query).toContain("dependencyIssues @include");
+    expect(parsed.query).toContain(
+      "transitive @include(if: $includeTransitiveSecurity)",
+    );
+    expect(parsed.query).toContain("riskItems {");
+    expect(parsed.query).toContain("riskCoverage {");
+    expect(parsed.query).toContain("detailSource");
+    for (const field of [
+      "version",
+      "tier",
+      "tierConfidence",
+      "kind",
+      "kindConfidence",
+      "text",
+      "textTruncated",
+      "heading",
+      "source",
+      "model",
+      "formulation",
+    ]) {
+      expect(parsed.query.match(/riskItems \{([^}]+)\}/)?.[1]).toContain(field);
+    }
+    for (const field of [
+      "versionsClassified",
+      "versionsNotAssessed",
+      "versionsWithoutNotes",
+      "versionsUnparseable",
+      "unitsNoImpact",
+      "itemsOmitted",
+    ]) {
+      expect(parsed.query.match(/riskCoverage \{([^}]+)\}/)?.[1]).toContain(
+        field,
+      );
+    }
+    expect(parsed.query).toContain("breakingSignals");
+    expect(parsed.query).toContain("migrationSignals");
+    expect(parsed.query).toContain("signals");
     expect(parsed.query).not.toContain("duplicateIds");
     expect(parsed.query).not.toContain("matchedAffectedVersionRanges");
     expect(parsed.query).not.toContain("affectedVersionRangesCount");
@@ -3260,6 +3319,24 @@ describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
     expect(result.reviews[0]?.security.added[0]?.severityLabel).toBe("HIGH");
     expect(result.reviews[0]?.changelog.source).toBeUndefined();
     expect(result.reviews[0]?.compatibility).toBeUndefined();
+    expect(result.reviews[0]?.changelog.riskItems).toEqual([
+      {
+        version: "5.0.0",
+        tier: "UNCLASSIFIED",
+        text: "raw quote\u001b[31m",
+        textTruncated: true,
+        model: "jev-1.13.0",
+        formulation: "d-hier-v1",
+      },
+    ]);
+    expect(result.reviews[0]?.changelog.riskCoverage).toEqual({
+      versionsClassified: 0,
+      versionsNotAssessed: 20,
+      versionsWithoutNotes: 2,
+      versionsUnparseable: 1,
+      unitsNoImpact: 0,
+      itemsOmitted: 8,
+    });
   });
 });
 

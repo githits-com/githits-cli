@@ -56,7 +56,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--transitive`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift), optionally including affected versions resolved in its dependency graph |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--depth`, `--issues`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional capped transitive graph, and opt-in dependency issue analysis (npm/pypi/hex/crates/nuget/maven/zig/vcpkg/packagist/rubygems/go/swift) |
 | `pkg changelog <spec>` | package spec (`registry:name[@version\|@from..to]`) | `--from`, `--to`, `--limit`, `--no-body`, `--verbose`, `--json` | Release notes / changelog entries for a package. Default shows each entry with a 10-line body preview; pin a version for one selected release; `--verbose` uncaps, `--no-body` drops. |
-| `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports facts only. |
+| `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, changelog entries and model-classified statements with coverage/provenance, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports evidence without a package verdict. |
 | `docs list <spec>` *(legacy compatibility)* | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | Help points hosted-site browsing to `githits list site:<host[/path]>` and package-local docs to the package target. Existing execution remains unchanged: text emits target-based read commands; JSON retains `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and exact repo-file metadata when available. |
 | `list <target> [paths...]` | package, repository, or `site:<host[/path]>` target; optional literal paths/globs | `-R, --recursive`, `-s, --silent`, repeatable `--file-type`, `--language`, `--intent`, `--limit`, `--after`, `--wait`, `--json` | List one package/repository source inventory, including package-local documentation files, or one explicitly targeted hosted site. Text is one path per line with `/` on directories; the header reuses backend-authored read targets for follow-up, while `--silent` emits only paths for piping. JSON carries exact actions, cursors, and metadata. |
 | `grep <pattern> <targets...>` | ordered package, repository and `site:` operands | `-F/--fixed-strings`, `-i/--ignore-case`, `-s/--case-sensitive`, `-A`, `-B`, `-C`, repeatable `--path`, `--path-prefix`, `--glob`, `--corpus`, `--limit`, `--cursor`, `--wait`, `--json` | Regex, case-sensitive and zero-context defaults; all repository files plus independently selected hosted package docs. Text groups matching rows beneath numbered copyable file/page locators, with native highlighting, one Sources summary and reusable read templates; coverage gaps and continuation stay visible. JSON preserves all selected fields and backend occurrence order. See [unified grep](unified-grep.md). Legacy `code grep` remains unchanged. |
@@ -770,13 +770,22 @@ delimiter is rejected with guidance to use `..`.
 
 The human-readable CLI and MCP `pkg_upgrade_review` output use one shared
 formatter. It starts with `Upgrade review - N package(s)`, adds one
-`Across packages:` line only for batches, and groups each package as identity,
+`Across packages:` line and a triage table only for batches. Default batch rows
+are sorted by returned action-statement count and include classification coverage;
+`--verbose` adds full per-package reports. Single-package reports group identity,
 security, deprecation, changes, compatibility, dependencies, dependency
 issues, and unknown evidence. Empty optional groups are omitted, but a returned
 zero-valued dependency comparison remains visible. Missing target security
 evidence renders `Target: deprecation unknown` so absence is not confused with
 verified non-deprecation. The formatter reports evidence and missing evidence;
-it does not make an approval, safety, or risk claim.
+it does not make a package approval, safety, or risk claim. Model-classified
+statements appear as quoted evidence grouped by requires action, should know,
+and unclassified. Single-package action quotes are full; other quotes are
+compact prefixes expanded by `--verbose`. Every report shows classified,
+not-assessed, without-notes and unparseable versions, no-impact counts, omitted
+items when present, and rerun guidance for incomplete classification. Quotes
+carry version, optional kind, source and model/formulation provenance; they are
+not a compatibility verdict. See [Upgrade review](pkg-upgrade-review.md).
 
 The shared formatter wraps free prose to the caller width (minimum 20 columns).
 The CLI passes `process.stdout.columns` and enables ANSI only when supported;

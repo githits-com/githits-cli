@@ -285,7 +285,7 @@ export function registerPkgUpgradeReviewCommand(pkgCommand: Command): Command {
     )
     .option(
       "-v, --verbose",
-      "Show dependency change examples, including transitive version changes",
+      "Show full batch reports, expand statement quotes and dependency change examples",
     )
     .option("--json", "Emit the JSON envelope")
     .action(

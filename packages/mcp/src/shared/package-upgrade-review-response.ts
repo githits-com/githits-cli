@@ -1,12 +1,14 @@
 import type {
   PackageUpgradeReviewResponse as BackendPackageUpgradeReviewResponse,
   PackageIntelligenceService,
+  PackageUpgradeChangelogRiskCoverage,
 } from "@githits/core-internal";
 import { colorize, colors, highlight } from "./colors.js";
 import type {
   PackageUpgradeReviewOptions,
   UpgradeReviewPackageRequest,
 } from "./package-upgrade-review-request.js";
+import { sanitizeTerminalText } from "./terminal-text.js";
 
 export type VersionDelta =
   | "patch"
@@ -78,6 +80,7 @@ export interface UpgradeTransitiveVulnerablePackage {
 }
 
 export interface UpgradeChangelogEntry {
+  detailSource?: string;
   version: string | null;
   publishedAt?: string;
   htmlUrl?: string;
@@ -87,7 +90,23 @@ export interface UpgradeChangelogEntry {
   signals?: string[];
 }
 
+export interface UpgradeChangelogRiskItem {
+  version: string;
+  tier: "must_act" | "should_know" | "unclassified";
+  tierConfidence?: number;
+  kind?: string;
+  kindConfidence?: number;
+  text: string;
+  textTruncated: boolean;
+  heading?: string;
+  source?: string;
+  model: string;
+  formulation: string;
+}
+
 export interface UpgradeChangelog {
+  riskItems: UpgradeChangelogRiskItem[];
+  riskCoverage: PackageUpgradeChangelogRiskCoverage;
   source?: string;
   fallback?: "package_versions";
   entries: UpgradeChangelogEntry[];
@@ -370,6 +389,13 @@ function normaliseBackendChangelog(
   changelog: BackendPackageUpgradeReviewResponse["reviews"][number]["changelog"],
 ): UpgradeChangelog {
   return {
+    riskItems: changelog.riskItems.map((item) => ({
+      ...item,
+      tier: item.tier.toLowerCase() as UpgradeChangelogRiskItem["tier"],
+      kind: lowerEnum(item.kind),
+      source: lowerEnum(item.source),
+    })),
+    riskCoverage: { ...changelog.riskCoverage },
     source: lowerEnum(changelog.source),
     fallback: lowerEnum(changelog.fallback) as "package_versions" | undefined,
     entries: changelog.entries.map(normaliseBackendChangelogEntry),
@@ -393,6 +419,7 @@ function normaliseBackendChangelogEntry(
   entry: BackendPackageUpgradeReviewResponse["reviews"][number]["changelog"]["entries"][number],
 ): UpgradeChangelogEntry {
   return {
+    detailSource: lowerEnum(entry.detailSource),
     version: entry.version ?? null,
     publishedAt: entry.publishedAt,
     htmlUrl: entry.htmlUrl,
@@ -471,7 +498,19 @@ export function formatPackageUpgradeReviewTerminal(
       width,
     );
   }
-  for (const review of response.reviews) {
+  const reviews =
+    response.reviews.length > 1
+      ? [...response.reviews].sort(
+          (a, b) =>
+            countRiskTier(b.changelog, "must_act") -
+            countRiskTier(a.changelog, "must_act"),
+        )
+      : response.reviews;
+  if (reviews.length > 1) {
+    appendSection(lines, formatBatchTriage(reviews, options));
+    if (!options.verbose) return `${lines.join("\n").trimEnd()}\n`;
+  }
+  for (const review of reviews) {
     lines.push("");
     lines.push(
       highlight(
@@ -854,6 +893,7 @@ function formatChangesSection(
   if (changelog.truncated)
     coverage += ` | ${changelog.sampledEntries.length} release entries sampled`;
   appendWrappedText(lines, "  ", coverage, width, "  ");
+  lines.push(...formatRiskStatements(changelog, options));
   const keywords = changelogKeywordSummary(changelog);
   if (keywords.length > 0 || changelog.totalKeywordEntries > 0) {
     const keywordWord =
@@ -911,6 +951,247 @@ function formatChangesSection(
       width,
     );
   }
+  return lines;
+}
+
+const RISK_KIND_LABELS: Record<string, string> = {
+  removes_or_renames_api: "removal",
+  changes_behavior_or_default: "behavior",
+  raises_runtime_or_platform_requirement: "runtime/platform",
+  changes_packaging_or_module_format: "packaging/modules",
+  deprecates_without_removal: "deprecation",
+  security_fix: "security fix",
+  notable_change: "notable change",
+};
+
+function countRiskTier(
+  changelog: UpgradeChangelog,
+  tier: UpgradeChangelogRiskItem["tier"],
+): number {
+  return changelog.riskItems.filter((item) => item.tier === tier).length;
+}
+
+function riskCoverageText(changelog: UpgradeChangelog): string {
+  const c = changelog.riskCoverage;
+  return `${c.versionsClassified} classified | ${c.versionsNotAssessed} not assessed | ${c.versionsWithoutNotes} without notes | ${c.versionsUnparseable} unparseable`;
+}
+
+function riskProvenance(item: UpgradeChangelogRiskItem): string {
+  return safeRiskText(`${item.model} / ${item.formulation}`);
+}
+
+function safeRiskText(value: string): string {
+  return sanitizeTerminalText(value.replace(/\s+/g, " ")).trim();
+}
+
+function formatRiskStatements(
+  changelog: UpgradeChangelog,
+  options: FormatPackageUpgradeReviewTerminalOptions,
+): string[] {
+  const width = normaliseTerminalWidth(options.terminalWidth);
+  const lines: string[] = [];
+  appendWrappedText(
+    lines,
+    "  Classification versions: ",
+    riskCoverageText(changelog),
+    width,
+    "    ",
+  );
+  const omitted = changelog.riskCoverage.itemsOmitted;
+  appendWrappedText(
+    lines,
+    "  Statements: ",
+    `${changelog.riskItems.length} returned | ${changelog.riskCoverage.unitsNoImpact} labeled no impact${omitted > 0 ? ` | ${omitted} omitted by backend (lowest priority first)` : ""}`,
+    width,
+    "    ",
+  );
+  if (changelog.riskCoverage.versionsNotAssessed > 0) {
+    appendWrappedText(
+      lines,
+      "  ",
+      "Rerun to fill not-assessed versions; later requests fill stored labels.",
+      width,
+      "  ",
+    );
+  }
+  appendWrappedText(
+    lines,
+    "  ",
+    "Missing or unparseable notes are not evidence of no risk.",
+    width,
+    "  ",
+  );
+  const provenance = [...new Set(changelog.riskItems.map(riskProvenance))];
+  const sourceLinks = new Set<string>();
+  const groups: Array<{
+    tier: UpgradeChangelogRiskItem["tier"];
+    label: string;
+    limit: number;
+  }> = [
+    { tier: "must_act", label: "Requires action", limit: Infinity },
+    { tier: "should_know", label: "Should know", limit: 240 },
+    {
+      tier: "unclassified",
+      label: "Unclassified - read if relevant",
+      limit: 120,
+    },
+  ];
+  for (const group of groups) {
+    const items = changelog.riskItems.filter(
+      (item) => item.tier === group.tier,
+    );
+    if (items.length === 0) continue;
+    lines.push(`  ${group.label} (${items.length})`);
+    for (const item of items) {
+      const quote = safeRiskText(item.text);
+      const characters = Array.from(quote);
+      const excerpted = !options.verbose && characters.length > group.limit;
+      const shown = excerpted
+        ? `${characters.slice(0, group.limit).join("").trimEnd()}...`
+        : quote;
+      const kind = item.kind
+        ? `${RISK_KIND_LABELS[item.kind] ?? safeRiskText(item.kind)} `
+        : "";
+      const source = item.source ? ` [${safeRiskText(item.source)}]` : "";
+      const truncation = item.textTruncated
+        ? " [statement truncated by backend]"
+        : "";
+      const excerpt = excerpted ? " [excerpt; expand with verbose]" : "";
+      appendWrappedText(
+        lines,
+        "    ",
+        `${kind}${safeRiskText(item.version)} "${shown}"${source}${truncation}${excerpt}`,
+        width,
+        "      ",
+      );
+      // A range may include statements from several sources for the same version.
+      const entry = [
+        ...changelog.entries,
+        ...changelog.keywordEntries,
+        ...changelog.sampledEntries,
+      ].find(
+        (entry) =>
+          item.source !== undefined &&
+          entry.version === item.version &&
+          entry.detailSource === item.source &&
+          entry.htmlUrl,
+      );
+      if (entry?.htmlUrl)
+        sourceLinks.add(
+          `${safeRiskText(item.version)} [${safeRiskText(item.source ?? "")}] ${safeRiskText(entry.htmlUrl)}`,
+        );
+      if (options.verbose) {
+        const details = [
+          item.heading ? `heading: ${safeRiskText(item.heading)}` : undefined,
+          item.tierConfidence !== undefined
+            ? `tier confidence: ${item.tierConfidence}`
+            : undefined,
+          item.kindConfidence !== undefined
+            ? `kind confidence: ${item.kindConfidence}`
+            : undefined,
+        ]
+          .filter(Boolean)
+          .join(" | ");
+        if (details)
+          appendWrappedText(lines, "      ", details, width, "      ");
+      }
+      if (provenance.length > 1)
+        appendWrappedText(
+          lines,
+          "      Model: ",
+          riskProvenance(item),
+          width,
+          "        ",
+        );
+    }
+  }
+  if (sourceLinks.size > 0) {
+    lines.push("  Statement sources");
+    for (const link of sourceLinks) lines.push(`    ${link}`);
+  }
+  appendWrappedText(
+    lines,
+    "  ",
+    provenance.length === 0
+      ? "Statement labels are model classifications. Not a compatibility verdict."
+      : `Classified by a model${provenance.length === 1 ? ` (${provenance[0]})` : ""}. Not a compatibility verdict.`,
+    width,
+    "  ",
+  );
+  return lines;
+}
+
+function formatBatchTriage(
+  reviews: UpgradeReview[],
+  options: FormatPackageUpgradeReviewTerminalOptions,
+): string[] {
+  const lines = [
+    sectionTitle(
+      "Batch triage - returned statement counts",
+      options.useColors === true,
+    ),
+  ];
+  for (const review of reviews) {
+    const c = review.changelog;
+    const target = review.security.target;
+    const deprecation =
+      target?.deprecated === true
+        ? "deprecated"
+        : target?.deprecated === false
+          ? "not deprecated"
+          : "deprecation unknown";
+    const transitive = review.security.transitive;
+    const security = `direct vulnerabilities: ${review.security.added.length} added / ${review.security.notAddressed.length} still present`;
+    const transitiveText = transitive
+      ? `transitive: ${transitive.introducedPackageDetailsTotalCount} added / ${transitive.stillAffectedPackageDetailsTotalCount} still affected`
+      : "transitive: not checked";
+    const dependencyCount = review.dependencyChanges
+      ? [
+          review.dependencyChanges.direct.added,
+          review.dependencyChanges.direct.removed,
+          review.dependencyChanges.direct.changed,
+        ].reduce((n, rows) => n + rows.length, 0)
+      : undefined;
+    const issues = review.dependencyIssues;
+    const issueCount = issues
+      ? issues.introducedDeprecated.length +
+        issues.introducedDuplicates.length +
+        issues.introducedConflicts.length +
+        issues.introducedOutdated.length
+      : undefined;
+    const provenance = [...new Set(c.riskItems.map(riskProvenance))].join(", ");
+    // Rows stay intact as a table; prose footers use the caller's width.
+    lines.push(
+      `  ${safeRiskText(`${review.registry}:${review.name} ${review.currentVersion} -> ${review.targetVersion} (${review.versionDelta})`)} | ${countRiskTier(c, "must_act")} act | ${countRiskTier(c, "should_know")} know | ${countRiskTier(c, "unclassified")} unclassified | versions: ${riskCoverageText(c)} | ${c.riskCoverage.unitsNoImpact} labeled no impact | ${c.riskCoverage.itemsOmitted} omitted | ${deprecation} | ${security} | ${transitiveText} | ${c.totalKeywordEntries} keyword entries | ${dependencyCount ?? "not checked"} direct dependency changes | ${issueCount ?? "not checked"} dependency issues | ${review.unknowns.length} unknowns${provenance ? ` | model: ${provenance}` : ""}`,
+    );
+  }
+  const width = normaliseTerminalWidth(options.terminalWidth);
+  if (
+    reviews.some(
+      (review) => review.changelog.riskCoverage.versionsNotAssessed > 0,
+    )
+  )
+    appendWrappedText(
+      lines,
+      "  ",
+      "Rerun to fill not-assessed versions; later requests fill stored labels.",
+      width,
+      "  ",
+    );
+  appendWrappedText(
+    lines,
+    "  ",
+    "Counts are returned statements (including unclassified), may include the same statement from multiple sources, and exclude omitted items. Not a compatibility verdict.",
+    width,
+    "  ",
+  );
+  appendWrappedText(
+    lines,
+    "  ",
+    "Missing or unparseable notes are not evidence of no risk. Use verbose for full per-package quotes and evidence.",
+    width,
+    "  ",
+  );
   return lines;
 }
 

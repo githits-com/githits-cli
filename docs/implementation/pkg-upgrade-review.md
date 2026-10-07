@@ -6,7 +6,7 @@ Dependency-upgrade reviews are a distinct agent workflow. Agents should not infe
 
 `pkg_upgrade_review` is the MCP/CLI-facing tool for this workflow. It answers: "What changed between the currently used version and the target version, and what evidence is available or missing?"
 
-This report reflects the backend schema inspected at `/Users/jpl/.superset/worktrees/af856079-3997-4271-af85-b1901f8a2119/forest-reference/priv/graphql/schema.graphql`.
+Risk fields were verified against the latest backend `priv/graphql/schema.graphql` and authenticated dev field selection on 2026-10-07. Dev disables introspection; the schema file confirms names, enums and nullability.
 
 ## Current Schema Fit
 
@@ -21,7 +21,7 @@ packageUpgradeReview(
 ): PackageUpgradeReviewResponse!
 ```
 
-The CLI/MCP implementation must not fall back to composing `packageSummary`, `packageVulnerabilities`, `packageChangelog`, or `packageDependencies` calls. If the aggregate query is unavailable, surface the backend protocol error. Release should wait until the backend aggregate support is deployed.
+The CLI/MCP implementation must not fall back to composing `packageSummary`, `packageVulnerabilities`, `packageChangelog`, or `packageDependencies` calls. If the aggregate query is unavailable, surface the backend protocol error. The backend owner confirms aggregate and risk-field support is already deployed in production and dev; this change needs no backend deployment.
 
 Optional evidence is controlled by GraphQL field selection and local query variables:
 
@@ -147,7 +147,7 @@ interface UpgradeReview {
 }
 ```
 
-The summary contains factual counters only. `summary.total` is `reviews.length`; the other counters report evidence categories present in at least one review. The tool does not assign risk levels or make accept/reject recommendations.
+The summary contains factual counters only. `summary.total` is `reviews.length`; the other counters report evidence categories present in at least one review. The tool does not assign package-level risk levels or make accept/reject recommendations. Statement-level model labels remain quoted evidence with provenance.
 
 Security block:
 
@@ -225,6 +225,29 @@ interface UpgradeChangelog {
   truncated: boolean;
   breakingSignals: string[];
   migrationSignals: string[];
+  riskItems: UpgradeChangelogRiskItem[];
+  riskCoverage: {
+    versionsClassified: number;
+    versionsNotAssessed: number;
+    versionsWithoutNotes: number;
+    versionsUnparseable: number;
+    unitsNoImpact: number;
+    itemsOmitted: number;
+  };
+}
+
+interface UpgradeChangelogRiskItem {
+  version: string;
+  tier: "must_act" | "should_know" | "unclassified";
+  tierConfidence?: number;
+  kind?: string;
+  kindConfidence?: number;
+  text: string;
+  textTruncated: boolean;
+  heading?: string;
+  source?: string;
+  model: string;
+  formulation: string;
 }
 ```
 
@@ -275,10 +298,12 @@ default output leads with the outcome and groups each package in this order:
 8. `Unknown evidence` last.
 
 A batch of more than one package adds one `Across packages:` summary after the
-headline. Zero and one package omit it. The summary and package sections report
+headline and a triage table sorted by returned `must_act` statement count. Equal action counts keep backend order. Counts can include a statement from
+multiple sources. Default batch output has one unwrapped row per package; `--verbose` adds the detailed reports in
+that order. JSON preserves backend review order. Zero and one package omit it. The summary and package sections report
 facts only; they never call an upgrade safe, risky, approved, or rejected.
 
-Representative output:
+Representative verbose batch output:
 
 ```text
 Upgrade review - 2 packages
@@ -304,6 +329,11 @@ Deprecation
 
 Changes
   Repository releases | 1 entry | 1 with release notes
+  Classification versions: 1 classified | 0 not assessed | 0 without notes | 0
+    unparseable
+  Statements: 0 returned | 0 labeled no impact
+  Missing or unparseable notes are not evidence of no risk.
+  Statement labels are model classifications. Not a compatibility verdict.
   Heuristic signals: breaking | 1 matching entry
   Heuristic release entries
     - 4.4.3
@@ -331,6 +361,11 @@ Security
 
 Changes
   Package versions (no release notes) | 2 entries | 0 with release notes
+  Classification versions: 0 classified | 0 not assessed | 2 without notes | 0
+    unparseable
+  Statements: 0 returned | 0 labeled no impact
+  Missing or unparseable notes are not evidence of no risk.
+  Statement labels are model classifications. Not a compatibility verdict.
 ```
 
 The formatter preserves stable follow-up locators and backend facts while
@@ -374,14 +409,14 @@ being presented as complete.
 
 ## Fact Reporting Rules
 
-The tool reports facts and missing evidence. It does not assign `low` / `medium` / `high` risk, and it does not decide whether an upgrade should be accepted. The calling agent or human reviewer owns that assessment.
+The tool reports facts and missing evidence. It does not assign package-level `low` / `medium` / `high` risk, an overall score, or an accept/reject verdict. Per-statement model classifications are evidence: the quoted release-note statement, tier, optional kind, version, source, model and formulation. Labels describe the model's reading of that statement, never compatibility of the package with the caller's code. The calling agent or human reviewer owns that assessment.
 
 The factual evidence includes:
 
 - Version relationship: major, prerelease, downgrade, same-version, or unknown version shape.
 - Target deprecation metadata: verified deprecated, verified not deprecated, or unavailable.
 - Direct advisory diff: added, fixed, and still-present vulnerabilities after alias-cluster deduplication.
-- Changelog evidence: source, body availability, sampled headline paragraphs, and rudimentary keyword matches clearly labeled as hints.
+- Changelog evidence: source, body availability, sampled headline paragraphs, rudimentary keyword hints, and per-statement model labels with provenance and explicit coverage.
 - Peer dependency metadata changes.
 - Direct and transitive dependency graph changes.
 - Transitive vulnerability and dependency issue diffs when requested.
@@ -417,10 +452,10 @@ There is deliberately no compatibility fallback to the old client-side fanout. B
 - MCP `pkg_upgrade_review` and CLI `githits pkg upgrade-review` expose equivalent JSON envelopes for single-package and repeatable-package batch input.
 - The tool calls the aggregate backend `packageUpgradeReview` operation once per request.
 - The tool has no fallback to `packageSummary`, `packageVulnerabilities`, `packageChangelog`, `packageDependencies`, or the old upgrade dependency probe.
-- The tool never returns risk levels. It reports vulnerability, changelog, compatibility, dependency-change, dependency-issue, and unknown evidence as facts.
+- The tool never returns package-level risk levels or compatibility verdicts. Changelog statement labels include the quote and model/formulation provenance; all other evidence remains factual.
 - Backend enum casing is normalised to the existing public JSON/text contract.
 - Transitive security defaults on and can be disabled with `skip_transitive_security` / `--no-transitive-security`; `include_dependency_issues` selects the backend `dependencyIssues` subtree only when requested.
-- Release waits until the backend aggregate resolver is deployed to production; smoke suites fail with a backend protocol mismatch before that deployment.
+- Backend schema mismatch surfaces a protocol error; the owner confirms the aggregate and risk fields are already deployed.
 
 ## Resolved Decisions
 
@@ -431,3 +466,106 @@ There is deliberately no compatibility fallback to the old client-side fanout. B
 - `versionDiff` remains deferred until a dedicated typed service/error surface exists.
 - Text mode shows compact summaries by default. `--verbose` / `verbose: true` adds dependency-change examples, including transitive version changes.
 - Runtime/engine compatibility is not asserted because no stable backend field exists. Lexical changelog signals are reported only as sampled evidence hints unless later verified by schema data.
+
+
+## Model-classified release-note statements
+
+`riskItems` and `riskCoverage` are selected in the same aggregate operation,
+independently of `changelogLimit`. The backend returns up to 50 statements per
+review, ordered `MUST_ACT`, `SHOULD_KNOW`, `UNCLASSIFIED`, cutting lower-priority
+items first. No-impact statements appear only in `unitsNoImpact`. Keep existing
+`breakingSignals`, `migrationSignals` and entry `signals`: these remain lexical
+hints, separate from model labels.
+
+Single-package text shows Requires action quotes in full, Should know excerpts
+up to 240 characters, and Unclassified excerpts up to 120. These are quoted
+prefixes, not generated paraphrases. Local excerpts say `[excerpt; expand with
+verbose]`; backend truncation at 1,000 characters separately says `[statement
+truncated by backend]`, including in verbose mode. Verbose expands returned
+quotes and shows headings and confidence. Kinds map to removal, behavior,
+runtime/platform, packaging/modules, deprecation, security fix and notable
+change; missing kinds add no invented category. Source, model and formulation
+are preserved. Entry `detailSource` is also exposed in lower-case JSON. Match entry `version`,
+not `sourceVersion`: statements belong to the reviewed version. Links use
+returned entry URLs only when the version and
+`detailSource` match the statement; absent source links are not fabricated.
+Each returned version/source locator is listed once beneath the statement
+groups, rather than repeating its URL per quote. New terminal strings use the
+existing sanitizer; JSON keeps source text.
+
+Coverage always includes classified, not-assessed, without-notes and unparseable
+versions, plus the no-impact statement count. Omitted items are explicit and
+returned tier counts are not presented as complete when the backend cap applies.
+Not-assessed versions say to rerun: later requests fill stored classification
+labels. Missing notes, unparseable notes or an empty item list never mean no risk.
+A cold range can take a few seconds under the backend's shared six-second batch
+deadline and 20-version-per-package cap; the client does not add retries.
+
+Public JSON adds `changelog.riskItems` and `changelog.riskCoverage` on both CLI
+and MCP, retaining the existing envelope, lower-case enums and null-to-omission
+convention. Thus null tier confidence (too-large unclassified statements), kind,
+kind confidence, heading or source are omitted. Confidence zero remains zero.
+All quote text, truncation flags and model/formulation values are preserved.
+
+The query measured 262 complexity units before the change, 281 with all risk
+fields, and 284 including entry `detailSource` on the three existing entry
+selections, with both optional evidence subtrees enabled. Measurement used 501
+unique aliases of `summary.total`; dev rejected the probes with total operation
+complexities 763, 782 and 785 respectively, without executing resolvers. Each
+alias adds one unit. The final 284 is below production's 500 limit; no fields
+were trimmed and no second query was added. The historical near-494 number does
+not describe the current operation.
+
+
+## Dev verification (2026-10-07)
+
+All authenticated calls used the normal CLI auth configuration with
+`GITHITS_ENV=dev`, `GITHITS_API_URL=https://api-dev.githits.com`,
+`GITHITS_MCP_URL=https://mcp-dev.githits.com`, and
+`GITHITS_CODE_NAV_URL=https://pkgseer-backend-dev.fly.dev`. No credential material was exposed or extracted by the agent.
+
+Initial label requests (cold attempts) and subsequent CLI/MCP warm requests
+returned the same counts below. Initial storage state cannot be proven from the
+response, so these three ranges are not claimed to have been cold.
+
+| Range | Act / know / unclassified | Classified / not assessed / without notes / unparseable | No impact | Omitted |
+| --- | --- | --- | --- | --- |
+| npm:axios@0.27.2..1.0.0 | 6 / 1 / 3 | 1 / 0 / 0 / 0 | 83 | 0 |
+| npm:express@4.21.2..5.0.0 | 14 / 2 / 6 | 1 / 0 / 0 / 0 | 63 | 0 |
+| pypi:fastapi@0.109.2..0.110.0 | 3 / 0 / 0 | 1 / 0 / 0 / 0 | 26 | 0 |
+
+`bun run src/cli.ts pkg upgrade-review <range>` and `--json` passed for these
+ranges. A three-package repeatable `--package` batch rendered Express, Axios,
+FastAPI in action-count order. A local stdio `bun run src/cli.ts mcp start`
+session called `pkg_upgrade_review` for each range in JSON, for the three-package
+batch in text, and for Axios with `verbose: true`; JSON matched the CLI exactly.
+
+Validation: `bun test` passed 5,617 tests / 22,421 assertions across 235 files;
+`bun run typecheck`, changed-TypeScript Biome, `bun run build`,
+`bun run validate:packages`, `bun run plugins:generate` and
+`bun run plugins:check` passed. Both built secret-free CLI/MCP smokes passed.
+Source CLI/MCP smokes passed their unauthenticated paths with
+`GITHITS_AUTH_STORAGE=file`; isolated live cohorts reported `AUTH_REQUIRED` and
+skipped. With default auth, their empty config roots selected an unavailable
+system keychain and failed before upgrade-review. Authenticated validation of
+the changed surfaces used the real config in the direct calls above.
+
+Targeted `bun run agent:e2e --agent codex --server local --guidance-profile
+descriptors --workload eval/agentic/workloads/package-upgrade-safety.md` used
+the existing dedicated eval home. Neutral intent finished with high confidence
+and no GitHits calls, so it does not validate tool use. With
+`--intent-profile githits`, the same workload completed five logical MCP calls,
+including a seven-package upgrade-review batch with `verbose: true` and a
+single SDK rerun, with medium final confidence and no isolation violations.
+The SDK batch returned 0 classified / 4 not assessed; the later single request
+returned 4 classified / 0 not assessed, 9 statements and 17 no-impact units,
+exercising the rerun guidance. No quality grading stage ran; no answer-quality
+claim is made.
+
+Backend observations: dev rejects introspection, so deployed field validation
+was paired with the owner-supplied schema. Axios includes near-duplicate removal
+statements from releases and changelog_file; both are preserved. The eval also
+showed transient SDK transitive-security counts changing between batch and
+single requests. An immediate raw aggregate replay with identical options
+returned equal zero-valued transitive blocks for both shapes; the cause is
+unconfirmed and outside the new risk fields. No backend changes were made.

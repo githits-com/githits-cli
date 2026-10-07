@@ -774,6 +774,15 @@ export const defaultPackageUpgradeReviewResponse: PackageUpgradeReviewResponse =
           hasReleaseNoteBodies: true,
           breakingSignals: [],
           migrationSignals: [],
+          riskItems: [],
+          riskCoverage: {
+            versionsClassified: 0,
+            versionsNotAssessed: 0,
+            versionsWithoutNotes: 0,
+            versionsUnparseable: 0,
+            unitsNoImpact: 0,
+            itemsOmitted: 0,
+          },
         },
         compatibility: { peerDependencyChanges: [], notes: [] },
         dependencyChanges: {

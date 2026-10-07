@@ -132,6 +132,7 @@ interface McpUpgradeReviewArgs {
   skip_transitive_security?: boolean;
   include_dependency_issues?: boolean;
   min_severity?: string;
+  verbose?: boolean;
 }
 
 async function mcpJson(
@@ -317,5 +318,108 @@ describe("package_upgrade_review parity", () => {
     expect(isError).toBe(true);
     expect(cli).toEqual(json);
     expect(cli).toMatchObject({ code: "INVALID_ARGUMENT", retryable: false });
+  });
+});
+
+describe("statement classification CLI/MCP parity", () => {
+  it("preserves classifications, coverage, raw quotes and provenance in single and batch JSON and text", async () => {
+    const response = structuredClone(defaultPackageUpgradeReviewResponse);
+    const review = response.reviews[0]!;
+    review.changelog.riskItems = [
+      {
+        version: "5.0.0",
+        tier: "MUST_ACT",
+        tierConfidence: 0.9,
+        kind: "CHANGES_BEHAVIOR_OR_DEFAULT",
+        kindConfidence: 0.8,
+        text: "Request ignores false, 0 and empty string as body values. 漢字",
+        textTruncated: true,
+        heading: "Changes",
+        source: "RELEASES",
+        model: "jev-1.13.0",
+        formulation: "d-hier-v1",
+      },
+    ];
+    review.changelog.riskCoverage = {
+      versionsClassified: 1,
+      versionsNotAssessed: 2,
+      versionsWithoutNotes: 3,
+      versionsUnparseable: 4,
+      unitsNoImpact: 5,
+      itemsOmitted: 6,
+    };
+    review.changelog.breakingSignals = ["removed"];
+    const service = createMockPackageIntelligenceService({
+      packageUpgradeReview: mock(async () => response),
+    });
+    const args = {
+      registry: "npm",
+      package_name: "express",
+      current_version: "4.18.0",
+      target_version: "5.0.0",
+    };
+    const cli = await cliJson(
+      "npm:express@4.18.0..5.0.0",
+      {},
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const mcp = await mcpJson(args, service);
+    expect(cli).toEqual(mcp.json);
+    expect(mcp.json).toMatchObject({
+      reviews: [
+        {
+          changelog: {
+            riskItems: [
+              {
+                tier: "must_act",
+                kind: "changes_behavior_or_default",
+                source: "releases",
+                text: review.changelog.riskItems[0]!.text,
+                textTruncated: true,
+                model: "jev-1.13.0",
+                formulation: "d-hier-v1",
+              },
+            ],
+            riskCoverage: review.changelog.riskCoverage,
+            breakingSignals: ["removed"],
+          },
+        },
+      ],
+    });
+    const cliDefault = await cliText(
+      "npm:express@4.18.0..5.0.0",
+      {},
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    expect(cliDefault.trimEnd()).toBe(await mcpText(args, service));
+    expect(cliDefault).toContain("Requires action (1)");
+    expect(cliDefault).toContain("[statement truncated by backend]");
+    const other = structuredClone(review);
+    other.name = "other";
+    other.changelog.riskItems = [];
+    response.reviews.unshift(other);
+    response.summary.total = 2;
+    const packages = [{ ...args, package_name: "other" }, args];
+    const specs = ["npm:other@4.18.0..5.0.0", "npm:express@4.18.0..5.0.0"];
+    const batchCli = await cliJson(
+      undefined,
+      { package: specs },
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    expect(batchCli).toEqual((await mcpJson({ packages }, service)).json);
+    for (const verbose of [false, true]) {
+      const text = await cliText(
+        undefined,
+        { package: specs, verbose },
+        cliDeps({ packageIntelligenceService: service }),
+      );
+      expect(text.trimEnd()).toBe(
+        await mcpText({ packages, verbose }, service),
+      );
+      expect(text.indexOf("npm:express")).toBeLessThan(
+        text.indexOf("npm:other"),
+      );
+      expect(text.includes("Requires action (1)")).toBe(verbose);
+    }
   });
 });

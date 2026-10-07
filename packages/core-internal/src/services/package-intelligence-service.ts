@@ -311,6 +311,7 @@ export interface PackageUpgradeSecurity {
 }
 
 export interface PackageUpgradeChangelogEntry {
+  detailSource?: string;
   version?: string;
   publishedAt?: string;
   htmlUrl?: string;
@@ -320,7 +321,33 @@ export interface PackageUpgradeChangelogEntry {
   signals: string[];
 }
 
+/** Backend model labels for one release-note statement, never a package verdict. */
+export interface PackageUpgradeChangelogRiskItem {
+  version: string;
+  tier: "MUST_ACT" | "SHOULD_KNOW" | "UNCLASSIFIED";
+  tierConfidence?: number;
+  kind?: string;
+  kindConfidence?: number;
+  text: string;
+  textTruncated: boolean;
+  heading?: string;
+  source?: string;
+  model: string;
+  formulation: string;
+}
+
+export interface PackageUpgradeChangelogRiskCoverage {
+  versionsClassified: number;
+  versionsNotAssessed: number;
+  versionsWithoutNotes: number;
+  versionsUnparseable: number;
+  unitsNoImpact: number;
+  itemsOmitted: number;
+}
+
 export interface PackageUpgradeChangelog {
+  riskItems: PackageUpgradeChangelogRiskItem[];
+  riskCoverage: PackageUpgradeChangelogRiskCoverage;
   source?: string;
   fallback?: string;
   entries: PackageUpgradeChangelogEntry[];
@@ -1975,6 +2002,7 @@ const packageUpgradeSecuritySchema = z.object({
 });
 
 const packageUpgradeChangelogEntrySchema = z.object({
+  detailSource: z.string().nullable(),
   version: z.string().nullable().optional(),
   publishedAt: z.string().nullable().optional(),
   htmlUrl: z.string().nullable().optional(),
@@ -1984,7 +2012,42 @@ const packageUpgradeChangelogEntrySchema = z.object({
   signals: z.array(z.string()),
 });
 
+const packageUpgradeChangelogRiskItemSchema = z.object({
+  version: z.string(),
+  tier: z.enum(["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"]),
+  tierConfidence: z.number().min(0).max(1).nullable(),
+  kind: z
+    .enum([
+      "REMOVES_OR_RENAMES_API",
+      "CHANGES_BEHAVIOR_OR_DEFAULT",
+      "RAISES_RUNTIME_OR_PLATFORM_REQUIREMENT",
+      "CHANGES_PACKAGING_OR_MODULE_FORMAT",
+      "DEPRECATES_WITHOUT_REMOVAL",
+      "SECURITY_FIX",
+      "NOTABLE_CHANGE",
+    ])
+    .nullable(),
+  kindConfidence: z.number().min(0).max(1).nullable(),
+  text: z.string(),
+  textTruncated: z.boolean(),
+  heading: z.string().nullable(),
+  source: z.string().nullable(),
+  model: z.string(),
+  formulation: z.string(),
+});
+
+const packageUpgradeChangelogRiskCoverageSchema = z.object({
+  versionsClassified: z.number().int(),
+  versionsNotAssessed: z.number().int(),
+  versionsWithoutNotes: z.number().int(),
+  versionsUnparseable: z.number().int(),
+  unitsNoImpact: z.number().int(),
+  itemsOmitted: z.number().int(),
+});
+
 const packageUpgradeChangelogSchema = z.object({
+  riskItems: z.array(packageUpgradeChangelogRiskItemSchema),
+  riskCoverage: packageUpgradeChangelogRiskCoverageSchema,
   source: z.string().nullable().optional(),
   fallback: z.string().nullable().optional(),
   entries: z.array(packageUpgradeChangelogEntrySchema),
@@ -2173,6 +2236,27 @@ query PackageUpgradeReview(
         }
       }
       changelog {
+        riskItems {
+          version
+          tier
+          tierConfidence
+          kind
+          kindConfidence
+          text
+          textTruncated
+          heading
+          source
+          model
+          formulation
+        }
+        riskCoverage {
+          versionsClassified
+          versionsNotAssessed
+          versionsWithoutNotes
+          versionsUnparseable
+          unitsNoImpact
+          itemsOmitted
+        }
         source
         fallback
         entries {
@@ -2243,6 +2327,7 @@ fragment PackageUpgradeTransitivePackagePageFields on PackageUpgradeTransitivePa
 }
 
 fragment PackageUpgradeChangelogEntryFields on PackageUpgradeChangelogEntry {
+  detailSource
   version
   publishedAt
   htmlUrl

@@ -224,7 +224,9 @@ const DESCRIPTION_ROUTING: Record<
       "Review a package upgrade: vulnerabilities, releases, peers, dependency changes. ",
     body: [
       "facts only",
-      "does not assign risk",
+      "does not assign package-level risk",
+      "model-classified",
+      "triage rows",
       "at most 30 upgrades",
       "Use signals as a starting point",
       "pkg_changelog and code_diff",
