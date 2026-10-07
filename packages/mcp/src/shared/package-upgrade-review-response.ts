@@ -907,16 +907,9 @@ function formatChangesSection(
   appendWrappedText(
     lines,
     "  Classification versions: ",
-    riskCoverageText(changelog),
+    `${riskCoverageText(changelog)} | ${changelog.riskCoverage.unitsNoImpact} statements labeled no impact`,
     width,
     "    ",
-  );
-  appendWrappedText(
-    lines,
-    "  ",
-    `${changelog.riskCoverage.unitsNoImpact} statements labeled no impact`,
-    width,
-    "  ",
   );
   const coverage = changelog.riskCoverage;
   if (coverage.itemsOmitted > 0)
@@ -1085,6 +1078,15 @@ function formatChangesSection(
       lines.push(
         `    Notes: ${[...new Set(additionalNotes.map((entry) => reference(entry.htmlUrl, entry.detailSource)))].join(" ")}`,
       );
+    const sourceForItem = (item: UpgradeChangelogRiskItem): string => {
+      const entry = group.entries.find(
+        (entry) =>
+          item.source !== undefined &&
+          entry.detailSource === item.source &&
+          entry.htmlUrl,
+      );
+      return reference(entry?.htmlUrl, item.source);
+    };
     for (const tier of ["must_act", "should_know", "unclassified"] as const) {
       const items = group.items.filter((item) => item.tier === tier);
       if (items.length === 0) continue;
@@ -1096,13 +1098,7 @@ function formatChangesSection(
             : "Unclassified - read if relevant";
       lines.push(`    ${label} (${items.length})`);
       for (const item of items) {
-        const entry = group.entries.find(
-          (entry) =>
-            item.source !== undefined &&
-            entry.detailSource === item.source &&
-            entry.htmlUrl,
-        );
-        const source = reference(entry?.htmlUrl, item.source);
+        const source = sourceForItem(item);
         const quote = releaseNoteText(item.text, (url) => reference(url));
         const limit = tier === "must_act" || options.verbose ? Infinity : 240;
         const characters = Array.from(quote);
@@ -1112,30 +1108,22 @@ function formatChangesSection(
           ? `${characters.slice(0, limit).join("").trimEnd()}...`
           : quote;
         const kind = item.kind
-          ? `${RISK_KIND_LABELS[item.kind] ?? safeRiskText(item.kind)} `
+          ? `[${RISK_KIND_LABELS[item.kind] ?? safeRiskText(item.kind)}]`
           : "";
         appendWrappedText(
           lines,
           "      * ",
-          `${kind}"${shown}" ${source}${item.textTruncated ? " [statement truncated by backend]" : ""}`,
+          `${kind ? `${kind} ` : ""}"${shown}" ${source}${item.textTruncated ? " [statement truncated by backend]" : ""}`,
           width,
           "        ",
+          kind
+            ? (line) =>
+                line.replace(
+                  kind,
+                  colorize(kind, "yellow", options.useColors === true),
+                )
+            : undefined,
         );
-        const signals = heuristicTags.get(item);
-        if (signals?.size)
-          appendWrappedText(
-            lines,
-            "        Keyword match: ",
-            safeRiskText([...signals].join(", ")),
-            width,
-            "          ",
-            (line) =>
-              colorizeSignalKeywords(
-                line,
-                [...signals],
-                options.useColors === true,
-              ),
-          );
         if (options.verbose) {
           const details = [
             item.heading
@@ -1155,6 +1143,22 @@ function formatChangesSection(
         }
       }
     }
+    if (heuristicTags.size > 0 || keywords.length > 0)
+      lines.push("    Keyword matches");
+    for (const [item, signals] of heuristicTags)
+      appendWrappedText(
+        lines,
+        "      * ",
+        `[${safeRiskText([...signals].join(", "))}] matched quoted statement ${sourceForItem(item)}`,
+        width,
+        "        ",
+        (line) =>
+          colorizeSignalKeywords(
+            line,
+            [...signals],
+            options.useColors === true,
+          ),
+      );
     for (const keyword of keywords) {
       const source = reference(
         keyword.entry.htmlUrl,
@@ -1169,10 +1173,10 @@ function formatChangesSection(
         : quote;
       appendWrappedText(
         lines,
-        "    * Keyword match (",
-        `${safeRiskText(keyword.signals.join(", "))}): ${shown ? `"${shown}"` : "no excerpt returned"} ${source}`,
+        "      * ",
+        `[${safeRiskText(keyword.signals.join(", "))}] ${shown ? `"${shown}"` : "no excerpt returned"} ${source}`,
         width,
-        "      ",
+        "        ",
         (line) =>
           colorizeSignalKeywords(
             line,

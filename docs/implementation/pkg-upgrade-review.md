@@ -316,16 +316,16 @@ without claiming differently worded statements are equivalent.
 ```text
 Changes
   0 require action | 6 should know | 5 unclassified
-  Classification versions: 4 classified | 0 not assessed | 0 without notes
-  130 statements labeled no impact
+  Classification versions: 4 classified | 0 not assessed | 0 without notes | 130 statements labeled no impact
   5.2.1
     Unclassified - read if relevant (2)
-      "Revert security fix for CVE-2024-51999 [2] (GHSA-pj86-cfqh-vqx6 [3])" [1]
-      "IMPORTANT: The prior release ..." [4]
-        Heuristic: breaking
+      * "Revert security fix for CVE-2024-51999 [2] (GHSA-pj86-cfqh-vqx6 [3])" [1]
+      * "IMPORTANT: The prior release ..." [4]
+    Keyword matches
+      * [breaking] matched quoted statement [4]
   5.2.0
     Should know (4)
-      security fix "Security fix for CVE-2024-51999 [2] (GHSA-pj86-cfqh-vqx6 [3])" [5]
+      * [security fix] "Security fix for CVE-2024-51999 [2] (GHSA-pj86-cfqh-vqx6 [3])" [5]
       ... remaining quotes in the same block
   ... remaining versions, each once
   Sources
@@ -435,7 +435,11 @@ paraphrased or semantically deduplicated. Local prefixes end in `...`, with one
 expansion hint; backend truncation separately says `[statement truncated by
 backend]`, including verbose. Verbose expands quotes and shows headings and
 confidence. Kinds map to removal, behavior, runtime/platform, packaging/modules,
-deprecation, security fix and notable change; missing kinds add no category.
+deprecation, security fix and notable change. Kind labels use brackets, such as
+`[security fix]`, colored yellow only in color-enabled CLI output. A missing
+kind means no confident category was returned; the tier still applies. Those
+quotes retain a bullet and no invented kind label. Coverage and no-impact units
+share one summary, wrapping naturally at the caller width.
 
 Every entry/link URL appears once in the Sources list, referenced by quotes.
 Entry links require matching version and `detailSource`; a missing locator is
@@ -446,8 +450,11 @@ batch; JSON retains them and lower-case entry `detailSource`.
 
 Keyword matching consumes `breakingSignals`, `migrationSignals` and entry
 `signals`. A matched full chunk already contained in a statement with the same
-version and defined source becomes a `Keyword match` tag on that statement. Distinct
-keyword text or source remains separate in the same version block. Commit-list
+version and defined source appears in a separate `Keyword matches` subsection
+within that version as `[breaking] matched quoted statement [n]`, using the
+statement source reference rather than repeating its quote. Distinct keyword
+text or source is quoted in that subsection. These are lexical hints, separate
+from the agent-assigned tiers and kinds. Commit-list
 noise and generic headings stay excluded. Keywords already displayed with quotes
 are not repeated in an aggregate footer; signals with no returned matching
 excerpt remain explicit as `Keyword matches without excerpts`. Sampled/other/heuristic entry sections
@@ -592,7 +599,7 @@ post-fix typecheck/build/package validation.
 
 Owner follow-up: statement, keyword and verbose note items now use `*` bullets.
 The redundant `Heuristic keywords` footer was removed; lexical evidence is
-labeled `Keyword match` beside the quote, and aggregate-only signals retain an
+shown in a per-version `Keyword matches` subsection, and aggregate-only signals retain an
 explicit missing-excerpt line. The old sampled-entry section also carried the Express 5.1.0 changelog URL,
 which was lost when that section was removed because its classified quotes
 came from releases. A version-level `Notes` reference now retains returned
@@ -608,3 +615,17 @@ local stdio MCP four ranges plus batch passed. Express has 11 statement bullets,
 a version-level 5.1.0 Notes reference, all three returned changelog URLs and no
 repeated keyword footer. Internal follow-up review returned no findings; the
 existing three-round external-review limit remains in effect.
+
+
+Presentation refinement: coverage and no-impact counts share one summary;
+optional kind labels use brackets and color, while lexical hints appear in a
+separate section within each version. The observed 5.2.0 `res.redirect` warning
+has `should_know` tier confidence 0.95 but no kind; its quote receives no invented
+category. Bullets remain because labels are optional.
+
+Validation: 69 focused formatter/parity/MCP/release-boundary tests passed with
+884 assertions; typecheck, Biome, build, package validation and all four
+source/built smokes passed. Dev CLI and sequential local MCP four ranges plus
+batch passed. One concurrent MCP probe hit the SDK 60-second timeout; the same
+probe passed sequentially, and the cause is unconfirmed. Internal full-follow-up
+review was clean; no additional external round under the existing limit.

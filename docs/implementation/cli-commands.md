@@ -787,8 +787,12 @@ Requires action quotes are full; Should know and Unclassified quotes use compact
 model/formulation provenance stays in JSON. Every report shows classified,
 not-assessed and without-notes versions, positive unparseable/omitted counts,
 no-impact counts, and rerun guidance when classification is incomplete.
-Each statement begins with `*`. Additional lexical keyword evidence appears in
-the same version block as `Keyword match`, without a repeated keyword footer.
+Each statement begins with `*`; optional kind labels use brackets such as
+`[security fix]`, colored in color-enabled output. Quotes without a kind retain
+their tier and bullet without inventing a category. Coverage and no-impact
+counts share one summary. Lexical hints have a separate `Keyword matches`
+subsection within each version; already-quoted matches reference that evidence
+instead of repeating it.
 Sampled-entry sections are removed; `--verbose` includes returned note previews
 for versions without statement evidence. Quotes are not a compatibility verdict. See [Upgrade review](pkg-upgrade-review.md).
 
@@ -796,7 +800,7 @@ The shared formatter wraps free prose to the caller width (minimum 20 columns).
 The CLI passes `process.stdout.columns` and enables ANSI only when supported;
 MCP disables ANSI and uses the 80-column default. Outcome and section headings
 are bold, package identity is bold cyan, and yellow is limited to compact
-attention summaries, labels, and matched signal terms. Keyword-match labels remain plain; matched keywords are yellow. Detail
+attention summaries, labels, and matched signal terms. Kind labels and matched keywords are yellow. Detail
 prose and locators remain plain. Color never carries information that is absent
 from the words. Formatter-authored punctuation stays ASCII while backend
 Unicode is preserved. `--verbose` expands the bounded evidence rows in place.
