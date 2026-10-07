@@ -469,6 +469,30 @@ describe("grep page and omission outcomes", () => {
     expect(output).toContain("--cursor 'cursor'");
     expect(output).not.toContain("(no results)");
   });
+  it("scopes an empty cursor page independently of non-retryable omissions", () => {
+    const output = formatGrepText(
+      result({
+        hits: [],
+        totalMatches: 0,
+        traversal: "RESUMABLE_LIMIT",
+        nextCursor: "cursor",
+        unavailableTargets: [
+          {
+            inputIndex: 0,
+            target: "npm:unsupported",
+            reason: "unsupported",
+            retryable: false,
+            progressRef: null,
+            suggestedSiteTargets: null,
+          },
+        ],
+      }),
+    );
+    expect(output.split("\n")[0]).toBe("No matches on this page.");
+    expect(output).toContain("Omitted:\n  - npm:unsupported (unsupported)");
+    expect(output).toContain("--cursor 'cursor'");
+    expect(output).not.toContain("To retry omitted targets");
+  });
   it("explains unspecified readiness when it is not an unvisited continuation", () => {
     const output = formatGrepText(
       result({ targets: [{ ...target, readiness: "UNSPECIFIED" }] }),
@@ -490,6 +514,11 @@ describe("overall grep traversal limitations", () => {
             nextCursor: "sibling cursor",
           }),
         );
+        expect(output.split("\n")[0]).toBe(
+          hits.length
+            ? "Found 1 match on 1 line in 1 file."
+            : "No matches on this page.",
+        );
         expect(output).toContain(
           "Some requested content could not be searched.",
         );
@@ -499,29 +528,4 @@ describe("overall grep traversal limitations", () => {
       }
     },
   );
-});
-
-it("scopes an empty cursor page independently of non-retryable omissions", () => {
-  const output = formatGrepText(
-    result({
-      hits: [],
-      totalMatches: 0,
-      traversal: "RESUMABLE_LIMIT",
-      nextCursor: "cursor",
-      unavailableTargets: [
-        {
-          inputIndex: 0,
-          target: "npm:unsupported",
-          reason: "unsupported",
-          retryable: false,
-          progressRef: null,
-          suggestedSiteTargets: null,
-        },
-      ],
-    }),
-  );
-  expect(output.split("\n")[0]).toBe("No matches on this page.");
-  expect(output).toContain("Omitted:\n  - npm:unsupported (unsupported)");
-  expect(output).toContain("--cursor 'cursor'");
-  expect(output).not.toContain("To retry omitted targets");
 });

@@ -534,3 +534,13 @@ scope expansion. Nine-file closure passes 354 tests, zero failures and 1,353
 assertions. Internal revised-delta closure is clean. Typecheck, both builds, and
 source/built CLI/MCP smoke checks pass after the external correction; external
 round 2 pending.
+
+External round 2: direction sound; R1 behavior and closure correct. Low finding
+accepted: the overall failed/partial fixture asserted warning/cursor but omitted
+the headline assertion claimed above. Root class is evidence that does not prove
+a documentation claim. Scanned the new skip/omission/overall fixture assertions
+against those claims; added explicit zero/hit headlines for both overall states.
+Moved the omission test into the related describe block (accepted test-organization
+nit). Production is unchanged. Focused `bun test packages/mcp/src/shared/grep-response.test.ts`
+passes 19 tests, zero failures and 118 assertions; scoped Biome and diff checks
+pass. Internal full revised-delta closure is clean. Round 3 pending.

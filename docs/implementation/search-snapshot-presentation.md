@@ -577,8 +577,7 @@ claim follows. Internal review accepted and closed an overall grep traversal
 warning hidden by a sibling cursor and two stale documentation paragraphs.
 The eight-file closure passes 244 tests, zero failures and 913 assertions; no
 new infrastructure or major deferred item. External round 1 accepted a cursor-page
-headline inconsistency: cursor presence
-now controls the page qualifier independently of coverage and terminal omissions,
+headline inconsistency: cursor presence now controls the page qualifier independently of coverage and terminal omissions,
 while attributed/global warnings retain the limitation. Headline regressions cover
 skips, failed/partial overall traversal and non-retryable omissions with cursors.
 
@@ -587,3 +586,10 @@ assertions. Internal review of the revised delta is clean: cursor presence scope
 zero-hit pages, while strict source-level exhaustive claims remain unchanged.
 Typecheck, both builds and source/built CLI/MCP smoke checks pass after this
 correction.
+
+External round 2 confirmed the behavior but found a missing headline assertion
+in the overall failed/partial fixture. Both zero/hit shapes now assert the
+headline for both overall states; warning/cursor assertions remain. The omission
+regression is grouped with its related cases. This closure changes tests only.
+Focused closure passes 19 tests, zero failures and 118 assertions. Internal
+review of the revised delta is clean.
