@@ -178,7 +178,7 @@ describe("semantic search text", () => {
     expect(render(hit)).toContain(
       "github:owner/monorepo@main packages/pkg/src/client.ts:142-145",
     );
-    expect(render(hit)).not.toContain("read target=");
+    expect(render(hit).split("\n\nRead:")[0]).not.toContain("read target=");
   });
 
   it.each(["github:owner/monorepo@main", "owner/monorepo@main"])(
@@ -200,7 +200,7 @@ describe("semantic search text", () => {
       expect(text).toContain(
         `${targetLabel} packages/pkg/src/client.ts:142-145`,
       );
-      expect(text).not.toContain("read target=");
+      expect(text.split("\n\nRead:")[0]).not.toContain("read target=");
       expect(text).not.toContain("npm:pkg");
       expect(text).not.toContain("#main");
     },
@@ -290,7 +290,7 @@ describe("v31 search presentation", () => {
     expect(text).not.toContain("send");
     expect(text).not.toContain("return response");
     expect(text).not.toContain("Snippet unavailable");
-    expect(text.split("\n")).toHaveLength(3);
+    expect(text.split("\n\nRead:")[0]!.split("\n")).toHaveLength(3);
     hit.type = "repository_doc";
     hit.title = "Arbitrary heading";
     expect(render(hit)).toContain(

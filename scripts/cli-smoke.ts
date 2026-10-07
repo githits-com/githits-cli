@@ -523,9 +523,7 @@ export function assertSearchTerminalText(text: string, context: string): void {
     `${context}: non-outcome text precedes search outcome`,
   );
   assert(
-    /^(?:No result snapshot yet|No results yet|No result snapshot|No results)\b|^\d+ (?:partial |interim )?results?\b/.test(
-      firstLine,
-    ),
+    /^(?:Found \d+ |No results? )/.test(firstLine),
     `${context}: missing outcome headline`,
   );
   assert(
@@ -536,13 +534,10 @@ export function assertSearchTerminalText(text: string, context: string): void {
     !formatterLines.some((line) => /^Search\s+\S+\s+\|/.test(line)),
     `${context}: separate Search <ref> session summary`,
   );
-  const lifecycleOutcomeLines = formatterLines.filter((line) =>
-    /\|\s+(?:preparing|indexing|searching)(?:\s*\||$)/.test(line),
+  const outcomeLines = formatterLines.filter((line) =>
+    /^(?:Found \d+ |No results? )/.test(line),
   );
-  assert(
-    lifecycleOutcomeLines.length <= 1,
-    `${context}: duplicate lifecycle outcome lines`,
-  );
+  assert(outcomeLines.length === 1, `${context}: duplicate outcome lines`);
   assert(
     !formatterText.includes("searchRef:") &&
       !formatterText.includes("searchRef="),
@@ -582,6 +577,23 @@ export function assertSearchTerminalText(text: string, context: string): void {
     `${context}: poll policy prose`,
   );
 
+  const footerLabels = ["Read:", "More results:", "Follow-up:"];
+  const presentFooters = formatterLines.filter((line) =>
+    footerLabels.includes(line),
+  );
+  assert(
+    new Set(presentFooters).size === presentFooters.length,
+    `${context}: duplicated footer section`,
+  );
+  assert(
+    presentFooters.join() ===
+      footerLabels.filter((label) => presentFooters.includes(label)).join(),
+    `${context}: footer sections out of order`,
+  );
+  assert(
+    !firstLine.includes("|") && !/partial|interim|ready|offset/.test(firstLine),
+    `${context}: headline must contain only the outcome`,
+  );
   const hasReadinessText = formatterLines.some((line) =>
     TARGET_DETAIL_STATE_PATTERN.test(line),
   );
@@ -592,23 +604,25 @@ export function assertSearchTerminalText(text: string, context: string): void {
     );
   }
 
-  const nextLines = formatterLines.filter((line) => line.startsWith("Next:"));
-  assert(
-    nextLines.length <= 1,
-    `${context}: multiple Next actions are not allowed`,
-  );
-  const statusActions = nextLines.filter((line) =>
-    line.startsWith("Next: githits search-status "),
+  const statusActions = formatterLines.filter((line) =>
+    line.startsWith("  githits search-status "),
   );
   assert(
     statusActions.length <= 1,
     `${context}: expected at most one search-status action`,
   );
-  if (statusActions.length === 1) {
-    const searchRef = statusActions[0]?.match(
-      /^Next: githits search-status (\S+) /,
-    )?.[1];
-    assert(searchRef !== undefined, `${context}: missing search-status ref`);
+  const statusAction = statusActions[0];
+  if (statusAction) {
+    assert(
+      formatterLines.includes("Follow-up:") &&
+        formatterLines.indexOf("Follow-up:") <
+          formatterLines.indexOf(statusAction),
+      `${context}: status action must be in Follow-up`,
+    );
+    assert(
+      /^ {2}githits search-status \S+ --wait \d+(?:\.\d+)?$/.test(statusAction),
+      `${context}: invalid native status action`,
+    );
   }
   assert(
     !formatterText.includes("search_ref="),
@@ -617,7 +631,8 @@ export function assertSearchTerminalText(text: string, context: string): void {
   assert(
     hasHumanSearchHitLocator(lines) ||
       hasTargetRecovery(formatterLines) ||
-      nextLines.length > 0,
+      formatterLines.includes("Follow-up:") ||
+      formatterLines.includes("More results:"),
     `${context}: missing result follow-up or next action`,
   );
 }
@@ -2111,7 +2126,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       grepText.includes("lib/express.js") &&
       /^\s*\d+: .*router/m.test(grepText) &&
       grepText.includes(
-        "# Read files: read --lines $start-$end -- $target $path",
+        "Files: githits read --lines $start-$end -- $target $path",
       ) &&
       !grepText.includes("# source [") &&
       !grepText.includes("Read recipes") &&

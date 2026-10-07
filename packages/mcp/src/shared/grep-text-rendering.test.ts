@@ -120,7 +120,7 @@ describe("grep evidence rendering", () => {
     );
     expect(stripAnsi(colored)).toBe(plain);
     expect(data).toEqual(before);
-    expect(plain).toContain("2 matches in 1 line across 1 file");
+    expect(plain).toContain("Found 2 matches on 1 line in 1 file.");
     expect(plain).not.toContain("(2 matches)");
   });
   it("preserves tab-indented native CRLF-derived source and context rows", () => {
@@ -231,7 +231,7 @@ describe("grep evidence rendering", () => {
   it("counts zero-width matches without fabricated highlight text or empty ANSI spans", () => {
     const data = page([hit({ matchStartByte: 3, matchEndByte: 3 })]);
     const text = formatGrepText(data, { useColors: true });
-    expect(text).toContain("1 match in 1 line across 1 file");
+    expect(text).toContain("Found 1 match on 1 line in 1 file.");
     expect(text).toContain("3: router");
     expect(text).not.toContain(colors.yellow);
   });
@@ -248,7 +248,7 @@ describe("grep evidence rendering", () => {
   });
   it("leads complete empty pages with the outcome and lists searched sources", () => {
     expect(formatGrepText(page([]))).toBe(
-      "No matches.\n\nSources:\n  - github:o/r@sha (no results)",
+      "No matches found.\n\nSources:\n  - github:o/r@sha (no results)",
     );
     const text = formatGrepText(
       page([], {
@@ -265,9 +265,7 @@ describe("grep evidence rendering", () => {
         ],
       }),
     );
-    expect(
-      text.startsWith("Zero returned matches; coverage is incomplete."),
-    ).toBe(true);
+    expect(text.startsWith("No matches found.")).toBe(true);
     expect(text).toContain("stale snapshot");
     expect(text).toContain(
       "github:o/r@served (older snapshot, no results on this page)",
@@ -288,35 +286,35 @@ describe("grep evidence rendering", () => {
       nextCursor: cursor,
       targets: [scope({ traversal: "RESUMABLE_LIMIT" })],
     });
-    const intro = "More matches: repeat this grep, adding:";
+    const intro = "Repeat the original grep, adding:";
     const cases = [
       {
         syntax: "cli" as const,
         cursorLine: "  --cursor 'opaque cursor'",
-        header: "# Read files: read --lines $start-$end -- $target $path",
+        header: "Files: githits read --lines $start-$end -- $target $path",
       },
       {
         syntax: "mcp" as const,
         cursorLine: `  cursor=${JSON.stringify(cursor)}`,
         header:
-          "# Read files: read target=$target path=$path start_line=$start end_line=$end",
+          "Files: read target=$target path=$path start_line=$start end_line=$end",
       },
     ] as const;
 
     for (const { syntax, cursorLine, header } of cases) {
       const plain = formatGrepText(data, { syntax, useColors: false });
       const colored = formatGrepText(data, { syntax, useColors: true });
-      expect(plain.endsWith(`\n${intro}\n${cursorLine}`)).toBe(true);
+      expect(plain.endsWith(`\n  ${intro}\n${cursorLine}`)).toBe(true);
       const coloredLines = colored.split("\n");
-      expect(coloredLines).toContain(`${colors.dim}${header}${colors.reset}`);
+      expect(coloredLines).toContain(`  ${colors.dim}${header}${colors.reset}`);
       expect(coloredLines.slice(-2)).toEqual([
-        `${colors.dim}${intro}${colors.reset}`,
-        `${colors.dim}${cursorLine}${colors.reset}`,
+        `  ${intro}`,
+        `  ${colors.dim}${cursorLine.trimStart()}${colors.reset}`,
       ]);
       expect(stripAnsi(colored)).toBe(plain);
     }
 
-    const narrowIntro = ["More matches: repeat", "this grep, adding:"];
+    const narrowIntro = ["  Repeat the original", "  grep, adding:"];
     const narrowPlain = formatGrepText(data, {
       syntax: "cli",
       useColors: false,
@@ -332,8 +330,8 @@ describe("grep evidence rendering", () => {
       cases[0].cursorLine,
     ]);
     expect(narrowColored.split("\n").slice(-(narrowIntro.length + 1))).toEqual([
-      ...narrowIntro.map((line) => `${colors.dim}${line}${colors.reset}`),
-      `${colors.dim}${cases[0].cursorLine}${colors.reset}`,
+      ...narrowIntro,
+      `  ${colors.dim}${cases[0].cursorLine.trimStart()}${colors.reset}`,
     ]);
     expect(stripAnsi(narrowColored)).toBe(narrowPlain);
 
@@ -344,7 +342,7 @@ describe("grep evidence rendering", () => {
       expect(noCursor).not.toContain("cursor=");
     }
     expect(formatGrepText(page([]))).toBe(
-      "No matches.\n\nSources:\n  - github:o/r@sha (no results)",
+      "No matches found.\n\nSources:\n  - github:o/r@sha (no results)",
     );
   });
 });

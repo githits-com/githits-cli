@@ -139,7 +139,7 @@ describe("unified MCP grep", () => {
     });
 
     expect(result.isError).toBeUndefined();
-    expect(result.content[0]?.text).toBe("No matches.");
+    expect(result.content[0]?.text).toBe("No matches found.");
     expect(grep).toHaveBeenCalledTimes(1);
     expect(grep).toHaveBeenCalledWith({
       targets: [
@@ -217,8 +217,8 @@ describe("unified MCP grep", () => {
     });
     const text = result.content[0]?.text ?? "";
 
-    expect(text).toContain("# Read files: read target=$target path=$path");
-    expect(text).toContain("# Read pages: read target=$url");
+    expect(text).toContain("Files: read target=$target path=$path");
+    expect(text).toContain("Pages: read target=$url");
     expect(text).toContain("Sources:");
     expect(text).toContain('cursor="');
     expect(text).not.toContain("githits read");

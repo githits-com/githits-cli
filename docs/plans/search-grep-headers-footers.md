@@ -2,20 +2,19 @@
 
 ## Status and destination
 
-- Overall: **DESIGN REVISION — headline wording under discussion**.
-- Phase 1: **DESIGN REVISION** — one implementation increment makes search/status and
+- Overall: **IN PROGRESS — implementation authorized**.
+- Phase 1: **IN PROGRESS** — one implementation increment makes search/status and
   grep headers and footers consistent on CLI and local/published MCP package text.
-- Product decisions: settle the revised plain-language headline examples. On
-  2026-10-06 the user rejected the pipe-separated counters and unexplained partial
-  label as ambiguous, including for agents. The earlier readiness is superseded.
+- Product decisions: **none open**. The user approved the plain-language
+  direction, constrained repeated prose on 2026-10-07, and invoked $implement.
+  These instructions settle the previously proposed wording and concision rules.
 - Dependencies: merged PR #454 (`c71ffb5`), current main `bc295b3`, existing source/preparation facts,
   existing read actions, search offset and grep cursor contracts.
 
 Readers should immediately see what this page returned, what is preparing, and
 how to read, continue or obtain updated results. Search and grep retain their different evidence
 counts and continuation semantics within one visible anatomy. This is one
-bounded PR with product changes, not a planning-only PR. No production edits
-are authorized by this planning turn.
+bounded PR with product changes, not a planning-only PR. Implementation is authorized; no merge or release.
 
 ## Verified baseline
 
@@ -153,9 +152,9 @@ empty outcomes rather than abstract headline qualifiers:
 
 - Actual gaps: readiness other than CURRENT except the documented unvisited
   UNSPECIFIED+RESUMABLE_LIMIT case; non-pagination traversal, errors, skips and
-  scan issues, or overall NON_RESUMABLE_PARTIAL/FAILED/CURSOR_EXPIRED.
+  scan issues, or overall NON_RESUMABLE_PARTIAL/FAILED/CURSOR_EXPIRED not explained solely by omitted targets.
 - Only retryable omissions: no actual gap, at least one unavailableTarget and
-  all omissions retryable. Preparing/Omitted rows explain the temporary omission.
+  all omissions retryable. NON_RESUMABLE_PARTIAL is also emitted for omission-only pages; the existing Preparing/Omitted rows explain that temporary limit without another traversal warning.
 - Non-retryable omissions or actual gaps: existing attributed coverage/reason
   notes explain the limit. When no existing note conveys the overall limitation,
   use `Some requested content could not be searched.` without inventing a cause.
@@ -176,8 +175,8 @@ Preserve the strict exhaustive predicate. The revised zero-page examples are:
 
 Pagination remains independently available under More results. Partial empty
 snapshots must not imply an exhaustive no-result search; use the scope explanation
-or the full-request warning above. These new copy choices are proposed and need
-review once the user settles the headline shape; prior reviews covered the
+or the full-request warning above. These copy choices were settled by the user
+and are now under implementation review; prior plan reviews covered the
 semantics, not this revised wording.
 
 ### Body and source sections
@@ -322,15 +321,14 @@ contracts; this change concerns successful/retained result text, not auth errors
 
 ## Phase 1 — consistent and truthful result edges
 
-- Status: **DESIGN REVISION**.
+- Status: **IN PROGRESS**.
 - Expected outcome: the examples above hold for CLI/MCP search/status and grep;
   usable results, pending scopes and available actions are immediately clear.
 - Assumptions: existing nextOffset/cursor/read/lifecycle facts suffice (verified
   above); fixed three-section helper needs no new service data; long cursors
   remain unavoidable within the existing contract.
-- Unknowns/product decisions: settle revised headline wording and its concrete
-  examples before implementation. Then review the revised design; no production
-  changes while this is open.
+- Unknowns/product decisions: **none** after the user invoked $implement on the
+  revised design. Fresh implementation review covers the final approved wording.
 - Dependencies: reviewed plan, merged source rows and current main baseline.
 
 Ordered implementation:
@@ -479,3 +477,42 @@ The user additionally requires per-call token discipline on 2026-10-07: default
 header-only outcome, no paraphrase of Sources/Preparing, and exceptional prose
 only for otherwise undisclosed facts. This refines the proposed copy and
 acceptance; it is not an output-token reduction claim before implementation.
+
+
+## Implementation evidence (2026-10-07)
+
+Implemented inline under $implement on merged main bc295b3. Private availability
+retains backend partialResults for completed/empty snapshots; no public JSON,
+request/query selection, descriptors, auth or other commands changed. The shared
+helper owns fixed footer layout only; tool renderers retain state and exact
+operands. Grep gap checks reuse the same target predicate while the exhaustive
+predicate remains stricter. No new infrastructure or major deferral.
+
+Focused closure: 297 pass, zero fail, 932 assertions across four renderer/smoke
+contract files. Full verification passed 5,624 tests/zero failures/22,404 assertions across235 files; typecheck, both builds, source and built CLI/MCP smokes and packed public-package validation passed. Targeted
+Claude agent:e2e search-investigation and grep-mixed-docs executions failed with
+`Not logged in` before any tool calls. Both tool traces are empty, final/isolation
+artifacts absent and usage unknown; no comprehension/quality claim follows.
+
+Same fixed fixtures before/after: ready search 89 -> 163 bytes (+74), preparing
+search 459 -> 553 (+94), mixed paged grep 6992 -> 6985 (-7). Search adds useful
+native read/pagination actions that the baseline omitted. This is output size,
+not token count, latency or agent-quality evidence.
+
+Authenticated dev CLI express@2.3.12 (registry-confirmed) returned one docs hit
+and one hosted-doc grep match with Sources, repository Preparing, then Read,
+More results and Follow-up. Exact command operands, alias and indexed alternatives
+remain. MCP grep express@2.4.0 showed the same hierarchy with native syntax.
+Initial MCP search encountered a transient Keychain error; retry succeeded after
+that version had indexed, proving healthy code Read+pagination without a wait.
+Fresh pending MCP search express2.4.1 and immediate retained status succeeded with identical text, exact read selector/offset1/native status wait70000. Healthy CLI/MCP search returned code with Read+More and no wait.
+
+
+Internal finding closure: direction sound. Overall NON_RESUMABLE_PARTIAL/FAILED
+can retain a cursor (parser accepts this valid shape); the old no-cursor-only
+warning hid the limitation in that case. Fixed overall warning selection while
+retaining exact cursor and omission-only silence. Sibling scan covered all overall
+traversal branches, target gap/exhaustive predicates, parser enum/cursor contracts,
+zero/hit pages and related documentation. Added both statuses with zero/hit pages;
+no service/state change or speculative mechanism. Two stale grep-doc outcome
+paragraphs now match current prose. Internal revised-delta closure is clean; 244 tests/zero failures/913 assertions across eight affected files prove the fix. Closure typecheck, both builds and source/built CLI/MCP smoke checks passed.

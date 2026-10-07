@@ -422,9 +422,7 @@ function assertSearchDefaultText(text: string, context: string): void {
   const firstLine = lines[0]?.trim() ?? "";
   assert(firstLine.length > 0, `${context}: missing outcome first line`);
   assert(
-    /^(?:No result snapshot yet|No results yet|No result snapshot|No results)\b|^\d+ (?:partial |interim )?results?\b/.test(
-      firstLine,
-    ),
+    /^(?:Found \d+ |No results? )/.test(firstLine),
     `${context}: missing outcome headline`,
   );
   assert(
@@ -440,13 +438,10 @@ function assertSearchDefaultText(text: string, context: string): void {
     !formatterLines.some((line) => /^Search\s+\S+\s+\|/.test(line)),
     `${context}: separate Search <ref> session summary`,
   );
-  const lifecycleOutcomeLines = lines.filter((line) =>
-    /\|\s+(?:preparing|indexing|searching)(?:\s*\||$)/.test(line),
+  const outcomeLines = formatterLines.filter((line) =>
+    /^(?:Found \d+ |No results? )/.test(line),
   );
-  assert(
-    lifecycleOutcomeLines.length <= 1,
-    `${context}: duplicate lifecycle outcome lines`,
-  );
+  assert(outcomeLines.length === 1, `${context}: duplicate outcome lines`);
   assert(
     !formatterText.includes("searchRef="),
     `${context}: leaked searchRef=`,
@@ -481,6 +476,23 @@ function assertSearchDefaultText(text: string, context: string): void {
     `${context}: poll policy prose`,
   );
 
+  const footerLabels = ["Read:", "More results:", "Follow-up:"];
+  const presentFooters = formatterLines.filter((line) =>
+    footerLabels.includes(line),
+  );
+  assert(
+    new Set(presentFooters).size === presentFooters.length,
+    `${context}: duplicated footer section`,
+  );
+  assert(
+    presentFooters.join() ===
+      footerLabels.filter((label) => presentFooters.includes(label)).join(),
+    `${context}: footer sections out of order`,
+  );
+  assert(
+    !firstLine.includes("|") && !/partial|interim|ready|offset/.test(firstLine),
+    `${context}: headline must contain only the outcome`,
+  );
   const hasReadinessText = formatterLines.some((line) =>
     TARGET_DETAIL_STATE_PATTERN.test(line),
   );
@@ -491,34 +503,28 @@ function assertSearchDefaultText(text: string, context: string): void {
     );
   }
 
-  const nextLines = lines.filter((line) => line.startsWith("Next:"));
-  assert(
-    nextLines.length <= 1,
-    `${context}: multiple Next actions are not allowed`,
+  const statusActions = formatterLines.filter((line) =>
+    line.startsWith("  search_status "),
   );
-
   const searchRefOccurrences = formatterText.match(/search_ref=/g)?.length ?? 0;
   assert(
-    searchRefOccurrences <= 1,
-    `${context}: search_ref= must appear at most once`,
+    statusActions.length <= 1 && searchRefOccurrences === statusActions.length,
+    `${context}: expected at most one native status action`,
   );
-  if (searchRefOccurrences === 1) {
-    const refLine = formatterLines.find((line) => line.includes("search_ref="));
+  const statusAction = statusActions[0];
+  if (statusAction) {
     assert(
-      refLine?.trimStart().startsWith("Next:"),
-      `${context}: search_ref= must appear only on a Next line`,
+      formatterLines.includes("Follow-up:") &&
+        formatterLines.indexOf("Follow-up:") <
+          formatterLines.indexOf(statusAction),
+      `${context}: status action must be in Follow-up`,
     );
     assert(
-      refLine?.startsWith("Next: search_status "),
-      `${context}: search_ref= must use the MCP search_status action`,
+      /^ {2}search_status search_ref="[^"]+" wait_timeout_ms=\d+$/.test(
+        statusAction,
+      ),
+      `${context}: invalid native status action`,
     );
-    assert(
-      refLine !== undefined,
-      `${context}: search_ref= must appear only on a Next line`,
-    );
-    const match = refLine.match(/search_ref=(?:"([^"]+)"|(\S+))/);
-    const searchRef = match?.[1] ?? match?.[2];
-    assert(searchRef !== undefined, `${context}: missing search_ref value`);
   }
   assert(
     !formatterText.includes("githits search-status ") &&
@@ -532,7 +538,8 @@ function assertSearchDefaultText(text: string, context: string): void {
   assert(
     hasHumanSearchHitLocator(lines) ||
       hasTargetRecovery(formatterLines) ||
-      lines.some((line) => line.startsWith("Next:")),
+      formatterLines.includes("Follow-up:") ||
+      formatterLines.includes("More results:"),
     `${context}: missing usable result locator or status follow-up`,
   );
 }
@@ -1691,9 +1698,9 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   }
   assert(
     grepText.includes("Sources:") &&
-      grepText.includes("# Read files: read target=$target path=$path") &&
-      grepText.includes("# Read pages: read target=$url") &&
-      grepText.includes("More matches") &&
+      grepText.includes("Files: read target=$target path=$path") &&
+      grepText.includes("Pages: read target=$url") &&
+      grepText.includes("More results:") &&
       grepText.includes(`cursor=${JSON.stringify(grepJson.nextCursor)}`),
     "grep default missing mixed-source, exact-read, or continuation guidance",
   );

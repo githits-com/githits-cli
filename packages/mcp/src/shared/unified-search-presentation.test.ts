@@ -195,6 +195,7 @@ describe("projectUnifiedSearchPresentation", () => {
     expect(presentation.availability).toEqual({
       kind: "final",
       hasSnapshot: true,
+      partialResults: false,
       resultCount: 1,
     });
     expect(presentation.lifecycle).toEqual({
@@ -242,6 +243,7 @@ describe("projectUnifiedSearchPresentation", () => {
     expect(presentation.availability).toEqual({
       kind: "empty",
       hasSnapshot: true,
+      partialResults: false,
       resultCount: 0,
     });
     expect(groupedSources(presentation)).toEqual([
@@ -649,6 +651,7 @@ describe("projectUnifiedSearchPresentation", () => {
       expect(presentation.availability).toEqual({
         kind,
         hasSnapshot: true,
+        partialResults,
         resultCount: 1,
       });
     },
@@ -678,6 +681,7 @@ describe("projectUnifiedSearchPresentation", () => {
     expect(presentation.availability).toEqual({
       kind: "no_snapshot",
       hasSnapshot: false,
+      partialResults: false,
       resultCount: 0,
     });
     expect(groupedSources(presentation)).toEqual([]);

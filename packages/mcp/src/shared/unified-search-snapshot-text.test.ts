@@ -144,7 +144,7 @@ describe("snapshot search text received by agents", () => {
         expect(text.match(/committed \d{4}-\d{2}-\d{2}/g) ?? []).toHaveLength(
           Number(Boolean(servedDate)) + Number(Boolean(requestedDate)),
         );
-        expect(text).toContain("Next: use these hits now; read for details:");
+        expect(text).toContain("Use these results now; example read:");
         expect(text).toContain("If you need current HEAD");
         expect(text).not.toContain("T23:");
         expect(text).not.toContain("unknown date");
@@ -177,7 +177,7 @@ describe("snapshot search text received by agents", () => {
         expect(sourceSection).not.toContain("2026-10-05");
         expect(text).not.toContain("different commit");
         expect(text).not.toContain("If you need current HEAD");
-        expect(text).toContain("Next: use these hits now");
+        expect(text).toContain("Use these results now");
         if (servedDate) expect(text).toContain("committed 2026-09-01");
         else expect(sourceSection).not.toContain("committed");
       }
@@ -219,10 +219,10 @@ describe("snapshot search text received by agents", () => {
           "github:anomalyco/opencode@0112a92c",
         );
         expect(text.replace(/\s+/g, " ")).toContain("observed HEAD");
-        expect(text).toContain("next_offset=3");
-        expect(text).toContain("1 result");
+        expect(text).toContain(syntax === "mcp" ? "offset=3" : "--offset 3");
+        expect(text).toContain("Found 1");
         expect(text).not.toContain("partial result");
-        expect(text).toContain("Next: use these hits now; read for details:");
+        expect(text).toContain("Use these results now; example read:");
         const read =
           syntax === "mcp"
             ? `read target="github:anomalyco/opencode@bbd72fb8" path="${path}" start_line=480 end_line=490`
@@ -236,8 +236,8 @@ describe("snapshot search text received by agents", () => {
             ? 'search_status search_ref="recorded-search" wait_timeout_ms=120000'
             : "githits search-status recorded-search --wait 120",
         );
-        expect(text).not.toContain("Next: search_status");
-        expect(text).not.toContain("Next: githits search-status");
+        expect(text).not.toContain("Follow-up:\n  search_status");
+        expect(text).not.toContain("Follow-up:\n  githits search-status");
         expect(text).toContain(
           "For a specific ref, search github:anomalyco/opencode@<ref>.",
         );
@@ -278,9 +278,9 @@ describe("snapshot search text received by agents", () => {
     const payload = snapshot();
     payload.results[0]!.readTarget = undefined;
     for (const text of both(payload)) {
-      expect(text).toContain("Next: use these hits now.");
+      expect(text).toContain("Use these results now.");
       expect(text).not.toContain("read for details:");
-      expect(text).not.toContain("read target=");
+      expect(text.split("\n\nRead:")[0]).not.toContain("read target=");
       expect(text).toContain("If you need current HEAD");
     }
   });
@@ -370,11 +370,11 @@ describe("snapshot search text received by agents", () => {
     payload.results = [];
     resolution(payload).served!.committedAt = "2026-09-01T00:00:00Z";
     for (const text of both(payload)) {
-      expect(text).toContain("No results yet");
+      expect(text).toContain("No results on this page.");
       expect(text).toContain(
-        'Next: search_status search_ref="recorded-search" wait_timeout_ms=120000',
+        'search_status search_ref="recorded-search" wait_timeout_ms=120000',
       );
-      expect(text).not.toContain("read target=");
+      expect(text.split("\n\nRead:")[0]).not.toContain("read target=");
       expect(text).not.toContain("Sources:");
       expect(text).not.toContain("older snapshot");
     }
@@ -403,13 +403,12 @@ describe("snapshot search text received by agents", () => {
             : "(indexing when observed, estimated",
         );
         expect(text).toContain("committed 2026-09-01");
-        expect(text).not.toContain("Next: use these hits");
-        expect(text).not.toContain("read target=");
+        expect(text).not.toContain("Use these results");
+        expect(text.split("\n\nRead:")[0]).not.toContain("read target=");
         expect(text).not.toContain("If you need current HEAD");
-        if (status === "INDEXING")
-          expect(text).toContain("Next: search_status");
+        if (status === "INDEXING") expect(text).toContain("search_status");
         else {
-          expect(text).toContain("search again later");
+          expect(text).toContain("Search again later");
           expect(text).not.toContain("search_status");
         }
       }
@@ -483,7 +482,7 @@ describe("snapshot search text received by agents", () => {
           ).toHaveLength(0);
         }
         expect(text).not.toContain("If you need current HEAD");
-        expect(text).toContain("Next: use these hits");
+        expect(text).toContain("Use these results");
         expect(text).toContain(explicitTarget);
       }
     },
@@ -501,10 +500,11 @@ describe("snapshot search text received by agents", () => {
       resultCount: 0,
     });
     for (const text of both(payload)) {
-      expect(text).toContain("1 partial result");
-      expect(text).toContain("1/2 ready");
+      expect(text).toContain("Found 1 code result.");
+      expect(text).not.toContain("1/2 ready");
+      expect(text).toContain("site:example.com docs");
       expect(text).toContain("indexing: site:example.com docs");
-      expect(text).toContain("Next: use these hits");
+      expect(text).toContain("Use these results");
     }
   });
 
@@ -515,7 +515,7 @@ describe("snapshot search text received by agents", () => {
       payload.progress!.status = status;
       resolution(payload).served!.committedAt = "2026-09-01T00:00:00Z";
       for (const text of both(payload)) {
-        expect(text).toContain("Next: use these hits");
+        expect(text).toContain("Use these results");
         expect(text).toContain("committed 2026-09-01");
         expect(text).toContain("search again");
         expect(text).not.toContain("search_status");
@@ -549,7 +549,7 @@ describe("snapshot search text received by agents", () => {
       const prep = flat.split("Preparing:")[1]!.split("Requested:")[0]!;
       expect(prep).not.toContain("observed HEAD");
       expect(prep).not.toContain("committed");
-      expect(text).toContain("Next: use these hits now");
+      expect(text).toContain("Use these results now");
     }
   });
   it("shared rows never join requested dates or HEAD across raw repository identities", () => {
@@ -608,7 +608,7 @@ describe("requested indexing explanation without matching estimates", () => {
           expect(flat).toContain("Requested ref is being indexed.");
           expect(text).not.toContain("requested_ref_indexing");
           expect(text).not.toContain("\nHEAD)");
-          expect(text).toContain("Next: use these hits now");
+          expect(text).toContain("Use these results now");
           if (estimates === "unmatched") {
             expect(flat).toContain(
               "github:anomalyco/opencode@cccccccc (indexing, estimated total: 100-120s)",

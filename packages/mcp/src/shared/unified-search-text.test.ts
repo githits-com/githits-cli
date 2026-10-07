@@ -314,7 +314,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text.split("\n")[0]).toBe(
-      "10 results | 5 repo docs, 5 docs pages | next_offset=10",
+      "Found 5 repository documentation results and 5 documentation results.",
     );
     expect(text).toContain(
       "Sources:\n  - site:expressjs.com (hosted documentation, requested: npm:express@5.2.1)",
@@ -331,9 +331,9 @@ describe("renderUnifiedSearchSuccess", () => {
     );
     expect(text).not.toContain("githits docs read");
     expect(text).not.toContain("docs_read");
-    expect(text).not.toContain("  read target=");
+    expect(text.split("\n\nRead:")[0]).not.toContain("  read target=");
     expect(text).not.toContain("### router.use()");
-    expect(text.match(/next_offset=10/g)).toHaveLength(1);
+    expect(text.match(/offset=10/g)).toHaveLength(1);
     expect(text.length).toBeLessThan(3459);
   });
 
@@ -476,7 +476,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(render()).toContain(
       "src/auth.ts:17-27 [repo code, candidate; visible terms: auth, session, store] - interface AuthSessionStore",
     );
-    expect(render().split("\n")).toHaveLength(3);
+    expect(render().split("\n\nRead:")[0]!.split("\n")).toHaveLength(3);
     hit.locator.symbolContext!.definitionRange!.filePath = "src/other.ts";
     hit.locator.symbolContext!.definitionRange!.repositoryFilePath =
       "src/other.ts";
@@ -794,8 +794,8 @@ describe("renderUnifiedSearchSuccess", () => {
       expect(text).toContain(
         "[2] npm:githits@0.22.1 docs/implementation/config.md:69-79 [repo doc, candidate] - Local Storage",
       );
-      expect(text).not.toContain("  githits read ");
-      expect(text).not.toContain("  read target=");
+      expect(text.split("\n\nRead:")[0]).not.toContain("  githits read ");
+      expect(text.split("\n\nRead:")[0]).not.toContain("  read target=");
     }
   });
 
@@ -826,7 +826,7 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
     expect(text).toContain("[1] npm:pkg@1.2.3 docs/auth.md:42-52 [repo doc]");
-    expect(text).not.toContain("  read target=");
+    expect(text.split("\n\nRead:")[0]).not.toContain("  read target=");
   });
 
   it("keeps repo-doc producer evidence while omitting its backend action", () => {
@@ -858,7 +858,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain(
       "[1] pypi:flask@3.1.3 docs/design.rst:83-93 [repo doc] - design.rst",
     );
-    expect(text).not.toContain("  read target=");
+    expect(text.split("\n\nRead:")[0]).not.toContain("  read target=");
   });
 
   it("does not promote repository documentation with associated symbol metadata", () => {
@@ -1069,7 +1069,7 @@ describe("renderUnifiedSearchSuccess", () => {
   it("starts completed hits with the outcome and preserves hit anatomy", () => {
     const text = renderUnifiedSearchSuccess(completed([codeHit()]));
 
-    expect(firstLine(text)).toContain("1 result");
+    expect(firstLine(text)).toContain("Found 1");
     expect(firstLine(text)).not.toContain("search |");
     expect(text).toContain(
       "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n  applyEdit",
@@ -1090,8 +1090,8 @@ describe("renderUnifiedSearchSuccess", () => {
       { results: payload.results },
     );
 
-    expect(text).toBe(
-      "1 result | 1 repo code hit\n\n" +
+    expect(text.split("\n\nRead:")[0]).toBe(
+      "Found 1 code result.\n\n" +
         "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n" +
         "  applyEdit\n" +
         "  Snippet unavailable",
@@ -1118,10 +1118,12 @@ describe("renderUnifiedSearchSuccess", () => {
     );
     const docsText = renderUnifiedSearchSuccess(completed([docsHit()]));
 
-    expect(firstLine(repoText)).toBe("1 result | 1 repo doc");
-    expect(firstLine(docsText)).toBe("1 result | 1 docs page");
+    expect(firstLine(repoText)).toBe(
+      "Found 1 repository documentation result.",
+    );
+    expect(firstLine(docsText)).toBe("Found 1 documentation result.");
     expect(firstLine(renderUnifiedSearchSuccess(completed([codeHit()])))).toBe(
-      "1 result | 1 repo code hit",
+      "Found 1 code result.",
     );
     expect(
       firstLine(
@@ -1129,7 +1131,7 @@ describe("renderUnifiedSearchSuccess", () => {
           completed([codeHit({ type: "repository_symbol" })]),
         ),
       ),
-    ).toBe("1 result | 1 repo symbol");
+    ).toBe("Found 1 symbol result.");
   });
 
   it("uses ASCII separators without changing Unicode payload text", () => {
@@ -1242,7 +1244,7 @@ describe("renderUnifiedSearchSuccess", () => {
       `[1] ${docsReadTarget} [docs page] aider-AI/aider - aider.chat/docs/more/edit-formats.html -`,
     );
     expect(text).not.toContain("[1] aider/edit-formats [docs page]");
-    expect(text).not.toContain("  read target=");
+    expect(text.split("\n\nRead:")[0]).not.toContain("  read target=");
   });
 
   it("keeps a hosted source fragment as provenance and selects the heading explicitly", () => {
@@ -1267,7 +1269,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain(
       `[1] ${docsReadTarget} [docs page] npm:express - #route-handlers -`,
     );
-    expect(text).not.toContain("  read target=");
+    expect(text.split("\n\nRead:")[0]).not.toContain("  read target=");
     expect(text).not.toContain("start_line=");
     expect(text).not.toContain("end_line=");
   });
@@ -1459,12 +1461,12 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(firstLine(text)).toBe("No results");
+    expect(firstLine(text)).toBe("No results found.");
     expect(text).toContain(
       "Sources:\n  - npm:express@5.2.1 (code, no results)",
     );
-    expect(text).toContain(
-      'Next: shorten or broaden query; remove restrictive filters; use source="symbol"; use grep.',
+    expect(text.replace(/\s+/g, " ")).toContain(
+      'Try: shorten or broaden query; remove restrictive filters; use source="symbol"; use grep.',
     );
     expect(text).not.toContain('query="');
     expect(text).not.toContain("Do not repeat");
@@ -1570,7 +1572,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("Fix: verify public repository/ref.");
     expect(text).toContain("Fix: verify site host/path.");
     expect(text).toContain("Fix: verify or replace target.");
-    expect(text).not.toContain("search again later");
+    expect(text).not.toContain("Search again later");
     expect(text).not.toContain("searchRef");
     expect(text.match(/Fix:/g)).toHaveLength(4);
 
@@ -1635,7 +1637,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toBe(
-      "No results\n\n" +
+      "No results found.\n\n" +
         "- npm:express latest\n" +
         "  package unresolved: code\n" +
         "  Try: npm:express@5.1.0",
@@ -1682,23 +1684,23 @@ describe("renderUnifiedSearchSuccess", () => {
     },
   );
 
-  it("renders the supplied n8n active empty snapshot with one concise readiness block", () => {
+  it("renders the supplied n8n active empty snapshot with one concise target block", () => {
     const text = renderUnifiedSearchSuccess(n8nActiveEmpty());
 
     expect(text).toBe(
-      "No results yet | indexing | 0/1 ready\n\n" +
+      "No results available yet.\n\n" +
         "- npm:n8n -> 2.36.7\n" +
         "  indexing: code, repository docs; available: n8n.io docs (1,480 pages; capped);\n" +
-        "  indexed: versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master\n\n" +
-        'Next: search_status search_ref="fabUr1S3MEVeSgD93pMoSQ" wait_timeout_ms=30000',
+        "  indexed: versions 2.26.9, 2.26.5, 2.23.2 (+2 more), refs HEAD, master\n\n" +
+        'Follow-up:\n  search_status search_ref="fabUr1S3MEVeSgD93pMoSQ" wait_timeout_ms=30000',
     );
     expect(text).not.toContain("Do not repeat");
     expect(text).not.toContain("indexingRef");
     expect(text).not.toContain("freshnessReason");
     expect(text).not.toContain("Opaque evidence notice");
-    expect(text.match(/indexing/g)).toHaveLength(2);
+    expect(text.match(/indexing/g)).toHaveLength(1);
     expect(text.match(/available:/g)).toHaveLength(1);
-    expect(text.match(/Next:/g)).toHaveLength(1);
+    expect(text.match(/Follow-up:/g)).toHaveLength(1);
   });
 
   it("keeps one hit layout while rendering surface-native status commands", () => {
@@ -1707,17 +1709,17 @@ describe("renderUnifiedSearchSuccess", () => {
     const cli = renderUnifiedSearchSuccess(payload, { actionSyntax: "cli" });
 
     expect(cli).toContain(
-      "Next: githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 30",
+      "githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 30",
     );
     expect(cli).not.toContain("search_status search_ref=");
     expect(
       cli.replace(
-        "Next: githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 30",
+        "githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 30",
         "Next: <status-action>",
       ),
     ).toBe(
       mcp.replace(
-        'Next: search_status search_ref="fabUr1S3MEVeSgD93pMoSQ" wait_timeout_ms=30000',
+        'search_status search_ref="fabUr1S3MEVeSgD93pMoSQ" wait_timeout_ms=30000',
         "Next: <status-action>",
       ),
     );
@@ -1729,14 +1731,16 @@ describe("renderUnifiedSearchSuccess", () => {
       "[1] cline/cline@v3.4.2 src/integrations/diff/strategies/multi-search-replace.ts:142-156 [repo code] -\n  applyEdit",
     );
     const mcpCode = renderUnifiedSearchSuccess(completed([codeHit()]));
-    expect(code).toBe(mcpCode);
-    expect(code).not.toContain("  githits read ");
-    expect(mcpCode).not.toContain("  read target=");
+    expect(code.split("\n\nRead:")[0]).toBe(mcpCode.split("\n\nRead:")[0]);
+    expect(code).toContain("githits read ");
+    expect(mcpCode).toContain("read target=");
+    expect(code.split("\n\nRead:")[0]).not.toContain("  githits read ");
+    expect(mcpCode.split("\n\nRead:")[0]).not.toContain("  read target=");
     const narrowCode = renderUnifiedSearchSuccess(completed([codeHit()]), {
       actionSyntax: "cli",
       width: 40,
     });
-    expect(narrowCode).not.toContain("  githits read ");
+    expect(narrowCode.split("\n\nRead:")[0]).not.toContain("  githits read ");
 
     const repositoryCode = renderUnifiedSearchSuccess(
       completed([
@@ -1762,7 +1766,9 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(repositoryCode).toContain(
       "[1] github:cline/cline@main src/index.ts:10-20 [repo code] - applyEdit",
     );
-    expect(repositoryCode).not.toContain("  githits read ");
+    expect(repositoryCode.split("\n\nRead:")[0]).not.toContain(
+      "  githits read ",
+    );
 
     const docs = renderUnifiedSearchSuccess(completed([docsHit()]), {
       actionSyntax: "cli",
@@ -1770,10 +1776,10 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(docs).toContain(
       "[1] https://aider.chat/docs/more/edit-formats.html [docs page] aider-AI/aider -\n  Edit Formats",
     );
-    expect(docs).not.toContain("  githits read ");
+    expect(docs.split("\n\nRead:")[0]).not.toContain("  githits read ");
     expect(docs).not.toContain("--lines");
     const mcpDocs = renderUnifiedSearchSuccess(completed([docsHit()]));
-    expect(mcpDocs).not.toContain("  read target=");
+    expect(mcpDocs.split("\n\nRead:")[0]).not.toContain("  read target=");
     expect(mcpDocs).not.toContain("start_line=");
     expect(mcpDocs).not.toContain("end_line=");
 
@@ -1784,7 +1790,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
       { actionSyntax: "cli" },
     );
-    expect(empty).toContain("use --source symbol");
+    expect(empty.replace(/\s+/g, " ")).toContain("use --source symbol");
     expect(empty).toContain("use githits grep");
     expect(empty).not.toContain('source="symbol"');
     expect(empty).not.toContain("code_grep");
@@ -1806,11 +1812,9 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(firstLine(text)).toBe(
-      "No result snapshot yet | indexing | 0/2 ready",
-    );
+    expect(firstLine(text)).toBe("No results available yet.");
     expect(text).toContain(
-      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
+      'search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
     );
   });
 
@@ -1834,16 +1838,14 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(firstLine(text)).toBe(
-      "No result snapshot yet | indexing | 0/1 ready",
-    );
+    expect(firstLine(text)).toBe("No results available yet.");
     expect(text).not.toContain("Waiting:");
     expect(text).not.toContain("Searched:");
     expect(text).not.toContain("n8n.io");
     expect(text).toContain("indexed: versions 2.26.9");
     expect(text).toContain("versions 2.26.9");
     expect(text).toContain(
-      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
+      'search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
     );
   });
 
@@ -1919,7 +1921,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("- npm:express");
     expect(text.match(/^- npm:express/gm)).toHaveLength(2);
     expect(text).toContain(
-      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
+      'search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
     );
   });
 
@@ -1930,9 +1932,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(firstLine(text)).toBe(
-      "No result snapshot yet | indexing | 0/1 ready",
-    );
+    expect(firstLine(text)).toBe("No results available yet.");
     expect(text).toContain("Warnings:\n  - unknown qualifier");
     expect(text.match(/unknown qualifier/g)).toHaveLength(1);
     expect(text.indexOf("Warnings:")).toBeGreaterThan(0);
@@ -1988,7 +1988,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "available: site:docs.example.com, site:api.example.com",
     );
     expect(text).toContain(
-      'Next: search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
+      'search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
     );
     expect(text).not.toContain("Next: retry one suggested site target");
     expect(text.match(/available:/g)).toHaveLength(1);
@@ -2043,7 +2043,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
     expect(terminalText).toContain("Try: site:docs.example.com");
-    expect(terminalText).not.toContain("Next: search_status");
+    expect(terminalText).not.toContain("search_status");
   });
 
   it("disambiguates multi-target readiness and preserves docs provenance", () => {
@@ -2102,7 +2102,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(firstLine(text)).toBe("No results");
+    expect(firstLine(text)).toBe("No results found.");
     expect(text).toContain("- npm:one@1.0.0\n  indexing when observed: code");
     expect(text).toContain("- npm:two@2.0.0\n  indexing when observed: code");
   });
@@ -2188,7 +2188,7 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).toContain("not found: symbols");
     expect(text).not.toContain("Fix:");
     expect(text).toContain(
-      'Next: shorten or broaden query; use source="symbol"; use grep.',
+      'Try: shorten or broaden query; use source="symbol"; use grep.',
     );
   });
 
@@ -2218,10 +2218,10 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toBe(
-      "No results | failed | 0/1 ready\n\nSources:\n  - npm:express@4.18.2 (code, no results)\n\n" +
+      "No results found.\nSearch failed.\n\nSources:\n  - npm:express@4.18.2 (code, no results)\n\n" +
         "- npm:express@4.18.2\n" +
         "  not found: symbols\n\n" +
-        "Next: search again later.",
+        "Follow-up:\n  Search again later.",
     );
   });
 
@@ -2252,12 +2252,12 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toBe(
-      "No results\n\nSources:\n  - npm:one@1.0.0 (code, no results)\n\n" +
+      "No results found.\n\nSources:\n  - npm:one@1.0.0 (code, no results)\n\n" +
         "- npm:one@1.0.0\n" +
         "  unresolved: symbols\n\n" +
         "- npm:two@2.0.0\n" +
         "  indexing when observed: code\n\n" +
-        "Next: search again later.",
+        "Follow-up:\n  Search again later.",
     );
   });
 
@@ -2291,10 +2291,10 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toBe(
-      "No results | failed | 0/1 ready\n\nSources:\n  - npm:express@4.18.2 (code, no results)\n\n" +
+      "No results found.\nSearch failed.\n\nSources:\n  - npm:express@4.18.2 (code, no results)\n\n" +
         "- npm:express@4.18.2\n" +
         "  unresolved: symbols; indexed: versions 4.17.0\n\n" +
-        "Next: search again later.",
+        "Follow-up:\n  Search again later.",
     );
   });
 
@@ -2306,7 +2306,7 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
 
-    expect(firstLine(text)).toBe("2 results | 2 repo code hits");
+    expect(firstLine(text)).toBe("Found 2 code results.");
     expect(firstLine(text)).not.toContain(" from ");
   });
 
@@ -2327,17 +2327,15 @@ describe("renderUnifiedSearchSuccess", () => {
           },
         }),
       );
-      expect(firstLine(text)).toBe(
-        `No result snapshot yet | ${label} | 0/1 ready`,
-      );
+      expect(firstLine(text)).toBe("No results available yet.");
     },
   );
 
   it.each([
-    [false, "1 result"],
-    [true, "1 partial result"],
+    [false, "Found 1"],
+    [true, "Found 1 code result."],
   ] as const)(
-    "labels visible results independently of active indexing: %s",
+    "keeps outcome counts independent of backend partial truth: %s",
     (partial, label) => {
       const text = renderUnifiedSearchSuccess(
         incomplete({
@@ -2369,12 +2367,10 @@ describe("renderUnifiedSearchSuccess", () => {
           },
         }),
       );
-      expect(firstLine(text)).toBe(
-        `No result snapshot | ${status.toLowerCase()} | 0/1 ready`,
-      );
-      expect(text).toContain("Next: search again later.");
+      expect(firstLine(text)).toBe("No result snapshot available.");
+      expect(text).toContain("Search again later.");
       expect(text).not.toContain("Do not poll");
-      expect(text).not.toContain("Next: search_status");
+      expect(text).not.toContain("search_status");
     },
   );
 
@@ -2389,12 +2385,10 @@ describe("renderUnifiedSearchSuccess", () => {
         },
       }),
     );
-    expect(firstLine(text)).toBe(
-      "No result snapshot | status unknown | 1/2 ready",
-    );
-    expect(text).toContain("Next: search again later.");
+    expect(firstLine(text)).toBe("No result snapshot available.");
+    expect(text).toContain("Search again later.");
     expect(text).not.toContain("Do not poll");
-    expect(text).not.toContain("Next: search_status");
+    expect(text).not.toContain("search_status");
     expect(text).not.toContain("FUTURE_SESSION_STATE");
   });
 
@@ -2457,7 +2451,7 @@ describe("renderUnifiedSearchSuccess", () => {
       ),
     );
 
-    expect(firstLine(text)).toBe("1 result | 1 repo code hit");
+    expect(firstLine(text)).toBe("Found 1 code result.");
     expect(text).toContain("requested: npm:express latest");
     expect(text.match(/older snapshot/g)).toHaveLength(1);
     expect(text).toContain(
@@ -2478,7 +2472,7 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
 
-    expect(firstLine(text)).toBe("1 result | 1 repo code hit");
+    expect(firstLine(text)).toBe("Found 1 code result.");
     expect(text).toContain("- npm:express latest");
     expect(text.match(/using:/g)).toHaveLength(1);
     expect(text).toContain("using: 5.1.0 while 5.2.1 indexes");
@@ -2556,7 +2550,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(firstLine(text)).toBe("No results");
+    expect(firstLine(text)).toBe("No results found.");
   });
 
   it.each([
@@ -2589,7 +2583,7 @@ describe("renderUnifiedSearchSuccess", () => {
         }),
       );
 
-      expect(firstLine(text)).toBe("No results");
+      expect(firstLine(text)).toBe("No results found.");
       expect(firstLine(text)).not.toContain(targetLabel);
       expect(firstLine(text)).not.toContain(freshTarget);
     },
@@ -2602,8 +2596,8 @@ describe("renderUnifiedSearchSuccess", () => {
         evidenceNotice: "Opaque backend prose must not be copied.",
       }),
     );
-    expect(firstLine(text)).toBe("No results");
-    expect(text).toContain("Next: search again later.");
+    expect(firstLine(text)).toBe("No results found.");
+    expect(text).toContain("Search again later.");
     expect(text).not.toContain("Opaque backend prose");
     expect(text).not.toContain("Evidence may change.");
     expect(text).not.toContain("Do not repeat");
@@ -2616,10 +2610,12 @@ describe("renderUnifiedSearchSuccess", () => {
         evidenceNotice: "Opaque backend prose must not be copied.",
       }),
     );
-    expect(firstLine(text)).toContain("1 result");
+    expect(firstLine(text)).toContain("Found 1");
     expect(text).toContain("For updated results, search again.");
     const lines = text.split("\n");
-    const actionLine = lines.findIndex((line) => line.startsWith("Next: "));
+    const actionLine = lines.findIndex(
+      (line) => line === "Read:" || line === "Follow-up:",
+    );
     expect(actionLine).toBeGreaterThan(0);
     expect(lines[actionLine - 1]).toBe("");
     expect(text).toContain("applyEdit");
@@ -2644,7 +2640,7 @@ describe("renderUnifiedSearchSuccess", () => {
         ],
       }),
     );
-    expect(firstLine(text)).toBe("No results");
+    expect(firstLine(text)).toBe("No results found.");
     expect(text).toContain("Warnings:");
     expect(text).toContain("kind was ignored by the selected source");
     expect(text).toContain("incompatible query feature (code): kind");
@@ -2750,10 +2746,10 @@ describe("renderUnifiedSearchSuccess", () => {
       "[2] https://aider.chat/docs/more/edit-formats.html [docs page] aider-AI/aider -\n  Edit Formats",
     );
     expect(text).toContain(
-      "indexed: versions 5.2.1, 5.2.0, 5.1.0 +1, refs HEAD, main,",
+      "indexed: versions 5.2.1, 5.2.0, 5.1.0 (+1 more), refs HEAD, main,",
     );
-    expect(text).toContain("next_offset=10");
-    expect(cliText).toContain("next_offset=10");
+    expect(text).toContain("offset=10");
+    expect(cliText).toContain("--offset 10");
     expect(cliText).not.toContain("More hits available");
     expect(text).not.toContain("v5.0.0");
     expect(text).not.toContain("dev");
@@ -2768,10 +2764,10 @@ describe("renderUnifiedSearchSuccess", () => {
     });
 
     expect(presentation.hasMore).toBe(true);
-    expect(text).toContain("No results | next_offset=10");
+    expect(text).toContain("No results on this page.");
   });
 
-  it("keeps pagination in active and terminal result headlines", () => {
+  it("keeps pagination independent of active and terminal outcomes", () => {
     const active = renderUnifiedSearchSuccess(
       incomplete({
         partialResults: false,
@@ -2796,8 +2792,11 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(firstLine(active)).toContain("next_offset=10");
-    expect(firstLine(terminal)).toContain("next_offset=10");
+    expect(active).toContain("\nMore results:\n");
+    expect(active).toContain("offset=10");
+    expect(firstLine(active)).not.toContain("offset");
+    expect(terminal).toContain("offset=10");
+    expect(firstLine(terminal)).not.toContain("offset");
   });
 
   it("wraps bounded summaries without splitting exact tokens", () => {
@@ -2862,7 +2861,11 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(detailLines(narrow).length).toBeGreaterThan(
       detailLines(wide).length,
     );
-    expect(detailLines(narrow).every((line) => line.length <= 60)).toBe(true);
+    expect(
+      detailLines(narrow)
+        .filter((line) => !line.trimStart().startsWith("search_status "))
+        .every((line) => line.length <= 60),
+    ).toBe(true);
     expect(detailLines(wide).every((line) => line.length <= 140)).toBe(true);
     expect(wide).toContain(
       "n8n.io docs (1,480 pages; capped); indexed: versions",
@@ -2912,7 +2915,10 @@ describe("renderUnifiedSearchSuccess", () => {
       ]),
     );
     for (const line of text.split("\n")) {
-      if (!line.startsWith("[")) {
+      if (
+        !line.startsWith("[") &&
+        !line.trimStart().startsWith("read target=")
+      ) {
         expect(line.length).toBeLessThanOrEqual(82);
       }
     }
@@ -3027,9 +3033,7 @@ describe("search preparation sections", () => {
         }),
         { width: 60 },
       );
-      expect(text.split("\n")[0]).toContain(
-        status.toLowerCase() === "pending" ? "preparing" : status.toLowerCase(),
-      );
+      expect(text.split("\n")[0]).toMatch(/^Found 1 .* result\.$/);
       expect(text).toContain("\n\nPreparing:\n  - ");
       const section = text.split("Preparing:\n")[1]!.split("\n\n")[0]!;
       const lines = section.split("\n");
@@ -3038,9 +3042,69 @@ describe("search preparation sections", () => {
       expect(lines.every((line) => line.length <= 60)).toBe(true);
       expect(section).toContain("indexing");
       expect(section).toContain("preparing documentation");
-      expect(text).toContain("1 result");
+      expect(text).toContain("Found 1");
       expect(text).toContain("search_status");
       expect(text).not.toContain("remaining ETA");
     },
   );
+});
+
+describe("concise search outcome and footer contract", () => {
+  it("counts result kinds once and orders native read, pagination and wait actions", () => {
+    const payload = incomplete({
+      partialResults: true,
+      results: [codeHit(), codeHit(), docsHit()],
+      hasMore: true,
+      nextOffset: 17,
+    });
+    const before = structuredClone(payload);
+    for (const actionSyntax of ["mcp", "cli"] as const) {
+      const text = renderUnifiedSearchSuccess(payload, { actionSyntax });
+      expect(firstLine(text)).toBe(
+        "Found 2 code results and 1 documentation result.",
+      );
+      expect(text.indexOf("\nRead:")).toBeLessThan(
+        text.indexOf("\nMore results:"),
+      );
+      expect(text.indexOf("\nMore results:")).toBeLessThan(
+        text.indexOf("\nFollow-up:"),
+      );
+      expect(text).toContain(
+        actionSyntax === "mcp" ? "offset=17" : "--offset 17",
+      );
+      expect(text).toContain("Use these results now; example read:");
+      expect(text).toContain("If you need updated results, wait");
+      expect(firstLine(text)).not.toMatch(/\||partial|ready|offset/);
+    }
+    expect(payload).toEqual(before);
+  });
+  it.each([false, true])(
+    "explains completed partial snapshots without guessing a cause: %s",
+    (hasHit) => {
+      const results = hasHit ? [docsHit()] : [];
+      const text = renderUnifiedSearchSuccess(
+        completed(results, { partialResults: true }),
+      );
+      expect(text).toContain("These results do not cover the full request.");
+      expect(text).not.toContain("indexing");
+      expect(text).not.toContain("search_status");
+    },
+  );
+  it("does not invent an offset when the backend omitted it", () => {
+    const text = renderUnifiedSearchSuccess(
+      completed([docsHit()], { hasMore: true, nextOffset: undefined }),
+    );
+    expect(text).toContain(
+      "More results are available; repeat the original search.",
+    );
+    expect(text).not.toContain("offset=");
+    expect(text).not.toContain("search_status");
+  });
+  it("keeps healthy results brief and offers a concrete read", () => {
+    const text = renderUnifiedSearchSuccess(completed([docsHit()]));
+    expect(firstLine(text)).toBe("Found 1 documentation result.");
+    expect(text).toContain("\nRead:\n  read target=");
+    expect(text).not.toContain("Use these results now");
+    expect(text).not.toContain("Follow-up:");
+  });
 });

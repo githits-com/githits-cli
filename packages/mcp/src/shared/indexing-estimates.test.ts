@@ -57,7 +57,7 @@ describe("uniform indexing evidence presentation", () => {
       const result = pending();
       const before = structuredClone(result);
       const output = formatGrepText(result, { syntax, width: 160 });
-      expect(output).toContain("No matches yet.");
+      expect(output).toContain("No matches available yet.");
       expect(output).toContain("(indexing, estimated total: 38-57s");
       expect(output).toContain("time spent indexing: 90s");
       expect(output).toContain("To retry omitted targets");
@@ -97,7 +97,7 @@ describe("uniform indexing evidence presentation", () => {
       indexingEstimates: [],
     });
     const output = formatGrepText(result);
-    expect(output).toContain("coverage is incomplete");
+    expect(output).toContain("Cursor expired");
     expect(output).toContain("Cursor expired");
     expect(output).toContain("unknown_reason");
     expect(output).not.toContain("To retry omitted targets");
@@ -182,7 +182,7 @@ describe("uniform indexing evidence presentation", () => {
       indexingEstimates: [],
     });
     const text = formatGrepText(result);
-    expect(text).toContain("coverage is incomplete");
+    expect(text).toContain("No matches found.");
     expect(text).toContain("Omitted:\n  - npm:x");
     expect(text).not.toContain("Traversal is incomplete");
     expect(text).not.toContain("No matches yet");

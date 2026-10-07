@@ -56,9 +56,7 @@ describe("renderUnifiedSearchStatusText", () => {
     });
     const text = renderUnifiedSearchStatusText(payload);
 
-    expect(firstLine(text)).toBe(
-      "1 result | 1 docs page | indexing | 0/1 ready",
-    );
+    expect(firstLine(text)).toBe("Found 1 documentation result.");
     expect(text).toContain(
       "express/routing [docs page] npm:express - source URL unavailable - Routing",
     );
@@ -75,9 +73,7 @@ describe("renderUnifiedSearchStatusText", () => {
         result: result({ partialResults: true, results: [hit()] }),
       }),
     );
-    expect(firstLine(statusText)).toBe(
-      "1 partial result | 1 docs page | indexing | 0/1 ready",
-    );
+    expect(firstLine(statusText)).toBe("Found 1 documentation result.");
   });
 
   it("distinguishes status snapshots with partialResults true", () => {
@@ -85,8 +81,8 @@ describe("renderUnifiedSearchStatusText", () => {
       result: result({ partialResults: true, results: [hit()] }),
     });
     const text = renderUnifiedSearchStatusText(payload);
-    expect(firstLine(text)).toContain("1 partial result");
-    expect(text).not.toContain("1 interim result");
+    expect(firstLine(text)).toContain("Found 1 documentation result.");
+    expect(text).not.toContain("interim");
   });
 
   it.each([false, true])(
@@ -118,13 +114,13 @@ describe("renderUnifiedSearchStatusText", () => {
         actionSyntax: "cli",
       });
       expect(mcp).toContain("[1] opaque-page [docs page]");
-      expect(mcp.includes("read target=")).toBe(!completed);
-      expect(cli.includes("githits read ")).toBe(!completed);
-      expect(mcp).toContain("next_offset=5");
-      expect(cli).toContain("next_offset=5");
+      expect(mcp.includes("read target=")).toBe(true);
+      expect(cli.includes("githits read ")).toBe(true);
+      expect(mcp).toContain("offset=5");
+      expect(cli).toContain("--offset 5");
       if (!completed) {
-        expect(mcp).toContain("Next: use these hits");
-        expect(cli).toContain("Next: use these hits");
+        expect(mcp).toContain("Use these results");
+        expect(cli).toContain("Use these results");
       }
     },
   );
@@ -236,9 +232,7 @@ describe("renderUnifiedSearchStatusText", () => {
         },
       }),
     );
-    expect(firstLine(text)).toBe(
-      "No result snapshot yet | preparing | 0/1 ready",
-    );
+    expect(firstLine(text)).toBe("No results available yet.");
     expect(text).not.toContain("Indexing:");
     expect(text).not.toContain("No hits");
     expect(text).toContain("- npm:express");
@@ -262,12 +256,12 @@ describe("renderUnifiedSearchStatusText", () => {
       }),
     };
     const text = renderUnifiedSearchStatusText(payload);
-    expect(firstLine(text)).toBe("No results");
+    expect(firstLine(text)).toBe("No results found.");
     expect(text).toContain(
       "Sources:\n  - npm:express@5.2.1 (code, no results)",
     );
     expect(text).toContain(
-      'Next: shorten or broaden query; use source="symbol"; use grep.',
+      'Try: shorten or broaden query; use source="symbol"; use grep.',
     );
     expect(text).not.toContain("Search search-ref-empty | completed");
   });
@@ -317,7 +311,7 @@ describe("renderUnifiedSearchStatusText", () => {
     expect(text).toContain("Fix: verify public repository/ref.");
     expect(text).toContain("Fix: verify site host/path.");
     expect(text).toContain("Fix: verify or replace target.");
-    expect(text).not.toContain("search again later");
+    expect(text).not.toContain("Search again later");
     expect(text).not.toContain("searchRef=");
   });
 
@@ -331,7 +325,7 @@ describe("renderUnifiedSearchStatusText", () => {
       }),
     };
     const text = renderUnifiedSearchStatusText(payload);
-    expect(firstLine(text)).toContain("1 result");
+    expect(firstLine(text)).toContain("Found 1");
     expect(text).not.toContain("Search search-ref-evidence | completed");
     expect(text).toContain("For updated results, search again.");
     expect(text).not.toContain("opaque backend notice");
@@ -352,12 +346,10 @@ describe("renderUnifiedSearchStatusText", () => {
           },
         }),
       );
-      expect(firstLine(text)).toBe(
-        `No result snapshot | ${status.toLowerCase()} | 0/1 ready`,
-      );
-      expect(text).toContain("Next: search again later.");
+      expect(firstLine(text)).toBe("No result snapshot available.");
+      expect(text).toContain("Search again later.");
       expect(text).not.toContain("Do not poll");
-      expect(text).not.toContain("Next: search_status");
+      expect(text).not.toContain("search_status");
     },
   );
 
@@ -372,12 +364,10 @@ describe("renderUnifiedSearchStatusText", () => {
         },
       }),
     );
-    expect(firstLine(text)).toBe(
-      "No result snapshot | status unknown | 0/1 ready",
-    );
-    expect(text).toContain("Next: search again later.");
+    expect(firstLine(text)).toBe("No result snapshot available.");
+    expect(text).toContain("Search again later.");
     expect(text).not.toContain("Do not poll");
-    expect(text).not.toContain("Next: search_status");
+    expect(text).not.toContain("search_status");
   });
 });
 
@@ -410,9 +400,7 @@ describe("search preparation sections", () => {
         }),
         { width: 60 },
       );
-      expect(text.split("\n")[0]).toContain(
-        status.toLowerCase() === "pending" ? "preparing" : status.toLowerCase(),
-      );
+      expect(text.split("\n")[0]).toMatch(/^Found 1 .* result\.$/);
       expect(text).toContain("\n\nPreparing:\n  - ");
       const section = text.split("Preparing:\n")[1]!.split("\n\n")[0]!;
       const lines = section.split("\n");
@@ -421,7 +409,7 @@ describe("search preparation sections", () => {
       expect(lines.every((line) => line.length <= 60)).toBe(true);
       expect(section).toContain("indexing");
       expect(section).toContain("preparing documentation");
-      expect(text).toContain("1 result");
+      expect(text).toContain("Found 1");
       expect(text).toContain("search_status");
       expect(text).not.toContain("remaining ETA");
     },

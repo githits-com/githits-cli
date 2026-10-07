@@ -264,7 +264,7 @@ Treat failures as live backend or contract findings, not deterministic unit-test
 
 **Unified `search` query syntax.** The `search.query` field is the backend discovery query syntax, not a raw pass-through to a per-source search engine. It supports implicit `AND`, uppercase `OR`, parentheses, unary `-`, quoted phrases, semantic qualifiers (`kind:`, `category:`, `path:`, `lang:`, `name:`, `intent:`), and routing qualifiers (`registry:`, `package:`, `version:`, `repo:`). MCP callers put these constraints directly in `query`; the backend owns parsing, current enum validation, recovery warnings, and per-source compilation. Per-source support, ignored features, and incompatibilities are reported in `sourceStatus`. CLI users retain `--kind`, `--category`, `--path-prefix`, `--intent`, `--name`, and `--lang`; the shared request builder adapts those human-facing flags to the same backend operation.
 
-**Partial-result truth.** Search defaults to partial results so ready sources can contribute while other target/source pairs prepare. Explicit `allow_partial_results: false` requires atomic evidence across runnable pairs. Every result-bearing initial `search` payload and stored `search_status.result` carries the backend's exact `partialResults: boolean`, including `false` for an atomic serveable interim snapshot and `true` for a subset of requested evidence. A progress-only response with no result snapshot omits the field. This additive field is retained unchanged in CLI `--json` and MCP `format: "json"`; text-v1 labels active results as `partial` only when it is true; otherwise the adjacent lifecycle identifies background work.
+**Partial-result truth.** Search defaults to partial results so ready sources can contribute while other target/source pairs prepare. Explicit `allow_partial_results: false` requires atomic evidence across runnable pairs. Every result-bearing initial `search` payload and stored `search_status.result` carries the backend's exact `partialResults: boolean`, including `false` for an atomic serveable interim snapshot and `true` for a subset of requested evidence. A progress-only response with no result snapshot omits the field. This additive field is retained unchanged in CLI `--json` and MCP `format: "json"`; text-v1 explains missing scope through attributed source/preparation notes or a short full-request warning, including completed empty snapshots; it does not label headlines `partial`.
 
 **Repository search evidence locators.** Repository code and symbol hits keep the legacy target-relative `locator.filePath` and evidence `startLine` / `endLine` while also exposing the repository-root `repositoryFilePath`, exact served `commitSha`, explicit `evidenceRange`, original `indexedRange`, and optional `symbolContext`. Evidence includes `matchLine`, backend `rangeKind`, and `matchSpansTruncated`; symbol context keeps backend identity/kind plus the fixed lowercase relation `encloses_match` or `associated_with_indexed_chunk`. A proven enclosing relation always has one complete `definitionRange` containing both target-relative and repository-root paths. Associated or identity-only context may omit that range. Malformed partial definition locators invalidate the search response instead of being repaired or dropped.
 
@@ -395,14 +395,13 @@ notes and reason enums are not copied into text. Query-wide warnings remain one
 global `Warnings:` block after target rows and before hits; target-owned constraints
 stay in their target row and unowned source constraints remain global.
 
-There is at most one final `Next:` line. Active continuation uses the supplied
-`searchRef` exactly once in the executable `search_status` action; there is no
-separate session row. MCP renders
-`Next: search_status search_ref="..." wait_timeout_ms=30000` when no range is
-available; supported indexing ranges select a bounded wait as described below. A target-local
-`Fix:`/`Try:` never suppresses an active poll or completed evidence-status action,
-but suppresses generic rerun/query-rewrite guidance. Terminal and unknown sessions
-do not poll their stopped reference. Reissuing the same search remains valid.
+Optional footers use `Read:`, `More results:` and `Follow-up:` in that order.
+Active continuation uses the supplied `searchRef` once under Follow-up, with
+native `search_status search_ref="..." wait_timeout_ms=30000` syntax when no
+range is available. Supported indexing ranges select a bounded wait. Usable
+hits get a read first and a conditional wait. Terminal/unknown sessions require
+a fresh search, never polling their stored reference. Target-local recovery
+suppresses generic rerun/query-rewrite advice, not pagination or active status.
 
 JSON remains the lossless stable boundary: `sourceStatus`, warnings, target
 resolution, evidence notices, and hit metadata are retained there even when text
@@ -763,21 +762,18 @@ cost savings. Captures and reproduction scripts are under ignored
 groups and trust facts; one shared text renderer owns wording, wrapping, hit
 anatomy, and ordering. The order is:
 
-1. one outcome headline with count/breakdown, lifecycle, readiness, and
-   pagination when applicable;
-2. compact served-identity bullets under `Sources:`, then actual-work bullets
-   under `Preparing:` when present, retaining concrete provenance and aliases;
-3. target-local state and recovery, then query-wide warnings;
-4. the separate numbered ranked hit list; and
-5. at most one session/query-wide `Next:` action.
+1. one plain outcome sentence, for example `Found 1 documentation result.`;
+2. served identities under `Sources:`, then actual work under `Preparing:`;
+3. target-local limitations/recovery, then query-wide warnings;
+4. numbered ranked hits; and
+5. optional `Read:`, `More results:` and `Follow-up:` footers in that order.
 
-Active empty headlines are `No results yet | indexing | 0/1 ready` and
-`No result snapshot yet | indexing | 0/1 ready` (with `preparing` or `searching`
-for the other active states). Active results say `partial` only when
-`partialResults` is true; otherwise they say `results` beside the lifecycle. Terminal or unknown
-progress retains its lower-case lifecycle and readiness; completed output omits
-those fields. Progress-only responses show only derivable target identity and
-lane-free freshness; they never invent source or contributor facts.
+Headlines contain no pipe-separated lifecycle, readiness fractions, pagination
+or partial/interim labels. Sources/Preparing explain missing scope; unexplained
+backend partialResults adds `These results do not cover the full request.`
+Terminal and unknown states retain explicit prose. Active empty output says
+`No results available yet.`; continuation pages say `No results on this page.`
+Progress-only responses never invent source or contributor facts.
 
 Detailed target rows keep one identity and deterministic segment order:
 remaining `using`, `searched`, `indexing`, terminal/unavailable, `available`, `indexed`,
@@ -791,14 +787,12 @@ provisional, and coverage facts qualify the target/source rather than creating a
 second list. Query-wide warnings remain one `Warnings:` block after target rows
 and before hits; target-owned constraints stay in their row.
 
-There is no separate session row. An active or evidence-status continuation uses
-the supplied `searchRef` exactly once in the executable `Next:` action:
-`Next: search_status search_ref="..." wait_timeout_ms=30000` for MCP or
-`Next: githits search-status ... --wait 30` for CLI when no range is available.
-Active indexing estimates can adjust that wait up to 120 seconds; completed
-evidence-status retrieval keeps the default. Target-local recovery never
-suppresses an active poll or completed evidence-status action, but suppresses a
-generic rerun/query rewrite. Stopped terminal references are not polled.
+There is no separate session row. Follow-up contains the active reference once:
+`search_status search_ref="..." wait_timeout_ms=30000` for MCP or
+`githits search-status ... --wait 30` for CLI when no range is available.
+Indexing estimates can adjust this wait up to 120 seconds. Usable hits get
+short use-now advice and a read before conditional waiting. Healthy completed
+hits get one exact read without that extra prose. Ended references never poll.
 
 `evidenceNotice` stays exact in JSON and is not rendered in default text. JSON is
 the lossless stable boundary for source statuses, target resolution, warnings,
@@ -855,11 +849,12 @@ consistent two-space hit-body indent. If a title does not fit on the header
 line, the fixed locator prefix stays unwrapped with a trailing ` -`, and only
 the title continues on two-space-indented lines.
 
-Result headlines combine count, type breakdown when completed, and pagination
-when known, for example `10 results | 5 repo docs, 5 docs pages | next_offset=10`.
-Breakdowns use `repo code hit(s)` and `repo symbol(s)` alongside `repo doc(s)`
-and `docs page(s)`. When more results exist without a next offset, the final field is
-`more available`. Pagination is not repeated as a bottom paragraph.
+Result headlines count each returned kind once, for example `Found 5 repository
+documentation results and 5 documentation results.` More results instructs
+repeating the original search with its exact `offset` / `--offset`, preserving
+query/targets/filters. Search status cannot paginate. Missing offsets receive a
+truthful advisory without a fabricated value. Active pagination warns that
+results can change. Counted indexed alternatives use `(+N more)`.
 
 **Follow-up — mutable hosted docs and crawled-doc section anchors.** Hosted/crawled `documentation_page` HTTP(S) targets address mutable current content, while repository documentation is separately snapshot-addressed. The backend descriptor selects target, optional path, selector and bounds; search preview/evidence coordinates remain independent. Both surfaces preserve descriptor bytes and render selectors separately instead of promoting provenance fragments or inventing heading bounds. MCP search actions narrow explicit path selections to 300 lines; pathless docs selections remain complete, and CLI text retains the full selection. Missing action metadata produces unavailable guidance. A sufficient search snippet needs no read. For a heading read, the backend resolves the heading and its full subtree through the next equal-or-higher heading and reports its absolute page range. Missing, duplicate, windowed/inexact, or unsupported sections return non-retryable `DOCUMENTATION_SECTION_UNRESOLVED` with a reason; they never become `NOT_FOUND` or a successful full-page read. Publisher-only IDs omitted during ingestion remain unavailable. The client never decodes or normalizes locator bytes and does not synthesize website slug rules.
 

@@ -228,9 +228,9 @@ describe("unified grep result and text", () => {
       output.indexOf("[1] github:o/r@abc packages/x/lib/a.ts"),
     ).toBeLessThan(output.lastIndexOf("[2]"));
     expect(output).toContain(
-      "# Read files: read --lines $start-$end -- $target $path",
+      "Files: githits read --lines $start-$end -- $target $path",
     );
-    expect(output).toContain("# Read pages: read --lines $start-$end -- $url");
+    expect(output).toContain("Pages: githits read --lines $start-$end -- $url");
     expect(output).toContain("[2] https://docs.test/p");
     expect(output).not.toContain("inputs 1, 0");
     expect(output).not.toContain("current content");
@@ -289,8 +289,8 @@ describe("unified grep result and text", () => {
       const output = formatGrepText(
         result({ hits: [], totalMatches: 0, targets: [scope] }),
       );
-      expect(output).toContain("Zero returned matches");
-      expect(output).not.toContain("No matches.");
+      expect(output).toContain("No matches found.");
+      expect(output).not.toContain("(no results)");
     }
     const output = formatGrepText(
       result({ hits: [], totalMatches: 0, targets: [scopes[4]!] }),
@@ -299,7 +299,7 @@ describe("unified grep result and text", () => {
     expect(output).toContain("2 additional file issue");
     expect(output.replace(/\s+/g, " ")).toContain("safety normalization");
     expect(formatGrepText(result({ hits: [], totalMatches: 0 }))).toContain(
-      "No matches.",
+      "No matches found.",
     );
   });
   it("shows cursor and terminal omissions together and requires explicit expiry restart", () => {
@@ -326,7 +326,7 @@ describe("unified grep result and text", () => {
     ).toBe("crawl:1");
     expect(output).toContain("Suggested site");
     expect(output).toContain("--cursor 'opaque'");
-    expect(output).toContain("repeat this grep");
+    expect(output).toContain("Repeat the original grep");
     expect(
       formatGrepText(
         result({
@@ -335,7 +335,7 @@ describe("unified grep result and text", () => {
           nextCursor: "opaque",
         }),
       ),
-    ).toContain("more available");
+    ).toContain("More results:");
     expect(
       formatGrepText(
         result({ traversal: "CURSOR_EXPIRED", unavailableTargets: [omission] }),
@@ -391,4 +391,111 @@ describe("unified grep result and text", () => {
     expect(leadingDash).toContain("[1] github:o/r@abc -README.md");
     expect(leadingDash).toContain("read --lines $start-$end -- $target $path");
   });
+});
+
+describe("grep page and omission outcomes", () => {
+  it.each(["CURRENT", "UNSPECIFIED"] as const)(
+    "treats %s resumable targets as normal pagination",
+    (readiness) => {
+      for (const hits of [[], [hit]]) {
+        const output = formatGrepText(
+          result({
+            hits,
+            totalMatches: hits.length,
+            targets: [{ ...target, readiness, traversal: "RESUMABLE_LIMIT" }],
+            traversal: "RESUMABLE_LIMIT",
+            nextCursor: "exact cursor",
+          }),
+        );
+        expect(output.split("\n")[0]).toBe(
+          hits.length
+            ? "Found 1 match on 1 line in 1 file."
+            : "No matches on this page.",
+        );
+        expect(output).toContain("More results:");
+        expect(output).toContain("--cursor 'exact cursor'");
+        expect(output).not.toMatch(
+          /coverage is incomplete|could not be searched|Traversal is incomplete|Follow-up:/,
+        );
+      }
+    },
+  );
+  it.each([null, "cursor"])(
+    "explains retryable-only omissions without an exhaustive empty claim",
+    (nextCursor) => {
+      const output = formatGrepText(
+        result({
+          hits: [],
+          totalMatches: 0,
+          nextCursor,
+          traversal: "NON_RESUMABLE_PARTIAL",
+          unavailableTargets: [
+            {
+              inputIndex: 0,
+              target: "npm:pending",
+              reason: "repository_indexing",
+              retryable: true,
+              progressRef: null,
+              suggestedSiteTargets: null,
+            },
+          ],
+        }),
+      );
+      expect(output.split("\n")[0]).toBe(
+        nextCursor
+          ? "No matches available yet on this page."
+          : "No matches available yet.",
+      );
+      expect(output).toContain("Preparing:");
+      expect(output).toContain("Follow-up:");
+      expect(output).not.toContain("Traversal is incomplete");
+    },
+  );
+  it("retains attributed gaps even beside a resumable cursor", () => {
+    const output = formatGrepText(
+      result({
+        hits: [],
+        totalMatches: 0,
+        targets: [
+          { ...target, binaryFilesSkipped: 1, traversal: "RESUMABLE_LIMIT" },
+        ],
+        traversal: "RESUMABLE_LIMIT",
+        nextCursor: "cursor",
+      }),
+    );
+    expect(output).toContain("Repository npm:x:");
+    expect(output).toContain("Skipped 1 binary file(s).");
+    expect(output).toContain("--cursor 'cursor'");
+    expect(output).not.toContain("(no results)");
+  });
+  it("explains unspecified readiness when it is not an unvisited continuation", () => {
+    const output = formatGrepText(
+      result({ targets: [{ ...target, readiness: "UNSPECIFIED" }] }),
+    );
+    expect(output).toContain("Repository npm:x: source readiness unknown.");
+  });
+});
+
+describe("overall grep traversal limitations", () => {
+  it.each(["NON_RESUMABLE_PARTIAL", "FAILED"] as const)(
+    "discloses %s even when a sibling cursor remains",
+    (traversal) => {
+      for (const hits of [[], [hit]]) {
+        const output = formatGrepText(
+          result({
+            hits,
+            totalMatches: hits.length,
+            traversal,
+            nextCursor: "sibling cursor",
+          }),
+        );
+        expect(output).toContain(
+          "Some requested content could not be searched.",
+        );
+        expect(output).toContain("--cursor 'sibling cursor'");
+        expect(output).not.toContain("has no continuation cursor");
+        expect(output).not.toContain("(no results)");
+      }
+    },
+  );
 });

@@ -686,7 +686,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result | 1 repo code hit\n\n[1] npm:express@4.21.2 examples/route-middleware/index.js [repo code, path match]\n  50 | function andRestrictTo(role) {",
+          "Found 1 code result.\n\n[1] npm:express@4.21.2 examples/route-middleware/index.js [repo code, path match]\n  50 | function andRestrictTo(role) {",
         );
       }
       return smokeResponse(name, args);
@@ -700,7 +700,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result | 1 repo code hit\n\n[1] npm:express@4.21.2 examples/route-middleware/index.js [repo code, path match]",
+          "Found 1 code result.\n\n[1] npm:express@4.21.2 examples/route-middleware/index.js [repo code, path match]",
         );
       }
       return smokeResponse(name, args);
@@ -712,7 +712,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "2 results | 2 repo code hits\n\n[1] npm:express@4.21.2 examples/route-middleware/index.js [repo code, path match]\n\n[2] npm:express@4.21.2 lib/router/index.js:303-307 [repo code]\n> 305 | // route",
+          "Found 2 code results.\n\n[1] npm:express@4.21.2 examples/route-middleware/index.js [repo code, path match]\n\n[2] npm:express@4.21.2 lib/router/index.js:303-307 [repo code]\n> 305 | // route",
         );
       }
       return smokeResponse(name, args);
@@ -742,14 +742,14 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          'No result snapshot yet | indexing | 0/1 ready\nNext: search_status search_ref="smoke-ref" wait_timeout_ms=30000\nsearch_ref=leaked',
+          'No results available yet.\nFollow-up:\n  search_status search_ref="smoke-ref" wait_timeout_ms=30000\nsearch_ref=leaked',
         );
       }
       return smokeResponse(name, args);
     });
 
     await expect(runMcpSmoke(caller)).rejects.toThrow(
-      "search default: search_ref= must appear at most once",
+      "search default: expected at most one native status action",
     );
   });
 
@@ -774,7 +774,7 @@ describe("runMcpSmoke", () => {
   );
 
   it.each([
-    "Next: githits search-status smoke-ref --wait 30",
+    "Follow-up:\n  githits search-status smoke-ref --wait 30",
     "Next: githits read npm:express index.js",
     "Next: githits code read npm:express index.js",
     "Next: githits docs read page-1 --offset 10",
@@ -783,7 +783,7 @@ describe("runMcpSmoke", () => {
       if (name === "search" && args.format !== "json") {
         return textResult(
           smokeSearchText().replace(
-            'Next: search_status search_ref="smoke-ref" wait_timeout_ms=30000',
+            'Follow-up:\n  search_status search_ref="smoke-ref" wait_timeout_ms=30000',
             action,
           ),
         );
@@ -876,10 +876,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          smokeSearchText().replace(
-            "No result snapshot yet | indexing | 0/1 ready",
-            "Warnings:",
-          ),
+          smokeSearchText().replace("No results available yet.", "Warnings:"),
         );
       }
       return smokeResponse(name, args);
@@ -894,7 +891,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
+          "Found 1 code result.\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
             "  Ready: payload text\n" +
             "  Waiting: payload text\n" +
             "  Available but not searched: payload text\n" +
@@ -920,7 +917,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result | 1 repo code hit\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
+          "Found 1 code result.\n\n[1] npm:express@5.2.1 index.js [repo code]\n" +
             "  First summary paragraph.\n\n" +
             "  status: payload text\n" +
             "  searchRef=payload text\n" +
@@ -938,7 +935,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result\n\n[1] npm:express@5.2.1 index.js [repo code]",
+          "Found 1 code result.\n\n[1] npm:express@5.2.1 index.js [repo code]",
         );
       }
       return smokeResponse(name, args);
@@ -951,7 +948,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result\n\n[1] page-1 [docs page] npm:express - docs.example.com/readme - README | API - section",
+          "Found 1 code result.\n\n[1] page-1 [docs page] npm:express - docs.example.com/readme - README | API - section",
         );
       }
       return smokeResponse(name, args);
@@ -964,7 +961,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result | 1 docs page\n\n[1] page-1 [docs page] npm:express - source URL unavailable - README",
+          "Found 1 documentation result.\n\n[1] page-1 [docs page] npm:express - source URL unavailable - README",
         );
       }
       return smokeResponse(name, args);
@@ -977,7 +974,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "2 results | 1 repo code hit, 1 docs page\n\n" +
+          "Found 1 code result and 1 documentation result.\n\n" +
             "[1] page-1 [docs page] npm:express - docs.example.com/readme -\n" +
             "  A long documentation title\n\n" +
             "[2] npm:express@5.2.1 lib/application.js [repo code] -\n" +
@@ -994,7 +991,7 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "1 result | 1 repo code hit\n\n" +
+          "Found 1 code result.\n\n" +
             "[1] npm:express@5.2.1 lib/application.js [repo code] -\n" +
             "  A long repository title",
         );
@@ -1008,13 +1005,13 @@ describe("runMcpSmoke", () => {
   it.each([
     [
       "focused evidence",
-      "1 result | 1 repo code hit\n\n" +
+      "Found 1 code result.\n\n" +
         "[1] github:owner/repo@abc123 packages/pkg/src/compact.ts:920-930 [repo code] - compact (function at lines 858-964)\n" +
         "  // Merge into single summary",
     ],
     [
       "equal evidence",
-      "1 result | 1 repo symbol\n\n" +
+      "Found 1 symbol result.\n\n" +
         "[1] github:owner/repo@abc123 packages/pkg/src/compact.ts:858-964 [repo symbol] - compact (function)",
     ],
   ])("allows a unified repository hit with %s", async (_name, searchText) => {
@@ -1030,7 +1027,7 @@ describe("runMcpSmoke", () => {
 
   it("accepts structural search evidence text", async () => {
     const structuralText =
-      "1 result | 1 repo code hit\n\n" +
+      "Found 1 code result.\n\n" +
       "[1] npm:express@4.18.2 lib/client.ts:142-145 [repo code]\n" +
       "  - class Client | lines 20-220\n" +
       "    - method Client.send | lines 120-165\n" +
@@ -1052,42 +1049,44 @@ describe("runMcpSmoke", () => {
 
   it.each([
     [
-      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
+      "Found 1 code result.\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
         "  This payload mentions read but has no locator",
     ],
     [
-      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
+      "Found 1 code result.\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
         '  read target="npm:express@5.2.1"',
     ],
-    ["1 result\n\n[1] page-1 [docs page] npm:express - README"],
+    ["Found 1 code result.\n\n[1] page-1 [docs page] npm:express - README"],
     [
-      "1 result\n\n[1] page-1 [docs page] npm:express -\n" +
+      "Found 1 code result.\n\n[1] page-1 [docs page] npm:express -\n" +
         "  README without a source locator",
     ],
     [
-      "1 result\n\n[1] page ID unavailable [docs page] npm:express - docs.example.com/readme -\n" +
+      "Found 1 code result.\n\n[1] page ID unavailable [docs page] npm:express - docs.example.com/readme -\n" +
         "  Wrapped title without a page locator",
     ],
     [
-      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
+      "Found 1 code result.\n\n[1] npm:express@5.2.1 location unavailable [repo code]\n" +
         "  ordinary title\n" +
         '  read target="npm:express@5.2.1" path="index.js"',
     ],
     [
-      "1 result\n\n[1] npm:express@5.2.1 location unavailable [repo code] -\n" +
+      "Found 1 code result.\n\n[1] npm:express@5.2.1 location unavailable [repo code] -\n" +
         "  Wrapped title without a locator",
     ],
-    ["1 result\n\n[1] npm:express@5.2.1 lib/application.js [repo code] -"],
     [
-      "1 result\n\n[1] compact - function defined at packages/pkg/src/compact.ts:858-964",
+      "Found 1 code result.\n\n[1] npm:express@5.2.1 lib/application.js [repo code] -",
     ],
     [
-      "1 result\n\n" +
+      "Found 1 code result.\n\n[1] compact - function defined at packages/pkg/src/compact.ts:858-964",
+    ],
+    [
+      "Found 1 code result.\n\n" +
         "[1] compact - function defined at packages/pkg/src/compact.ts:858-964\n" +
         "  github:owner/repo@abc123 evidence at 920-930 [repo code]",
     ],
     [
-      "1 result\n\n[1] compact - function defined at location unavailable\n" +
+      "Found 1 code result.\n\n[1] compact - function defined at location unavailable\n" +
         "  github:owner/repo@abc123 evidence at 920-930 [repo code]",
     ],
   ])("rejects incomplete or prose-only hit follow-ups", async (searchText) => {
@@ -1106,9 +1105,12 @@ describe("runMcpSmoke", () => {
   it.each([
     [
       "Fix",
-      "No results\n\n- npm:missing@1.0.0\n  Fix: verify the package coordinate.",
+      "No results found.\n\n- npm:missing@1.0.0\n  Fix: verify the package coordinate.",
     ],
-    ["Try", "No results\n\n- npm:missing latest\n  Try: npm:missing@1.0.0"],
+    [
+      "Try",
+      "No results found.\n\n- npm:missing latest\n  Try: npm:missing@1.0.0",
+    ],
   ])(
     "accepts target-local %s recovery without a hit or Next",
     async (_kind, searchText) => {
@@ -1127,10 +1129,10 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          "No results | failed | 0/1 ready\n\n" +
+          "No results found.\nSearch failed.\n\n" +
             "- npm:express@4.18.2\n" +
             "  searched: code; not found: symbols\n\n" +
-            "Next: rerun search later.",
+            "Follow-up:\n  Search again later.",
         );
       }
       return smokeResponse(name, args);
@@ -1149,7 +1151,8 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          `No results\n\n- npm:express@4.18.2\n  ${detail}\n\nNext: rerun search later.`,
+          `No results found.\n\n- npm:express@4.18.2\n  ${detail}\n\nFollow-up:
+  Search again later.`,
         );
       }
       return smokeResponse(name, args);
@@ -1168,7 +1171,8 @@ describe("runMcpSmoke", () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
         return textResult(
-          `No results\n  ${detail}\n\nNext: rerun search later.`,
+          `No results found.\n  ${detail}\n\nFollow-up:
+  Search again later.`,
         );
       }
       return smokeResponse(name, args);
@@ -1179,18 +1183,16 @@ describe("runMcpSmoke", () => {
     );
   });
 
-  it("rejects duplicate lifecycle outcome lines", async () => {
+  it("rejects duplicate outcome lines", async () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {
-        return textResult(
-          `${smokeSearchText()}\nNo result snapshot yet | indexing | 0/1 ready`,
-        );
+        return textResult(`${smokeSearchText()}\nNo results available yet.`);
       }
       return smokeResponse(name, args);
     });
 
     await expect(runMcpSmoke(caller)).rejects.toThrow(
-      "search default: duplicate lifecycle outcome lines",
+      "search default: duplicate outcome lines",
     );
   });
 });
@@ -1417,10 +1419,10 @@ function smokeResponse(
       );
     case "search":
       return textResult(
-        "No result snapshot yet | indexing | 0/1 ready\n\n" +
+        "No results available yet.\n\n" +
           "- npm:express@5.2.1\n" +
           "  indexing: code; available: versions 5.2.1\n\n" +
-          'Next: search_status search_ref="smoke-ref" wait_timeout_ms=30000',
+          'Follow-up:\n  search_status search_ref="smoke-ref" wait_timeout_ms=30000',
       );
     case "search_status":
       return errorResult("NOT_FOUND");
@@ -1671,3 +1673,18 @@ function smokeJsonResponse(
       throw new Error(`unexpected smoke JSON tool ${name}`);
   }
 }
+
+describe("search MCP footer structure", () => {
+  it("rejects status operands without the Follow-up section", async () => {
+    const caller = createCaller(async (name, args) =>
+      name === "search" && args.format !== "json"
+        ? textResult(
+            'No results available yet.\n  search_status search_ref="ref" wait_timeout_ms=30000',
+          )
+        : smokeResponse(name, args),
+    );
+    await expect(runMcpSmoke(caller)).rejects.toThrow(
+      "status action must be in Follow-up",
+    );
+  });
+});

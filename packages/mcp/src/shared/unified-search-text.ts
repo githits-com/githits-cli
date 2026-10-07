@@ -22,6 +22,11 @@ import { formatMappedErrorText } from "./mapped-error-text.js";
 import { renderReadTarget } from "./read-target-text.js";
 import { parseRepositoryTargetSpec } from "./repository-target.js";
 import {
+  appendSearchGrepFooter,
+  footerAction,
+  footerProse,
+} from "./search-grep-output-text.js";
+import {
   formatProvenanceRow,
   formatRequestedIndexingExplanation,
   formatRequestedProvenance,
@@ -32,7 +37,6 @@ import {
   projectUnifiedSearchPresentation,
   targetDisplayFamilyKey,
   type UnifiedSearchAction,
-  type UnifiedSearchLifecycle,
   type UnifiedSearchPresentation,
   type UnifiedSearchSourceEntry,
   type UnifiedSearchSourceGroup,
@@ -51,7 +55,6 @@ import type {
 } from "./unified-search-response.js";
 
 const DEFAULT_TEXT_WIDTH = 80;
-const SEP = " | ";
 
 type SearchSuccessPayload =
   | UnifiedSearchCompletedPresentation
@@ -90,14 +93,12 @@ export function renderUnifiedSearchPresentationText(
   options: UnifiedSearchTextOptions = {},
 ): string {
   const settings = normalizeTextOptions(options);
-  const lines: string[] = [
-    formatPresentationOutcome(
-      presentation,
-      result.results,
-      result.nextOffset,
-      settings,
-    ),
-  ];
+  const lines = wrapTerminalProse(
+    formatPresentationOutcome(presentation, result.results),
+    settings.width,
+  ).map((line) => styleOutcome(line, presentation, settings.useColors));
+  const notice = formatPresentationNotice(presentation);
+  if (notice) lines.push(...wrapTerminalProse(notice, settings.width));
   appendPresentationContext(lines, presentation, settings);
 
   if (result.results.length > 0) {
@@ -110,7 +111,7 @@ export function renderUnifiedSearchPresentationText(
     );
   }
 
-  appendPresentationAction(lines, presentation, result.results, settings);
+  appendPresentationAction(lines, presentation, result, settings);
   return lines.join("\n");
 }
 
@@ -136,129 +137,81 @@ function normalizeTextOptions(
 function formatPresentationOutcome(
   presentation: UnifiedSearchPresentation,
   results: UnifiedSearchHitPresentation[],
-  nextOffset: number | undefined,
-  options: NormalizedTextOptions,
 ): string {
-  const count = presentation.availability.resultCount;
-  const countLabel = `${count} result${count === 1 ? "" : "s"}`;
-  const finish = (value: string): string =>
-    styleOutcome(
-      appendPagination(value, presentation.hasMore, nextOffset),
-      presentation,
-      options.useColors,
-    );
-
-  if (presentation.lifecycle.kind === "active") {
-    const label = activeLifecycleLabel(presentation.lifecycle);
-    const readiness = presentation.progress
-      ? `${presentation.progress.targetsReady}/${presentation.progress.targetsTotal} ready`
-      : undefined;
-    if (presentation.availability.kind === "no_snapshot") {
-      return finish(
-        ["No result snapshot yet", label, readiness].filter(Boolean).join(SEP),
-      );
-    }
-    if (presentation.availability.kind === "empty") {
-      return finish(
-        ["No results yet", label, readiness].filter(Boolean).join(SEP),
-      );
-    }
-    const resultLabel =
-      presentation.availability.kind === "partial"
-        ? countLabel.replace("result", "partial result")
-        : countLabel;
-    return finish(
-      [resultLabel, formatResultBreakdown(results), label, readiness]
-        .filter(Boolean)
-        .join(SEP),
-    );
+  if (!results.length) {
+    if (presentation.hasMore) return "No results on this page.";
+    if (presentation.lifecycle.kind === "active")
+      return "No results available yet.";
+    return presentation.availability.hasSnapshot
+      ? "No results found."
+      : "No result snapshot available.";
   }
-
-  if (presentation.lifecycle.kind === "completed") {
-    return finish(
-      count > 0
-        ? formatCompletedResultsHeadline(results, countLabel)
-        : "No results",
-    );
-  }
-
-  const status = formatLifecycleSummary(presentation.lifecycle);
-  const readiness = presentation.progress
-    ? `${presentation.progress.targetsReady}/${presentation.progress.targetsTotal} ready`
-    : undefined;
-  if (count > 0) {
-    return finish(
-      [countLabel, formatResultBreakdown(results), status, readiness]
-        .filter(Boolean)
-        .join(SEP),
-    );
-  }
-  if (presentation.availability.kind === "no_snapshot") {
-    return finish(
-      ["No result snapshot", status, readiness].filter(Boolean).join(SEP),
-    );
-  }
-  return finish(["No results", status, readiness].filter(Boolean).join(SEP));
-}
-
-function formatCompletedResultsHeadline(
-  results: UnifiedSearchHitPresentation[],
-  countLabel: string,
-): string {
-  const parts = [countLabel];
-  const breakdown = formatResultBreakdown(results);
-  if (breakdown) parts.push(breakdown);
-  return parts.join(SEP);
-}
-
-function appendPagination(
-  value: string,
-  hasMore: boolean,
-  nextOffset: number | undefined,
-): string {
-  if (!hasMore) return value;
-  const field =
-    typeof nextOffset === "number"
-      ? `next_offset=${nextOffset}`
-      : "more available";
-  return `${value}${SEP}${field}`;
-}
-
-function formatResultBreakdown(
-  results: UnifiedSearchHitPresentation[],
-): string {
   const counts = new Map<string, number>();
   for (const result of results) {
-    const label = resultBreakdownLabel(result.type);
+    const label =
+      result.type === "repository_code"
+        ? "code result"
+        : result.type === "documentation_page"
+          ? "documentation result"
+          : result.type === "repository_doc"
+            ? "repository documentation result"
+            : result.type === "repository_symbol"
+              ? "symbol result"
+              : "result";
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
-  return [...counts.entries()]
-    .map(([label, count]) => `${count} ${resultCountLabel(label, count)}`)
-    .join(", ");
+  const parts = [...counts].map(
+    ([label, count]) => `${count} ${label}${count === 1 ? "" : "s"}`,
+  );
+  const last = parts.pop();
+  return `Found ${parts.length ? `${parts.join(", ")} and ` : ""}${last}.`;
 }
 
-function resultCountLabel(label: string, count: number): string {
-  if (count !== 1) return label;
-  if (label === "repo docs") return "repo doc";
-  if (label === "docs pages") return "docs page";
-  if (label === "repo code hits") return "repo code hit";
-  if (label === "repo symbols") return "repo symbol";
-  return label;
-}
-
-function resultBreakdownLabel(type: string): string {
-  switch (type) {
-    case "repository_doc":
-      return "repo docs";
-    case "documentation_page":
-      return "docs pages";
-    case "repository_symbol":
-      return "repo symbols";
-    case "repository_code":
-      return "repo code hits";
-    default:
-      return type;
-  }
+/** Emit a notice only when source/preparation sections cannot convey the fact. */
+function formatPresentationNotice(
+  presentation: UnifiedSearchPresentation,
+): string | undefined {
+  const scopeExplanation =
+    Boolean(presentation.indexingEstimates?.length) ||
+    presentation.targetGroups.some(
+      (group) =>
+        group.recovery ||
+        group.sources.some((source) =>
+          source.entries.some((entry) => entry.state !== "searched"),
+        ) ||
+        group.trustLimits.some(
+          (limit) =>
+            ["source", "coverage", "stale", "provisional"].includes(
+              limit.kind,
+            ) ||
+            (limit.kind === "repository_snapshot" &&
+              (limit.requestedCommitDiffers || limit.indexingRequestedRef)),
+        ),
+    );
+  const incomplete =
+    presentation.availability.partialResults && !scopeExplanation;
+  const lifecycle = presentation.lifecycle;
+  const state =
+    lifecycle.kind === "terminal"
+      ? lifecycle.status === "FAILED"
+        ? "Search failed"
+        : lifecycle.status === "TIMEOUT"
+          ? "Search timed out"
+          : "Search was deferred"
+      : lifecycle.kind === "unknown"
+        ? "Search status is unknown"
+        : lifecycle.kind === "active" && !scopeExplanation && !incomplete
+          ? lifecycle.status === "INDEXING"
+            ? "Requested sources are still indexing"
+            : lifecycle.status === "PENDING"
+              ? "Search is preparing requested sources"
+              : "Search is still running"
+          : undefined;
+  if (state)
+    return `${state}${incomplete ? "; these results do not cover the full request" : ""}.`;
+  return incomplete
+    ? "These results do not cover the full request."
+    : undefined;
 }
 
 function styleOutcome(
@@ -281,19 +234,6 @@ function styleOutcome(
     return `${colors.bold}${colors.red}${value}${colors.reset}`;
   }
   return `${colors.bold}${value}${colors.reset}`;
-}
-
-function activeLifecycleLabel(
-  lifecycle: Extract<UnifiedSearchLifecycle, { kind: "active" }>,
-): string {
-  switch (lifecycle.status) {
-    case "PENDING":
-      return "preparing";
-    case "INDEXING":
-      return "indexing";
-    case "SEARCHING":
-      return "searching";
-  }
 }
 
 function appendPresentationContext(
@@ -885,93 +825,88 @@ function appendPresentationWarnings(
   }
 }
 
-function formatLifecycleSummary(lifecycle: UnifiedSearchLifecycle): string {
-  if (lifecycle.kind === "completed") return "completed";
-  if (lifecycle.kind === "active") return lifecycle.status.toLowerCase();
-  if (lifecycle.kind === "terminal") return lifecycle.status.toLowerCase();
-  return "status unknown";
-}
-
 function formatRemaining(count: number): string {
-  return count > 0 ? ` +${count}` : "";
+  return count > 0 ? ` (+${count} more)` : "";
 }
 
 function appendPresentationAction(
   lines: string[],
   presentation: UnifiedSearchPresentation,
-  results: UnifiedSearchHitPresentation[],
+  result: UnifiedSearchTextResult,
   options: NormalizedTextOptions,
 ): void {
   const action = presentation.action;
-  if (action.kind === "none") return;
-  if (lines[lines.length - 1] !== "") {
-    lines.push("");
-  }
   const useResults = "useResults" in action && action.useResults;
+  const read: string[] = [];
+  const more: string[] = [];
+  const followUp: string[] = [];
+  const prose = (value: string): string[] => footerProse(value, options.width);
+  const operand = (value: string): string =>
+    footerAction(value, options.useColors);
+  const hit = result.results.find((hit) => hit.readTarget);
   const priorHead = presentation.targetGroups
-    .flatMap((group) =>
-      group.trustLimits.filter((limit) => limit.kind === "repository_snapshot"),
-    )
-    .find((snapshot) => snapshot.priorHead);
-  if (useResults) {
-    const hit = results.find((hit) => hit.readTarget);
-    lines.push(
-      ...wrapText(
-        hit
-          ? "Next: use these hits now; read for details:"
-          : "Next: use these hits now.",
-        options.width,
+    .flatMap((group) => group.trustLimits)
+    .find((limit) => limit.kind === "repository_snapshot" && limit.priorHead);
+  if (hit?.readTarget) {
+    if (useResults) read.push(...prose("Use these results now; example read:"));
+    read.push(operand(renderReadTarget(hit.readTarget, options.actionSyntax)));
+  } else if (useResults) followUp.push(...prose("Use these results now."));
+  if (useResults && priorHead?.kind === "repository_snapshot") {
+    (read.length ? read : followUp).push(
+      ...prose(
+        `For a specific ref, search ${priorHead.commitTarget.replace(/@[^@]+$/, "@<ref>")}.`,
       ),
     );
-    if (hit?.readTarget)
-      lines.push(renderReadTarget(hit.readTarget, options.actionSyntax));
-    if (priorHead) {
-      lines.push(
-        ...wrapText(
-          `For a specific ref, search ${priorHead.commitTarget.replace(/@[^@]+$/, "@<ref>")}.`,
-          options.width,
+  }
+  if (presentation.hasMore) {
+    if (typeof result.nextOffset === "number") {
+      more.push(
+        ...prose("Repeat the original search, adding:"),
+        operand(
+          options.actionSyntax === "cli"
+            ? `--offset ${result.nextOffset}`
+            : `offset=${result.nextOffset}`,
         ),
       );
-    }
+    } else
+      more.push(
+        ...prose("More results are available; repeat the original search."),
+      );
+    if (presentation.lifecycle.kind === "active")
+      more.push(...prose("Results may change while this search is running."));
   }
   if (action.kind === "poll") {
-    const next =
-      options.actionSyntax === "cli"
-        ? `Next: githits search-status ${action.searchRef} --wait ${action.waitTimeoutMs / 1000}`
-        : `Next: search_status search_ref=${JSON.stringify(action.searchRef)} wait_timeout_ms=${action.waitTimeoutMs}`;
-    if (useResults) {
-      lines.push(
-        ...wrapText(
+    if (useResults)
+      followUp.push(
+        ...prose(
           priorHead
             ? "If you need current HEAD, wait (hits and order may change):"
             : "If you need updated results, wait (hits and order may change):",
-          options.width,
         ),
       );
-    }
-    lines.push(
-      highlight(
-        useResults ? next.replace("Next: ", "") : next,
-        options.useColors,
+    followUp.push(
+      operand(
+        options.actionSyntax === "cli"
+          ? `githits search-status ${action.searchRef} --wait ${action.waitTimeoutMs / 1000}`
+          : `search_status search_ref=${JSON.stringify(action.searchRef)} wait_timeout_ms=${action.waitTimeoutMs}`,
       ),
     );
-    return;
-  }
-  if (action.kind === "new_search") {
-    lines.push(
-      useResults
-        ? "For updated results, search again."
-        : "Next: search again later.",
+  } else if (action.kind === "new_search") {
+    followUp.push(
+      ...prose(
+        useResults
+          ? "For updated results, search again."
+          : "Search again later.",
+      ),
     );
-    return;
-  }
-  if (action.kind === "query_rewrite") {
-    lines.push(
-      `Next: ${action.rewrites
-        .map((rewrite) => formatRewrite(rewrite, options.actionSyntax))
-        .join("; ")}.`,
+  } else if (action.kind === "query_rewrite") {
+    followUp.push(
+      ...prose(
+        `Try: ${action.rewrites.map((rewrite) => formatRewrite(rewrite, options.actionSyntax)).join("; ")}.`,
+      ),
     );
   }
+  appendSearchGrepFooter(lines, { read, more, followUp }, options.useColors);
 }
 
 function formatRewrite(

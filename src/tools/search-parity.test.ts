@@ -431,9 +431,11 @@ describe("search parity", () => {
     expect(results[1]).not.toHaveProperty("summary");
     const text = await cliTextForOutcome(outcome);
     const mcpText = await mcpTextForOutcome(outcome);
-    expect(text).toBe(mcpText);
-    expect(text).not.toContain("githits read ");
-    expect(mcpText).not.toContain("read target=");
+    expect(text.split("\n\nRead:")[0]).toBe(mcpText.split("\n\nRead:")[0]);
+    expect(text).toContain("githits read ");
+    expect(mcpText).toContain("read target=");
+    expect(text.split("\n\nRead:")[0]).not.toContain("githits read ");
+    expect(mcpText.split("\n\nRead:")[0]).not.toContain("read target=");
     expect(text).toContain(
       "lib/client.ts:120-165 [repo code, candidate; indexed: path]",
     );
@@ -478,13 +480,15 @@ describe("search parity", () => {
     });
   });
 
-  it("PARITY-TEXT-FORMATTER: shared evidence without read commands", async () => {
+  it("PARITY-TEXT-FORMATTER: shared evidence with native read commands", async () => {
     const outcome = evidenceOutcome();
     const cli = await cliTextForOutcome(outcome);
     const mcp = await mcpTextForOutcome(outcome);
-    expect(cli).toBe(mcp);
-    expect(cli).not.toContain("githits read ");
-    expect(mcp).not.toContain("read target=");
+    expect(cli.split("\n\nRead:")[0]).toBe(mcp.split("\n\nRead:")[0]);
+    expect(cli).toContain("githits read ");
+    expect(mcp).toContain("read target=");
+    expect(cli.split("\n\nRead:")[0]).not.toContain("githits read ");
+    expect(mcp.split("\n\nRead:")[0]).not.toContain("read target=");
   });
 
   it("PARITY-STRUCTURAL-JSON: CLI === MCP and preserves structural evidence", async () => {
@@ -534,9 +538,11 @@ describe("search parity", () => {
     const cli = await cliTextForOutcome(outcome);
     const mcp = await mcpTextForOutcome(outcome);
 
-    expect(cli).toBe(mcp);
-    expect(cli).not.toContain("githits read ");
-    expect(mcp).not.toContain("read target=");
+    expect(cli.split("\n\nRead:")[0]).toBe(mcp.split("\n\nRead:")[0]);
+    expect(cli).toContain("githits read ");
+    expect(mcp).toContain("read target=");
+    expect(cli.split("\n\nRead:")[0]).not.toContain("githits read ");
+    expect(mcp.split("\n\nRead:")[0]).not.toContain("read target=");
     expect(cli).toContain(
       "[1] npm:express@4.18.2 lib/client.ts:142-145 [repo code]",
     );
@@ -550,7 +556,7 @@ describe("search parity", () => {
     expect(cli).toContain("  145 |     }");
     expect(cli).not.toContain("legacy summary must remain in JSON");
     expect(cli).not.toContain("Read context");
-    expect(cli).not.toContain("read target=");
+    expect(cli.split("\n\nRead:")[0]).not.toContain("read target=");
   });
 });
 
@@ -807,9 +813,9 @@ describe("usable snapshot presentation parity", () => {
         expect(text.replace(/\s+/g, " ")).toContain(
           "indexing, estimated total: 100-120s, committed 2026-10-05, observed HEAD",
         );
-        expect(text).toContain("Next: use these hits");
-        expect(text).not.toContain("Next: search_status");
-        expect(text).not.toContain("Next: githits search-status");
+        expect(text).toContain("Use these results");
+        expect(text).not.toContain("Follow-up:\n  search_status");
+        expect(text).not.toContain("Follow-up:\n  githits search-status");
         expect(text).toContain("If you need current HEAD");
       }
       expect(mcp).toContain(
