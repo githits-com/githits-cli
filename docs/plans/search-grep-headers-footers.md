@@ -124,12 +124,20 @@ Preparing:
     Requested: npm:express@2.3.10
 ```
 
-If a brief lifecycle explanation is needed, use a sentence with its actual
-meaning, for example `Repository code is still indexing; these documentation
-results are usable now.` Only name repository code when supplied source/work
-facts establish it; a preparing refresh does not prove no code was searched.
-Avoid repeating an equivalent existing Preparing/scope explanation. Preserve
-existing use-now and conditional-wait wording in the footer.
+#### Per-call concision constraint (user feedback, 2026-10-07)
+
+Default to exactly one outcome sentence. Sources and Preparing already carry
+served scope and pending work; do not add a second sentence paraphrasing them.
+In the captured ready-documentation/pending-code case above, there is no extra
+`Repository code is still indexing` or `documentation results are usable now`
+paragraph. Repetition on every call accumulates unnecessary agent context.
+
+Add at most one short explanation only when a meaningful limitation or lifecycle
+fact is otherwise missing. The notice must add a fact, not restate a label or
+teach the output format. Name a cause only when supplied facts establish it;
+a preparing refresh does not prove no code was searched. Preserve the deliberate
+use-now/conditional-wait guidance when actually offering a wait alongside usable
+hits; healthy results without wait advice need no use-now explanation.
 
 Search backend partialResults remains meaningful, including empty/completed
 snapshots. If attributed source/preparation/coverage notes already explain the
@@ -197,8 +205,9 @@ No section is printed without a real action or meaningful advisory. Header and
 labels use identical wording on CLI and MCP; action syntax remains native.
 
 Search selects the first actual returned read action as an example even on a
-healthy completed page. Lead with `Use these results now; example read:` rather than
-implying it reads every result. Grep retains file/page templates, removes
+healthy completed page. On a healthy page with no wait advice, show the read
+command without instructional prose. When a wait is also offered, retain the
+short `Use these results now; example read:` lead to prevent wait-first behavior. Grep retains file/page templates, removes
 only their leading `#` and prefixes CLI templates with `githits` so they are
 consistent command recipes; no template appears for an empty page. Example:
 
@@ -350,8 +359,8 @@ Acceptance cases:
 - Ready docs plus pending code, including multiple targets and duplicate aliases:
   Sources/Preparing stay truthful; no ambiguous readiness fraction; search and
   grep explain pending work through attributed Preparing facts rather than an
-  unexplained partial label; grep normal
-  pagination alone never claims incomplete coverage.
+  unexplained partial label; no extra sentence restates Preparing or the usable
+  Sources. Grep normal pagination alone never claims incomplete coverage.
 - Active interim and completed partial search: explain continuing work and
   incomplete request coverage in plain language independently of completed state. PENDING/INDEXING/SEARCHING and
   DEFERRED/TIMEOUT/FAILED/unknown remain visible and receive only their valid actions.
@@ -373,6 +382,10 @@ Acceptance cases:
   never invent a read target.
 - Prior HEAD, current HEAD and ended evidence: read-now before optional wait,
   exact specific-ref advice, no pollable ended search.
+- Repeated-call concision: ordinary ready and ready-docs/pending-code pages
+  contain one outcome sentence, no redundant status explanation, and action-only
+  healthy read guidance. Exceptional notes add otherwise missing facts; conditional
+  waits with usable results retain the behavioral use-now safeguard.
 - 40/80/120-column output, ANSI stripped versus plain output and backend Unicode:
   prose wraps, fixed actions/content do not; all footer sections omit cleanly.
 
@@ -461,3 +474,8 @@ feedback above. The underlying reviewed continuation/coverage semantics and
 footer design remain available; headline copy and the smaller footer-only helper
 are proposed, not reviewed-ready. Do not treat historical review closure as
 approval of the revised words. No production code changed.
+
+The user additionally requires per-call token discipline on 2026-10-07: default
+header-only outcome, no paraphrase of Sources/Preparing, and exceptional prose
+only for otherwise undisclosed facts. This refines the proposed copy and
+acceptance; it is not an output-token reduction claim before implementation.
