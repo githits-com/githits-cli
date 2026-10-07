@@ -5,6 +5,56 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.27.1] - 2026-10-07
+
+Patch release. Hosted clients receive the MCP changes after adoption and
+deployment of the released MCP package. Example source follow-ups require
+supporting backends.
+
+### Changed
+
+- **Concise search and grep output** - Use plain outcome counts and shared
+  Read, More results and Follow-up footers, retaining exact native actions,
+  source/preparation provenance and meaningful coverage warnings without
+  repeated header flags. JSON and request behavior are unchanged.
+
+- **Example source follow-ups** - CLI examples explicitly request copyable
+  source-read commands and MCP examples request read tool calls from
+  supporting backends, retaining source links, licenses, and JSON envelopes.
+  CLI text also strips terminal controls; JSON preserves the original
+  Markdown.
+
+### Fixed
+
+- **Package review guidance** - Clarify that changelog ranges exclude the
+  starting version and include the ending version across tool schemas, CLI
+  help, text output, and skills. Encourage using upgrade-review signals to
+  evaluate codebase impact, with changelog and source-diff tools available for
+  details.
+
+## [@githits/mcp 0.27.1] - 2026-10-07
+
+Patch release. Hosted clients require adoption and deployment of this package.
+
+### Changed
+
+- **Concise search and grep output** - Use plain outcome counts and shared
+  Read, More results and Follow-up footers, retaining exact native actions,
+  source/preparation provenance and meaningful coverage warnings without
+  repeated header flags. JSON and request behavior are unchanged.
+
+- **Example source follow-ups** - MCP examples explicitly request read tool
+  calls from supporting backends, retaining source links, licenses, and JSON
+  envelopes.
+
+### Fixed
+
+- **Package review guidance** - Clarify that changelog ranges exclude the
+  starting version and include the ending version in tool schemas,
+  descriptions, and text output. Encourage using upgrade-review signals to
+  evaluate codebase impact, with changelog and source-diff tools available for
+  details.
+
 ## [githits 0.27.0] - 2026-10-06
 
 Pre-1.0 minor release. Custom MCP service providers must now supply
