@@ -105,6 +105,15 @@ spelling; they do not require the MCP skill. This is guidance, not a
 host-enforced loading-order guarantee.
 The same routing guide is returned to clients that need `quick_start`.
 
+The guide includes a dependency-upgrade verification procedure: preserve the
+original application code and lockfile, run old and upgraded applications with
+their respective dependencies, compare affected API responses and persistence
+including paths existing tests miss, and report unverified paths. This is local
+application work; GitHits supplies public dependency evidence and does not
+receive private application source. The skill and `quick_start` carry identical
+instructions. Guidance delivery is not a guarantee that the agent performs the
+procedure; inspect actual execution when evaluating it.
+
 There are no authored host-specific skill copies. If a host later requires a
 self-contained copy, the generator may create it, but tests must enforce exact
 content and reference parity with the root source.

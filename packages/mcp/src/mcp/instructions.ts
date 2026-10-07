@@ -23,6 +23,21 @@ Choose a route, discover that tool, and read its schema for syntax and defaults.
 
 For comparisons, combine relevant package/source evidence with examples as needed.
 
+## Dependency upgrade verification
+
+For tasks that update an application's dependencies, perform these checks
+locally.
+
+Dependency upgrades can silently change API behavior on paths existing tests
+do not cover, even when all tests pass. Preserve the original application code
+and lockfile. Run the original and upgraded applications separately with their
+respective dependency versions. Compare status codes and response bodies for
+affected routes, including inputs and paths absent from existing tests; check
+persisted values and side effects as well. Do not conclude compatibility from
+passing existing tests or exercising only the upgraded application. Report
+which before/after comparisons you performed and which paths remain
+unverified.
+
 Public OSS only; never send local/private/proprietary source. Package/repository
 targets use \`registry:name@version\` and \`github:owner/repo@ref\`. Omit the
 suffix for the latest package version or repository default branch. Package
