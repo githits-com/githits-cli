@@ -120,6 +120,8 @@ const DESCRIPTION =
   "Compares current and target versions using direct vulnerability checks, changelog ranges, target deprecation metadata, peer dependency changes, and optional transitive evidence diffs. " +
   "The tool reports facts only and does not assign risk or decide whether to accept an upgrade. " +
   "Use this instead of inferring acceptability from semver, including patch bumps. " +
+  "Use signals as a starting point to evaluate the impact of changes on the codebase. " +
+  "You can use pkg_changelog and code_diff to obtain full release-note and source-change details. " +
   "Accepts either one package via registry/package_name/current_version/" +
   `target_version or batch \`packages[]\` with at most ${PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES} upgrades.` +
   `\n\n${PKG_UPGRADE_REVIEW_GUARDRAIL}`;

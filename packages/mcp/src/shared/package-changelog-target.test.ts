@@ -45,7 +45,7 @@ describe("parsePackageChangelogTarget", () => {
     });
   });
 
-  it("parses a closed interval", () => {
+  it("parses a bounded interval", () => {
     expect(parsePackageChangelogTarget("npm:express@4.21.2..5.2.1")).toEqual({
       mode: "range",
       registry: "npm",

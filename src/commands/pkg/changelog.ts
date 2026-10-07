@@ -174,7 +174,8 @@ function formatChangelogTerminalError(mapped: MappedError): string {
 const PKG_CHANGELOG_DESCRIPTION = `Find release notes and changelog history for a package.
 By default shows up to ten latest-mode entries with the first 10
 lines of each entry's body. Pin a version for one selected release,
-or use @from..to for a closed interval. --from/--to remain as
+or use @from..to for releases after from through to (from excluded,
+to included). --from/--to remain as
 package range flags on a bare spec. --limit changes the latest-mode
 count (1-50). --verbose uncaps the body preview; --no-body drops
 bodies entirely.
@@ -196,7 +197,7 @@ export function registerPkgChangelogCommand(pkgCommand: Command): Command {
       "--from <version>",
       "Exclusive start of version range (enables range mode; disables --limit)",
     )
-    .option("--to <version>", "End of range / latest-mode cap")
+    .option("--to <version>", "Inclusive end of range / latest-mode cap")
     .option(
       "--limit <n>",
       "Latest-mode or upper-cap entry count (1-50, default 10)",

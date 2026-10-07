@@ -254,7 +254,9 @@ Use .. for positional and repeatable --package ranges.
 The review checks current and target vulnerabilities, target deprecation metadata,
 the changelog range, peer dependency changes, and optional transitive security /
 dependency-issue diffs. It reports facts only; the caller owns the final
-assessment.`;
+assessment. Use signals as a starting point to evaluate the impact of changes
+on the codebase. You can use pkg changelog and code diff to obtain full
+release-note and source-change details.`;
 
 export function registerPkgUpgradeReviewCommand(pkgCommand: Command): Command {
   return pkgCommand

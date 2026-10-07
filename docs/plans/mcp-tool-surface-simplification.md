@@ -954,7 +954,7 @@ contrary to that explicit documentation-only clean-round policy.
 
 **Expected outcome:** MCP `pkg_changelog` accepts one required package `target`
 instead of structured package, repository, and range coordinates. Bare, exact,
-closed-range, and open-ended package targets select deterministic backend operations.
+bounded-range, and open-ended package targets select deterministic backend operations.
 CLI remains package-oriented, supports the same positional package forms, and keeps
 its useful package range flags. Repository and site changelog inputs are removed from
 both surfaces.
@@ -970,7 +970,7 @@ guessed package mapping.
 [PR #2585](https://github.com/githits-com/pkgseer-backend/pull/2585) records
 development deployment at Fly release 1665 and live resolver checks. Exact stable and
 prerelease pins select their requested releases,
-missing pins return `VERSION_NOT_FOUND`, closed intervals preserve
+missing pins return `VERSION_NOT_FOUND`, bounded intervals preserve
 exclusive-start/inclusive-end membership, and an authoritative empty package
 selection returns `entries: []` with `source: null`. Exact pins use
 `packageInfo(registry, name, version).selectedVersion.changelog`; timeline requests
@@ -1183,7 +1183,7 @@ tool-use evidence.
 
 1. Generated MCP schemas expose required string `target` and none of the six removed
    coordinate/range fields; package-only calls remain self-sufficient.
-2. Bare, exact, closed-range, lower-open, and upper-open package targets produce the
+2. Bare, exact, bounded-range, lower-open, and upper-open package targets produce the
    normalized service operations above; repository/site inputs and invalid conflicts
    fail before network access.
 3. Concrete pins return only the requested release or actionable

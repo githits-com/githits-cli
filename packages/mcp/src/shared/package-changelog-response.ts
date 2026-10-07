@@ -266,7 +266,7 @@ function modeSummary(envelope: LeanChangelogEnvelope): string {
   if (envelope.mode === "range") {
     const from = envelope.filter?.fromVersion ?? "earliest";
     const to = envelope.filter?.toVersion ?? "latest";
-    return `range (${from}, ${to}]`;
+    return `range (${from}, ${to}] (start excluded; end included)`;
   }
   if (envelope.filter?.toVersion) {
     return `latest up to ${envelope.filter.toVersion}`;

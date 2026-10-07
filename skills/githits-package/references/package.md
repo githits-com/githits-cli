@@ -33,9 +33,11 @@ Use `--depth` to request capped transitive output. Without it, output is direct 
 
 `githits pkg changelog <registry:name[@version|@from..to]>` returns release notes for a package. Bare targets use latest mode. Pin `@version` for one selected release. Use `@from..to`, `@from..`, or `@..to` for interval and upper-cap forms.
 
+Ranges exclude `from` and include `to`: `npm:express@4.21.2..5.2.1` returns releases after 4.21.2 through 5.2.1, including 5.2.1 but excluding 4.21.2. Use `npm:express@4.21.2` to read the starting release itself. `@from..` excludes `from` and continues through latest; `@..to` includes `to` and remains capped by `--limit`.
+
 Flags: `--from <version>`, `--to <version>`, `--limit 1-50`, `--verbose`, `--no-body`, `--json`.
 
-`--from` and `--to` remain package range flags on a bare spec. Inline single-release targets reject those flags and `--limit`. Repository and site targets are not supported.
+`--from` (excluded) and `--to` (included) remain package range flags on a bare spec. Inline single-release targets reject those flags and `--limit`. Repository and site targets are not supported.
 
 ## Upgrade Review
 
@@ -48,6 +50,8 @@ Evidence includes current and target direct vulnerabilities, changelog range evi
 Flags: `--package <spec>`, `--to <version>`, `--no-transitive-security`, `--dependency-issues`, `--min-severity low|medium|high|critical`, `--verbose`, `--json`.
 
 Use `pkg upgrade-review` for dependency update assessment instead of inferring safety from semver alone. Use `pkg changelog` directly only when you need release notes without a current-to-target comparison.
+
+Use signals as a starting point to evaluate the impact of changes on the codebase. You can use `pkg changelog` and `code diff` to obtain full release-note and source-change details.
 
 When release-note evidence is missing or uninformative, supplement it with exact
 source changes through the `githits-code` skill:

@@ -34,7 +34,7 @@ describe("buildPackageChangelogParams — package-only targets", () => {
     expect(params.version).toBe("^5.0.0");
   });
 
-  it("accepts a closed interval as range", () => {
+  it("accepts a bounded interval as range", () => {
     const { params, mode, explicitFilterFields } = buildPackageChangelogParams({
       target: "npm:express@4.21.2..5.2.1",
     });
