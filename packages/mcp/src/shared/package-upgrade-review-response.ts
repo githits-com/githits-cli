@@ -607,9 +607,23 @@ function aggregateSummary(response: UpgradeReviewResponse): string {
   ).length;
   const omittedTransitive = response.reviews.length - reviewsWithTransitive;
   const clauses = [
-    `${response.summary.withUnknowns} with evidence gaps`,
+    `${response.summary.withUnknowns} with reported unknowns`,
     `${response.summary.withAddedAdvisories} with added direct vulnerabilities`,
   ];
+  const classificationGaps = response.reviews.filter(({ changelog }) => {
+    const coverage = changelog.riskCoverage;
+    return (
+      coverage.versionsNotAssessed > 0 ||
+      coverage.versionsWithoutNotes > 0 ||
+      coverage.versionsUnparseable > 0
+    );
+  }).length;
+  if (classificationGaps > 0)
+    clauses.splice(
+      1,
+      0,
+      `${classificationGaps} with classification coverage gaps`,
+    );
   if (reviewsWithTransitive === 0) {
     clauses.push("transitive security not checked");
   } else {

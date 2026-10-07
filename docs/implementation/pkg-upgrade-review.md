@@ -298,7 +298,10 @@ default output leads with the outcome and groups each package in this order:
 8. `Unknown evidence` last.
 
 A batch of more than one package adds one `Across packages:` summary after the
-headline and a triage table sorted by returned `must_act` statement count. Equal action counts keep backend order. Counts can include a statement from
+headline and a triage table sorted by returned `must_act` statement count. The aggregate line labels the backend `withUnknowns` counter as reported
+unknowns and independently counts reviews with not-assessed, missing-note or
+unparseable classification coverage. This avoids claiming zero evidence gaps
+while the classifier is still pending. Equal action counts keep backend order. Counts can include a statement from
 multiple sources. Default batch output has one unwrapped row per package; `--verbose` adds the detailed reports in
 that order. JSON preserves backend review order. Zero and one package omit it. The summary and package sections report
 facts only; they never call an upgrade safe, risky, approved, or rejected.
@@ -307,7 +310,7 @@ Representative verbose batch output:
 
 ```text
 Upgrade review - 2 packages
-Across packages: 1 with evidence gaps | 1 with added direct vulnerabilities | 1
+Across packages: 1 with reported unknowns | 1 with added direct vulnerabilities | 1
                  with added transitive vulnerabilities | 1 without transitive
                  security evidence | 1 with heuristic change signals | 1 with
                  direct dependency changes
@@ -540,7 +543,7 @@ FastAPI in action-count order. A local stdio `bun run src/cli.ts mcp start`
 session called `pkg_upgrade_review` for each range in JSON, for the three-package
 batch in text, and for Axios with `verbose: true`; JSON matched the CLI exactly.
 
-Validation: `bun test` passed 5,617 tests / 22,421 assertions across 235 files;
+Validation: `bun test` passed 5,635 tests / 22,556 assertions across 235 files;
 `bun run typecheck`, changed-TypeScript Biome, `bun run build`,
 `bun run validate:packages`, `bun run plugins:generate` and
 `bun run plugins:check` passed. Both built secret-free CLI/MCP smokes passed.
@@ -569,3 +572,6 @@ showed transient SDK transitive-security counts changing between batch and
 single requests. An immediate raw aggregate replay with identical options
 returned equal zero-valued transitive blocks for both shapes; the cause is
 unconfirmed and outside the new risk fields. No backend changes were made.
+
+Integration retained main PRs #460 and #461; changelog/source-diff follow-up
+guidance and all existing catalog assertions remain in place.

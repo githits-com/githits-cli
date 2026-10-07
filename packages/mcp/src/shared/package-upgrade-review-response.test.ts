@@ -384,7 +384,7 @@ describe("package upgrade review response", () => {
       text.startsWith("Upgrade review - 2 packages\nAcross packages: "),
     ).toBe(true);
     const aggregateClauses = [
-      "1 with evidence gaps",
+      "1 with reported unknowns",
       "1 with added direct vulnerabilities",
       "1 with added transitive vulnerabilities",
       "1 without transitive security evidence",
@@ -1479,6 +1479,24 @@ describe("upgrade review model statement evidence", () => {
     expect(text).not.toContain("4.4.3 [changelog_file] https:");
   });
 
+  it("keeps reported unknowns separate from pending classification in the batch summary", () => {
+    const pending = riskReview([]);
+    pending.unknowns = [];
+    pending.changelog.riskCoverage.versionsNotAssessed = 4;
+    const complete = riskReview();
+    complete.unknowns = [];
+    const response = formatterResponse([pending, complete]);
+    response.summary.withUnknowns = 0;
+    const text = formatPackageUpgradeReviewTerminal(response).replace(
+      /\s+/g,
+      " ",
+    );
+    expect(text).toContain("0 with reported unknowns");
+    expect(text).toContain("1 with classification coverage gaps");
+    expect(text).not.toContain("0 with evidence gaps");
+    expect(response.summary.withUnknowns).toBe(0);
+  });
+
   it("always reports every coverage counter, including zero items and entirely unassessed ranges", () => {
     const review = riskReview([]);
     review.changelog.riskCoverage = {
@@ -1579,6 +1597,9 @@ describe("upgrade review model statement evidence", () => {
     expect(text).toContain("2 act | 0 know | 0 unclassified");
     expect(text).toContain("0 classified"); // pending coverage independently returned
     expect(text).toContain("Rerun to fill not-assessed versions");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "1 with classification coverage gaps",
+    );
     expect(text).not.toContain("Requires action (");
     expect(text).toContain("verbose");
     expect(response.reviews.map((review) => review.name)).toEqual([
