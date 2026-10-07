@@ -208,14 +208,27 @@ const DESCRIPTION_ROUTING: Record<
       "`registry:name@version`",
       "one selected release",
       "Empty latest or range selections succeed",
+      "from excluded, to included",
     ],
-    absent: ["newest-first", "most recent", "repo_url", "from_version"],
+    absent: [
+      "newest-first",
+      "most recent",
+      "repo_url",
+      "from_version",
+      "closed interval",
+    ],
   },
   pkg_upgrade_review: {
     prefix: /^Review a package upgrade/,
     exactPrefix:
       "Review a package upgrade: vulnerabilities, releases, peers, dependency changes. ",
-    body: ["facts only", "does not assign risk", "at most 30 upgrades"],
+    body: [
+      "facts only",
+      "does not assign risk",
+      "at most 30 upgrades",
+      "Use signals as a starting point",
+      "pkg_changelog and code_diff",
+    ],
   },
 };
 

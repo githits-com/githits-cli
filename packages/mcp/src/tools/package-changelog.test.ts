@@ -19,6 +19,8 @@ describe("createPackageChangelogTool — metadata", () => {
     expect(tool.description).toContain("latest mode");
     expect(tool.description).toContain("one selected release");
     expect(tool.description).toContain("`registry:name@from..to`");
+    expect(tool.description).toContain("from excluded, to included");
+    expect(tool.description).not.toContain("closed interval");
     expect(tool.description).toContain("body_lines");
     expect(tool.description).not.toContain("markdown body previews");
     expect(tool.description).not.toContain("Supports npm");
@@ -28,8 +30,14 @@ describe("createPackageChangelogTool — metadata", () => {
       "registry:name[@version|@from..to]",
     );
     expect(tool.schema.target?.description).toContain("Package-only");
+    expect(tool.schema.target?.description).toContain(
+      "Ranges exclude from and include to",
+    );
+    expect(tool.schema.target?.description).toContain(
+      "Use @from alone for the starting release's own notes",
+    );
     expect(tool.schema.limit?.description).toContain(
-      "Do not pass with exact `@version`, closed `@from..to`, or lower-open `@from..` targets",
+      "Do not pass with exact `@version` or lower-bound range targets (`@from..to`, `@from..`)",
     );
     expect(tool.schema.format?.description).toContain(
       "Set `json` only when code consumes",
@@ -333,7 +341,7 @@ describe("createPackageChangelogTool — happy path", () => {
     expect(payload.entries.items[0]?.hasChangelog).toBe(true);
   });
 
-  it("emits mode: 'range' and filter.fromVersion for a closed interval", async () => {
+  it("emits mode: 'range' and filter.fromVersion for a bounded interval", async () => {
     const tool = createPackageChangelogTool(
       createMockPackageIntelligenceService(),
     );

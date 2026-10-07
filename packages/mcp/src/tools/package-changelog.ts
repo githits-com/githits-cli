@@ -37,13 +37,13 @@ const schema: ZodRawShape = {
   target: z
     .string()
     .describe(
-      `Package registry:name[@version|@from..to], for example npm:express@5.2.1; omit the version for latest. Open bounds from.. and ..to are accepted. Package-only; repository and site targets are rejected. Registries: ${PKGSEER_REGISTRY_LIST}.`,
+      `Package registry:name[@version|@from..to], for example npm:express@5.2.1; omit the version for latest. Ranges exclude from and include to: @4.21.2..5.2.1 returns releases after 4.21.2 through 5.2.1. Use @from alone for the starting release's own notes. Open bounds from.. and ..to are accepted. Package-only; repository and site targets are rejected. Registries: ${PKGSEER_REGISTRY_LIST}.`,
     ),
   limit: z
     .number()
     .optional()
     .describe(
-      "Latest-mode and upper-cap (`@..to`) count (1-50, default 10). Do not pass with exact `@version`, closed `@from..to`, or lower-open `@from..` targets.",
+      "Latest-mode and upper-cap (`@..to`) count (1-50, default 10). Do not pass with exact `@version` or lower-bound range targets (`@from..to`, `@from..`).",
     ),
   omit_bodies: z
     .boolean()
@@ -74,7 +74,7 @@ const schema: ZodRawShape = {
 export const DESCRIPTION_BASE: string =
   "Find release notes and changelog history for a package. Default " +
   "latest mode returns up to ten entries; source ordering may interleave maintained release lines. " +
-  "Pin `registry:name@version` for one selected release, or `registry:name@from..to` for a closed interval. " +
+  "Pin `registry:name@version` for one selected release, or `registry:name@from..to` for releases after from through to (from excluded, to included). " +
   "`limit` applies only to latest and upper-cap targets. " +
   "A selected release without notes succeeds with `hasChangelog: false`. " +
   "Empty latest or range selections succeed with no entries. " +

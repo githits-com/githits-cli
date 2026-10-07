@@ -44,7 +44,7 @@ const PACKAGE_ONLY_MESSAGE =
  * Accepted forms:
  * - `npm:express` — latest
  * - `npm:express@5.2.1` — one selected release
- * - `npm:express@4.21.2..5.2.1` — closed range `(from, to]`
+ * - `npm:express@4.21.2..5.2.1` — range `(from, to]` (from excluded, to included)
  * - `npm:express@4.21.2..` — range to latest
  * - `npm:express@..5.2.1` — latest up to an inclusive cap
  */

@@ -54,12 +54,13 @@ githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-sta
 - Need vulnerabilities in resolved dependency versions: add `pkg vulns --transitive`; this opt-in adds graph-analysis cost and audits the resolved graph, not a local application lockfile.
 - Need historical advisories that do not affect the inspected version: use `pkg vulns --scope non_affecting`; use `--scope all` for affected plus historical rows.
 - Need dependency footprint: start with `pkg deps`; add `--lifecycle all` for non-runtime groups and `--depth <n>` for aggregate transitive graph data.
-- Need upgrade evidence for dependency updates, outdated package bumps, or lockfile changes: prefer `pkg upgrade-review` because it compares current vs target vulnerabilities, changelog range evidence, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. It reports facts only; you still own the final assessment.
+- Need upgrade evidence for dependency updates, outdated package bumps, or lockfile changes: prefer `pkg upgrade-review` because it compares current vs target vulnerabilities, changelog range evidence, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. It reports facts only; you still own the final assessment. Use signals as a starting point to evaluate the impact of changes on the codebase. You can use `pkg changelog` and `code diff` to obtain full release-note and source-change details.
 - Need release notes without a current-to-target comparison: use `pkg changelog`; `--no-body` for compact timelines.
 - Need exact source changes to supplement upgrade evidence, including missing or uninformative release notes: use the `githits-code` skill and `githits code diff <registry:name> <current>..<target>`. Diff is repository-wide even for package targets; report scope and content limits, and combine it with advisory evidence rather than inferring compatibility from the patch.
 
 ## Gotchas
 
+- Changelog ranges exclude the starting version and include the ending version: `@from..to` means releases after `from` through `to`. Use `@from` alone for the starting release's own notes. `@from..` continues through latest; `@..to` includes `to` and remains capped by `--limit`.
 - Vulnerability data is not available for `vcpkg` or `zig`.
 - Dependency graphs support npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, Zig, vcpkg, RubyGems, Go, and Swift.
 - Go exact-version inputs accept either `v1.2.3` or `1.2.3` (including pseudo versions) and are sent in canonical `v`-prefixed form. Other changelog range inputs omit a leading `v`, except Swift release tags.

@@ -462,7 +462,9 @@ describe("formatPackageChangelogTerminal", () => {
       verbose: false,
       useColors: false,
     });
-    expect(output).toContain("range (4.0.0, 5.0.0]");
+    expect(output).toContain(
+      "range (4.0.0, 5.0.0] (start excluded; end included)",
+    );
   });
 
   it("renders printable ASCII punctuation", () => {
