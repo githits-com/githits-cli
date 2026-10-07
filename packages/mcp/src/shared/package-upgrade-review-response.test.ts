@@ -900,7 +900,9 @@ describe("package upgrade review response", () => {
     const response = formatterResponse([review]);
     const text = formatPackageUpgradeReviewTerminal(response);
     expect(text).toContain("2 not assessed");
-    expect(text).toContain("Rerun to fill");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "Rerun in a few seconds to a minute",
+    );
     expect(text).not.toContain("1.0.post");
     const verbose = formatPackageUpgradeReviewTerminal(response, {
       verbose: true,
@@ -1206,6 +1208,109 @@ function riskReview(
 }
 
 describe("upgrade review model statement evidence", () => {
+  it("separates confidence below 0.4 from confident actions and marks uncertain knowledge", () => {
+    const review = riskReview([
+      riskItem({ tierConfidence: 0, text: "Action at zero." }),
+      riskItem({
+        tierConfidence: 0.399,
+        kind: undefined,
+        kindConfidence: undefined,
+        text: "Possibly removed API.",
+      }),
+      riskItem({
+        tierConfidence: 0.4,
+        kindConfidence: 0.4,
+        text: "Action at boundary.",
+      }),
+      riskItem({ tierConfidence: 1, text: "Action at one." }),
+      riskItem({
+        tier: "should_know",
+        tierConfidence: 0,
+        text: "Knowledge at zero.",
+      }),
+      riskItem({
+        tier: "should_know",
+        tierConfidence: 0.399,
+        text: "Uncertain knowledge.",
+      }),
+      riskItem({
+        tier: "should_know",
+        tierConfidence: 0.4,
+        text: "Confident knowledge.",
+      }),
+      riskItem({
+        tier: "should_know",
+        tierConfidence: 1,
+        text: "Knowledge at one.",
+      }),
+      riskItem({
+        tier: "unclassified",
+        tierConfidence: undefined,
+        kind: undefined,
+        kindConfidence: undefined,
+        text: "Oversize statement.",
+        textTruncated: true,
+      }),
+    ]);
+    const response = formatterResponse([review]);
+    const before = JSON.stringify(response);
+    const text = formatPackageUpgradeReviewTerminal(response, {
+      terminalWidth: 200,
+    });
+    expect(text).toContain(
+      "2 require action (+2 uncertain) | 2 should know (+2 uncertain) | 1 too long to classify",
+    );
+    expect(text).toContain("Requires action (2)");
+    expect(text).toContain("Possibly requires action (2)");
+    expect(text).toContain('(uncertain) "Possibly removed API."');
+    expect(text).toContain('[removal] "Action at boundary."');
+    expect(text).toContain('(uncertain) "Uncertain knowledge."');
+    expect(text.indexOf("Confident knowledge.")).toBeLessThan(
+      text.indexOf("Uncertain knowledge."),
+    );
+    expect(text).toContain("Too long to classify - read it (1)");
+    expect(text).toContain('"Oversize statement."');
+    expect(text).not.toContain('(uncertain) "Oversize statement."');
+    expect(text).toContain("statement truncated by backend");
+    expect(text).not.toContain("Unclassified - read if relevant");
+    const colored = formatPackageUpgradeReviewTerminal(response, {
+      useColors: true,
+      terminalWidth: 200,
+    });
+    expect(colored).toContain("\x1b[2m(uncertain)\x1b[0m");
+    expect(colored.replace(ANSI_SGR_PATTERN, "")).toBe(text);
+    expect(JSON.stringify(response)).toBe(before);
+  });
+
+  it("ranks batches only by confident actions, preserving zero-count ties and JSON order", () => {
+    const zero = riskReview([]);
+    zero.name = "zero";
+    const uncertain = riskReview([
+      riskItem({ tierConfidence: 0.1 }),
+      riskItem({ tierConfidence: 0.3 }),
+    ]);
+    uncertain.name = "uncertain";
+    const confident = riskReview([riskItem({ tierConfidence: 0.4 })]);
+    confident.name = "confident";
+    const response = formatterResponse([zero, uncertain, confident]);
+    for (const verbose of [false, true]) {
+      const text = formatPackageUpgradeReviewTerminal(response, { verbose });
+      expect(text.indexOf("npm:confident")).toBeLessThan(
+        text.indexOf("npm:zero"),
+      );
+      expect(text.indexOf("npm:zero")).toBeLessThan(
+        text.indexOf("npm:uncertain"),
+      );
+      expect(text).toContain("0 act (+2 uncertain)");
+      expect(text).toContain("ranking uses only confident action counts");
+    }
+    expect(response.reviews.map((review) => review.name)).toEqual([
+      "zero",
+      "uncertain",
+      "confident",
+    ]);
+  });
+
   it("combines coverage, brackets and colors optional kinds, and separates lexical matches", () => {
     const review = riskReview([
       riskItem({
@@ -1263,7 +1368,13 @@ describe("upgrade review model statement evidence", () => {
       );
       expect(text).not.toContain("Heuristic keywords:");
       expect(text).not.toContain("Keyword matches without excerpts:");
-      expect(text.match(/^ {6}\* (?=.*")/gm)).toHaveLength(11);
+      expect(text.match(/^ {6}\* (?=.*")/gm)).toHaveLength(16);
+      expect(compact).toContain(
+        "0 require action (+8 uncertain) | 6 should know (+2 uncertain) | 0 too long to classify",
+      );
+      expect(text).toContain("Possibly requires action (6)");
+      expect(text).not.toContain("    Requires action (");
+      expect(compact).toContain('(uncertain) "deps: remove safe-buffer"');
       for (const entry of expressChangelog.entries.filter(
         (entry) => entry.htmlUrl,
       )) {
@@ -1282,7 +1393,7 @@ describe("upgrade review model statement evidence", () => {
       expect(compact).toContain(
         "4 classified | 0 not assessed | 0 without notes",
       );
-      expect(compact).toContain("130 statements labeled no impact");
+      expect(compact).toContain("125 statements labeled no impact");
     }
     expect(JSON.stringify(response)).toBe(before);
   });
@@ -1480,9 +1591,10 @@ describe("upgrade review model statement evidence", () => {
       }),
       riskItem({
         tier: "unclassified",
+        tierConfidence: undefined,
         kind: undefined,
         kindConfidence: undefined,
-        text: `Uncertain. ${"detail ".repeat(50)}READ_END`,
+        text: `Too long. ${"detail ".repeat(50)}READ_END`,
       }),
     ]);
     const text = formatPackageUpgradeReviewTerminal(
@@ -1492,12 +1604,12 @@ describe("upgrade review model statement evidence", () => {
     expect(compact).toContain(longText.trim());
     expect(text).toContain("Requires action (1)");
     expect(text).toContain("Should know (1)");
-    expect(text).toContain("Unclassified - read if relevant (1)");
+    expect(text).toContain("Too long to classify - read it (1)");
     expect(text.indexOf("Requires action")).toBeLessThan(
       text.indexOf("Should know"),
     );
     expect(text.indexOf("Should know")).toBeLessThan(
-      text.indexOf("Unclassified"),
+      text.indexOf("Too long to classify - read it"),
     );
     expect(compact).toContain('[removal] "Removed an API.');
     expect(text).toContain("https://example.com/release");
@@ -1526,7 +1638,13 @@ describe("upgrade review model statement evidence", () => {
       riskItem({ text: "Removed another API." }),
       riskItem({ source: "changelog_file", text: "Other source." }),
       riskItem({ version: "4.4.2", text: "Other version." }),
-      riskItem({ tier: "unclassified", text: `${"x".repeat(239)}😀TAIL` }),
+      riskItem({
+        tier: "unclassified",
+        tierConfidence: undefined,
+        kind: undefined,
+        kindConfidence: undefined,
+        text: `${"x".repeat(239)}😀TAIL`,
+      }),
     ]);
     const text = formatPackageUpgradeReviewTerminal(
       formatterResponse([review]),
@@ -1575,7 +1693,9 @@ describe("upgrade review model statement evidence", () => {
       "0 classified | 20 not assessed | 2 without notes | 1 unparseable",
     );
     expect(text).toContain("0 statements labeled no impact");
-    expect(text).toContain("Rerun to fill not-assessed versions");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "Rerun in a few seconds to a minute",
+    );
     expect(text).toContain(
       "Missing or unparseable notes are not evidence of no risk",
     );
@@ -1678,9 +1798,11 @@ describe("upgrade review model statement evidence", () => {
     expect(
       text.split("\n").filter((line) => line.includes("npm:two")),
     ).toHaveLength(1);
-    expect(text).toContain("2 act | 0 know | 0 unclassified");
+    expect(text).toContain("2 act | 0 know | 0 too long to classify");
     expect(text).toContain("0 classified"); // pending coverage independently returned
-    expect(text).toContain("Rerun to fill not-assessed versions");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "Rerun in a few seconds to a minute",
+    );
     expect(text.replace(/\s+/g, " ")).toContain(
       "1 with classification coverage gaps",
     );

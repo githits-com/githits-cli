@@ -298,10 +298,10 @@ default output leads with the outcome and groups each package in this order:
 8. `Unknown evidence` last.
 
 A batch of more than one package adds one `Across packages:` summary after the
-headline and a triage table sorted by returned `must_act` statement count. The aggregate line labels the backend `withUnknowns` counter as reported
+headline and a triage table sorted by returned confident `must_act` statement count (`tierConfidence >= 0.4`). The aggregate line labels the backend `withUnknowns` counter as reported
 unknowns and independently counts reviews with not-assessed, missing-note or
 unparseable classification coverage. This avoids claiming zero evidence gaps
-while the classifier is still pending. Equal action counts keep backend order. Counts can include a statement from
+while the classifier is still pending. Equal confident-action counts keep backend order; uncertain counts are never a secondary sort key. Counts can include a statement from
 multiple sources. Default batch output has one unwrapped row per package, including peer dependency
 change and compatibility-note counts (or not checked when absent); `--verbose` adds the detailed reports in
 that order. JSON preserves backend review order. Zero and one package omit it. The summary and package sections report
@@ -309,31 +309,24 @@ facts only; they never call an upgrade safe, risky, approved, or rejected.
 
 The Changes section uses one version block in backend release-entry order,
 then any statement-only versions outside the entry sample. Within each version,
-Requires action precedes Should know and Unclassified. All returned statements
+Requires action precedes Possibly requires action, Should know and Too long to classify. All returned statements
 remain visible. Sources from release notes and changelog files are combined
 without claiming differently worded statements are equivalent.
 
 ```text
 Changes
-  0 require action | 6 should know | 5 unclassified
-  Classification versions: 4 classified | 0 not assessed | 0 without notes | 130 statements labeled no impact
-  5.2.1
-    Unclassified - read if relevant (2)
-      * "Revert security fix for CVE-2024-51999 [2] (GHSA-pj86-cfqh-vqx6 [3])" [1]
-      * "IMPORTANT: The prior release ..." [4]
-    Keyword matches
-      * [breaking] matched quoted statement [4]
-  5.2.0
-    Should know (4)
-      * [security fix] "Security fix for CVE-2024-51999 [2] (GHSA-pj86-cfqh-vqx6 [3])" [5]
-      ... remaining quotes in the same block
-  ... remaining versions, each once
+  0 require action (+8 uncertain) | 6 should know (+2 uncertain) | 0 too long to classify
+  Classification versions: 4 classified | 0 not assessed | 0 without notes | 125 statements labeled no impact
+  ... other versions, each once
+  5.1.0
+    Possibly requires action (6)
+      * [runtime/platform] (uncertain) "build: Node.js 23.0 by @bjohansebas in [11]" [5]
+      * (uncertain) "deps: remove safe-buffer" [12]
+      ... remaining returned quotes
+    Should know (1)
+      * [security fix] "fix(securite): fix vulnerabilities by @Abdel-Monaam-Aouini in [13]" [5]
   Sources
-    [1] Changelog (entry URL not returned)
-    [2] https://www.cve.org/CVERecord?id=CVE-2024-51999
-    [3] https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6
-    [4] Release notes: https://github.com/expressjs/express/releases/tag/v5.2.1
-    ... each remaining URL once
+    ... each source URL once
   Classified by an agent. Not a compatibility verdict.
 ```
 
@@ -427,7 +420,7 @@ items first. No-impact statements appear only in `unitsNoImpact`. Keep existing
 hints, separate from model labels.
 
 Single-package text combines evidence from different sources under one heading
-per version. Each statement and additional keyword quote starts with `*`. Requires action quotes are full; Should know and Unclassified
+per version. Each statement and additional keyword quote starts with `*`. Confident Requires action and uncertain Possibly requires action quotes are full; Should know and Too long to classify
 prefixes are up to 240 codepoints after Markdown link destinations become
 numbered source references. Bullet, blockquote and inline-code syntax renders as
 visible words; GitHub alert markers become e.g. `IMPORTANT:`. Words are not
@@ -440,6 +433,21 @@ deprecation, security fix and notable change. Kind labels use brackets, such as
 kind means no confident category was returned; the tier still applies. Those
 quotes retain a bullet and no invented kind label. Coverage and no-impact units
 share one summary, wrapping naturally at the caller width.
+
+A numeric `tierConfidence < 0.4` is uncertain; exactly 0.4 is confident.
+Low-confidence MUST_ACT appears as Possibly requires action with a muted
+`(uncertain)` marker, never in the confident Requires action section. This is
+presentation of the backend tier, not client reclassification. Low-confidence
+SHOULD_KNOW retains its tier with the same marker, after confident items.
+UNCLASSIFIED now means only a statement too large to classify; its section says
+Too long to classify - read it. Null confidence normalizes to omission for that
+case and is not counted as an uncertain escalation. The backend resolves
+ambiguous classifications toward impact; the CLI never infers a replacement
+tier from the text. Counts separately show confident and uncertain act/know
+items; batch ranking uses only confident action counts. Kinds are now reported
+by the backend from kind confidence 0.4; the client renders any supplied kind
+and never applies another kind threshold.
+
 
 Every entry/link URL appears once in the Sources list, referenced by quotes.
 Entry links require matching version and `detailSource`; a missing locator is
@@ -463,18 +471,16 @@ raw.
 
 Coverage always shows classified, not-assessed and without-notes counts, plus
 no-impact units. Positive unparseable and omitted counts are explicit. Pending
-versions prompt a rerun: later requests fill stored labels. Missing/unparseable
+versions are still being classified by background jobs or the job may have failed. Rerun a few seconds to a minute later to retrieve completed stored labels without rerunning the model; this does not promise that a failed job completed. Missing/unparseable
 notes or an empty item list never imply no risk. Package-version fallback and
 entry/locator sampling limits remain visible when present; ordinary entry
-sampling never bounds statement classification. A cold range can take a few
-seconds under the backend six-second batch deadline and 20-version package cap;
-there are no client retries.
+sampling never bounds statement classification. Classification runs asynchronously in backend jobs; there are no client retries or polling.
 
 Public JSON adds `changelog.riskItems` and `changelog.riskCoverage` on both CLI
 and MCP, retaining the existing envelope, lower-case enums and null-to-omission
 convention. Thus null tier confidence (too-large unclassified statements), kind,
 kind confidence, heading or source are omitted. Confidence zero remains zero.
-All quote text, truncation flags and model/formulation values are preserved.
+All quote text, truncation flags and per-item model/formulation values are preserved. Stored labels survive classifier changes, so a review may contain different models or formulations (for example s-hier-v2 and s-hier-v3); no review-level provenance assumption is made.
 
 The query measured 262 complexity units before the change, 281 with all risk
 fields, and 284 including entry `detailSource` on the three existing entry
@@ -487,6 +493,8 @@ not describe the current operation.
 
 
 ## Dev verification (2026-10-07)
+
+The following original measurements predate backend #3060/#3063/#3064. Updated confidence-contract measurements are recorded below.
 
 All authenticated calls used the normal CLI auth configuration with
 `GITHITS_ENV=dev`, `GITHITS_API_URL=https://api-dev.githits.com`,
@@ -619,8 +627,8 @@ existing three-round external-review limit remains in effect.
 
 Presentation refinement: coverage and no-impact counts share one summary;
 optional kind labels use brackets and color, while lexical hints appear in a
-separate section within each version. The observed 5.2.0 `res.redirect` warning
-has `should_know` tier confidence 0.95 but no kind; its quote receives no invented
+separate section within each version. Before the backend lowered its kind threshold, the observed 5.2.0 `res.redirect` warning
+had `should_know` tier confidence 0.95 but no kind; its quote receives no invented
 category. Bullets remain because labels are optional.
 
 Validation: 69 focused formatter/parity/MCP/release-boundary tests passed with
@@ -629,3 +637,44 @@ source/built smokes passed. Dev CLI and sequential local MCP four ranges plus
 batch passed. One concurrent MCP probe hit the SDK 60-second timeout; the same
 probe passed sequentially, and the cause is unconfirmed. Internal full-follow-up
 review was clean; no additional external round under the existing limit.
+
+
+## Background classification and confidence contract follow-up
+
+Backend #3060/#3063/#3064 are deployed on dev; production deployment was pending
+at verification. No production probes or backend edits were performed. Field
+names and query selections are unchanged; the prior measured complexity remains
+284/500 for that selection. The local backend checkout at #3041 predates the
+changes, so its old descriptions are not used as current semantic evidence.
+Normal-auth dev responses verified both stored s-hier-v2 and new s-hier-v3 labels.
+
+| Range | Confident / uncertain act | Confident / uncertain know | Too long | Classified / not assessed / without notes / unparseable | No impact | Omitted | Formulation |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| npm:express@5.0.0..5.2.1 | 0 / 8 | 6 / 2 | 0 | 4 / 0 / 0 / 0 | 125 | 0 | s-hier-v2 |
+| npm:express@4.19.2..4.21.2 | 3 / 1 | 8 / 2 | 0 | 4 / 0 / 0 / 0 | 43 | 0 | s-hier-v3 |
+| npm:@biomejs/biome@2.4.2..2.4.15 | 13 / 28 | 9 / 0 | 0 | 13 / 0 / 0 / 0 | 812 | 13 | s-hier-v2 |
+
+These ranges were already fully classified; no cold-job completion claim is
+made. The batch accepts both Express ranges independently. Biome's returned
+statement counts exclude its 13 omitted items; their classifications are not
+inferred. Source quotes, keyword evidence and all per-item JSON provenance stay
+intact. No deployed data-contract contradiction was observed.
+
+
+Follow-up verification: full `bun test` passed 5,645 tests / 22,680 assertions;
+typecheck, Biome, build, public-package validation and all four source/built
+CLI/MCP smokes passed. Source isolated live cohorts still skipped AUTH_REQUIRED
+as recorded earlier. Direct normal-auth dev CLI and local stdio MCP checked all
+three ranges in text/JSON and their batch. JSON risk fields matched between
+surfaces, comparing fields without imposing order within backend tier ties.
+The batch orders Biome (13 act +28 uncertain), Express 4.19.2..4.21.2 (3 +1),
+then Express 5.0.0..5.2.1 (0 +8). A same-response comparison shows the 5.1.0
+internal-dependency quotes move from Requires action (6) to Possibly requires
+action (6) with `(uncertain)` markers, preserving the full quote.
+
+Targeted Claude descriptor-only agent eval was attempted but the CLI reported
+Not logged in, made zero tool calls and produced no final answer/grade. This is
+an unavailable qualitative check, not a passing eval. No credentials were read
+or exposed and no app login was started. Internal final review returned no findings; the existing external code-review round limit remains in effect.
+
+Final confidence-contract review: direction sound, no findings. No deferred implementation or refactoring work. The working plan is removed after review closure; no additional external code round under the existing limit.

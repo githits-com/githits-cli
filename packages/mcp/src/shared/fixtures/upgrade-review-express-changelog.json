@@ -2,129 +2,190 @@
   "riskItems": [
     {
       "version": "5.2.0",
-      "tier": "should_know",
-      "tierConfidence": 1,
-      "kind": "security_fix",
-      "kindConfidence": 0.98,
-      "text": "* Security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6))",
+      "tier": "must_act",
+      "tierConfidence": 0.38,
+      "kind": "changes_behavior_or_default",
+      "kindConfidence": 0.85,
+      "text": "* chore: enforce explicit `Buffer` import and add lint rule by @shivarm in https://github.com/expressjs/express/pull/6525",
+      "textTruncated": false,
+      "heading": "What's Changed",
+      "source": "releases",
+      "model": "jev-1.13.0",
+      "formulation": "s-hier-v2"
+    },
+    {
+      "version": "5.1.0",
+      "tier": "must_act",
+      "tierConfidence": 0.28,
+      "kind": "raises_runtime_or_platform_requirement",
+      "kindConfidence": 1,
+      "text": "* build: Node.js 23.0 by @bjohansebas in https://github.com/expressjs/express/pull/6075",
+      "textTruncated": false,
+      "heading": "What's Changed",
+      "source": "releases",
+      "model": "jev-1.13.0",
+      "formulation": "s-hier-v2"
+    },
+    {
+      "version": "5.2.1",
+      "tier": "must_act",
+      "tierConfidence": 0.23,
+      "kind": "changes_behavior_or_default",
+      "kindConfidence": 1,
+      "text": "* Revert security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6))",
       "textTruncated": false,
       "source": "changelog_file",
       "model": "jev-1.13.0",
-      "formulation": "d-hier-v1"
+      "formulation": "s-hier-v2"
+    },
+    {
+      "version": "5.1.0",
+      "tier": "must_act",
+      "tierConfidence": 0.23,
+      "text": "* deps: remove `safe-buffer`",
+      "textTruncated": false,
+      "source": "changelog_file",
+      "model": "jev-1.13.0",
+      "formulation": "s-hier-v2"
+    },
+    {
+      "version": "5.1.0",
+      "tier": "must_act",
+      "tierConfidence": 0.23,
+      "text": "* deps: remove `utils-merge`",
+      "textTruncated": false,
+      "source": "changelog_file",
+      "model": "jev-1.13.0",
+      "formulation": "s-hier-v2"
+    },
+    {
+      "version": "5.1.0",
+      "tier": "must_act",
+      "tierConfidence": 0.23,
+      "text": "* deps: remove `methods`",
+      "textTruncated": false,
+      "source": "changelog_file",
+      "model": "jev-1.13.0",
+      "formulation": "s-hier-v2"
+    },
+    {
+      "version": "5.1.0",
+      "tier": "must_act",
+      "tierConfidence": 0.2,
+      "text": "* deps: remove `setprototypeof`",
+      "textTruncated": false,
+      "source": "changelog_file",
+      "model": "jev-1.13.0",
+      "formulation": "s-hier-v2"
+    },
+    {
+      "version": "5.1.0",
+      "tier": "must_act",
+      "tierConfidence": 0.19,
+      "text": "* deps: remove `depd`",
+      "textTruncated": false,
+      "source": "changelog_file",
+      "model": "jev-1.13.0",
+      "formulation": "s-hier-v2"
     },
     {
       "version": "5.2.0",
       "tier": "should_know",
-      "tierConfidence": 0.98,
+      "tierConfidence": 1,
+      "kind": "security_fix",
+      "kindConfidence": 1,
+      "text": "* Security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6))",
+      "textTruncated": false,
+      "source": "changelog_file",
+      "model": "jev-1.13.0",
+      "formulation": "s-hier-v2"
+    },
+    {
+      "version": "5.2.0",
+      "tier": "should_know",
+      "tierConfidence": 1,
+      "text": "* A deprecation warning was added when using `res.redirect` with undefined arguments, Express now emits a warning to help detect calls that pass undefined as the status or URL and make them easier to fix.",
+      "textTruncated": false,
+      "source": "changelog_file",
+      "model": "jev-1.13.0",
+      "formulation": "s-hier-v2"
+    },
+    {
+      "version": "5.2.0",
+      "tier": "should_know",
+      "tierConfidence": 1,
       "kind": "deprecates_without_removal",
-      "kindConfidence": 0.98,
+      "kindConfidence": 0.83,
       "text": "* add deprecation warnings for redirect arguments undefined by @bjohansebas in https://github.com/expressjs/express/pull/6405",
       "textTruncated": false,
       "heading": "What's Changed",
       "source": "releases",
       "model": "jev-1.13.0",
-      "formulation": "d-hier-v1"
+      "formulation": "s-hier-v2"
     },
     {
       "version": "5.2.0",
       "tier": "should_know",
       "tierConfidence": 0.98,
       "kind": "security_fix",
-      "kindConfidence": 0.92,
+      "kindConfidence": 1,
       "text": "* fix: upgrade body-parser to 2.2.1 to address CVE-2025-13466 by @shivarm in https://github.com/expressjs/express/pull/6922",
       "textTruncated": false,
       "heading": "What's Changed",
       "source": "releases",
       "model": "jev-1.13.0",
-      "formulation": "d-hier-v1"
+      "formulation": "s-hier-v2"
     },
     {
       "version": "5.0.1",
       "tier": "should_know",
-      "tierConfidence": 0.98,
+      "tierConfidence": 0.97,
       "kind": "security_fix",
-      "kindConfidence": 0.95,
+      "kindConfidence": 1,
       "text": "* Update `cookie` semver lock to address [CVE-2024-47764](https://nvd.nist.gov/vuln/detail/CVE-2024-47764)",
       "textTruncated": false,
       "source": "changelog_file",
       "model": "jev-1.13.0",
-      "formulation": "d-hier-v1"
+      "formulation": "s-hier-v2"
     },
     {
       "version": "5.1.0",
       "tier": "should_know",
-      "tierConfidence": 0.97,
+      "tierConfidence": 0.69,
       "kind": "security_fix",
-      "kindConfidence": 0.92,
+      "kindConfidence": 0.98,
       "text": "* fix(securite): fix vulnerabilities by @Abdel-Monaam-Aouini in https://github.com/expressjs/express/pull/6211",
       "textTruncated": false,
       "heading": "What's Changed",
       "source": "releases",
       "model": "jev-1.13.0",
-      "formulation": "d-hier-v1"
+      "formulation": "s-hier-v2"
     },
     {
       "version": "5.2.0",
       "tier": "should_know",
-      "tierConfidence": 0.95,
-      "text": "* A deprecation warning was added when using `res.redirect` with undefined arguments, Express now emits a warning to help detect calls that pass undefined as the status or URL and make them easier to fix.",
-      "textTruncated": false,
-      "source": "changelog_file",
-      "model": "jev-1.13.0",
-      "formulation": "d-hier-v1"
-    },
-    {
-      "version": "5.2.1",
-      "tier": "unclassified",
-      "tierConfidence": 0.46,
-      "text": "* Revert security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6))",
-      "textTruncated": false,
-      "source": "changelog_file",
-      "model": "jev-1.13.0",
-      "formulation": "d-hier-v1"
-    },
-    {
-      "version": "5.1.0",
-      "tier": "unclassified",
-      "tierConfidence": 0.43,
-      "text": "* fix(deps): qs@^6.14.0 by @wesleytodd in https://github.com/expressjs/express/pull/6374",
+      "tierConfidence": 0.25,
+      "kind": "notable_change",
+      "kindConfidence": 0.69,
+      "text": "* lib: use req.socket over deprecated req.connection by @bjohansebas in https://github.com/expressjs/express/pull/6705",
       "textTruncated": false,
       "heading": "What's Changed",
       "source": "releases",
       "model": "jev-1.13.0",
-      "formulation": "d-hier-v1"
-    },
-    {
-      "version": "5.1.0",
-      "tier": "unclassified",
-      "tierConfidence": 0.4,
-      "text": "* Remove Object.setPrototypeOf polyfill by @Phillip9587 in https://github.com/expressjs/express/pull/6081",
-      "textTruncated": false,
-      "heading": "What's Changed",
-      "source": "releases",
-      "model": "jev-1.13.0",
-      "formulation": "d-hier-v1"
-    },
-    {
-      "version": "5.2.0",
-      "tier": "unclassified",
-      "tierConfidence": 0.35,
-      "text": "* deps: `body-parser@^2.2.1`",
-      "textTruncated": false,
-      "source": "changelog_file",
-      "model": "jev-1.13.0",
-      "formulation": "d-hier-v1"
+      "formulation": "s-hier-v2"
     },
     {
       "version": "5.2.1",
-      "tier": "unclassified",
+      "tier": "should_know",
       "tierConfidence": 0.09,
+      "kind": "notable_change",
+      "kindConfidence": 0.92,
       "text": "> [!IMPORTANT]  \n> The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted in this release.",
       "textTruncated": false,
       "heading": "What's Changed",
       "source": "releases",
       "model": "jev-1.13.0",
-      "formulation": "d-hier-v1"
+      "formulation": "s-hier-v2"
     }
   ],
   "riskCoverage": {
@@ -132,7 +193,7 @@
     "versionsNotAssessed": 0,
     "versionsWithoutNotes": 0,
     "versionsUnparseable": 0,
-    "unitsNoImpact": 130,
+    "unitsNoImpact": 125,
     "itemsOmitted": 0
   },
   "source": "changelog_file",

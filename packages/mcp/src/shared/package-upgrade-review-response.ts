@@ -491,8 +491,8 @@ export function formatPackageUpgradeReviewTerminal(
     response.reviews.length > 1
       ? [...response.reviews].sort(
           (a, b) =>
-            countRiskTier(b.changelog, "must_act") -
-            countRiskTier(a.changelog, "must_act"),
+            countRiskTier(b.changelog, "must_act", "confident") -
+            countRiskTier(a.changelog, "must_act", "confident"),
         )
       : response.reviews;
   if (reviews.length > 1) {
@@ -900,7 +900,7 @@ function formatChangesSection(
   appendWrappedText(
     lines,
     "  ",
-    `${countRiskTier(changelog, "must_act")} require action | ${countRiskTier(changelog, "should_know")} should know | ${countRiskTier(changelog, "unclassified")} unclassified`,
+    `${formatRiskTierCount(changelog, "must_act", "require action")} | ${formatRiskTierCount(changelog, "should_know", "should know")} | ${countRiskTier(changelog, "unclassified")} too long to classify`,
     width,
     "  ",
   );
@@ -921,13 +921,7 @@ function formatChangesSection(
       "  ",
     );
   if (coverage.versionsNotAssessed > 0)
-    appendWrappedText(
-      lines,
-      "  ",
-      "Rerun to fill not-assessed versions; later requests fill stored labels.",
-      width,
-      "  ",
-    );
+    appendWrappedText(lines, "  ", PENDING_CLASSIFICATION_MESSAGE, width, "  ");
   if (coverage.versionsWithoutNotes > 0 || coverage.versionsUnparseable > 0)
     appendWrappedText(
       lines,
@@ -1087,20 +1081,41 @@ function formatChangesSection(
       );
       return reference(entry?.htmlUrl, item.source);
     };
-    for (const tier of ["must_act", "should_know", "unclassified"] as const) {
-      const items = group.items.filter((item) => item.tier === tier);
+    const sections = [
+      {
+        label: "Requires action",
+        items: group.items.filter(
+          (item) => item.tier === "must_act" && !isUncertainRiskItem(item),
+        ),
+      },
+      {
+        label: "Possibly requires action",
+        items: group.items.filter(
+          (item) => item.tier === "must_act" && isUncertainRiskItem(item),
+        ),
+      },
+      {
+        label: "Should know",
+        items: group.items
+          .filter((item) => item.tier === "should_know")
+          .sort(
+            (a, b) =>
+              Number(isUncertainRiskItem(a)) - Number(isUncertainRiskItem(b)),
+          ),
+      },
+      {
+        label: "Too long to classify - read it",
+        items: group.items.filter((item) => item.tier === "unclassified"),
+      },
+    ];
+    for (const { label, items } of sections) {
       if (items.length === 0) continue;
-      const label =
-        tier === "must_act"
-          ? "Requires action"
-          : tier === "should_know"
-            ? "Should know"
-            : "Unclassified - read if relevant";
       lines.push(`    ${label} (${items.length})`);
       for (const item of items) {
         const source = sourceForItem(item);
         const quote = releaseNoteText(item.text, (url) => reference(url));
-        const limit = tier === "must_act" || options.verbose ? Infinity : 240;
+        const limit =
+          item.tier === "must_act" || options.verbose ? Infinity : 240;
         const characters = Array.from(quote);
         const shortened = characters.length > limit;
         excerpted ||= shortened;
@@ -1110,19 +1125,27 @@ function formatChangesSection(
         const kind = item.kind
           ? `[${RISK_KIND_LABELS[item.kind] ?? safeRiskText(item.kind)}]`
           : "";
+        const uncertain = isUncertainRiskItem(item);
         appendWrappedText(
           lines,
           "      * ",
-          `${kind ? `${kind} ` : ""}"${shown}" ${source}${item.textTruncated ? " [statement truncated by backend]" : ""}`,
+          `${kind ? `${kind} ` : ""}${uncertain ? "(uncertain) " : ""}"${shown}" ${source}${item.textTruncated ? " [statement truncated by backend]" : ""}`,
           width,
           "        ",
-          kind
-            ? (line) =>
-                line.replace(
+          (line) => {
+            const labeled = kind
+              ? line.replace(
                   kind,
                   colorize(kind, "yellow", options.useColors === true),
                 )
-            : undefined,
+              : line;
+            return uncertain
+              ? labeled.replace(
+                  "(uncertain)",
+                  colorize("(uncertain)", "dim", options.useColors === true),
+                )
+              : labeled;
+          },
         );
         if (options.verbose) {
           const details = [
@@ -1304,11 +1327,37 @@ const RISK_KIND_LABELS: Record<string, string> = {
   notable_change: "notable change",
 };
 
+const MIN_CONFIDENT_TIER_CONFIDENCE = 0.4;
+const PENDING_CLASSIFICATION_MESSAGE =
+  "Classification is still running or may have failed. Rerun in a few seconds to a minute to fill not-assessed versions from completed stored labels, without rerunning the model.";
+
+function isUncertainRiskItem(item: UpgradeChangelogRiskItem): boolean {
+  return (
+    item.tierConfidence !== undefined &&
+    item.tierConfidence < MIN_CONFIDENT_TIER_CONFIDENCE
+  );
+}
+
 function countRiskTier(
   changelog: UpgradeChangelog,
   tier: UpgradeChangelogRiskItem["tier"],
+  confidence: "all" | "confident" | "uncertain" = "all",
 ): number {
-  return changelog.riskItems.filter((item) => item.tier === tier).length;
+  return changelog.riskItems.filter(
+    (item) =>
+      item.tier === tier &&
+      (confidence === "all" ||
+        isUncertainRiskItem(item) === (confidence === "uncertain")),
+  ).length;
+}
+
+function formatRiskTierCount(
+  changelog: UpgradeChangelog,
+  tier: "must_act" | "should_know",
+  label: string,
+): string {
+  const uncertain = countRiskTier(changelog, tier, "uncertain");
+  return `${countRiskTier(changelog, tier, "confident")} ${label}${uncertain ? ` (+${uncertain} uncertain)` : ""}`;
 }
 
 function riskCoverageText(changelog: UpgradeChangelog): string {
@@ -1360,7 +1409,7 @@ function formatBatchTriage(
       : undefined;
     // Rows stay intact as a table; prose footers use the caller's width.
     lines.push(
-      `  ${safeRiskText(`${review.registry}:${review.name} ${review.currentVersion} -> ${review.targetVersion} (${review.versionDelta})`)} | ${countRiskTier(c, "must_act")} act | ${countRiskTier(c, "should_know")} know | ${countRiskTier(c, "unclassified")} unclassified | versions: ${riskCoverageText(c)} | ${c.riskCoverage.unitsNoImpact} labeled no impact | ${c.riskCoverage.itemsOmitted} omitted | ${deprecation} | ${security} | ${transitiveText} | ${c.totalKeywordEntries} keyword entries | ${review.compatibility?.peerDependencyChanges.length ?? "not checked"} peer dependency changes | ${review.compatibility?.notes.length ?? "not checked"} compatibility notes | ${dependencyCount ?? "not checked"} direct dependency changes | ${issueCount ?? "not checked"} dependency issues | ${review.unknowns.length} unknowns`,
+      `  ${safeRiskText(`${review.registry}:${review.name} ${review.currentVersion} -> ${review.targetVersion} (${review.versionDelta})`)} | ${formatRiskTierCount(c, "must_act", "act")} | ${formatRiskTierCount(c, "should_know", "know")} | ${countRiskTier(c, "unclassified")} too long to classify | versions: ${riskCoverageText(c)} | ${c.riskCoverage.unitsNoImpact} labeled no impact | ${c.riskCoverage.itemsOmitted} omitted | ${deprecation} | ${security} | ${transitiveText} | ${c.totalKeywordEntries} keyword entries | ${review.compatibility?.peerDependencyChanges.length ?? "not checked"} peer dependency changes | ${review.compatibility?.notes.length ?? "not checked"} compatibility notes | ${dependencyCount ?? "not checked"} direct dependency changes | ${issueCount ?? "not checked"} dependency issues | ${review.unknowns.length} unknowns`,
     );
   }
   const width = normaliseTerminalWidth(options.terminalWidth);
@@ -1369,17 +1418,11 @@ function formatBatchTriage(
       (review) => review.changelog.riskCoverage.versionsNotAssessed > 0,
     )
   )
-    appendWrappedText(
-      lines,
-      "  ",
-      "Rerun to fill not-assessed versions; later requests fill stored labels.",
-      width,
-      "  ",
-    );
+    appendWrappedText(lines, "  ", PENDING_CLASSIFICATION_MESSAGE, width, "  ");
   appendWrappedText(
     lines,
     "  ",
-    "Counts are returned statements (including unclassified), may include the same statement from multiple sources, and exclude omitted items. Not a compatibility verdict.",
+    "Counts separate confident statements (confidence >= 0.4) from uncertain ones; ranking uses only confident action counts. Returned counts include too-long statements, may include duplicates from different sources, and exclude omitted items. Not a compatibility verdict.",
     width,
     "  ",
   );

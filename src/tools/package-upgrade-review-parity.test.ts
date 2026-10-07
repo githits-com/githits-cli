@@ -322,6 +322,105 @@ describe("package_upgrade_review parity", () => {
 });
 
 describe("statement classification CLI/MCP parity", () => {
+  it("keeps uncertain tiers, oversize confidence and mixed per-item provenance faithful", async () => {
+    const response = structuredClone(defaultPackageUpgradeReviewResponse);
+    const item = {
+      version: "5.0.0",
+      tier: "MUST_ACT" as const,
+      tierConfidence: 0.399,
+      kind: undefined,
+      kindConfidence: undefined,
+      text: "Removed internal dependency.",
+      textTruncated: false,
+      heading: undefined,
+      source: "RELEASES" as const,
+      model: "jev-1.13.0",
+      formulation: "s-hier-v2",
+    };
+    response.reviews[0]!.changelog.riskItems = [
+      item,
+      {
+        ...item,
+        tier: "SHOULD_KNOW",
+        tierConfidence: 0.4,
+        kind: "SECURITY_FIX",
+        kindConfidence: 0.4,
+        text: "Fixed an advisory.",
+        formulation: "s-hier-v3",
+      },
+      {
+        ...item,
+        tier: "UNCLASSIFIED",
+        tierConfidence: undefined,
+        text: "Oversize release-note statement.",
+        textTruncated: true,
+        model: "jev-other",
+        formulation: "older-formulation",
+      },
+    ];
+    const service = createMockPackageIntelligenceService({
+      packageUpgradeReview: mock(async () => response),
+    });
+    const args = {
+      registry: "npm",
+      package_name: "express",
+      current_version: "4.18.0",
+      target_version: "5.0.0",
+    };
+    const cli = await cliText(
+      "npm:express@4.18.0..5.0.0",
+      {},
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const mcp = await mcpText(args, service);
+    expect(cli.trimEnd()).toBe(mcp);
+    expect(mcp).toContain("Possibly requires action (1)");
+    expect(mcp).toContain('(uncertain) "Removed internal dependency."');
+    expect(mcp).toContain("Too long to classify - read it (1)");
+    expect(mcp).not.toContain('(uncertain) "Oversize release-note statement."');
+    expect(mcp).toContain('[security fix] "Fixed an advisory."');
+    const cliEnvelope = await cliJson(
+      "npm:express@4.18.0..5.0.0",
+      {},
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const mcpEnvelope = await mcpJson(args, service);
+    expect(cliEnvelope).toEqual(mcpEnvelope.json);
+    expect(mcpEnvelope.json).toMatchObject({
+      reviews: [
+        {
+          changelog: {
+            riskItems: [
+              {
+                tier: "must_act",
+                tierConfidence: 0.399,
+                model: "jev-1.13.0",
+                formulation: "s-hier-v2",
+              },
+              {
+                tier: "should_know",
+                tierConfidence: 0.4,
+                kindConfidence: 0.4,
+                formulation: "s-hier-v3",
+              },
+              {
+                tier: "unclassified",
+                textTruncated: true,
+                model: "jev-other",
+                formulation: "older-formulation",
+              },
+            ],
+          },
+        },
+      ],
+    });
+    expect(JSON.stringify(mcpEnvelope.json)).not.toContain(
+      '"tierConfidence":null',
+    );
+    expect(mcp).not.toContain("s-hier-v");
+    expect(response.reviews[0]!.changelog.riskItems[0]!.tier).toBe("MUST_ACT");
+  });
+
   it("preserves classifications, coverage, raw quotes and provenance in single and batch JSON and text", async () => {
     const response = structuredClone(defaultPackageUpgradeReviewResponse);
     const review = response.reviews[0]!;
