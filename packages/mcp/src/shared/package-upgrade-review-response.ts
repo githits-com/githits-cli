@@ -189,8 +189,6 @@ export interface FormatPackageUpgradeReviewTerminalOptions {
   terminalWidth?: number;
 }
 
-const BODY_PREVIEW_CHARS = 280;
-
 export async function buildPackageUpgradeReview(
   service: PackageIntelligenceService,
   packages: readonly UpgradeReviewPackageRequest[],
@@ -436,15 +434,6 @@ function lowerEnum(value: string | undefined): string | undefined {
 
 function normaliseRegistryPrefix(value: string): string {
   return value.replace(/^([A-Z_]+):/, (prefix) => prefix.toLowerCase());
-}
-
-function preview(body: string | undefined): string | undefined {
-  if (body === undefined) return undefined;
-  const compact = body.replace(/\s+/g, " ").trim();
-  if (compact.length === 0) return "";
-  return compact.length > BODY_PREVIEW_CHARS
-    ? `${compact.slice(0, BODY_PREVIEW_CHARS)}...`
-    : compact;
 }
 
 function changelogSignalText(body: string | undefined): string {
