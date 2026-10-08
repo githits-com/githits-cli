@@ -26,6 +26,8 @@ on:
         default: true
         type: boolean
 
+permissions: {}
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false

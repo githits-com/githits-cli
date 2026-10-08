@@ -6,6 +6,8 @@ on:
         types: [completed]
         branches: [main]
 
+permissions: {}
+
 jobs:
     release:
         # Only run if Main workflow succeeded
