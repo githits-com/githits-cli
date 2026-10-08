@@ -184,7 +184,7 @@ describe("resolve_target MCP adapter", () => {
       "A selected `site:` is docs-only",
       'source: "docs"',
       "returned read locators",
-      "Inputs leave this machine; public OSS only",
+      "Inputs leave this machine; open-source targets only",
     ]) {
       expect(DESCRIPTION).toContain(phrase);
     }

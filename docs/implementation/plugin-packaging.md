@@ -84,38 +84,38 @@ maintains eligible existing direct-install targets; hosted-only MCP launches
 do not run this updater. See the
 [installed MCP skill lifecycle](init-guidance-and-expanded-agent-support.md#installed-mcp-skill-lifecycle).
 
-The public `githits-mcp` skill is self-contained for the stable path: its
-terminal `## Quick-start guide` section is an exact copy of
-`buildMcpQuickStart()` from `packages/mcp/src/mcp/instructions.ts`, enforced by
-`src/skills-packaging.test.ts`. Plain MCP clients use the `quick_start` tool;
-clients with the loaded skill always skip that call. Every evidence descriptor
-repeats the same prerequisite at MCP composition time; there are no
-tool-specific exceptions. Runtime-only `buildLocalMcpQuickStart()` appendices
-are excluded from the public skill copy and do not change the bootstrap rule. The skill
-metadata asks agents to read the guide before evidence-tool discovery; its
-question-to-tool table selects the route. The guide owns recurring public scope,
-target conventions, model-read text versus code-consumed JSON, evidence reuse,
-citation/coverage limits, continuation discipline, and the shared safety posture.
-Each selected descriptor plus schema remains self-sufficient for its distinct job,
-minimum call shape, supported target family, and operation-specific exceptions;
-do not repeat long cross-tool policy or parameter inventories in every body.
-Short local reminders and the composed bootstrap footer remain intentional.
-CLI code/package skills express equivalent common policy independently with CLI
-spelling; they do not require the MCP skill. This is guidance, not a
-host-enforced loading-order guarantee.
-The same routing guide is returned to clients that need `quick_start`.
+The public `githits-mcp` skill is self-contained for the stable path: its body
+after the frontmatter is an exact copy of `buildMcpQuickStart()` from
+`packages/mcp/src/mcp/instructions.ts`, enforced by `src/skills-packaging.test.ts`.
+The guide states that it is both the skill and the `quick_start` result, so
+plain MCP clients call `quick_start` and clients with the loaded skill skip it.
+Every evidence descriptor repeats the same prerequisite at MCP composition time;
+there are no tool-specific exceptions. Runtime-only `buildLocalMcpQuickStart()`
+appendices are excluded from the public skill and do not change the bootstrap
+rule. The skill metadata asks agents to read the guide before evidence-tool
+discovery.
 
-The guide's compact `pkg_upgrade_review` guidance distinguishes package evidence
-from local application verification. Before upgrading, preserve original code
-and lockfile, write extra checks for affected APIs and stored data beyond
-existing test coverage, including omitted or null inputs, and save complete
-responses and side effects as a baseline. After upgrading, run the same cases
-with the new dependencies, compare status codes, response bodies, stored values,
-and side effects against that baseline, and fix unintended differences.
-Report comparisons and unverified paths. Passing existing tests does not prove
-compatibility.
-The skill and `quick_start` carry identical instructions; inspect actual
-execution when evaluating compliance.
+The guide is token-budgeted and owns only what no single descriptor owns:
+
+| Section | Content |
+| --- | --- |
+| `# GitHits` | Purpose, private-input boundary, skill/`quick_start` equivalence |
+| `## Choose a tool` | Question-to-tool table covering every stable evidence tool |
+| `## Workflow` | Target, locate, read, combine; the hosted-docs hand-off between tools |
+| `## Targets` | Canonical package, repository, and site target conventions |
+| `## Results` | Text versus JSON, evidence reuse, continuation, waits, citation and limits |
+| `## Dependency upgrades` | Local verification beyond package evidence and existing tests |
+| `## External-content posture` | Shared untrusted-content block from `guardrails.ts` |
+
+Each selected descriptor plus schema remains self-sufficient for its distinct
+job, minimum call shape, supported target family, and operation-specific
+exceptions such as resolver continuation gates, `code_diff` scope, `read`
+selectors and bounds, and `list` site paths. Do not copy those mechanics into
+the guide; `src/commands/mcp-instructions.test.ts` checks that they remain in
+the descriptions. CLI code/package skills express equivalent common policy
+independently with CLI spelling; they do not require the MCP skill. This is
+guidance, not a host-enforced loading-order guarantee. Inspect actual execution
+when evaluating compliance.
 
 There are no authored host-specific skill copies. If a host later requires a
 self-contained copy, the generator may create it, but tests must enforce exact

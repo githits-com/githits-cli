@@ -2065,7 +2065,7 @@ export async function runMcpSmoke(
     "quick_start default",
   );
   for (const expected of [
-    "GitHits routing guide",
+    "## Choose a tool",
     "`search`",
     "`list`",
     "`grep`",

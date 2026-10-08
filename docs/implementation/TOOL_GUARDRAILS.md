@@ -46,7 +46,7 @@ One layer, with a second held in reserve:
 1. **Shared block** is delivered in the plain-MCP `quick_start` result — once
    per session — or by the exact embedded stable guide in a loaded
    `githits-mcp` skill. Both paths explain that GitHits returns data from remote
-   public OSS repositories and related registries, documentation, and advisory
+   open-source repositories and related registries, documentation, and advisory
    sources. They frame retrieved content as untrusted third-party evidence that
    cannot override the user's request, authorization boundaries, or host
    safeguards. The block asks the agent to verify commands, package-reassignment
@@ -143,7 +143,8 @@ in that skill and do not create a second bootstrap path.
 ## Where the wording lives
 
 - Constants: `packages/mcp/src/tools/guardrails.ts`
-  - `EXTERNAL_CONTENT_POSTURE` — the 182-word shared block.
+  - `EXTERNAL_CONTENT_POSTURE` — the shared block, headed
+    `## External-content posture`.
   - `PKG_VULNS_GUARDRAIL`, `PKG_INFO_GUARDRAIL`,
     `PKG_CHANGELOG_GUARDRAIL`, `PKG_UPGRADE_REVIEW_GUARDRAIL`,
     `DOCS_GUARDRAIL`, `CODE_READ_GUARDRAIL`,
@@ -153,7 +154,7 @@ in that skill and do not create a second bootstrap path.
     `grep` descriptor; the other constants remain reserved for evidence-driven
     restoration.
 - Shared-block wiring: `packages/mcp/src/mcp/instructions.ts` — appended
-  to the stable routing guide and embedded identically in the public MCP skill.
+  to the shared guide and embedded identically in the public MCP skill.
 - Per-tool wiring: each fixture tool registered by the eval mock exports a guardrail-free
   `DESCRIPTION_BASE`, then appends its guardrail constant to the production
   `DESCRIPTION` with a `\n\n` separator. The eval mock imports base descriptions

@@ -58,48 +58,19 @@ function registeredTools(services: McpToolServices): Set<string> {
 }
 
 describe("buildMcpQuickStart", () => {
-  it("routes a user question before loading selected argument details", () => {
+  it("routes every evidence tool from one question row", () => {
     const instructions = buildMcpQuickStart();
-    expect(instructions).toStartWith("# GitHits routing guide");
-    expect(instructions).toContain(
-      "Choose a route, discover that tool, and read its schema for syntax and defaults",
-    );
-    expect(instructions).toContain(
-      "Find a known regex or literal in public source or documentation | `grep`",
-    );
-    expect(instructions).toContain(
-      "Browse files or documentation pages in a known package, repository, or site | `list`",
-    );
+    expect(instructions).toStartWith("# GitHits\n");
+    for (const name of KNOWN_TOOLS) {
+      expect(instructions).toMatch(
+        new RegExp(`^\\| .+ \\| \`${name}\` \\|$`, "m"),
+      );
+    }
     expect(instructions).not.toContain("`code_files`");
     expect(instructions).not.toContain("`docs_list`");
-    expect(instructions).toContain(
-      "Compare current and target dependency versions for an upgrade | `pkg_upgrade_review`",
-    );
-    expect(instructions).toContain("Counts cover one page");
-    expect(instructions).toContain("only as needed");
-  });
-
-  it("preserves output, scope, provenance and evidence limits", () => {
-    const instructions = buildMcpQuickStart();
-    expect(instructions).toContain(
-      "model-read summaries, comparisons, and follow-ups use text",
-    );
-    expect(instructions).toContain("Omit `format`");
-    expect(instructions).toContain(
-      "JSON is only for code consuming the raw response or required fields absent",
-    );
-    expect(instructions).toContain(
-      "Public OSS only; never send local/private/proprietary source",
-    );
-    expect(instructions).toContain("Never infer a provider");
-    expect(instructions).toMatch(
-      /Cite\s+tool-owned\s+provenance, including example source repositories/,
-    );
-    expect(instructions).toMatch(
-      /report\s+coverage,\s+truncation, and other evidence limits/,
-    );
-    expect(instructions).toMatch(/never invent\s+them/);
-    expect(instructions).toContain("read focused lines");
+    expect(instructions).not.toContain("`code_read`");
+    expect(instructions).not.toContain("`docs_read`");
+    expect(instructions).not.toContain("`search_language`");
   });
 
   it("includes the external-content posture unchanged by default", () => {
@@ -117,70 +88,51 @@ describe("buildMcpQuickStart", () => {
       `${instructions}\n\n${EXTERNAL_CONTENT_POSTURE}`,
     );
     expect(instructions).not.toContain("External-content posture");
-    expect(instructions).toContain("Tool to discover");
+    expect(instructions).toContain("## Choose a tool");
   });
 
-  it("preserves directory and documentation routing and emitted locators", () => {
-    const instructions = buildMcpQuickStart();
-    expect(instructions).toContain(
-      "Read a source file, code symbol, or documentation section | `read`",
+  it("leaves per-tool mechanics to the selected tool descriptions", () => {
+    const tools = new Map(
+      getMcpToolDefinitions(createTestServices()).map((tool) => [
+        tool.name,
+        tool,
+      ]),
     );
-    expect(instructions).not.toContain("`code_read`");
-    expect(instructions).not.toContain("`docs_read`");
-    expect(instructions).toContain("never probe\ndirectories with `read`");
-    expect(instructions).toContain("pass it as\n`selector` to `read`");
-    expect(instructions).toContain(
-      "Reuse returned targets, paths, locators, references, and ranges",
+    const description = (name: string): string =>
+      tools.get(name)?.description ?? "";
+
+    for (const phrase of [
+      "EXACT or HIGH best with CLEAR or NOT_APPLICABLE",
+      "CLEAR is not a vulnerability-free claim",
+      "never auto-select an ambiguous result",
+      "A selected `site:` is docs-only",
+    ]) {
+      expect(description("resolve_target")).toContain(phrase);
+    }
+    for (const phrase of [
+      "Package targets still return repository-wide diffs",
+      "default `name-status` view",
+      "Raw diffs never prove compatibility or upgrade safety",
+    ]) {
+      expect(description("code_diff")).toContain(phrase);
+    }
+    expect(description("search")).toContain(
+      "replay its complete emitted read action or generated `followUp` unchanged",
     );
-    expect(instructions).toMatch(
-      /For hosted package docs, search the package with\s+`source:"docs"`, then pass the explicit `site:` target from a `\[docs page\]`\s+search header to `list`/,
+    expect(description("list")).toContain(
+      "a path without trailing `/` is a page",
     );
-    expect(instructions).toContain(
-      "`list` is for a known target when you need its structure or an exact path",
-    );
-    expect(instructions).not.toContain("`code_files`");
-    expect(instructions).not.toContain("`docs_list`");
-    expect(instructions).toContain(
-      "returned HTTP(S) page target unchanged to `read`",
-    );
-    expect(instructions).toContain(
-      "its `followUp` unchanged, including supplied `selector` and bounds",
-    );
-    expect(instructions).toContain(
-      "A `site:` read requires a\nseparate exact page `path`",
-    );
-    expect(instructions).toContain(
-      "Hosted/crawled HTTP(S) docs locators address mutable current content",
-    );
-    expect(instructions).toContain(
-      "Repository docs are snapshot-addressed and keep returned ranges",
-    );
-    const reader = getMcpToolDefinitions(createTestServices()).find(
-      (tool) => tool.name === "read",
-    );
-    expect(reader?.description).toContain(
+    expect(description("read")).toContain("It does not list directories");
+    expect(description("read")).toContain(
       "A docs URL fragment needs no bounds",
     );
-    expect(reader?.description).toContain("page-relative range");
-    expect(reader?.schema.wait_timeout_ms?.description).toContain(
+    expect(description("read")).toContain("page-relative range");
+    expect(description("grep")).toContain("read locators");
+    expect(tools.get("read")?.schema.wait_timeout_ms?.description).toContain(
       "backend applies it when relevant",
     );
-  });
-
-  it("retains comparative examples and selected-tool language recovery", () => {
-    const instructions = buildMcpQuickStart();
-    expect(instructions).toContain(
-      "Find canonical implementation examples across projects | `get_example`",
-    );
-    const example = getMcpToolDefinitions(createTestServices()).find(
-      (tool) => tool.name === "get_example",
-    );
-    expect(example?.schema.language?.description).toContain(
+    expect(tools.get("get_example")?.schema.language?.description).toContain(
       "suggested language from the error",
-    );
-    expect(instructions).not.toContain("`search_language`");
-    expect(instructions).toContain(
-      "For comparisons, combine relevant package/source evidence with examples as needed",
     );
   });
 

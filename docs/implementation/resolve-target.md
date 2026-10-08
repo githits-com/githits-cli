@@ -45,8 +45,9 @@ and `ResolveTargetMcpArgs` are available from `@githits/mcp/tools`.
 The stable registry and smoke inventory contain 14 tools, including one resolver.
 Experimental opt-in adds Research only. No GraphQL fields, ranking, authentication,
 continuation gates or output envelopes change. Compact requests still omit
-JSON-only details; verbose text adds only lexical-similarity evidence. The stable
-routing guide and public MCP skill carry the same guidance.
+JSON-only details; verbose text adds only lexical-similarity evidence. The shared
+guide and public MCP skill route bare names to `resolve_target`; its
+description owns the continuation gates.
 
 ## Accepted launch evidence and limits
 

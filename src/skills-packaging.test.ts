@@ -91,10 +91,10 @@ describe("agent skills packaging", () => {
         "swift:github.com/<owner>/<repo>",
         "zig:gh/<owner>/<repo>",
         "package subpath",
-        "public repository",
-        "full repositories or sibling packages",
+        "repositories or sibling packages",
       ]);
     }
+    expectContainsAll(codeReference, ["public repository"]);
 
     expectContainsAll(packageReference, [
       "swift:github.com/<owner>/<repo>",
@@ -292,41 +292,34 @@ describe("agent skills packaging", () => {
     expect(authIndex).toBeGreaterThan(approvalIndex);
   });
 
-  it("packages the canonical GitHits MCP skill with OSS context triggers", async () => {
+  it("packages the canonical GitHits MCP skill as the exact quick-start guide", async () => {
     const publicContent = (await read(githitsMcpSkillPath)).replace(
       /\r\n/g,
       "\n",
     );
-    const quickStartHeading = "## Quick-start guide\n\n";
-    const quickStartIndex = publicContent.indexOf(quickStartHeading);
-    expect(quickStartIndex).toBeGreaterThanOrEqual(0);
-    expect(publicContent.indexOf(quickStartHeading, quickStartIndex + 1)).toBe(
-      -1,
-    );
-    const embeddedGuide = publicContent
-      .slice(quickStartIndex + quickStartHeading.length)
+    const frontmatterEnd = "\n---\n\n";
+    const bodyIndex = publicContent.indexOf(frontmatterEnd);
+    expect(publicContent.startsWith("---\n")).toBe(true);
+    expect(bodyIndex).toBeGreaterThan(0);
+    const body = publicContent
+      .slice(bodyIndex + frontmatterEnd.length)
       .replace(/\n$/, "");
 
+    expect(body).toBe(buildMcpQuickStart());
     expectContainsAllIgnoringWhitespace(publicContent, [
       "name: githits-mcp",
-      "Route public OSS code, documentation, examples, and package questions to GitHits tools",
+      "Route open-source code, documentation, examples, and package questions to GitHits tools",
       "Read this skill before searching for or selecting GitHits evidence tools",
       "it identifies the tool to discover and the scope to use",
-      "This skill contains the stable routing guide",
-      "Do not call `quick_start` when this skill is loaded",
-      "this rule applies to every GitHits tool",
-      "then discover the selected tool and read its argument description",
-      "vulnerabilities",
-      "dependency versions for an upgrade",
+      "once either is loaded, do not call `quick_start`",
     ]);
-    expect(embeddedGuide).toBe(buildMcpQuickStart());
-    expect(publicContent).toContain("External-content posture");
     expectNotContainsAllIgnoringWhitespace(publicContent, [
+      "public OSS",
       "call `quick_start` once per session",
       "Experimental",
       "githits-code",
       "githits-package",
-      "**Local experimental tools",
+      "Local experimental tools",
       "**Issue reporting",
     ]);
   });
@@ -339,7 +332,7 @@ describe("agent skills packaging", () => {
 
     expectContainsAllIgnoringWhitespace(codeContent, [
       "Use whenever invoking the GitHits CLI",
-      "source, documentation, or example evidence",
+      "code, documentation, or example evidence",
       "For GitHits CLI package, dependency, security, release, or upgrade evidence, use githits-package",
     ]);
     expectContainsAllIgnoringWhitespace(packageContent, [

@@ -1334,7 +1334,7 @@ function smokeResponse(
       );
     case "quick_start":
       return textResult(
-        "GitHits routing guide: use `search` to discover, `list` to browse files, `grep` to match code and docs, and `read` to open results; `resolve_target` resolves names; `code_diff` compares source.",
+        "## Choose a tool\nUse `search` to discover, `list` to browse files, `grep` to match code and docs, and `read` to open results; `resolve_target` resolves names; `code_diff` compares source.",
       );
     case "get_example":
       return textResult("example\nsolution_id: smoke");
