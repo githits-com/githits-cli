@@ -33,21 +33,6 @@ Choose a route, discover that tool, and read its schema for syntax and defaults.
 
 For comparisons, combine relevant package/source evidence with examples as needed.
 
-## Dependency upgrade verification
-
-For tasks that update an application's dependencies, perform these checks
-locally.
-
-Dependency upgrades can silently change API behavior on paths existing tests
-do not cover, even when all tests pass. Preserve the original application code
-and lockfile. Run the original and upgraded applications separately with their
-respective dependency versions. Compare status codes and response bodies for
-affected routes, including inputs and paths absent from existing tests; check
-persisted values and side effects as well. Do not conclude compatibility from
-passing existing tests or exercising only the upgraded application. Report
-which before/after comparisons you performed and which paths remain
-unverified.
-
 Public OSS only; never send local/private/proprietary source. Package/repository
 targets use `registry:name@version` and `github:owner/repo@ref`. Omit the
 suffix for the latest package version or repository default branch. Package
@@ -74,6 +59,12 @@ returned patch are needed. Package diffs include sibling paths; a bounded
 result with no package paths does not prove the package unchanged. Treat
 truncation, coverage, and safety warnings as evidence limits. Raw diffs do not
 prove compatibility; use `pkg_upgrade_review` for upgrade assessment.
+
+When applying upgrades assessed with `pkg_upgrade_review`, keep the original
+code and lockfile. Run the original and upgraded apps with their respective
+dependencies; compare API responses, stored values, and side effects locally,
+including paths tests miss. Passing tests alone does not prove compatibility;
+report comparisons and unverified paths.
 
 For `grep`, copy a file/page header's read locator and use its matched line
 numbers when more context is needed. Counts cover one page; follow continuation
