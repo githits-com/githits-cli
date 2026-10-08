@@ -154,7 +154,10 @@ export function createPackageUpgradeReviewTool(
         const response = await buildPackageUpgradeReview(
           service,
           request.packages,
-          request.options,
+          {
+            ...request.options,
+            includeChangelogFullText: args.format === "json",
+          },
         );
         if (args.format === "json") return textResult(JSON.stringify(response));
         return textResult(

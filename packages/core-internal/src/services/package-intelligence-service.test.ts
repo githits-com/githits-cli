@@ -3207,6 +3207,7 @@ describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
                   kindConfidence: null,
                   text: "raw quote\u001b[31m",
                   textTruncated: true,
+                  url: null,
                   heading: null,
                   source: null,
                   model: "jev-1.13.0",
@@ -3379,6 +3380,91 @@ describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
+  for (const includeChangelogFullText of [undefined, false, true]) {
+    it(`selects source URLs and controls full text with ${includeChangelogFullText}`, async () => {
+      const body = structuredClone(upgradeReviewBody);
+      const item = body.data.packageUpgradeReview.reviews[0]!.changelog
+        .riskItems[0]! as Record<string, unknown>;
+      const fullText = `Quoted evidence ${"context ".repeat(180)}END\u001b[31m`;
+      item.text = fullText.slice(0, 1000);
+      item.url = "https://example.com/History.md#L20-L40";
+      if (includeChangelogFullText === true) item.fullText = fullText;
+      let request:
+        | { query: string; variables: Record<string, unknown> }
+        | undefined;
+      const fetchFn = mock((_url: string, init?: RequestInit) => {
+        request = JSON.parse(String(init?.body));
+        return Promise.resolve(jsonResponse(body));
+      });
+      const service = new PackageIntelligenceServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+      const result = await service.packageUpgradeReview({
+        packages: [
+          {
+            registry: "NPM",
+            name: "express",
+            currentVersion: "4.0.0",
+            targetVersion: "5.0.0",
+          },
+        ],
+        includeTransitiveSecurity: false,
+        includeDependencyIssues: false,
+        includeChangelogFullText,
+        changelogLimit: 1,
+      });
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(request?.variables.includeChangelogFullText).toBe(
+        includeChangelogFullText === true,
+      );
+      expect(request?.query).toContain(
+        "fullText @include(if: $includeChangelogFullText)",
+      );
+      expect(request?.query.match(/riskItems \{([^}]+)\}/)?.[1]).toContain(
+        "url",
+      );
+      expect(result.reviews[0]!.changelog.entries).toEqual([]);
+      expect(result.reviews[0]!.changelog.riskItems[0]).toMatchObject({
+        url: item.url,
+        text: fullText.slice(0, 1000),
+        textTruncated: true,
+      });
+      expect(result.reviews[0]!.changelog.riskItems[0]!.fullText).toBe(
+        includeChangelogFullText === true ? fullText : undefined,
+      );
+    });
+  }
+
+  it("rejects null fullText because the selected backend field is non-null", async () => {
+    const body = structuredClone(upgradeReviewBody);
+    const item = body.data.packageUpgradeReview.reviews[0]!.changelog
+      .riskItems[0]! as Record<string, unknown>;
+    item.fullText = null;
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(mock(() => Promise.resolve(jsonResponse(body)))),
+    );
+    await expect(
+      service.packageUpgradeReview({
+        packages: [
+          {
+            registry: "NPM",
+            name: "express",
+            currentVersion: "4.0.0",
+            targetVersion: "5.0.0",
+          },
+        ],
+        includeTransitiveSecurity: false,
+        includeDependencyIssues: false,
+        includeChangelogFullText: true,
+        changelogLimit: 1,
+      }),
+    ).rejects.toThrow("Malformed response");
+  });
+
   it("sends aggregate upgrade-review variables and maps the typed response", async () => {
     let capturedBody: string | undefined;
     const fetchFn = mock((_url: string, init?: RequestInit) => {
@@ -3424,6 +3510,7 @@ describe("PackageIntelligenceServiceImpl — packageUpgradeReview", () => {
       "kindConfidence",
       "text",
       "textTruncated",
+      "url",
       "heading",
       "source",
       "model",

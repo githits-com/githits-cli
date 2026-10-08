@@ -1,7 +1,8 @@
 # Upgrade review backend ambiguity and totals
 
-Status: implementation delivered in draft PR #463; owner-directed removal of the
-client split is being verified. Live dev verification waits for deployment.
+Status: implementation and locator/full-text adaptation locally verified for
+draft PR #463. Client split removal is verified. Live combined-contract and
+budget verification wait for owner deployment clarification.
 Base c6a2e26. No merge, backend edits or new infrastructure.
 
 ## Outcome, ownership and verified state
@@ -201,3 +202,57 @@ wire-field and JSON/parity tests; no formatter or CLI command files are changed.
 Audit check: targeted Bun wire-field/JSON/parity run passed 6 tests / 76
 assertions, with no failures. No query, formatter or command implementation
 changed; existing complexity measurements therefore remain applicable.
+
+## Latest schema locator adaptation (2026-10-08)
+
+Status: locator/full-text additions implemented and locally verified; combined
+#3072 production contract needs owner clarification. The main checkout bf74b72f0 has
+schema hash sha256:cbebf81f69dd. Its changelog adds nullable `url` and non-null
+`fullText` on ChangelogRiskItem, independent of sampled entries. It still omits
+`ambiguous` and the five counters; do not remove them or restore a client threshold.
+The owner was asked which revision supplies the combined deployed contract.
+
+Scope: expose new data for the owner's upcoming design pass, with no formatter,
+layout, grouping, colors, labels or quote-rendering edits. Backend owns locators
+and complete statements. Core owns field selection/validation; CLI/MCP callers
+choose data needed for their output mode. Select URL for all modes. Select
+fullText conditionally only for JSON, which consumes it; current text/verbose
+rendering does not consume fullText and stays unchanged. Existing aggregate,
+keyword fields, backend ambiguity and pre-cap totals remain. No public flag,
+fallback, second query or infrastructure is added.
+
+Implementation: add optional url/fullText fields to core and public risk types,
+validate nullable URL and conditionally absent non-null fullText; introduce an
+internal optional includeChangelogFullText service/response-build option defaulting
+to false, and bind a Boolean GraphQL include variable. CLI --json and MCP json set
+it true; text (including verbose) sets it false. Public normalization already
+spreads item fields and must preserve these raw values. Test wire fields/variables
+in compact/verbose/JSON and CLI/MCP parity for returned URL/fullText beyond entry
+sampling, null URLs, cut text with uncut fullText, false/zero and raw untrusted
+content. Update smoke JSON structural assertions and permanent docs, removing
+obsolete missing-locator claims while retaining honest pagination/coverage gaps.
+
+Measure exact selections with current backend SDL/callback offline; retain the
+reported >500 large-batch gate until corrected backend accounting is verified.
+Live verification may fail on #3072 missing fields; report that protocol problem
+without client fallback or backend edits. Use normal CLI auth only, no token reads
+or extraction. No production assumptions from a fixture. The existing PR external
+review cap is exhausted; internal preflight/verification applies, no fourth external
+round. Deliver into PR #463, do not merge. Keep plan while live verification remains.
+
+Acceptance: URL always selected and preserved; fullText selected only for JSON,
+kept separate from bounded text/truncation, no extra backend quote shortening.
+CLI/MCP data parity, selection controls and required-field validation pass;
+output design is unchanged. Unknowns: combined deployed schema and budget fix.
+
+Locator completion record: all listed data/type/query/caller/parity/smoke changes
+implemented; formatter logic is unchanged. Focused 291 tests / 1,233 assertions,
+full 5,656 / 22,773, typecheck/Biome/build/package validation and four secret-free
+smokes passed. Internal plan and delta reviews: direction sound, no findings.
+GitHub confirms #3072 still OPEN at 3b2b2e484; no combined deployment assumption.
+Offline complexity against explicitly synthesized combined SDL is 292/308/500/524
+at 1/3/27/30 packages for both fullText true/false. Absinthe counts conditional
+fields despite skipped payload. Production/development live verification and
+agent evaluation remain blocked on the combined contract and backend budget fix;
+no live query was made. Deliver the reviewed data changes in the same draft PR,
+retain the plan until those required verifications close, and do not merge.

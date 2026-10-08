@@ -43,6 +43,8 @@ export interface UpgradeReviewPackageRequest {
 }
 
 export interface PackageUpgradeReviewOptions {
+  /** Internal selection control; not a public tool argument. */
+  includeChangelogFullText?: boolean;
   includeTransitiveSecurity: boolean;
   includeDependencyIssues: boolean;
   includeDependencyChanges: boolean;

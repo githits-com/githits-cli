@@ -242,6 +242,8 @@ export interface PackageUpgradeReviewPackageParams {
 }
 
 export interface PackageUpgradeReviewParams {
+  /** Select complete statement text only when the caller consumes it. */
+  includeChangelogFullText?: boolean;
   packages: PackageUpgradeReviewPackageParams[];
   includeTransitiveSecurity: boolean;
   includeDependencyIssues: boolean;
@@ -332,6 +334,10 @@ export interface PackageUpgradeChangelogRiskItem {
   kindConfidence?: number;
   text: string;
   textTruncated: boolean;
+  /** Complete statement, present only when selected. */
+  fullText?: string;
+  /** Exact backend source locator, independent of sampled entries. */
+  url?: string;
   heading?: string;
   source?: string;
   model: string;
@@ -2039,6 +2045,8 @@ const packageUpgradeChangelogRiskItemSchema = z.object({
   kindConfidence: z.number().min(0).max(1).nullable(),
   text: z.string(),
   textTruncated: z.boolean(),
+  fullText: z.string().optional(),
+  url: z.string().nullable(),
   heading: z.string().nullable(),
   source: z.string().nullable(),
   model: z.string(),
@@ -2161,6 +2169,7 @@ const packageUpgradeReviewGraphQLResponseSchema = z.object({
 
 const PACKAGE_UPGRADE_REVIEW_QUERY = `
 query PackageUpgradeReview(
+  $includeChangelogFullText: Boolean!
   $packages: [PackageUpgradeReviewPackageInput!]!
   $includeTransitiveSecurity: Boolean!
   $includeDependencyIssues: Boolean!
@@ -2259,6 +2268,8 @@ query PackageUpgradeReview(
           kindConfidence
           text
           textTruncated
+          fullText @include(if: $includeChangelogFullText)
+          url
           heading
           source
           model
@@ -3367,6 +3378,7 @@ export class PackageIntelligenceServiceImpl
         token,
         query: PACKAGE_UPGRADE_REVIEW_QUERY,
         variables: {
+          includeChangelogFullText: params.includeChangelogFullText === true,
           packages: params.packages,
           includeTransitiveSecurity: params.includeTransitiveSecurity,
           includeDependencyIssues: params.includeDependencyIssues,

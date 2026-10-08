@@ -812,6 +812,10 @@ attention summaries, labels, and matched signal terms. Kind labels and matched k
 prose and locators remain plain. Color never carries information that is absent
 from the words. Formatter-authored punctuation stays ASCII while backend
 Unicode is preserved. `--verbose` expands the bounded evidence rows in place.
+Statement `url` is selected independently of sampled entries, and `--json`
+selects the complete `fullText` separately from bounded `text`/`textTruncated`.
+Text and verbose output keep their existing design and do not fetch fullText;
+locator/full-text adoption in the text view belongs to the owner's design pass.
 `--json` remains the structured, lossless machine surface and is shared with MCP
 `format: "json"`; `text-v1` is an in-place evolving presentation, not a
 byte-stable prose contract.

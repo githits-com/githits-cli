@@ -6,7 +6,7 @@ Dependency-upgrade reviews are a distinct agent workflow. Agents should not infe
 
 `pkg_upgrade_review` is the MCP/CLI-facing tool for this workflow. It answers: "What changed between the currently used version and the target version, and what evidence is available or missing?"
 
-Original risk fields were verified against backend `priv/graphql/schema.graphql` and authenticated dev field selection on 2026-10-07. The #3072 additions are verified against branch SDL at bb3807cc; their dev verification is pending deployment notice. Dev disables introspection; the schema file confirms names, enums and nullability.
+Original risk fields were verified against backend `priv/graphql/schema.graphql` and authenticated dev field selection on 2026-10-07. The #3072 additions are verified against branch SDL at bb3807cc/3b2b2e484; current main bf74b72f0 adds URL/fullText but still omits those six fields. See the latest locator contract section for the combined-schema gate. Live verification awaits owner clarification; dev disables introspection, so SDL confirms names, enums and nullability.
 
 ## Current Schema Fit
 
@@ -250,6 +250,8 @@ interface UpgradeChangelogRiskItem {
   kindConfidence?: number;
   text: string;
   textTruncated: boolean;
+  fullText?: string; // selected for JSON only
+  url?: string; // backend locator; null becomes omitted
   heading?: string;
   source?: string;
   model: string;
@@ -741,10 +743,12 @@ Two batch rows were 482 and 480 characters wide. These are layout measurements,
 not new dev results or a graded usability evaluation. Batch rows are currently
 unwrapped, and detailed security evidence precedes change quotes.
 
-Risk items have no source URL/location field. Quote locators depend on sampled
-entries, so some quotes render “entry URL not returned” despite available text.
-The client does not guess source URLs. Compact prefixes may hide qualifications;
-verbose expands every section rather than a focused item.
+Backend risk items now expose `url` independently of sampled entries and
+`fullText` for complete statements. Both are available in JSON; the existing
+text formatter still uses sampled-entry locators and bounded `text` until the
+owner's design pass. The client does not guess source URLs. Compact prefixes may
+hide qualifications; verbose currently expands every section rather than a focused
+item and does not recover backend-cut `text`.
 
 Statement tiers do not establish consumer applicability or reconcile later
 reverts. Express evidence includes internal dependency removals/build changes
@@ -757,8 +761,8 @@ until the owner decides; no redesign is shipped by this assessment.
 ## Data available to a separately designed view
 
 CLI text design belongs to the owner. The data audit does not change rendering,
-query selections or client classification policy. All 12 current risk-item fields
-and all 11 coverage fields are selected, validated and preserved in the public
+query selections or client classification policy. All 14 intended risk-item fields (including mode-specific full text)
+and all 11 #3072 coverage fields are selected, validated and preserved in the public
 CLI/MCP JSON, subject to the documented enum/null normalization. Numeric
 confidence, false ambiguity, zero totals, raw quotes and mixed per-item provenance
 remain available independently of text/verbose mode. Existing entry URLs/bodies,
@@ -768,15 +772,64 @@ keyword signals, security deltas, compatibility and dependency evidence remain.
 | --- | --- | --- |
 | Statement grouping and uncertainty | version, tier, ambiguous, kind, heading, confidence | Missing kind is not a missing tier; consumer relevance is not established. |
 | Accurate triage totals | five pre-cap tier/ambiguity counters | Returned quotes are capped at 50; totals alone cannot supply omitted evidence. |
-| Quoted evidence and provenance | text, textTruncated, model, formulation | Text is cut at 1,000 characters; verbose cannot restore backend-cut text. |
-| Source navigation | item source enum; entry htmlUrl keyed by version/source | Entry lists are sampled independently of risk items; not every quote has a locator, and the item has no exact entry reference. |
+| Quoted evidence and provenance | text, textTruncated, fullText in JSON, model, formulation | Bounded text remains unchanged; text/verbose currently do not fetch uncut fullText. |
+| Source navigation | item url independent of entry sampling; source enum and entry htmlUrl | URL can be absent; registry links may be package-wide. Text formatter adoption awaits the owner's design pass. |
 | Coverage overview | classified, not-assessed, without-notes, unparseable version counts | Counts cannot enumerate the affected versions or distinguish a failed job from ongoing classification. |
 | Investigation beyond returned evidence | source text where a URL/body is returned; separate changelog/source tools | No risk-item continuation or item lookup is exposed by this aggregate contract. Reruns can fill classification coverage, not bypass the item/text caps. |
 | Range interpretation | version and original quoted statements; endpoint security/dependency comparisons | No explicit relationship identifies a statement later reverted or superseded. |
 | Consumer applicability | statements, kinds/headings, optional compatibility/dependency facts | The calling agent/user must inspect local usage; the backend cannot determine private application compatibility. |
 
-These are backend data limitations rather than dropped client fields. A useful
-view can display the current evidence honestly, but cannot promise a source link
-for every quote, enumerate every coverage gap, or inspect every classified item
-using the aggregate response alone. Prospective contract requirements are recorded
-in the working plan; no backend fields or CLI design are changed by this audit.
+The latest locator/full-text additions close those two data gaps without
+changing text design. A source URL can still be absent where the backend has no
+URL, and registry URLs can be package-wide. Aggregate counts cannot enumerate
+coverage membership, and omitted statements still lack continuation. Prospective
+contract requirements remain in the working plan; no backend fields or CLI design
+are changed here.
+
+## Latest locator and full-text contract (2026-10-08)
+
+Backend main bf74b72f0 and SDL hash sha256:cbebf81f69dd add `url: String` and
+`fullText: String!` on ChangelogRiskItem. The schema changelog says each URL points
+to the source body quoted, including restatements from another source, independent
+of `changelogLimit`/sampled entries. It may be a release page, anchored changelog
+section, HexDocs page or package-wide registry notes link; null means no URL.
+`fullText` is complete uncut text, not a replacement for bounded `text`.
+
+Core/public response types preserve URL (null-to-omission) and optional fullText.
+The single query always selects URL and selects fullText with the internal
+`includeChangelogFullText` Boolean. CLI --json and MCP format=json set it true;
+compact and verbose text set it false because the current formatter does not
+consume fullText. No public flag, second query or output design changes are added.
+Raw untrusted text remains lossless in JSON, and ambiguity/provenance stay intact.
+
+**Combined-schema mismatch:** this main snapshot still omits #3072's `ambiguous`
+and five pre-cap counters. GitHub #3072 remains OPEN at 3b2b2e484; the previous
+branch SDL contains those fields but not URL/fullText. The client retains the
+owner-required combined contract; it does not remove counters, infer ambiguity,
+or fall back to returned-item totals. Deployment of locators alone does not
+satisfy this PR's full contract. Owner clarification is pending. The main backend
+complexity callback also remains 20 + 8 per package + child complexity; the
+supported 30-package budget issue is still unresolved. No production/deployment
+success is inferred from local fixtures or the owner's expectation.
+
+Locator adaptation verification: focused suite passed 291 tests / 1,233 assertions;
+full Bun suite passed 5,656 tests / 22,773 assertions. Typecheck, Biome, build,
+public-package validation and all four secret-free source/built CLI/MCP smokes
+passed. Wire tests cover fullText include true/false/unset, URL independent of
+empty sampled entries, null URL normalization, exact uncut text and rejection of
+null fullText. CLI/MCP parity tests cover JSON mode selection and untouched compact/
+verbose output. JSON smoke fixtures now contain a statement to exercise these
+assertions rather than passing on an empty array. Internal preflight is clean;
+no fourth external review under this PR's existing cap.
+
+Offline Absinthe measurement used an **explicitly synthesized intended combined
+SDL**: main sha256:cbebf81f69dd plus the exact six field declarations from #3072
+at 3b2b2e484. This is not a claim that a combined schema is deployed. With the
+current root callback and both optional evidence sections enabled, costs are
+292 for one, 308 for three, 500 for 27 and 524 for 30 packages. Absinthe includes
+conditional selections in complexity even when the include variable is false;
+fullText payload gating does not reduce the measured complexity. Production's
+500 limit still fails for 28–30 packages. The owner chose backend budget handling;
+there is no client split, counter reconstruction or second query. Live probes and
+agent evaluation are withheld pending clarification of the combined deployed
+contract; no credentials were read, extracted or displayed.

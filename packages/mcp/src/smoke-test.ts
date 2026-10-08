@@ -1430,6 +1430,14 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
       typeof item.ambiguous === "boolean",
       "pkg_upgrade_review missing item ambiguous flag",
     );
+    assert(
+      typeof item.fullText === "string",
+      "pkg_upgrade_review missing item fullText",
+    );
+    assert(
+      item.url === undefined || typeof item.url === "string",
+      "pkg_upgrade_review invalid item URL",
+    );
   }
   assertRecord(
     firstUpgradeReview.changelog.riskCoverage,

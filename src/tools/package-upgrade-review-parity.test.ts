@@ -6,7 +6,10 @@
 //                          always valid JSON.
 
 import { describe, expect, it, mock, spyOn } from "bun:test";
-import type { PackageIntelligenceService } from "@githits/core-internal";
+import type {
+  PackageIntelligenceService,
+  PackageUpgradeReviewParams,
+} from "@githits/core-internal";
 import {
   type PkgUpgradeReviewCommandDependencies,
   pkgUpgradeReviewAction,
@@ -322,6 +325,113 @@ describe("package_upgrade_review parity", () => {
 });
 
 describe("statement classification CLI/MCP parity", () => {
+  it("preserves exact statement URLs and uncut text in JSON with mode-specific selection", async () => {
+    const response = structuredClone(defaultPackageUpgradeReviewResponse);
+    const fullText = `Evidence ${"quoted context ".repeat(100)}END\u001b[31m`;
+    const url = "https://example.com/History.md#L100-L120";
+    response.reviews[0]!.changelog.entries = [];
+    response.reviews[0]!.changelog.sampledEntries = [];
+    response.reviews[0]!.changelog.riskItems = [
+      {
+        version: "5.0.0",
+        tier: "MUST_ACT",
+        ambiguous: false,
+        tierConfidence: 0,
+        text: fullText.slice(0, 1000),
+        textTruncated: true,
+        fullText,
+        url,
+        source: "CHANGELOG_FILE",
+        model: "jev-1.13.0",
+        formulation: "s-hier-v3",
+      },
+      {
+        version: "5.0.0",
+        tier: "SHOULD_KNOW",
+        ambiguous: true,
+        text: "No source URL.",
+        textTruncated: false,
+        fullText: "No source URL.",
+        model: "jev-1.13.0",
+        formulation: "s-hier-v2",
+      },
+    ];
+    const packageUpgradeReview = mock(
+      async (params: PackageUpgradeReviewParams) => {
+        const result = structuredClone(response);
+        if (params.includeChangelogFullText !== true) {
+          for (const item of result.reviews[0]!.changelog.riskItems)
+            delete item.fullText;
+        }
+        return result;
+      },
+    );
+    const service = createMockPackageIntelligenceService({
+      packageUpgradeReview,
+    });
+    const args = {
+      registry: "npm",
+      package_name: "express",
+      current_version: "4.18.0",
+      target_version: "5.0.0",
+    };
+    for (const verbose of [false, true]) {
+      const cli = await cliText(
+        "npm:express@4.18.0..5.0.0",
+        { verbose },
+        cliDeps({ packageIntelligenceService: service }),
+      );
+      expect(
+        packageUpgradeReview.mock.calls.at(-1)?.[0].includeChangelogFullText,
+      ).toBe(false);
+      const mcp = await mcpText({ ...args, verbose }, service);
+      expect(
+        packageUpgradeReview.mock.calls.at(-1)?.[0].includeChangelogFullText,
+      ).toBe(false);
+      expect(cli.trimEnd()).toBe(mcp);
+    }
+    const cli = await cliJson(
+      "npm:express@4.18.0..5.0.0",
+      {},
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    expect(
+      packageUpgradeReview.mock.calls.at(-1)?.[0].includeChangelogFullText,
+    ).toBe(true);
+    const mcp = await mcpJson(args, service);
+    expect(
+      packageUpgradeReview.mock.calls.at(-1)?.[0].includeChangelogFullText,
+    ).toBe(true);
+    expect(cli).toEqual(mcp.json);
+    expect(mcp.json).toMatchObject({
+      reviews: [
+        {
+          changelog: {
+            riskItems: [
+              {
+                text: fullText.slice(0, 1000),
+                textTruncated: true,
+                fullText,
+                url,
+                tierConfidence: 0,
+                ambiguous: false,
+              },
+              {
+                fullText: "No source URL.",
+                ambiguous: true,
+                formulation: "s-hier-v2",
+              },
+            ],
+          },
+        },
+      ],
+    });
+    expect(JSON.stringify(mcp.json)).not.toContain('"url":null');
+    expect(response.reviews[0]!.changelog.riskItems[0]!.fullText).toBe(
+      fullText,
+    );
+  });
+
   it("keeps uncertain tiers, oversize confidence and mixed per-item provenance faithful", async () => {
     const response = structuredClone(defaultPackageUpgradeReviewResponse);
     const item = {

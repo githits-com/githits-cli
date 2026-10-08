@@ -99,6 +99,8 @@ export interface UpgradeChangelogRiskItem {
   kindConfidence?: number;
   text: string;
   textTruncated: boolean;
+  fullText?: string;
+  url?: string;
   heading?: string;
   source?: string;
   model: string;
@@ -202,6 +204,7 @@ export async function buildPackageUpgradeReview(
       currentVersion: pkg.currentVersion,
       targetVersion: pkg.targetVersion,
     })),
+    includeChangelogFullText: options.includeChangelogFullText === true,
     includeTransitiveSecurity: options.includeTransitiveSecurity,
     includeDependencyIssues: options.includeDependencyIssues,
     changelogLimit: options.changelogLimit,

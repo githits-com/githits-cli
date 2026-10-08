@@ -2042,6 +2042,14 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       typeof item.ambiguous === "boolean",
       "pkg upgrade-review missing item ambiguous flag",
     );
+    assert(
+      typeof item.fullText === "string",
+      "pkg upgrade-review missing item fullText",
+    );
+    assert(
+      item.url === undefined || typeof item.url === "string",
+      "pkg upgrade-review invalid item URL",
+    );
   }
   assertRecord(
     firstUpgradeReview.changelog.riskCoverage,

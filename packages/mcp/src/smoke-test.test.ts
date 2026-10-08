@@ -1560,14 +1560,26 @@ function smokeJsonResponse(
         reviews: [
           {
             changelog: {
-              riskItems: [],
+              riskItems: [
+                {
+                  version: "5.0.0",
+                  tier: "must_act",
+                  ambiguous: false,
+                  text: "Removed an API.",
+                  textTruncated: false,
+                  fullText: "Removed an API.",
+                  url: "https://example.com/releases/v5.0.0",
+                  model: "jev-1.13.0",
+                  formulation: "s-hier-v3",
+                },
+              ],
               riskCoverage: {
                 versionsClassified: 1,
                 versionsNotAssessed: 0,
                 versionsWithoutNotes: 0,
                 versionsUnparseable: 0,
                 unitsNoImpact: 1,
-                itemsMustActConfident: 0,
+                itemsMustActConfident: 1,
                 itemsMustActAmbiguous: 0,
                 itemsShouldKnowConfident: 0,
                 itemsShouldKnowAmbiguous: 0,

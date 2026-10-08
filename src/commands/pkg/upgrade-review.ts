@@ -63,7 +63,7 @@ export async function pkgUpgradeReviewAction(
     const response = await buildPackageUpgradeReview(
       deps.packageIntelligenceService,
       request.packages,
-      request.options,
+      { ...request.options, includeChangelogFullText: options.json === true },
     );
 
     if (options.json) {
