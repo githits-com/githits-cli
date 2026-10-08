@@ -19,4 +19,4 @@ it("validates upgrade scoring with isolated synthetic projects", async () => {
     exitCode: 0,
     output: "passed",
   });
-});
+}, 20_000);

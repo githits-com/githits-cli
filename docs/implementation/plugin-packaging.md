@@ -105,12 +105,13 @@ spelling; they do not require the MCP skill. This is guidance, not a
 host-enforced loading-order guarantee.
 The same routing guide is returned to clients that need `quick_start`.
 
-The guide's compact `pkg_upgrade_review` guidance applies when applying
-upgrades assessed with that tool: keep the original code and lockfile, compare both versions' API
-responses, stored values, and side effects with their respective dependencies,
-include paths tests miss, and report unverified paths. The skill and
-`quick_start` carry identical instructions; inspect actual execution when
-evaluating compliance.
+The guide's compact `pkg_upgrade_review` guidance applies to upgrades assessed
+with that tool: keep the original code and lockfile, run the original and
+upgraded apps with their respective dependencies, compare API responses,
+stored values, and side effects, include paths tests miss, and report
+unverified paths.
+The skill and `quick_start` carry identical instructions; inspect actual
+execution when evaluating compliance.
 
 There are no authored host-specific skill copies. If a host later requires a
 self-contained copy, the generator may create it, but tests must enforce exact
