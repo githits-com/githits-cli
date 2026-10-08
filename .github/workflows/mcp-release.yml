@@ -18,13 +18,7 @@ on:
       - "scripts/publish-npm*"
       - "src/package-release-boundaries.test.ts"
       - "tsconfig.json"
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Validate without publishing"
-        required: true
-        default: true
-        type: boolean
+  workflow_dispatch: # always runs as a dry-run (validate only); publishing is triggered exclusively by workflow_run
 
 permissions: {}
 
@@ -72,17 +66,9 @@ jobs:
       - name: Validate public package artifacts and MCP publish dry-run
         run: bun run validate:packages:mcp-publish
 
-      - name: Reject non-main publish dispatch
-        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false && github.ref != 'refs/heads/main'
-        run: |
-          echo "::error::Publish dispatches must run from refs/heads/main"
-          exit 1
-
   publish:
     name: Publish MCP package
-    if: |
-      (github.event_name == 'workflow_dispatch' && inputs.dry_run == false && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
     needs: validate
     runs-on: ubuntu-latest
     permissions:
