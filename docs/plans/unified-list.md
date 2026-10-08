@@ -4,8 +4,8 @@
 
 **Status: IN PROGRESS.** Phase 1 is complete. PR #421 merged to `main` as
 `5e541604935f1d7bb030742e2602356b9ef1e88c` on 2026-09-28. Phase 2 is
-implemented, verified, and review-clean on `jlitola/unified-list-mcp` after its
-rebase. Deterministic, live, and Codex agent verification pass.
+merged to `main` in PR #428 as `2f3d4fd` after implementation, verification,
+and review on `jlitola/unified-list-mcp`. Hosted adoption remains Phase 3.
 
 The merged Phase 1 head passed 5,044 tests, typecheck, formatting, build,
 149-step live CLI smoke, 65-step live MCP smoke, 36-step built CLI smoke, and
@@ -16,9 +16,9 @@ PR #2857 subsequently corrected site actions to target-relative paths and is
 deployed to production.
 Live CLI replay passes for the Express site root, a normal page with and
 without its trailing slash, and the same page through a nested site scope. The
-client work is on `main`; package publication remains pending. The 0.23.0
-release preparation includes Phase 1 CLI listing and shared site-page reads.
-It does not claim Phase 2 MCP catalog consolidation or Phase 3 hosted adoption.
+client work is on `main`. Phase 1 CLI listing shipped in `githits` 0.23.0;
+unified MCP listing shipped in `githits` and `@githits/mcp` 0.24.0, as recorded
+in `CHANGELOG.md`. Phase 3 hosted adoption remains unverified here.
 
 Replace the callable MCP `code_files` and `docs_list` tools with one `list`
 tool, and add the matching top-level `githits list` command. The `list`
@@ -167,6 +167,10 @@ snapshot/cache infrastructure. It does not keep callable MCP aliases for
 `code_files` or `docs_list`; compatibility is discovery wording on `list`.
 
 ## Target contract
+
+The original wait/default contract below is superseded by the current
+[tool documentation](../implementation/tools.md): indexing waits default to
+30000 ms and all CLI wait options use milliseconds.
 
 ### Canonical surfaces
 
@@ -416,8 +420,8 @@ PR #2817 resolves site addressing, including `/` for the root.
 | Phase | Status | Outcome |
 | --- | --- | --- |
 | 1. Add the shared contract and CLI | **COMPLETE; merged as `5e54160`** | `githits list` browses the backend contract through a tested transport-neutral service and shared formatter. Backend #2817 production conformance and live site action replay pass. |
-| 2. Consolidate the MCP surface | **IN PROGRESS; REVIEW-CLEAN** | The callable catalog contains `list` instead of `code_files` and `docs_list`; the replacement description retains both legacy names, and current guidance routes package/repository/site browsing and follow-up actions correctly. Deterministic, live, and Codex agent verification pass. |
-| 3. Release and hosted adoption | **PLANNED; authorization/deployment dependent** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
+| 2. Consolidate the MCP surface | **COMPLETE; merged as `2f3d4fd`** | The callable catalog contains `list` instead of `code_files` and `docs_list`; the replacement description retains both legacy names, and current guidance routes package/repository/site browsing and follow-up actions correctly. Deterministic, live, and Codex agent verification pass. |
+| 3. Release and hosted adoption | **PACKAGES RELEASED; hosted adoption unverified** | Published CLI and hosted MCP expose the same unified list contract, and live list-to-read/list-to-list paths pass against the deployed backend. |
 
 ## Phase 1 completion record — shared contract and CLI
 
@@ -443,7 +447,7 @@ versions are prepared at 0.23.0, and publication remains pending.
 
 ## Phase 2 detailed plan — consolidate the MCP surface
 
-**Status:** IN PROGRESS; implementation, verification, and review complete.
+**Status:** COMPLETE; merged in PR #428 as `2f3d4fd`.
 PR #421 is present on `origin/main` at `5e54160`; no further product decision
 is required.
 
@@ -599,8 +603,8 @@ split public service/provider wiring from catalog/guidance adoption.
 
 ## Phase 3 — release and hosted adoption
 
-**Status:** PLANNED; requires phase-boundary reorientation and separate
-release/deployment authorization.
+**Status:** packages released in 0.24.0; hosted adoption unverified. Remaining
+hosted work requires phase-boundary reorientation and separate authorization.
 
 **Expected outcome:** published `githits` and `@githits/mcp`, then `remote-mcp`,
 serve the same unified list contract against the hosted backend.
@@ -610,20 +614,18 @@ request; the backend deploy contains the verified SDL or a compatible
 successor; the `list` compatibility wording remains present throughout this
 phase.
 
-**Unknowns or product decisions:** exact package versions, deployment order/date,
-and whether endpoint evidence requires a compatible client adjustment. Resolve
-these after Phase 2 merges and before release preparation. No product behavior
-is intentionally deferred.
+**Unknowns or product decisions:** hosted dependency adoption/deployment evidence,
+and whether endpoint evidence requires a compatible client adjustment. Package
+release versions are recorded above; resolve remaining unknowns before claiming
+hosted completion. No product behavior is intentionally deferred.
 
 **Dependencies:** Phases 1-2 merged; `Query.list` deployed; explicit
 authorization for release, remote dependency update, and deployment at each
 protected step.
 
-After the matching CLI package is published, update the canonical
-`skills/githits-code` guidance and generated reference to prefer top-level
-`githits list`, while retaining the documented legacy grouped commands through
-their grace period. This release-gated skill change is deliberately excluded
-from Phase 2.
+Published `skills/githits-code` guidance and its reference now prefer top-level
+`githits list`, retaining legacy grouped commands. This release-gated change was
+excluded from Phase 2 and is recorded in the 0.23.0 release notes.
 
 **Acceptance criteria:** outside-workspace packed CLI and public MCP imports
 construct `ListService`; published CLI and hosted MCP catalogs expose `list`;

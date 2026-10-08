@@ -1,15 +1,7 @@
 import type { FileIntent } from "@githits/core-internal";
 
-/**
- * Default indexing wait time for any code-navigation request issued
- * by the CLI or MCP surfaces. Both surfaces import this so defaults
- * never diverge silently.
- *
- * Allow headroom for indexing plus metadata fetches before returning
- * progress. Discovery uses `MAX_DISCOVERY_WAIT_TIMEOUT_MS`; other navigation
- * requests use `MAX_WAIT_TIMEOUT_MS`.
- */
-export const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
+/** Core owns the preparation default for adapters and direct service calls. */
+export { DEFAULT_WAIT_TIMEOUT_MS } from "@githits/core-internal/browser";
 
 /**
  * Supported client ceiling for non-discovery indexing waits. Raising it requires

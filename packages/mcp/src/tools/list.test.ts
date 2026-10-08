@@ -240,6 +240,7 @@ describe("createListTool", () => {
       includeDetailedFields: false,
       includeTargetProvenance: true,
       includeReadActions: false,
+      waitTimeoutMs: 30000,
     });
   });
 
@@ -258,6 +259,7 @@ describe("createListTool", () => {
       includeDetailedFields: false,
       includeTargetProvenance: true,
       includeReadActions: true,
+      waitTimeoutMs: 30000,
     });
   });
 
@@ -283,6 +285,7 @@ describe("createListTool", () => {
       includeDetailedFields: false,
       includeTargetProvenance: true,
       includeReadActions: false,
+      waitTimeoutMs: 30000,
     });
   });
 
@@ -304,6 +307,7 @@ describe("createListTool", () => {
       includeDetailedFields: false,
       includeTargetProvenance: true,
       includeReadActions: false,
+      waitTimeoutMs: 30000,
     });
     expect(result.content[0]?.text).toBe(
       formatListText(projectListResult(response), {
@@ -347,6 +351,7 @@ describe("createListTool", () => {
       includeDetailedFields: false,
       includeTargetProvenance: true,
       includeReadActions: true,
+      waitTimeoutMs: 30000,
     });
     expect(result.content[0]?.text).toBe(
       formatListText(projectListResult(response), {
@@ -473,6 +478,7 @@ describe("createListTool", () => {
       includeDetailedFields: true,
       includeTargetProvenance: true,
       includeReadActions: true,
+      waitTimeoutMs: 30000,
     });
     expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual(
       projectListResult(response),

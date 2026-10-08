@@ -4,7 +4,10 @@ import type {
   ListService,
 } from "@githits/core-internal";
 import { z } from "zod";
-import { MAX_DISCOVERY_WAIT_TIMEOUT_MS } from "../shared/code-navigation-defaults.js";
+import {
+  DEFAULT_WAIT_TIMEOUT_MS,
+  MAX_DISCOVERY_WAIT_TIMEOUT_MS,
+} from "../shared/code-navigation-defaults.js";
 import { mapListError } from "../shared/list-error-map.js";
 import { buildListParams } from "../shared/list-request.js";
 import { projectListResult } from "../shared/list-response.js";
@@ -101,7 +104,9 @@ const schema: ZodRawShape = {
     .min(0)
     .max(300_000)
     .optional()
-    .describe("Maximum wait for indexing in milliseconds (0-300000)."),
+    .describe(
+      `Maximum wait for indexing in milliseconds (0-300000; default ${DEFAULT_WAIT_TIMEOUT_MS}).`,
+    ),
   format: z
     .enum(["text", "json"])
     .default("text")

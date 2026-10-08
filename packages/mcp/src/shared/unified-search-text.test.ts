@@ -1709,12 +1709,12 @@ describe("renderUnifiedSearchSuccess", () => {
     const cli = renderUnifiedSearchSuccess(payload, { actionSyntax: "cli" });
 
     expect(cli).toContain(
-      "githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 30",
+      "githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 30000",
     );
     expect(cli).not.toContain("search_status search_ref=");
     expect(
       cli.replace(
-        "githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 30",
+        "githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 30000",
         "Next: <status-action>",
       ),
     ).toBe(

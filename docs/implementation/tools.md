@@ -178,7 +178,7 @@ callable.
 | `pkg_changelog` | `target`, `limit?`, `omit_bodies?`, `verbose?`, `body_lines?`, `format?` | Find release notes and changelog history for a package. Latest mode caps entries; pin `target` for one selected release; `@from..to` excludes `from` and includes `to`. Empty selections succeed with no entries. |
 | `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `skip_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Review a package upgrade: vulnerabilities, releases, peers, dependency changes. Reports facts, not upgrade risk or acceptance. Supports a single package or at most 30 batch upgrades. |
 | `read` | `target` (string), `path?`, `selector?`, `start_line?`, `end_line?`, `wait_timeout_ms?`, `format?` | Pass a code file target + path, an explicit `site:` target + target-relative page path, a compact `target#symbol` or selector, or another emitted docs target to unified backend read; the returned type determines code/docs presentation. Preserve emitted site action values exactly; do not repeat the target's scope in the path. `/` reads the site's landing page. HTTP(S) docs fragments select sections unless explicit bounds override them. Text displays 150/300 lines; exact-file code caps before fetching, while docs JSON keeps the backend selection. The backend applies wait where relevant. See [unified read](unified-read.md). |
-| `grep` | `targets` (ordered `{target, corpus?, path_selectors?}` objects), `pattern`, `pattern_type?`, `ignore_case?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `cursor?`, `wait_timeout_ms?`, `format?` | Search known regex or literal matches across package, repository, and explicit site targets. Regex, case-sensitive matching, zero context, all indexed repository files, 100 matches, and zero preparation wait are the defaults. Package targets also include selected hosted docs. Follow exact read locators and replay partial pages with the same targets and controls. Legacy repository-file filters remain on CLI `githits code grep`. See [unified grep](unified-grep.md). |
+| `grep` | `targets` (ordered `{target, corpus?, path_selectors?}` objects), `pattern`, `pattern_type?`, `ignore_case?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `cursor?`, `wait_timeout_ms?`, `format?` | Search known regex or literal matches across package, repository, and explicit site targets. Regex, case-sensitive matching, zero context, all indexed repository files, 100 matches, and a 30,000 ms first-page preparation wait are the defaults. Package targets also include selected hosted docs. Follow exact read locators and replay partial pages with the same targets and controls. Legacy repository-file filters remain on CLI `githits code grep`. See [unified grep](unified-grep.md). |
 
 `get_example` explicitly requests MCP source-read syntax from the backend.
 Supported code references include `read({...})` calls alongside their original
@@ -636,7 +636,8 @@ or a success sentinel (`codeIndexState: "INDEXING"`), and that service layer
 collapses both to the same typed `CodeNavigationIndexingError` before the
 envelope builder runs. Unified MCP/CLI `grep` uses `GrepService` and its own
 typed error mapper; `GREP_TARGET_PREPARATION_REQUIRED` maps to `INDEXING`, and
-preparation wait defaults to zero unless the caller supplies a wait value.
+first-page preparation wait defaults to 30,000 ms; explicit zero and cursor
+continuations do not wait.
 `list` has its own typed error family and preserves selected source/site
 lifecycle fields in JSON. Discovery `search` / `search_status` may additionally
 expose `codeIndexState: "PROVISIONAL"` with queryable hits and a `searchRef`.
@@ -667,7 +668,45 @@ Explicit JSON preserves backend GraphQL messages, hints, timing and available ar
 
 **Follow-up — error metadata carrier consolidation.** Target, version, and ref errors currently carry available artifacts both as legacy constructor fields and in common error metadata; `CodeNavigationIndexingError` also carries `hint` as a standalone constructor field. Consolidate those carriers in a dedicated refactor; changing the internal error API is outside this response-formatting slice and has no user-visible anti-looping benefit.
 
-**Retry defaults**: `DEFAULT_WAIT_TIMEOUT_MS = 30_000` (defined in `packages/mcp/src/shared/code-navigation-defaults.ts`) remains the default for unified `search`, compact `read`, and the legacy CLI `githits code` group, including `githits code grep`. Unified `grep` instead defaults preparation wait to zero. CLI search/search-status use `--wait <seconds>`; read and legacy code-group commands use `--wait <ms>`. MCP wait arguments use `wait_timeout_ms`.
+**Retry defaults**: `DEFAULT_WAIT_TIMEOUT_MS = 30_000` is owned by
+`packages/core-internal/src/shared/fetch-timeout.ts` and re-exported by MCP shared
+navigation defaults. Search/status, read, list, unified grep's first page, and
+legacy code navigation apply it at the CLI/MCP and concrete service boundaries.
+Explicit zero remains zero; unified grep continuation never waits. Every CLI
+`--wait` value and MCP `wait_timeout_ms` value uses milliseconds. Indexing HTTP
+budgets share `max(120000, waitTimeoutMs + 30000)`; these are per-request client
+budgets, separate from backend readiness and production proxy limits. List/grep
+still accept up to 300000 ms as client inputs, which is unverified through the
+standard production edge; generated recommendations retain their 120000 ms cap.
+GraphQL and REST example body reads run within the original HTTP deadline,
+so expiry maps to `TIMEOUT` rather than malformed JSON or `UNKNOWN`. Research,
+example generation, auth, settings, and local probes keep their independent
+existing durations.
+
+The timeout audit also covers surfaces without indexing-wait fields. Their
+existing deadlines remain independent of the 30,000 ms readiness default:
+
+| Surface | Default client deadline |
+| --- | --- |
+| Resolve, package info/vulnerabilities/dependencies/upgrade review/changelog, legacy docs list/read, and code diff | 120000 ms per GraphQL request |
+| Example generation | 240000 ms per REST request |
+| Research | 210000 ms for the whole operation, including body reads and token refresh |
+| Auth and network settings | 120000 ms per HTTP request |
+| Login callback | 300000 ms |
+| Update check | 1000 ms metadata request |
+
+Init probes and auth locks retain their separate local budgets. Local-only
+commands and branches gain no network calls. Backend-internal preparation on
+surfaces without wait fields is unverified; the client does not invent indexing
+controls for them.
+
+**CLI migration**: search/search-status previously interpreted numeric `--wait`
+values as seconds. They now use milliseconds like the other commands: replace
+`--wait 30` or `--wait 30s` with `--wait 30000` for a 30-second wait. The old `s`
+suffix is rejected by integer validation. At release preparation, update
+`skills/githits-code/SKILL.md` and `references/code-and-docs.md` for this unit
+migration and unified grep's new default; those behavior-dependent public skills
+remain on released guidance until the release lifecycle permits updating them.
 
 **Uniform indexing estimates and continuation**: See [the shared contract](indexing-estimates.md) for all waiting consumers, null-singular read handoffs and the production schema prerequisite. Human annotated output also displays total duration and active elapsed evidence.
 
@@ -692,7 +731,7 @@ never sums jobs or target labels. If any entry has no range, the unchanged
 30-second default is an additional floor; if no ranges exist, the default stays
 30 seconds. The final suggestion is capped at the supported 120-second maximum.
 Thus upper 40 suggests 50 seconds, upper 44 suggests 60, upper 80 suggests 90, and unsupported-only work
-suggests 30. CLI renders seconds; MCP renders milliseconds. Request defaults stay
+suggests 30. CLI and MCP render milliseconds. Request defaults stay
 unchanged, and the client does not automatically poll.
 
 Estimates remain available with partial/provisional/stale evidence and retained
@@ -706,7 +745,7 @@ The core service owns shared GraphQL selection/validation; the MCP shared
 serving node before releasing/adopting this client query. Dev deployment and live
 checks do not prove production support. An older schema rejects the selection;
 there is no compatibility fallback. Backend #2458 must also be deployed for
-extended waits. Discovery search/status accept CLI `--wait 0..120` seconds or
+extended waits. Discovery search/status accept CLI `--wait 0..120000` milliseconds or
 MCP `wait_timeout_ms: 0..120000`; other navigation limits and 30-second defaults
 are unchanged. Discovery HTTP budgets are `max(120000, waitTimeoutMs + 30000)` ms,
 giving a 150-second client deadline at the maximum readiness wait. Caller
@@ -794,7 +833,7 @@ and before hits; target-owned constraints stay in their row.
 
 There is no separate session row. Follow-up contains the active reference once:
 `search_status search_ref="..." wait_timeout_ms=30000` for MCP or
-`githits search-status ... --wait 30` for CLI when no range is available.
+`githits search-status ... --wait 30000` for CLI when no range is available.
 Indexing estimates can adjust this wait up to 120 seconds. Usable hits get
 short use-now advice and a read before conditional waiting. Healthy completed
 hits get one exact read without that extra prose. Ended references never poll.

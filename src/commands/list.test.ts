@@ -101,6 +101,7 @@ describe("unified list CLI", () => {
         includeDetailedFields: true,
         includeTargetProvenance: true,
         includeReadActions: true,
+        waitTimeoutMs: 30000,
       });
       expect(stop).toHaveBeenCalledTimes(1);
     } finally {
@@ -175,7 +176,7 @@ describe("unified list CLI", () => {
           includeTargetProvenance: true,
         });
         expect(list.mock.calls[0]?.[0]).not.toHaveProperty("limit");
-        expect(list.mock.calls[0]?.[0]).not.toHaveProperty("waitTimeoutMs");
+        expect(list.mock.calls[0]?.[0]).toHaveProperty("waitTimeoutMs", 30_000);
       } finally {
         log.mockRestore();
       }
@@ -328,6 +329,7 @@ describe("unified list CLI", () => {
         includeDetailedFields: false,
         includeTargetProvenance: true,
         includeReadActions: false,
+        waitTimeoutMs: 30000,
       });
     } finally {
       log.mockRestore();

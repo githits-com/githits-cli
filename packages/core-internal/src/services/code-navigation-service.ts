@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { parseAvailableArtifacts } from "../shared/available-artifacts.js";
 import {
-  DEFAULT_FETCH_TIMEOUT_MS,
+  DEFAULT_WAIT_TIMEOUT_MS,
+  indexingRequestTimeoutMs,
   isFetchTimeoutError,
 } from "../shared/fetch-timeout.js";
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
@@ -2742,13 +2743,20 @@ export class CodeNavigationServiceImpl
       forceRefresh: () => this.tokenProvider.forceRefresh(),
       shouldRefresh: isTokenRefreshableError,
       executeWithToken: (token) =>
-        this.executeUnifiedSearch(token, params, options),
+        this.executeUnifiedSearch(
+          token,
+          {
+            ...params,
+            waitTimeoutMs: params.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
+          },
+          options,
+        ),
     });
   }
 
   async searchStatus(
     searchRef: string,
-    waitTimeoutMs = 0,
+    waitTimeoutMs: number = DEFAULT_WAIT_TIMEOUT_MS,
     options?: UnifiedSearchReadOptions,
   ): Promise<UnifiedSearchOutcome> {
     return executeWithTokenRefresh({
@@ -2911,9 +2919,8 @@ export class CodeNavigationServiceImpl
         token,
         query: UNIFIED_SEARCH_QUERY,
         variables,
-        timeoutMs: Math.max(
-          DEFAULT_FETCH_TIMEOUT_MS,
-          (params.waitTimeoutMs ?? 0) + 30_000,
+        timeoutMs: indexingRequestTimeoutMs(
+          params.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
         ),
         signal: options?.signal,
       });
@@ -2962,7 +2969,7 @@ export class CodeNavigationServiceImpl
       response = await this.postGraphqlWithTargetResolutionFallback({
         token,
         query: UNIFIED_SEARCH_STATUS_QUERY,
-        timeoutMs: Math.max(DEFAULT_FETCH_TIMEOUT_MS, waitTimeoutMs + 30_000),
+        timeoutMs: indexingRequestTimeoutMs(waitTimeoutMs),
         signal: options?.signal,
         variables: {
           searchRef,
@@ -3221,6 +3228,10 @@ export class CodeNavigationServiceImpl
   // ------------------------------------------------------------------
 
   async listFiles(params: ListFilesParams): Promise<ListFilesResult> {
+    params = {
+      ...params,
+      waitTimeoutMs: params.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
+    };
     return executeWithTokenRefresh({
       getToken: () => this.tokenProvider.getToken(),
       forceRefresh: () => this.tokenProvider.forceRefresh(),
@@ -3236,6 +3247,9 @@ export class CodeNavigationServiceImpl
     let response: PkgseerGraphqlResponse;
     try {
       response = await this.postGraphqlWithTargetResolutionFallback({
+        timeoutMs: indexingRequestTimeoutMs(
+          params.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
+        ),
         token,
         query: LIST_REPO_FILES_QUERY,
         variables: {
@@ -3325,6 +3339,10 @@ export class CodeNavigationServiceImpl
   // ------------------------------------------------------------------
 
   async readFile(params: ReadFileParams): Promise<ReadFileResult> {
+    params = {
+      ...params,
+      waitTimeoutMs: params.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
+    };
     return executeWithTokenRefresh({
       getToken: () => this.tokenProvider.getToken(),
       forceRefresh: () => this.tokenProvider.forceRefresh(),
@@ -3340,6 +3358,9 @@ export class CodeNavigationServiceImpl
     let response: PkgseerGraphqlResponse;
     try {
       response = await this.postGraphqlWithTargetResolutionFallback({
+        timeoutMs: indexingRequestTimeoutMs(
+          params.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
+        ),
         token,
         query: FETCH_CODE_CONTEXT_QUERY,
         variables: {
@@ -3395,6 +3416,10 @@ export class CodeNavigationServiceImpl
   // ------------------------------------------------------------------
 
   async grepRepo(params: GrepRepoParams): Promise<GrepRepoResult> {
+    params = {
+      ...params,
+      waitTimeoutMs: params.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
+    };
     return executeWithTokenRefresh({
       getToken: () => this.tokenProvider.getToken(),
       forceRefresh: () => this.tokenProvider.forceRefresh(),
@@ -3410,6 +3435,9 @@ export class CodeNavigationServiceImpl
     let response: PkgseerGraphqlResponse;
     try {
       response = await this.postGraphqlWithTargetResolutionFallback({
+        timeoutMs: indexingRequestTimeoutMs(
+          params.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
+        ),
         token,
         query: buildGrepRepoQuery(params.symbolFields),
         variables: {

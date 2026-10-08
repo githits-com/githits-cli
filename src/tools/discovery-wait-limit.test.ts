@@ -75,7 +75,7 @@ for (const operation of ["search", "search_status"] as const) {
       },
     );
 
-    it("converts CLI 120 seconds and MCP 120000 ms into the same service budget", async () => {
+    it("uses CLI and MCP 120000 ms for the same service budget", async () => {
       const call = mock(async () => defaultUnifiedSearchOutcome);
       const service = createMockCodeNavigationService({
         search: call,
@@ -96,10 +96,11 @@ for (const operation of ["search", "search_status"] as const) {
         if (operation === "search")
           await searchAction(
             "router",
-            { in: ["npm:express"], wait: "120", json: true },
+            { in: ["npm:express"], wait: "120000", json: true },
             deps,
           );
-        else await searchStatusAction("ref", { wait: "120", json: true }, deps);
+        else
+          await searchStatusAction("ref", { wait: "120000", json: true }, deps);
       } finally {
         log.mockRestore();
         error.mockRestore();

@@ -40,6 +40,34 @@ describe("postPkgseerGraphql", () => {
   const ENDPOINT = "https://pkgseer.dev";
   const TOKEN = "test-token";
 
+  it("classifies a stalled response body as a transport timeout instead of empty JSON", async () => {
+    const fetchFn = asFetchFn(
+      mock(
+        async () =>
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode('{"data":'));
+              },
+            }),
+          ),
+      ),
+    );
+    await expect(
+      postPkgseerGraphql({
+        endpointUrl: ENDPOINT,
+        token: TOKEN,
+        query: "query { x }",
+        variables: {},
+        fetchFn,
+        timeoutMs: 5,
+      }),
+    ).rejects.toMatchObject({
+      name: "PkgseerTransportError",
+      cause: { name: "FetchTimeoutError", timeoutMs: 5 },
+    });
+  });
+
   it("propagates invalid session configuration without fetching", async () => {
     const fetchFn = mock(() => Promise.resolve(makeResponse(VALID_JSON)));
     await expect(

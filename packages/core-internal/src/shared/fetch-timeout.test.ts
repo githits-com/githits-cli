@@ -8,6 +8,39 @@ function asFetchFn<T extends (...args: never[]) => unknown>(
 }
 
 describe("fetchWithTimeout", () => {
+  it("keeps body consumption within the original deadline", async () => {
+    const fetchFn = asFetchFn(
+      mock(async () => new Response("headers arrived")),
+    );
+    await expect(
+      fetchWithTimeout(
+        "https://example.com",
+        {},
+        { fetchFn, timeoutMs: 5 },
+        () => new Promise<string>(() => {}),
+      ),
+    ).rejects.toBeInstanceOf(FetchTimeoutError);
+  });
+
+  it("preserves caller cancellation during body consumption", async () => {
+    const controller = new AbortController();
+    const reason = new Error("caller stopped reading");
+    const fetchFn = asFetchFn(
+      mock(async () => new Response("headers arrived")),
+    );
+    await expect(
+      fetchWithTimeout(
+        "https://example.com",
+        { signal: controller.signal },
+        { fetchFn, timeoutMs: 1000 },
+        async () => {
+          controller.abort(reason);
+          throw reason;
+        },
+      ),
+    ).rejects.toBe(reason);
+  });
+
   it("passes a timeout signal to fetch", async () => {
     const fetchFn = mock((_url: string, init?: RequestInit) => {
       expect(init?.signal).toBeInstanceOf(AbortSignal);

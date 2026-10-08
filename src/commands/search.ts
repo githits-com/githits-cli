@@ -280,8 +280,8 @@ export function registerSearchCommand(program: Command) {
     .option("--limit <n>", "Max results (1-100, default: 10)")
     .option("--offset <n>", "Result offset")
     .option(
-      "--wait <seconds>",
-      `Max seconds to wait before returning a searchRef (0-${MAX_DISCOVERY_WAIT_TIMEOUT_MS / 1000}; default: 30)`,
+      "--wait <ms>",
+      `Max milliseconds to wait before returning a searchRef (0-${MAX_DISCOVERY_WAIT_TIMEOUT_MS}; default: ${DEFAULT_WAIT_TIMEOUT_MS})`,
     )
     .option("--json", "Output as JSON")
     .action(async (query: string, options: SearchCommandOptions) => {
@@ -295,8 +295,8 @@ export function registerSearchCommand(program: Command) {
     .description(SEARCH_STATUS_DESCRIPTION)
     .argument("<search-ref>", "Search reference returned by githits search")
     .option(
-      "--wait <seconds>",
-      `Max seconds to wait for progress (0-${MAX_DISCOVERY_WAIT_TIMEOUT_MS / 1000}; default: 30)`,
+      "--wait <ms>",
+      `Max milliseconds to wait for progress (0-${MAX_DISCOVERY_WAIT_TIMEOUT_MS}; default: ${DEFAULT_WAIT_TIMEOUT_MS})`,
     )
     .option("--json", "Output as JSON")
     .action(async (searchRef: string, options: SearchStatusCommandOptions) => {
@@ -361,21 +361,7 @@ function parseOptionalInt(
 }
 
 function parseWaitMs(value: string | undefined): number | undefined {
-  if (value === undefined) return undefined;
-  const match = /^(?<seconds>-?\d+)s?$/i.exec(value.trim());
-  if (!match?.groups?.seconds) {
-    throw new InvalidArgumentError(
-      `--wait must be an integer between 0 and ${MAX_DISCOVERY_WAIT_TIMEOUT_MS / 1000} seconds.`,
-    );
-  }
-  const seconds = parseIntCliOption(
-    match.groups.seconds,
-    "--wait",
-    0,
-    MAX_DISCOVERY_WAIT_TIMEOUT_MS / 1000,
-  );
-  if (seconds === undefined) return undefined;
-  return seconds * 1000;
+  return parseIntCliOption(value, "--wait", 0, MAX_DISCOVERY_WAIT_TIMEOUT_MS);
 }
 
 function collectRepeatable(value: string, previous: string[]): string[] {
@@ -394,7 +380,7 @@ function handleSearchError(
     toMappedError(basePayload),
     "search",
     "cli",
-    { maxWaitMs: MAX_DISCOVERY_WAIT_TIMEOUT_MS, cliUnit: "seconds" },
+    { maxWaitMs: MAX_DISCOVERY_WAIT_TIMEOUT_MS },
   );
   const payload = {
     ...basePayload,
@@ -445,7 +431,7 @@ function formatSearchErrorTerminal(
   if (payload.code === "INDEXING") {
     return formatIndexingError(mapped, {
       operation: "search",
-      cliUnit: "seconds",
+      maxWaitMs: MAX_DISCOVERY_WAIT_TIMEOUT_MS,
     });
   }
   const formatted = formatMappedErrorForTerminal(mapped);

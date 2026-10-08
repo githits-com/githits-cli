@@ -234,7 +234,7 @@ describe("snapshot search text received by agents", () => {
         expect(text).toContain(
           syntax === "mcp"
             ? 'search_status search_ref="recorded-search" wait_timeout_ms=120000'
-            : "githits search-status recorded-search --wait 120",
+            : "githits search-status recorded-search --wait 120000",
         );
         expect(text).not.toContain("Follow-up:\n  search_status");
         expect(text).not.toContain("Follow-up:\n  githits search-status");

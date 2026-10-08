@@ -34,9 +34,10 @@ The shared wait recommendation takes the largest upper bound, adds ten seconds,
 and rounds up to ten seconds. Uncovered work adds a 30-second floor; no bounds
 uses the unchanged 30-second default. It never sums work or target labels.
 Discovery and grep/list suggestions cap at 120 seconds; read and legacy navigation
-cap at 60 seconds. These are request budgets, not completion promises. Search CLI
-renders wait seconds; grep/list/read/code CLI and MCP use milliseconds. Wait
-defaults do not change, and there is no automatic retry, polling or new status API.
+cap at 60 seconds. These are request budgets, not completion promises. All CLI
+and MCP wait arguments and retry actions use milliseconds. The indexing wait
+default is 30,000 ms across surfaces; unified grep continuation never waits.
+There is no automatic retry, polling or new status API.
 
 Annotated text displays total duration and active elapsed evidence; JSON preserves
 provenance and work identity. Pipe-friendly raw paths and source content remain

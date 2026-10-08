@@ -541,8 +541,8 @@ instruct repeating the original search with the exact next offset, preserving
 its target/query/filter controls; status itself cannot paginate. A missing offset
 gets a truthful availability hint with no invented value. Active search pages
 warn that results can change. Grep preserves the opaque cursor for the original
-ordered targets and controls. Follow-up retains seconds for CLI search-status
-and milliseconds for MCP status and grep retries. Ended references never poll.
+ordered targets and controls. Follow-up uses milliseconds for CLI search-status,
+MCP status and grep retries. Ended references never poll.
 Counted alternatives say `(+N more)`; unknown `+more` remains unknown.
 
 For grep, CURRENT+RESUMABLE_LIMIT and UNSPECIFIED+RESUMABLE_LIMIT are ordinary

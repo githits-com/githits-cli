@@ -54,8 +54,9 @@ response. The backend's opaque cursor is otherwise preserved exactly.
   It preserves targets, source selectors, and nonblank cursors, while accepting
   one leading `/` on site selectors and removing it before `Query.list`. It
   lowercases language and file-type classifications for the backend contract,
-  keeps explicit `false`, omits empty filters, and does not invent page or wait
-  defaults. File types are classifications such as `source` or `doc`; extension
+  keeps explicit `false`, omits empty filters, and leaves page size to the backend.
+  Preparation wait defaults to 30,000 ms, preserving explicit zero; the concrete
+  service also applies this default for direct callers. File types are classifications such as `source` or `doc`; extension
   selection uses path globs such as `lib/**/*.js`.
 - `list-error-map.ts` maps list-owned and shared service errors into the
   existing `MappedError` envelope without interpreting backend message text.

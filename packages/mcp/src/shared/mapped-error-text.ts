@@ -19,7 +19,6 @@ export interface MappedErrorTextOptions {
 export interface IndexingRetryOptions {
   maxWaitMs?: number;
   hasAfter?: boolean;
-  cliUnit?: "milliseconds" | "seconds";
 }
 
 /** Tool boundaries supply native retry syntax; classification retains backend facts. */
@@ -41,7 +40,6 @@ export function withIndexingRetryAction(
           operation,
           syntax,
           hasAfter: options.hasAfter,
-          cliUnit: options.cliUnit,
           waitMs: indexingWaitMs(
             details.indexingEstimates,
             options.maxWaitMs ?? MAX_DISCOVERY_WAIT_TIMEOUT_MS,

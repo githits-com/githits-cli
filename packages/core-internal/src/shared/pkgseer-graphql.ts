@@ -65,9 +65,9 @@ export interface PkgseerGraphqlResponse {
 }
 
 /**
- * Thrown when `fetch` itself rejects — no HTTP response reached the
- * caller. Distinct from HTTP-level errors (which surface as a normal
- * response with non-2xx `status`). Callers catch and re-wrap into
+ * Thrown when fetching or consuming a response rejects before a complete
+ * response reaches the caller. HTTP-level errors surface as a normal response
+ * with non-2xx `status`. Callers catch and re-wrap into
  * their domain `NetworkError` class.
  */
 export class PkgseerTransportError extends Error {
@@ -101,9 +101,9 @@ export async function postPkgseerGraphql(
   );
   const clientHeaders = request.clientHeaders?.();
 
-  let response: Response;
+  let received: { response: Response; responseBody: string };
   try {
-    response = await fetchWithTimeout(
+    received = await fetchWithTimeout(
       `${baseUrl(endpointUrl)}/api/graphql`,
       {
         method: "POST",
@@ -120,6 +120,7 @@ export async function postPkgseerGraphql(
         }),
       },
       { fetchFn: request.fetchFn, timeoutMs },
+      async (response) => ({ response, responseBody: await response.text() }),
     );
   } catch (cause) {
     request.signal?.throwIfAborted();
@@ -131,12 +132,12 @@ export async function postPkgseerGraphql(
       });
     }
     throw new PkgseerTransportError(
-      "Network request failed before a response was received. Caller should re-wrap with a domain-specific message.",
+      "Network request failed before a complete response was received. Caller should re-wrap with a domain-specific message.",
       { cause },
     );
   }
 
-  const responseBody = await response.text().catch(() => "");
+  const { response, responseBody } = received;
   request.signal?.throwIfAborted();
   const parsedBody = parseJsonOrNull(responseBody);
   throwIfTermsAcceptanceRequired(parsedBody);

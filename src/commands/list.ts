@@ -214,7 +214,10 @@ export function registerListCommand(
     )
     .option("--limit <n>", "Maximum entries to return (1-500)")
     .option("--after <cursor>", "Continue from a prior opaque cursor")
-    .option("--wait <ms>", "Wait for source indexing (0-300000 ms)")
+    .option(
+      "--wait <ms>",
+      "Wait for source indexing (0-300000 ms, default 30000)",
+    )
     .option("-s, --silent", "Emit only paths in text mode")
     .option("--json", "Emit the lossless JSON result")
     .action(

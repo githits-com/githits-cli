@@ -202,6 +202,7 @@ describe("unified MCP grep", () => {
       maxMatches: 100,
       cursor: "opaque-page-two",
       includeDetailedFields: true,
+      waitTimeoutMs: 0,
     });
     expect((payload(result.content[0]!.text).hits as unknown[]).length).toBe(
       page.hits.length,

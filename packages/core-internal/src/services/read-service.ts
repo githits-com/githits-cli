@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { isFetchTimeoutError } from "../shared/fetch-timeout.js";
+import {
+  DEFAULT_WAIT_TIMEOUT_MS,
+  indexingRequestTimeoutMs,
+  isFetchTimeoutError,
+} from "../shared/fetch-timeout.js";
 import {
   type PkgseerGraphqlResponse,
   PkgseerTransportError,
@@ -279,6 +283,9 @@ export class ReadServiceImpl implements ReadService {
         endpointUrl: this.endpointUrl,
         token,
         query: READ_QUERY,
+        timeoutMs: indexingRequestTimeoutMs(
+          request.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
+        ),
         variables: buildReadVariables(request),
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
@@ -374,7 +381,11 @@ export class ReadServiceImpl implements ReadService {
 
 function normaliseReadRequest(params: ReadParams): ReadParams {
   const path = params.path?.trim() || undefined;
-  return { ...params, path };
+  return {
+    ...params,
+    path,
+    waitTimeoutMs: params.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
+  };
 }
 
 function buildReadVariables(request: ReadParams): Record<string, unknown> {

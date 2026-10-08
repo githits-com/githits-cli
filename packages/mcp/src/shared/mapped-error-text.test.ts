@@ -72,7 +72,7 @@ describe("readable mapped error content", () => {
       ).details.indexingRef,
     ).toBe("opaque-progress");
   });
-  it("uses singular metadata, no-history defaults and native seconds without fabricated entries", () => {
+  it("uses singular metadata, no-history defaults and native milliseconds without fabricated entries", () => {
     const singular: MappedError = {
       code: "INDEXING",
       message: "Indexing",
@@ -84,9 +84,8 @@ describe("readable mapped error content", () => {
     expect(
       withIndexingRetryAction(singular, "search", "cli", {
         maxWaitMs: 120000,
-        cliUnit: "seconds",
       }).details?.action,
-    ).toBe("Retry this search with --wait 100.");
+    ).toBe("Retry this search with --wait 100000.");
     const empty = withIndexingRetryAction(
       { code: "INDEXING", message: "Indexing" },
       "list",

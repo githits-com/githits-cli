@@ -887,7 +887,7 @@ function appendPresentationAction(
     followUp.push(
       operand(
         options.actionSyntax === "cli"
-          ? `githits search-status ${action.searchRef} --wait ${action.waitTimeoutMs / 1000}`
+          ? `githits search-status ${action.searchRef} --wait ${action.waitTimeoutMs}`
           : `search_status search_ref=${JSON.stringify(action.searchRef)} wait_timeout_ms=${action.waitTimeoutMs}`,
       ),
     );
