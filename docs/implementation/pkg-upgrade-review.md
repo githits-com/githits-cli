@@ -6,7 +6,13 @@ Dependency-upgrade reviews are a distinct agent workflow. Agents should not infe
 
 `pkg_upgrade_review` is the MCP/CLI-facing tool for this workflow. It answers: "What changed between the currently used version and the target version, and what evidence is available or missing?"
 
-Original risk fields were verified against backend `priv/graphql/schema.graphql` and authenticated dev field selection on 2026-10-07. The #3072 additions are verified against branch SDL at bb3807cc/3b2b2e484; current main bf74b72f0 adds URL/fullText but still omits those six fields. See the latest locator contract section for the combined-schema gate. Live verification awaits owner clarification; dev disables introspection, so SDL confirms names, enums and nullability.
+Original risk fields were verified against authenticated dev on 2026-10-07.
+On 2026-10-08 the owner confirmed backend #3072 and #3077 merged and deployed to
+dev; current CLI/local MCP requests verified the combined ambiguity, pre-cap
+counter, locator and complete-text contract. The merged SDL at
+707adc4571d86f506eed004e975870fbd44e14ff confirms names and nullability; the local
+bf74b72f0 checkout was stale. Dev disables introspection. Production availability
+was not probed, and the 30-package complexity budget remains a backend gate.
 
 ## Current Schema Fit
 
@@ -21,7 +27,7 @@ packageUpgradeReview(
 ): PackageUpgradeReviewResponse!
 ```
 
-The CLI/MCP implementation must not fall back to composing `packageSummary`, `packageVulnerabilities`, `packageChangelog`, or `packageDependencies` calls. If the aggregate query is unavailable, surface the backend protocol error. The original aggregate and risk fields are deployed. The ambiguity flag and pre-cap counts added by backend #3072 require backend deployment before this PR can merge or release. Dev verification waits for the owner’s explicit deployment notice.
+The CLI/MCP implementation must not fall back to composing `packageSummary`, `packageVulnerabilities`, `packageChangelog`, or `packageDependencies` calls. If the aggregate query is unavailable, surface the backend protocol error. The aggregate and combined risk fields are verified on dev after #3072/#3077 deployment. Production support and a corrected 30-package complexity budget remain merge/release gates.
 
 Optional evidence is controlled by GraphQL field selection and local query variables:
 
@@ -718,10 +724,10 @@ requests or encode a package count derived from a private backend formula.
 These measurements precede that backend correction. The full supported batch
 range cannot be claimed to fit the budget until the backend fix is verified.
 
-Dev verification and server corroboration wait for the owner’s explicit #3072
-deployment notice. No dev or production query is authorized for this follow-up
-before that notice; production support and the budget correction are required
-before merge or release. PR #463 remains draft and unmerged.
+The owner supplied the #3072/#3077 dev deployment notice on 2026-10-08.
+Combined-contract dev verification and server complexity corroboration are now
+complete, as recorded below. Production support and the unresolved 30-package
+budget correction remain merge/release gates. PR #463 stays draft and unmerged.
 
 Before removal of the proposed client split, full `bun test` passed 5,652 tests /
 22,738 assertions; typecheck, Biome, build, public-package validation and all four
@@ -732,8 +738,8 @@ assertions; typecheck, Biome, build, public-package validation and all four
 secret-free smokes passed again.
 Stable ambiguity/counter implementation internal review is clean. The existing
 three-round external code limit remains; no fourth external code round. Targeted
-live agent evaluation also waits for deployment; the earlier Claude eval was
-unavailable because its CLI was not logged in.
+agent evaluation was retried after deployment and remains unavailable because
+Claude CLI is not logged in; no qualitative pass is claimed.
 
 ## Known output limitations
 
@@ -802,15 +808,13 @@ compact and verbose text set it false because the current formatter does not
 consume fullText. No public flag, second query or output design changes are added.
 Raw untrusted text remains lossless in JSON, and ambiguity/provenance stay intact.
 
-**Combined-schema mismatch:** this main snapshot still omits #3072's `ambiguous`
-and five pre-cap counters. GitHub #3072 remains OPEN at 3b2b2e484; the previous
-branch SDL contains those fields but not URL/fullText. The client retains the
-owner-required combined contract; it does not remove counters, infer ambiguity,
-or fall back to returned-item totals. Deployment of locators alone does not
-satisfy this PR's full contract. Owner clarification is pending. The main backend
-complexity callback also remains 20 + 8 per package + child complexity; the
-supported 30-package budget issue is still unresolved. No production/deployment
-success is inferred from local fixtures or the owner's expectation.
+**Combined-schema mismatch resolved on dev:** the earlier bf74b72f0 local
+snapshot omitted #3072 fields. Backend #3072 merged at 707adc4571d86f506eed004e975870fbd44e14ff
+and #3077 at d3d49cd417eebe688a149cb24e219a33b840da1e. The owner confirmed dev
+deployment; authenticated CLI and local MCP verify all fields together. The
+client retains backend ambiguity and pre-cap totals, with no confidence threshold
+or returned-item totals fallback. The backend batch budget issue is independently
+confirmed below; no backend edits were made.
 
 Locator adaptation verification: focused suite passed 291 tests / 1,233 assertions;
 full Bun suite passed 5,656 tests / 22,773 assertions. Typecheck, Biome, build,
@@ -828,8 +832,67 @@ at 3b2b2e484. This is not a claim that a combined schema is deployed. With the
 current root callback and both optional evidence sections enabled, costs are
 292 for one, 308 for three, 500 for 27 and 524 for 30 packages. Absinthe includes
 conditional selections in complexity even when the include variable is false;
-fullText payload gating does not reduce the measured complexity. Production's
+fullText payload gating does not reduce the measured complexity. The
 500 limit still fails for 28–30 packages. The owner chose backend budget handling;
-there is no client split, counter reconstruction or second query. Live probes and
-agent evaluation are withheld pending clarification of the combined deployed
-contract; no credentials were read, extracted or displayed.
+there is no client split, counter reconstruction or second query. This offline
+measurement is now corroborated by dev, as recorded below. No credentials were
+read, extracted or displayed.
+
+## Combined-contract dev verification (2026-10-08)
+
+Normal CLI auth was used with `GITHITS_ENV=dev` and explicit API/MCP/OSS overrides
+`https://api-dev.githits.com`, `https://mcp-dev.githits.com`, and
+`https://pkgseer-backend-dev.fly.dev`. An inherited accounts override was removed;
+no credential file, token value or authorization header was inspected or printed.
+
+CLI JSON was requested twice per range, plus CLI text and a three-range batch in
+both modes. Local stdio MCP repeated those requests and Express verbose text.
+First/repeat CLI JSON matched exactly. All single and batch CLI/MCP JSON and text
+matched exactly, including risk items, coverage, URLs and fullText. All sampled
+ranges were fully classified on the first request; this is not a cold classifier
+or background-job completion claim. The first CLI requests were slow; later
+repeats were prompt, and the cause was not isolated to classification.
+
+| Range | Confident/uncertain act | Confident/uncertain know | Versions classified/not assessed/without notes/unparseable | No impact | Returned/omitted | Formulation |
+| --- | --- | --- | --- | --- | --- | --- |
+| npm:express@5.0.0..5.2.1 | 0 / 8 | 6 / 2 | 4 / 0 / 0 / 0 | 125 | 16 / 0 | s-hier-v2 |
+| npm:express@4.19.2..4.21.2 | 3 / 1 | 8 / 2 | 4 / 0 / 0 / 0 | 43 | 14 / 0 | s-hier-v3 |
+| npm:@biomejs/biome@2.4.2..2.4.15 | 13 / 28 | 12 / 10 | 13 / 0 / 0 / 0 | 812 | 50 / 13 | s-hier-v2 |
+
+All 80 returned items had a URL and string fullText. Complete text starts with the
+bounded quote. None of these ranges returned a backend-truncated quote; that edge
+case remains covered by unit/parity tests rather than a live observation. Pre-cap
+counter sums equal returned plus omitted items (Biome 63 = 50 + 13), and uncertain
+counts follow `ambiguous` only. No numeric confidence policy was added.
+
+Express excerpt:
+
+```text
+0 require action (+8 uncertain) | 6 should know (+2 uncertain)
+Possibly requires action (6)
+  * (uncertain) "deps: remove safe-buffer"
+  * (uncertain) "deps: remove utils-merge"
+```
+
+Batch triage preserves confident-action ordering and the untruncated totals:
+
+```text
+npm:@biomejs/biome 2.4.2 -> 2.4.15 | 13 act (+28 uncertain) | 12 know (+10 uncertain)
+npm:express 4.19.2 -> 4.21.2 | 3 act (+1 uncertain) | 8 know (+2 uncertain)
+npm:express 5.0.0 -> 5.2.1 | 0 act (+8 uncertain) | 6 know (+2 uncertain)
+```
+
+Dev complexity probes added 501 scalar aliases to the exact query and received
+operation complexities 793 for one and 809 for three, without resolver execution:
+subtracting 501 confirms **292 / 308**. A real unsplit 30-package request with
+both optional evidence sections was rejected at **524**, maximum **500**, before
+resolvers ran. The backend budget correction remains open; no client split or
+selection removal was added. Conditional fullText still contributes complexity
+even when payload is omitted.
+
+The implementation remains at 5,656 passing unit tests / 22,773 assertions and
+passing build/typecheck/package/four secret-free smoke checks. Code CI passed on
+817909a. The targeted Claude agent eval was retried with the dev environment:
+failed because Claude CLI was not logged in, zero tool calls, no final artifact or
+qualitative grade. This does not affect the successful direct CLI/MCP validation.
+No output-design or backend implementation changes were needed for this verification.

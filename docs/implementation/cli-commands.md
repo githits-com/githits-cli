@@ -774,8 +774,9 @@ formatter. It starts with `Upgrade review - N package(s)`, adds one
 are sorted by backend confident action-statement totals before the cap and include classification coverage,
 peer-change and compatibility-note counts.
 The public 30-package limit and one aggregate request remain. The owner is
-addressing the measured large-batch complexity violation in the backend; see
-[Upgrade review](pkg-upgrade-review.md) for the measurement and deployment gate.
+addressing the dev-confirmed large-batch complexity violation in the backend
+(30 packages cost 524 against a limit of 500); the combined #3072/#3077 risk
+contract passes on dev. See [Upgrade review](pkg-upgrade-review.md) for evidence.
 `--verbose` adds full per-package reports. Single-package reports group identity,
 security, deprecation, changes, compatibility, dependencies, dependency
 issues, and unknown evidence. Empty optional groups are omitted, but a returned

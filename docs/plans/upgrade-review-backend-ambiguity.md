@@ -1,258 +1,103 @@
-# Upgrade review backend ambiguity and totals
+# Upgrade review backend ambiguity, totals and locator verification
 
-Status: implementation and locator/full-text adaptation locally verified for
-draft PR #463. Client split removal is verified. Live combined-contract and
-budget verification wait for owner deployment clarification.
-Base c6a2e26. No merge, backend edits or new infrastructure.
+Status: implementation delivered and combined-contract dev verification passed
+in draft PR #463. Remaining gate: backend 30-package complexity correction and
+production availability verification before merge/release. No merge, backend
+edits, client split or output-design changes are authorized.
 
-## Outcome, ownership and verified state
+## Outcome and ownership
 
-Backend owns ambiguity policy, pre-cap totals and complexity accounting. Core
-selects required `ambiguous` and five required coverage counters; the shared
-CLI/MCP formatter presents them without a confidence threshold or reconstructed
-totals. JSON keeps numeric confidence and per-item provenance. Existing source
-and version grouping, keywords, sanitization and full action quotes remain.
+Backend owns ambiguity policy, pre-cap totals, source locators, complete statement
+text and complexity accounting. Core selects/validates those fields; the shared
+CLI/MCP data builder preserves them. JSON keeps false/zero, raw quotes, numeric
+confidence and per-item model/formulation. The owner handles CLI output design.
+The client never derives ambiguity from confidence or totals from capped items.
 
-Owner confirmed `itemsMustActConfident`, `itemsMustActAmbiguous`,
-`itemsShouldKnowConfident`, `itemsShouldKnowAmbiguous`, `itemsUnclassified` and
-Boolean! `ambiguous` against backend SDL bb3807cc. Confident counts exclude
-ambiguous items. Ambiguity describes uncertain tier reads, raised or unchanged,
-including SHOULD_KNOW. Latest checked branch head 3b2b2e484 has no SDL change.
-False and zero values are preserved, and all five totals precede the 50-item cap.
+Confirmed contract: Boolean! `ambiguous`; Int! `itemsMustActConfident`,
+`itemsMustActAmbiguous`, `itemsShouldKnowConfident`, `itemsShouldKnowAmbiguous`,
+`itemsUnclassified`. Confident excludes ambiguous; tier total is their sum. All
+counts precede the 50-item cap. `url` is nullable and independent of sampled
+entries. `fullText` is non-null when selected and preserves the complete statement.
+Core always selects URL, and JSON alone selects fullText through an internal
+include variable; text/verbose do not fetch unconsumed fullText. No public flag,
+extra request, fallback, polling or new infrastructure.
 
-Offline Absinthe 1.11.0 analysis used the pinned SDL, exact query and backend
-root callback without resolvers, configuration, credentials or network. With
-both optional sections: prior one/three/27/30 package costs 284/300/492/516;
-new costs 290/306/498/522. The callback is 20 + 8 per package + child complexity
-262. The owner chose backend correction instead of the proposed client split.
-Single aggregate fetching and the public 30-package limit remain unchanged.
-Full-range budget compliance is blocked on the backend correction and subsequent
-verification, not claimed by the client tests.
+Owner confirmed backend #3072/#3077 merged and deployed to dev. Merged SDL
+707adc4571d86f506eed004e975870fbd44e14ff contains the combined fields. The earlier
+local bf74b72f0 snapshot was stale, and its missing-field gate is resolved on dev.
+Production is not probed or assumed deployed. Required production support remains
+an owner-controlled merge/release gate.
 
-Assumptions: backend fields will be deployed before consuming them live. Unknowns:
-deployed values and corrected complexity await the owner's deployment notice.
-No client fallback, threshold, reconstructed totals or polling. No dev probe
-before that notice; production fields and budget support are merge/release gates.
+## Completed implementation and checks
 
-## Increment and acceptance
+- Required field selection, types, Zod validation and raw public JSON propagation.
+- Backend ambiguity alone drives uncertainty; pre-cap counters drive summaries
+  and confident-action sorting, with stable ties. Version counts describe quotes.
+- One aggregate request for the existing public maximum 30 packages. The proposed
+  27-package split was removed after the owner chose backend budget handling.
+- Tests cover flags independently of confidence, false/zero, cap-independent totals,
+  sorting/ties, raw truncated/uncut text, URL beyond sampling, nullable URL,
+  non-null fullText and mode-specific selection, mixed provenance, keyword/source
+  handling, coverage edge cases and CLI/MCP parity. Smoke fixtures contain items.
+- Full Bun suite 5,656 passed / 22,773 assertions; focused 291 / 1,233;
+  typecheck/Biome/build/public-package validation and four secret-free source/built
+  CLI/MCP smokes passed. Code CI is green at 817909a.
+- Internal plan/delta preflight: direction sound, no findings. Earlier external
+  code rounds reached the three-round cap; no fourth round. Final plan round was
+  clean after minor ownership/doc-placement fixes. Current edits record observed
+  verification/status only; no architecture or acceptance changes require a new
+  plan review.
 
-1. Required fields are selected, validated and exposed in core/public responses.
-2. Ambiguous alone controls uncertainty. Coverage totals control summary counts
-   and batch sorting by confident action count; ties preserve backend order.
-   Per-version headings count displayed quotes only.
-3. Remove the proposed 27-package split. Wire tests assert one aggregate call for
-   1, 3 and 30 packages, preserving options, order, all summary fields and risk
-   evidence. Oversized direct-service inputs remain unsplit for backend rejection;
-   the public request builder rejects more than 30 locally.
-4. Keep tests for confidence-independent flags, uncertain SHOULD_KNOW, false/zero
-   JSON, capped totals/ranking, stable ties, oversize/truncated statements, mixed
-   provenance, keyword/source handling and CLI/MCP parity. Fixture #3072 fields
-   are explicit mocks, not live observations. CLI and public MCP smoke helpers
-   assert the required flag and five counters.
-5. Run affected Bun tests, typecheck, build/package validation and secret-free
-   source/built CLI/MCP smokes. Build before built smokes; do not overlap them with
-   the package validator's rebuild. Commit/push/update the same draft PR.
-6. After explicit deployment notice, normal-auth dev CLI/local MCP for the three
-   owner ranges and their batch; corroborate complexity under 500 including the
-   largest supported batch. Report contract problems without backend edits.
-   Targeted agent evaluation waits for deployment; earlier Claude evaluation
-   could not run because its CLI was not logged in.
+## Dev verification completed (2026-10-08)
 
-Acceptance: no client confidence threshold; backend ambiguity and pre-cap totals
-are faithful in text/JSON. One aggregate request, required selection controls,
-CLI/MCP parity and coverage edge cases are tested. Live verification and full
-batch budget compliance remain required outstanding work. Do not delete this
-plan until those close and permanent docs contain the evidence.
+Normal CLI auth with GITHITS_ENV=dev and explicit API/MCP/OSS endpoints matching
+the owner request; no credentials or headers read, extracted or printed. CLI
+JSON first/repeat, text, batch JSON/text; local stdio MCP same singles/batch and
+Express verbose passed. Whole JSON and text matched exactly across surfaces.
+All ranges were already fully classified; no cold-label/job-completion claim.
 
-## Review and validation record
+| Range | Act confident/uncertain | Know confident/uncertain | Coverage classified/not assessed/without notes/unparseable | Returned/omitted |
+| --- | --- | --- | --- | --- |
+| express 5.0.0..5.2.1 | 0 / 8 | 6 / 2 | 4 / 0 / 0 / 0 | 16 / 0 |
+| express 4.19.2..4.21.2 | 3 / 1 | 8 / 2 | 4 / 0 / 0 / 0 | 14 / 0 |
+| biome 2.4.2..2.4.15 | 13 / 28 | 12 / 10 | 13 / 0 / 0 / 0 | 50 / 13 |
 
-Internal review found the stable ambiguity/counter implementation sound with no
-findings. External plan round 1 found the counter rename, production dependency
-and minor schema/documentation omissions; all corrected after owner confirmation.
-Round 2 recommended backend budget correction over the client split. The owner
-chose backend handling; the split and its dependent tests/docs are removed.
-Related core service, request builder, wire tests, release fragment and CLI/
-implementation docs were checked for stale split claims. No fourth external
-code review: this PR has already reached its three-round limit. A final plan
-round closes the owner decision and reviews the UX assessment direction.
+All 80 returned statements have URL/fullText. Pre-cap sums match returned plus
+omitted. Express internal dependency removals are uncertain based on ambiguous;
+batch order is Biome, Express 4.x, Express 5.x by confident action totals. No live
+statement was backend-truncated; unit/parity tests cover that case. Full details,
+no-impact counts/formulations and excerpts are in the implementation document.
 
-At HEAD 553e6de, before split removal: full Bun suite 5,652 passed / 22,738
-assertions; typecheck/Biome/build/package validation and four secret-free smokes
-passed; CI passed. After removal: full `bun test` passed 5,651 tests / 22,732 assertions;
-typecheck, Biome, build, public-package validation and all four secret-free
-source/built CLI/MCP smokes passed. No new dev query was made.
+Agent eval was retried on dev: Claude CLI not logged in, zero tool calls, no final
+artifact or qualitative grade. No account configuration or credential handling
+was attempted. This is unavailable qualitative coverage, not a passing eval.
 
-## UX assessment and next design decisions
+## Remaining backend gate and completion
 
-The user's task is to identify what to investigate before an upgrade, inspect
-its evidence, and check relevance to their own usage. Statement classification
-cannot establish that an application is compatible. The current output protects
-that distinction with quotes, explicit uncertainty, honest coverage and lossless
-JSON, but still requires too much scanning and interpretation.
+Dev alias probes measure exact operation complexity 292 single / 308 three
+(501 extra scalar aliases returned 793/809 without resolver execution). Actual
+30-package request is rejected at 524, max 500, before resolvers run. This
+corroborates the offline combined-schema result; @include false reduces payload
+but still contributes complexity. No selected consumer field was removed and no
+client limit or split introduced. Owner chose to fix backend accounting; report
+this verified blocker, do not change backend. After that correction is deployed,
+repeat the narrow exact-operation/30-package check; no broad revalidation absent
+new code or failures. Production support must also be confirmed before release.
 
-An offline 80-column rendering of the Express fixture with explicitly mocked
-#3072 flags/counters produced 97 lines, with the first quote on line 22 and the
-source list on line 63. Two batch rows were 482 and 480 characters wide. These
-are layout measurements, not new dev results or a graded usability evaluation.
-The following are recommendations, not shipped behavior:
+Acceptance still open: all supported batch sizes fit server complexity <=500.
+Unknowns: timing/revision of backend budget fix and production deployment. These
+are external dependencies, not a reason to add client mechanisms or thresholds.
+Keep this plan until that final gate closes; transfer evidence to permanent docs
+and remove it in the final closure commit, not before verification is complete.
+PR #463 stays draft/unmerged for the owner's output design/review pass.
 
-- **Prioritize investigation.** Start with a concise overview of confident and
-  uncertain action statements, security changes and classification coverage.
-  Keep full action quotes and one block per version; move detailed fixed
-  vulnerability lists after change evidence or into verbose output. The shared
-  formatter owns hierarchy; the backend owns the facts. This improves scanning
-  without introducing a package verdict. Choosing between version chronology
-  and global action-first grouping requires an explicit product decision because
-  the current design promises to show each version once.
-- **Make batch triage scannable.** Retain confident-action sorting, separate
-  uncertain counts and always-visible classified/not-assessed/without-notes
-  coverage. Give added vulnerabilities and missing/omitted evidence visible
-  space; put routine zeros and supporting dependency details in verbose output.
-  Keep package identities and ranges intact. A compact table must handle long
-  names and caller width rather than relying on unwrapped hundreds-character
-  rows. No-impact statements remain a count, never a safety claim.
-- **Provide a source for every quote.** Risk items span the whole range, but their
-  locators currently come from sampled entry data. The backend risk item has no
-  URL/location field, so a quote can honestly render “entry URL not returned”.
-  Exact source locators belong to the backend that extracted the statement and
-  should be independent of the entry sample limit. The client should not guess
-  tag URLs or changelog lines. This is the smallest backend UX improvement.
-- **Connect statement facts to local usage.** Express quotes include
-  internal dependency removals and build-tool changes, and a security fix later
-  reverted with its CVE rejected. A tier/kind alone cannot tell whether the
-  consumer must change code, or whether a historical fix survives at the target
-  version. The client must not infer that context, discard statements or
-  reclassify them. The backend can supply affected API/option names and supersession within the
-  range, but cannot inspect the consumer's private code. The calling agent owns
-  local applicability: search the consumer repository for affected usage, inspect
-  relevant configuration, and propose migrations and targeted tests grounded in
-  those matches. The output should guide that follow-up rather than end at a
-  statement dump. Current quotes already support local investigation; structured
-  affected symbols would make it easier. This requires an explicit UX decision,
-  not a claim that the backend can decide compatibility.
-- **Support focused inspection.** Expanding every quote and all security and
-  dependency details with verbose output is a coarse follow-up. Compact prefixes
-  can hide qualifications, as in the Express revert note. Exact source links
-  are the first remedy; focused expansion would need a separate UX decision.
-  JSON already preserves complete returned evidence for agents.
+## Data gaps outside this implementation
 
-Recommended next client slice: concise overview and width-aware batch triage,
-while preserving current evidence and coverage rules. Backend source locators
-are the first data improvement; application relevance and range reconciliation
-are separate product work, not client heuristics. No UX redesign is implemented
-by this assessment.
-
-Before a redesign, broaden the evidence beyond this zero-confident-action minor
-range: inspect a major upgrade with confident action statements and a capped
-package. Use targeted agent evaluation to inspect local follow-up actions and
-token use as well as terminal layout. No usability-quality claim is supported
-by the current fixture measurement alone.
-
-## Final plan review closure
-
-External plan round 3: direction sound; split removal and deployment gates clean.
-Minor documentation findings accepted: distinguish backend statement facts from
-local consumer applicability, include the agent follow-up workflow, and move
-unshipped recommendations out of permanent implementation docs into this plan.
-The same ownership wording was checked in the PR description. No code findings
-and no fourth external round. After these wording fixes, the plan round is clean.
-Dev verification remains pending deployment; UX changes remain owner decisions.
-
-## Owner-directed data sufficiency audit
-
-The owner will handle CLI-side design; do not implement the proposed layout or
-navigation changes above. This audit concerns data availability only. Selection
-and public JSON expose all current risk-item and coverage fields. There is no
-verified missing client selection to fix, so the operation and its measured
-complexity are unchanged. No live dev call before deployment notice.
-
-Backend requirements to support complete evidence inspection, independent of
-presentation (proposed outcomes, not approved backend implementation):
-
-1. Each returned statement identifies its exact source entry/location, without
-   depending on sampled entry lists. A view must be able to retrieve/read the
-   full context, including text cut by the 1,000-character cap. Exact URLs can
-   satisfy human source navigation; structured lookup is needed only if a later
-   consumer must retrieve that evidence programmatically through the tool.
-2. Provide a bounded follow-up path to the classified statements omitted by the
-   50-item aggregate cap, preserving their labels, ambiguity and provenance.
-   Keep the aggregate bounded; do not raise its limit or add a default second
-   query. References needed for lookup/continuation belong to the backend that
-   stores the statements. Acceptance: a capped range's complete flagged evidence
-   can be inspected, and repeating the same aggregate is not the only option.
-3. Expose coverage membership per version if a view needs to identify gaps:
-   classified, not assessed, without notes and unparseable. Sampled entries or
-   absence of risk items cannot reconstruct this. Do not infer job completion
-   or failure from a not-assessed count; distinguish those states only if the
-   backend exposes them. Acceptance: every reported gap can be tied to a version
-   without treating missing notes as no impact.
-
-Useful richer evidence, separate from those completeness gaps: affected public
-API/configuration identifiers and explicit reverted/superseded relationships.
-They could reduce local investigation work, but do not make the backend owner of
-consumer applicability. Local usage matching and migration/testing remain the
-calling agent/user's responsibility. No new classifier output, automatic
-reconciliation, compatibility verdict or infrastructure is introduced here.
-
-Contract changes need schema verification, minimal selections, JSON propagation,
-CLI/MCP parity and a fresh complexity measurement. Those cannot be implemented
-against guessed field names in this PR. Current audit validation uses existing
-wire-field and JSON/parity tests; no formatter or CLI command files are changed.
-
-Audit check: targeted Bun wire-field/JSON/parity run passed 6 tests / 76
-assertions, with no failures. No query, formatter or command implementation
-changed; existing complexity measurements therefore remain applicable.
-
-## Latest schema locator adaptation (2026-10-08)
-
-Status: locator/full-text additions implemented and locally verified; combined
-#3072 production contract needs owner clarification. The main checkout bf74b72f0 has
-schema hash sha256:cbebf81f69dd. Its changelog adds nullable `url` and non-null
-`fullText` on ChangelogRiskItem, independent of sampled entries. It still omits
-`ambiguous` and the five counters; do not remove them or restore a client threshold.
-The owner was asked which revision supplies the combined deployed contract.
-
-Scope: expose new data for the owner's upcoming design pass, with no formatter,
-layout, grouping, colors, labels or quote-rendering edits. Backend owns locators
-and complete statements. Core owns field selection/validation; CLI/MCP callers
-choose data needed for their output mode. Select URL for all modes. Select
-fullText conditionally only for JSON, which consumes it; current text/verbose
-rendering does not consume fullText and stays unchanged. Existing aggregate,
-keyword fields, backend ambiguity and pre-cap totals remain. No public flag,
-fallback, second query or infrastructure is added.
-
-Implementation: add optional url/fullText fields to core and public risk types,
-validate nullable URL and conditionally absent non-null fullText; introduce an
-internal optional includeChangelogFullText service/response-build option defaulting
-to false, and bind a Boolean GraphQL include variable. CLI --json and MCP json set
-it true; text (including verbose) sets it false. Public normalization already
-spreads item fields and must preserve these raw values. Test wire fields/variables
-in compact/verbose/JSON and CLI/MCP parity for returned URL/fullText beyond entry
-sampling, null URLs, cut text with uncut fullText, false/zero and raw untrusted
-content. Update smoke JSON structural assertions and permanent docs, removing
-obsolete missing-locator claims while retaining honest pagination/coverage gaps.
-
-Measure exact selections with current backend SDL/callback offline; retain the
-reported >500 large-batch gate until corrected backend accounting is verified.
-Live verification may fail on #3072 missing fields; report that protocol problem
-without client fallback or backend edits. Use normal CLI auth only, no token reads
-or extraction. No production assumptions from a fixture. The existing PR external
-review cap is exhausted; internal preflight/verification applies, no fourth external
-round. Deliver into PR #463, do not merge. Keep plan while live verification remains.
-
-Acceptance: URL always selected and preserved; fullText selected only for JSON,
-kept separate from bounded text/truncation, no extra backend quote shortening.
-CLI/MCP data parity, selection controls and required-field validation pass;
-output design is unchanged. Unknowns: combined deployed schema and budget fix.
-
-Locator completion record: all listed data/type/query/caller/parity/smoke changes
-implemented; formatter logic is unchanged. Focused 291 tests / 1,233 assertions,
-full 5,656 / 22,773, typecheck/Biome/build/package validation and four secret-free
-smokes passed. Internal plan and delta reviews: direction sound, no findings.
-GitHub confirms #3072 still OPEN at 3b2b2e484; no combined deployment assumption.
-Offline complexity against explicitly synthesized combined SDL is 292/308/500/524
-at 1/3/27/30 packages for both fullText true/false. Absinthe counts conditional
-fields despite skipped payload. Production/development live verification and
-agent evaluation remain blocked on the combined contract and backend budget fix;
-no live query was made. Deliver the reviewed data changes in the same draft PR,
-retain the plan until those required verifications close, and do not merge.
+Source locators and complete text are now available. The aggregate still exposes
+only counts for coverage membership and no continuation for omitted statements.
+These remaining data requirements were identified by the owner-directed audit;
+backend design remains outside this CLI PR. Affected API/configuration identifiers
+and reverted/superseded relationships are possible richer facts, not approved
+client heuristics. Private-code usage matching and migration/testing belong to
+the calling agent/user; the backend cannot decide consumer applicability. No CLI
+redesign proposal is being implemented by this lane.
