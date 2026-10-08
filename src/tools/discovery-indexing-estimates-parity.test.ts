@@ -141,9 +141,9 @@ for (const operation of ["search", "search_status"] as const) {
       expect(JSON.stringify(result.sourceStatus)).toContain("PROVISIONAL");
     });
 
-    it("uses CLI seconds and MCP milliseconds while retaining interim hits", async () => {
+    it("uses milliseconds on both CLI and MCP while retaining interim hits", async () => {
       const { cli, mcp } = await responses(outcome("INDEXING"), false);
-      expect(cli).toContain("githits search-status estimate-ref --wait 50");
+      expect(cli).toContain("githits search-status estimate-ref --wait 50000");
       expect(mcp).toContain(
         'search_status search_ref="estimate-ref" wait_timeout_ms=50000',
       );
@@ -166,7 +166,7 @@ for (const operation of ["search", "search_status"] as const) {
           },
         ]);
         const { cli, mcp } = await responses(value, false);
-        expect(cli).toContain(`--wait ${seconds}`);
+        expect(cli).toContain(`--wait ${seconds! * 1000}`);
         expect(mcp).toContain(`wait_timeout_ms=${seconds! * 1000}`);
         const json = JSON.parse((await responses(value, true)).cli);
         expect(json.progress.next).toContain(
@@ -184,7 +184,7 @@ for (const operation of ["search", "search_status"] as const) {
       // Passing undefined explicitly models an existing injected service provider.
       if (entries === undefined) delete value.progress!.indexingEstimates;
       const { cli, mcp } = await responses(value, false);
-      expect(cli).toContain("--wait 30");
+      expect(cli).toContain("--wait 30000");
       expect(mcp).toContain("wait_timeout_ms=30000");
       const json = JSON.parse((await responses(value, true)).cli);
       if (entries === undefined)

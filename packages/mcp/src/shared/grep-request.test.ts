@@ -34,7 +34,7 @@ describe("unified grep request normalization", () => {
       }),
     ).toThrow("1000");
   });
-  it("sends explicit grep defaults without inventing page or wait controls", () => {
+  it("sends the shared first-page preparation default without inventing page controls", () => {
     expect(buildGrepParams(input)).toEqual({
       targets: [{ target: "npm:express", corpus: "ALL", allowUnscoped: true }],
       pattern: "router",
@@ -42,8 +42,17 @@ describe("unified grep request normalization", () => {
       caseSensitive: true,
       contextLinesBefore: 0,
       contextLinesAfter: 0,
+      waitTimeoutMs: 30_000,
       includeDetailedFields: false,
     });
+  });
+  it("keeps continuation non-waiting and preserves an explicit zero", () => {
+    expect(buildGrepParams({ ...input, cursor: "opaque" }).waitTimeoutMs).toBe(
+      0,
+    );
+    expect(buildGrepParams({ ...input, waitTimeoutMs: 0 }).waitTimeoutMs).toBe(
+      0,
+    );
   });
   it("preserves ordered scopes, raw locators and selector bytes without expansion", () => {
     const targets = [

@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { parseAvailableArtifacts } from "../shared/available-artifacts.js";
-import { isFetchTimeoutError } from "../shared/fetch-timeout.js";
+import {
+  DEFAULT_WAIT_TIMEOUT_MS,
+  indexingRequestTimeoutMs,
+  isFetchTimeoutError,
+} from "../shared/fetch-timeout.js";
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import {
   type PkgseerGraphqlResponse,
@@ -519,6 +523,10 @@ export class ListServiceImpl implements ListService {
   ) {}
 
   async list(params: ListParams): Promise<ListResult> {
+    params = {
+      ...params,
+      waitTimeoutMs: params.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
+    };
     return withServiceDiagnostics(
       this.runtime.diagnostics,
       "list.request",
@@ -542,6 +550,9 @@ export class ListServiceImpl implements ListService {
         endpointUrl: this.endpointUrl,
         token,
         query: LIST_QUERY,
+        timeoutMs: indexingRequestTimeoutMs(
+          params.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
+        ),
         variables: buildListVariables(params),
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,

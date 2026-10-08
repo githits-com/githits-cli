@@ -180,7 +180,6 @@ export interface PreparationRetryOptions {
   syntax: "cli" | "mcp";
   waitMs: number;
   hasAfter?: boolean;
-  cliUnit?: "milliseconds" | "seconds";
 }
 
 /** Native retry copy shared by successful preparation notices and mapped errors. */
@@ -190,7 +189,7 @@ export function formatPreparationRetry(
   const argument =
     options.syntax === "mcp"
       ? `wait_timeout_ms=${options.waitMs}`
-      : `--wait ${options.cliUnit === "seconds" ? options.waitMs / 1000 : options.waitMs}`;
+      : `--wait ${options.waitMs}`;
   const cursor = options.hasAfter
     ? options.syntax === "mcp"
       ? " Leave out the after argument."

@@ -92,7 +92,7 @@ describe("buildListParams", () => {
     } satisfies ListParams);
   });
 
-  it("omits empty arrays, blank cursors, and unspecified defaults but keeps false", () => {
+  it("omits empty arrays and blank cursors, defaults the wait, and keeps false", () => {
     const result = buildListParams(
       input({
         target: " site:docs.example.test ",
@@ -108,11 +108,12 @@ describe("buildListParams", () => {
     expect(result).toEqual({
       target: " site:docs.example.test ",
       recursive: false,
+      waitTimeoutMs: 30_000,
       includeDetailedFields: false,
       includeReadActions: true,
     });
     expect(result.limit).toBeUndefined();
-    expect(result.waitTimeoutMs).toBeUndefined();
+    expect(result.waitTimeoutMs).toBe(30_000);
     expect(buildListParams(input({ after: "" })).after).toBeUndefined();
   });
 

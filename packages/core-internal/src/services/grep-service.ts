@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
-  DEFAULT_FETCH_TIMEOUT_MS,
+  DEFAULT_WAIT_TIMEOUT_MS,
+  indexingRequestTimeoutMs,
   isFetchTimeoutError,
 } from "../shared/fetch-timeout.js";
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
@@ -458,6 +459,11 @@ export class GrepServiceImpl implements GrepService {
   ) {}
 
   async grep(params: GrepParams): Promise<GrepResult> {
+    params = {
+      ...params,
+      waitTimeoutMs:
+        params.waitTimeoutMs ?? (params.cursor ? 0 : DEFAULT_WAIT_TIMEOUT_MS),
+    };
     return withServiceDiagnostics(
       this.runtime.diagnostics,
       "grep.request",
@@ -483,9 +489,8 @@ export class GrepServiceImpl implements GrepService {
         token,
         query: GRAPHQL_QUERY,
         variables: { ...controls, includeDetailedFields },
-        timeoutMs: Math.max(
-          DEFAULT_FETCH_TIMEOUT_MS,
-          (params.waitTimeoutMs ?? 0) + 30_000,
+        timeoutMs: indexingRequestTimeoutMs(
+          params.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
         ),
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,

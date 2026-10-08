@@ -37,7 +37,8 @@ fail without a literal retry.
 `-A/--after-context`, `-B/--before-context` and `-C/--context` accept 0–10.
 An explicit side overrides `-C` regardless of order. Every supplied value is
 validated without clamping. `--limit` caps the entire page (1–1,000, backend
-default 100), unlike grep/rg's per-file `-m`. `--wait` accepts 0–300,000 ms.
+default 100), unlike grep/rg's per-file `-m`. `--wait` accepts 0–300,000 ms, default 30,000 on the first page.
+Explicit zero returns without preparation wait; cursor continuation never waits.
 Empty cursors start page one; nonblank cursors remain opaque and unchanged.
 
 Repeatable `--path`, `--path-prefix` and `--glob` selectors are OR-ed within

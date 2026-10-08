@@ -1,5 +1,6 @@
 import type { GrepParams, GrepService } from "@githits/core-internal";
 import { z } from "zod";
+import { DEFAULT_WAIT_TIMEOUT_MS } from "../shared/code-navigation-defaults.js";
 import { mapGrepError } from "../shared/grep-error-map.js";
 import {
   buildGrepParams,
@@ -118,7 +119,7 @@ const schema: ZodRawShape = {
     .max(300_000)
     .optional()
     .describe(
-      "First-page preparation wait in milliseconds (default 0). Continuation never waits.",
+      `First-page preparation wait in milliseconds (default ${DEFAULT_WAIT_TIMEOUT_MS}). Continuation never waits.`,
     ),
   format: z
     .enum(["text", "json"])

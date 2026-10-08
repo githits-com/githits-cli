@@ -158,6 +158,30 @@ describe("GitHitsServiceImpl", () => {
       expect(headers.Authorization).toBe("Bearer test-token");
     });
 
+    it("classifies a stalled example body using the typed timeout error", async () => {
+      const fetchFn = mock(() =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode("partial example"));
+              },
+            }),
+          ),
+        ),
+      );
+      const client = new GitHitsServiceImpl(
+        API_URL,
+        "test-token",
+        fetchFn as unknown as typeof fetch,
+        5,
+      );
+      await expect(client.search({ query: "fixture" })).rejects.toMatchObject({
+        name: "GitHitsRequestTimeoutError",
+        timeoutMs: 5,
+      });
+    });
+
     it("forwards a caller signal and preserves its abort reason", async () => {
       const controller = new AbortController();
       const reason = new Error("caller aborted");

@@ -3,6 +3,7 @@ import type {
   GrepParams,
   GrepPathSelector,
 } from "@githits/core-internal";
+import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { InvalidArgumentError } from "./package-spec.js";
 
 const MAX_TARGETS = 20;
@@ -164,7 +165,7 @@ export function buildGrepParams(input: GrepRequestInput): GrepParams {
     contextLinesAfter: contextLinesAfter ?? 0,
     ...(maxMatches !== undefined ? { maxMatches } : {}),
     ...(cursor !== undefined ? { cursor } : {}),
-    ...(waitTimeoutMs !== undefined ? { waitTimeoutMs } : {}),
+    waitTimeoutMs: waitTimeoutMs ?? (cursor ? 0 : DEFAULT_WAIT_TIMEOUT_MS),
     includeDetailedFields: input.includeDetailedFields,
   };
 }

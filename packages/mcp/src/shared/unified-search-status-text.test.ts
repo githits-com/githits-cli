@@ -475,7 +475,7 @@ describe("pending package preparation aliases", () => {
       expect(text).not.toContain("committed");
       expect(text).not.toContain("observed HEAD");
       expect(text).toContain(
-        actionSyntax === "mcp" ? "wait_timeout_ms=80000" : "--wait 80",
+        actionSyntax === "mcp" ? "wait_timeout_ms=80000" : "--wait 80000",
       );
     }
   });

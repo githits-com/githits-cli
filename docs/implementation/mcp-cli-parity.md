@@ -246,7 +246,7 @@ test suite anchors the doc.
 - **CLI flags** use `--kebab-case`. They are the user-facing surface.
   `allow_partial_results` maps to CLI `--allow-partial` (true) and
   `--no-allow-partial` (false), preserving the shared default true.
-  `search_status.wait_timeout_ms` maps to `search-status --wait <seconds>`;
+  `search_status.wait_timeout_ms` maps to `search-status --wait <ms>`;
   both default to the shared 30-second bounded wait.
 - **Public enum values** are lowercase strings on both surfaces
   (`production`, `test`, `summary`, `all`).

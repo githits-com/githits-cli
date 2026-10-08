@@ -44,7 +44,10 @@ export type {
   ResolveTargetKind,
   ResolveTargetParams,
 } from "./services/resolve-target-service.js";
-export { FetchTimeoutError } from "./shared/fetch-timeout.js";
+export {
+  DEFAULT_WAIT_TIMEOUT_MS,
+  FetchTimeoutError,
+} from "./shared/fetch-timeout.js";
 export {
   isKnownPkgseerRegistryArg,
   PKGSEER_REGISTRY_ARGS,

@@ -19,7 +19,6 @@ import {
   InvalidPackageSpecError,
   isExactPathAuthorityError,
   looksLikeMissingFileMessage,
-  MAX_DISCOVERY_WAIT_TIMEOUT_MS,
   MAX_WAIT_TIMEOUT_MS,
   type MappedError,
   parseCodeNavigationTargetSpec,
@@ -90,7 +89,7 @@ export function resolveCliCodeNavTarget(
 export interface IndexingCliTextOptions {
   target?: string;
   operation?: string;
-  cliUnit?: "milliseconds" | "seconds";
+  maxWaitMs?: number;
 }
 
 export function formatIndexingError(
@@ -100,11 +99,7 @@ export function formatIndexingError(
   if (mapped.code !== "INDEXING") return formatMappedErrorForTerminal(mapped);
   return formatMappedErrorText(
     withIndexingRetryAction(mapped, options.operation ?? "request", "cli", {
-      maxWaitMs:
-        options.cliUnit === "seconds"
-          ? MAX_DISCOVERY_WAIT_TIMEOUT_MS
-          : MAX_WAIT_TIMEOUT_MS,
-      cliUnit: options.cliUnit,
+      maxWaitMs: options.maxWaitMs ?? MAX_WAIT_TIMEOUT_MS,
     }),
     {
       indexingTarget: options.target,

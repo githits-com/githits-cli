@@ -1,4 +1,5 @@
 import type { ListFileIntent, ListParams } from "@githits/core-internal";
+import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { InvalidArgumentError } from "./package-spec.js";
 
 const MAX_PATHS = 1000;
@@ -61,7 +62,7 @@ export interface ListRequestInput {
  * Validate raw CLI or MCP list fields and normalize them into core parameters.
  * Targets, source path selectors, and nonblank cursors retain their exact input
  * text. Site selectors accept one leading slash before the backend-relative
- * path; this builder never supplies backend defaults for page size or wait time.
+ * path; page size remains backend-owned while preparation uses the shared default.
  */
 export function buildListParams(input: ListRequestInput): ListParams {
   if (typeof input.target !== "string" || input.target.trim().length === 0) {
@@ -113,7 +114,7 @@ export function buildListParams(input: ListRequestInput): ListParams {
     ...(intents.length > 0 ? { intents } : {}),
     ...(limit !== undefined ? { limit } : {}),
     ...(after !== undefined ? { after } : {}),
-    ...(waitTimeoutMs !== undefined ? { waitTimeoutMs } : {}),
+    waitTimeoutMs: waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
     includeDetailedFields: input.includeDetailedFields,
     ...(input.includeTargetProvenance !== undefined
       ? { includeTargetProvenance: input.includeTargetProvenance }

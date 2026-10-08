@@ -148,7 +148,7 @@ export class GitHitsServiceImpl implements GitHitsService {
       this.runtime.diagnostics,
       "githits.search.request",
       async () => {
-        const response = await this.request(
+        const { response, body } = await this.request(
           "/search",
           {
             method: "POST",
@@ -167,10 +167,10 @@ export class GitHitsServiceImpl implements GitHitsService {
         );
 
         if (!response.ok) {
-          throw await this.createError(response);
+          throw this.createError(response, body);
         }
 
-        return response.text();
+        return body;
       },
     );
   }
@@ -198,7 +198,7 @@ export class GitHitsServiceImpl implements GitHitsService {
     path: string,
     init: RequestInit,
     defaultTimeoutMs: number = DEFAULT_FETCH_TIMEOUT_MS,
-  ): Promise<Response> {
+  ): Promise<{ response: Response; body: string }> {
     const apiUrl = validateServiceUrl(this.apiUrl, "GITHITS_API_URL");
     const fetchOptions = this.fetchOptions(defaultTimeoutMs);
     try {
@@ -206,6 +206,7 @@ export class GitHitsServiceImpl implements GitHitsService {
         `${apiUrl.replace(/\/+$/, "")}${path}`,
         init,
         fetchOptions,
+        async (response) => ({ response, body: await response.text() }),
       );
     } catch (cause) {
       if (isCallerAbort(cause, init.signal)) throw cause;
@@ -222,9 +223,8 @@ export class GitHitsServiceImpl implements GitHitsService {
     }
   }
 
-  private async createError(response: Response): Promise<Error> {
+  private createError(response: Response, body: string): Error {
     const status = response.status;
-    const body = await response.text().catch(() => "");
     const detail = parseHttpErrorDetail(body, ["detail"]);
     throwIfTermsAcceptanceRequired(body);
 

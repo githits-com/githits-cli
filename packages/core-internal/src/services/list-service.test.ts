@@ -347,6 +347,7 @@ describe("ListServiceImpl", () => {
       includeDetailedFields: false,
       includeTargetProvenance: true,
       includeReadActions: false,
+      waitTimeoutMs: 30_000,
     });
     expect(parseListSelection(request.query)).toEqual(expectedListSelection());
     expect(result.targetResolution).toEqual({
@@ -434,6 +435,7 @@ describe("ListServiceImpl", () => {
         includeDetailedFields: false,
         includeTargetProvenance: true,
         includeReadActions: false,
+        waitTimeoutMs: 30_000,
       });
       expect(parseListSelection(request.query)).toEqual(
         expectedListSelection(),
@@ -467,6 +469,7 @@ describe("ListServiceImpl", () => {
       includeDetailedFields: false,
       includeTargetProvenance: false,
       includeReadActions: false,
+      waitTimeoutMs: 30_000,
     });
     expect(parseListSelection(request.query)).toEqual(expectedListSelection());
     expect(result.targetResolution).toBeUndefined();
@@ -536,6 +539,7 @@ describe("ListServiceImpl", () => {
       includeDetailedFields: true,
       includeTargetProvenance: true,
       includeReadActions: true,
+      waitTimeoutMs: 30_000,
     });
     expect(parseListSelection(request.query)).toEqual(expectedListSelection());
     expect(result.targetResolution?.resolvedRequested?.committedAt).toBe(
@@ -593,6 +597,7 @@ describe("ListServiceImpl", () => {
       includeDetailedFields: false,
       includeTargetProvenance: false,
       includeReadActions: true,
+      waitTimeoutMs: 30_000,
     });
     expect(request.query).toContain(
       "read: readTarget @include(if: $includeReadActions)",
@@ -785,6 +790,7 @@ describe("ListServiceImpl", () => {
       includeDetailedFields: true,
       includeTargetProvenance: true,
       includeReadActions: true,
+      waitTimeoutMs: 30_000,
     });
     expect(parseListSelection(request.query)).toEqual(expectedListSelection());
     expect(result).toMatchObject({

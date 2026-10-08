@@ -344,7 +344,7 @@ describe("searchAction", () => {
     ).rejects.toThrow("process.exit");
 
     const output = String(errorSpy.mock.calls[0]?.[0]);
-    expect(output).toEndWith("Retry this search with --wait 30.");
+    expect(output).toEndWith("Retry this search with --wait 30000.");
     expect(output).not.toContain("idx-search");
     expect(output).not.toContain("wait_timeout_ms");
     expect(output).toContain("estimated total: 7-19s, time spent indexing: 3s");
@@ -896,6 +896,8 @@ describe("searchAction", () => {
     [{ limit: "5.5" }, "--limit"],
     [{ offset: "2.5" }, "--offset"],
     [{ wait: "1szzz" }, "--wait"],
+    [{ wait: "30s" }, "--wait"],
+    [{ wait: "30S" }, "--wait"],
   ] as const)("rejects partial numeric option %p", async (partial, flag) => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
@@ -1056,7 +1058,7 @@ describe("searchAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("No results available yet.");
     expect(output).toContain(
-      "Follow-up:\n  githits search-status search-ref-123 --wait 30",
+      "Follow-up:\n  githits search-status search-ref-123 --wait 30000",
     );
     consoleSpy.mockRestore();
   });
@@ -1169,7 +1171,7 @@ describe("searchAction", () => {
         "  indexing: code, repository docs; available: n8n.io docs (1,480 pages; capped);",
         "  indexed: versions 2.26.9, 2.26.5, 2.23.2 (+2 more), refs HEAD, master",
         "",
-        "Follow-up:\n  githits search-status n8n-search-ref --wait 30",
+        "Follow-up:\n  githits search-status n8n-search-ref --wait 30000",
       ].join("\n"),
     );
     expect(initial.match(/^No results available yet/gm)).toHaveLength(1);
@@ -1334,7 +1336,7 @@ describe("searchAction", () => {
     expect(output).not.toContain("Try: site:docs.example.com");
     expect(output).toContain("+more");
     expect(output).toContain(
-      "Follow-up:\n  githits search-status search-ref-site --wait 30",
+      "Follow-up:\n  githits search-status search-ref-site --wait 30000",
     );
     consoleSpy.mockRestore();
   });
@@ -2086,7 +2088,7 @@ describe("searchStatusAction", () => {
     expect(output.split("\n")[0]).toBe("No results available yet.");
     expect(output).not.toContain("Search search-ref-123 |");
     expect(output).toContain(
-      "Follow-up:\n  githits search-status search-ref-123 --wait 30",
+      "Follow-up:\n  githits search-status search-ref-123 --wait 30000",
     );
     consoleSpy.mockRestore();
   });
@@ -2122,7 +2124,7 @@ describe("searchStatusAction", () => {
     expect(output).toContain("- site:example.com");
     expect(output).not.toContain("Search search-ref-stale |");
     expect(output).toContain(
-      "Follow-up:\n  githits search-status search-ref-stale --wait 30",
+      "Follow-up:\n  githits search-status search-ref-stale --wait 30000",
     );
     consoleSpy.mockRestore();
   });
@@ -2182,7 +2184,7 @@ describe("searchStatusAction", () => {
     expect(output).not.toContain("Try: site:docs.example.com");
     expect(output).not.toContain("Search search-ref-site |");
     expect(output).toContain(
-      "Follow-up:\n  githits search-status search-ref-site --wait 30",
+      "Follow-up:\n  githits search-status search-ref-site --wait 30000",
     );
     consoleSpy.mockRestore();
   });
@@ -2208,7 +2210,15 @@ describe("searchStatusAction", () => {
 
     searchStatus.mockClear();
     await searchStatusAction("search-ref-wait", { wait: "45" }, deps);
-    expect(searchStatus.mock.calls[0]).toEqual(["search-ref-wait", 45_000]);
+    expect(searchStatus.mock.calls[0]).toEqual(["search-ref-wait", 45]);
+    for (const wait of ["0", "30000", "120000"]) {
+      searchStatus.mockClear();
+      await searchStatusAction("search-ref-wait", { wait }, deps);
+      expect(searchStatus.mock.calls[0]).toEqual([
+        "search-ref-wait",
+        Number(wait),
+      ]);
+    }
 
     consoleSpy.mockRestore();
   });
@@ -2221,10 +2231,10 @@ describe("searchStatusAction", () => {
 
     try {
       await expect(
-        searchStatusAction("search-ref-wait", { wait: "121" }, createDeps()),
+        searchStatusAction("search-ref-wait", { wait: "120001" }, createDeps()),
       ).rejects.toThrow("process.exit");
       expect(String(errorSpy.mock.calls[0]?.[0])).toContain(
-        "--wait expects an integer between 0 and 120. Got 121.",
+        "--wait expects an integer between 0 and 120000. Got 120001.",
       );
     } finally {
       errorSpy.mockRestore();
@@ -2285,7 +2295,7 @@ describe("searchStatusAction", () => {
     expect(output).toContain("indexed: refs master");
     expect(output).not.toContain("Search search-ref-123 |");
     expect(output).toContain(
-      "Follow-up:\n  githits search-status search-ref-123 --wait 30",
+      "Follow-up:\n  githits search-status search-ref-123 --wait 30000",
     );
     consoleSpy.mockRestore();
   });
