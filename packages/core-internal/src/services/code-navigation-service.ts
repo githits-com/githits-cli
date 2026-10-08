@@ -2756,7 +2756,7 @@ export class CodeNavigationServiceImpl
 
   async searchStatus(
     searchRef: string,
-    waitTimeoutMs = DEFAULT_WAIT_TIMEOUT_MS,
+    waitTimeoutMs: number = DEFAULT_WAIT_TIMEOUT_MS,
     options?: UnifiedSearchReadOptions,
   ): Promise<UnifiedSearchOutcome> {
     return executeWithTokenRefresh({
