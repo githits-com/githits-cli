@@ -270,7 +270,13 @@ Production implementation is complete. Internal code review found no production
 issues; corrected two retry tests that matched seconds as a substring of milliseconds
 and one current-policy documentation sentence. The bounded sibling scan preserved
 dated historical observations; the two affected test files passed (77 tests).
-External code review is pending.
+External code review round 1: direction sound, no production findings. Accepted
+minor smoke-contract finding: old seconds-shaped fixtures and a fractional retry
+regex. Changed four CLI status fixtures to integer milliseconds, made the validator
+integer-only, and added a fractional rejection test. Bounded sibling scan covered
+CLI/MCP smoke scripts and smoke test fixtures; deliberately invalid MCP CLI-syntax
+fixture remains unchanged. Removed one doubled blank in permanent docs. Round 2
+is pending.
 
 If decisions change the deadline goal or reveal an endpoint requiring backend work,
 revise the plan before implementation. At code review, reassess ownership if the
@@ -312,3 +318,9 @@ No authenticated live indexing/proxy rollout claim is made. Public CLI skill
 corrections remain release-gated and are recorded in permanent tool docs and
 independent release fragments. Historical snapshot verification using seconds
 remains historical; current CLI documentation uses milliseconds.
+
+Review-fix verification: `bun test scripts/smoke-scripts.test.ts` passed 84 tests,
+0 failures, 165 assertions. Source CLI unauthenticated smoke passed again;
+`bun run smoke:cli:built` and `bun run smoke:mcp:built` passed under Node with
+`GITHITS_ENV=dev` and inherited endpoint overrides removed. These remain
+secret-free local/auth checks. Changed-file Biome and `git diff --check` passed.

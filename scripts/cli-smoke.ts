@@ -620,7 +620,7 @@ export function assertSearchTerminalText(text: string, context: string): void {
       `${context}: status action must be in Follow-up`,
     );
     assert(
-      /^ {2}githits search-status \S+ --wait \d+(?:\.\d+)?$/.test(statusAction),
+      /^ {2}githits search-status \S+ --wait \d+$/.test(statusAction),
       `${context}: invalid native status action`,
     );
   }

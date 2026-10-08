@@ -37,7 +37,7 @@ describe("CLI search smoke contract", () => {
   indexed: versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master
 
 Follow-up:
-  githits search-status smoke-ref --wait 20`;
+  githits search-status smoke-ref --wait 20000`;
   const completedWithTargetReadiness = `No results found.
 
 - npm:express@4.18.2
@@ -52,13 +52,22 @@ Follow-up:
 
 [1] page-1 [docs page] npm:express - docs.example.com/getting-started - Getting started | API - section`;
 
+  it("rejects a fractional wait in a native status action", () => {
+    expect(() =>
+      assertSearchTerminalText(
+        valid.replace("--wait 20000", "--wait 20.5"),
+        "search",
+      ),
+    ).toThrow("invalid native status action");
+  });
+
   it("accepts outcome-first text with CLI-native actions", () => {
     expect(valid.split("\n")[0]).toBe("No results available yet.");
     expect(valid).toContain("- npm:n8n");
     expect(valid).toContain("  indexing: code, repository docs; available:");
     expect(valid).not.toContain("Search smoke-ref");
     expect(valid).toContain(
-      "Follow-up:\n  githits search-status smoke-ref --wait 20",
+      "Follow-up:\n  githits search-status smoke-ref --wait 20000",
     );
     expect(() => assertSearchTerminalText(valid, "search")).not.toThrow();
     expect(() =>
@@ -345,7 +354,7 @@ Follow-up:
     expect(() =>
       assertSearchTerminalText(
         `${valid}\nFollow-up:
-  githits search-status other --wait 20`,
+  githits search-status other --wait 20000`,
         "search",
       ),
     ).toThrow("duplicated footer section");
@@ -425,7 +434,7 @@ describe("search footer structure", () => {
   it("rejects a status command without its Follow-up section", () => {
     expect(() =>
       assertSearchTerminalText(
-        "No results available yet.\n  githits search-status ref --wait 30",
+        "No results available yet.\n  githits search-status ref --wait 30000",
         "search",
       ),
     ).toThrow("status action must be in Follow-up");

@@ -691,7 +691,6 @@ suffix is rejected by integer validation. At release preparation, update
 migration and unified grep's new default; those behavior-dependent public skills
 remain on released guidance until the release lifecycle permits updating them.
 
-
 **Uniform indexing estimates and continuation**: See [the shared contract](indexing-estimates.md) for all waiting consumers, null-singular read handoffs and the production schema prerequisite. Human annotated output also displays total duration and active elapsed evidence.
 
 Discovery behavior: Both initial `search` progress
