@@ -105,11 +105,15 @@ spelling; they do not require the MCP skill. This is guidance, not a
 host-enforced loading-order guarantee.
 The same routing guide is returned to clients that need `quick_start`.
 
-The guide's compact `pkg_upgrade_review` guidance applies to upgrades assessed
-with that tool: keep the original code and lockfile, run the original and
-upgraded apps with their respective dependencies, compare API responses,
-stored values, and side effects, include paths tests miss, and report
-unverified paths.
+The guide's compact `pkg_upgrade_review` guidance distinguishes package evidence
+from local application verification. Before upgrading, preserve original code
+and lockfile, write extra checks for affected APIs and stored data beyond
+existing test coverage, including omitted or null inputs, and save complete
+responses and side effects as a baseline. After upgrading, run the same cases
+with the new dependencies, compare status codes, response bodies, stored values,
+and side effects against that baseline, and fix unintended differences.
+Report comparisons and unverified paths. Passing existing tests does not prove
+compatibility.
 The skill and `quick_start` carry identical instructions; inspect actual
 execution when evaluating compliance.
 

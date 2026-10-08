@@ -3,4 +3,4 @@
 "@githits/mcp": patch
 ---
 
-- **Upgrade verification workflow** - The shared `githits-mcp` skill and `quick_start` routing guide now instruct agents applying upgrades assessed with `pkg_upgrade_review` to compare original and upgraded application behavior using their respective lockfiles, check paths beyond existing test coverage, and report verification gaps.
+- **Upgrade verification workflow** - The shared `githits-mcp` skill and `quick_start` routing guide now instruct dependency-upgrade agents to record a baseline of API responses, stored values, and side effects beyond existing tests before upgrading, compare after upgrading, fix unintended differences, and report verification gaps.

@@ -33,6 +33,20 @@ Choose a route, discover that tool, and read its schema for syntax and defaults.
 
 For comparisons, combine relevant package/source evidence with examples as needed.
 
+**Application dependency upgrades (`pkg_upgrade_review`)**
+
+Required local checks, beyond package evidence:
+
+1. Preserve original code and lockfile. Before upgrading, write and run extra
+   checks for affected APIs and stored data, including untested paths and
+   omitted or null inputs. Save complete responses and side effects as a baseline.
+2. Run the same cases with upgraded dependencies. Compare status codes,
+   response bodies, stored values, and side effects against the baseline;
+   fix unintended differences.
+
+Passing existing tests does not prove compatibility. Report comparisons and
+unverified paths.
+
 Public OSS only; never send local/private/proprietary source. Package/repository
 targets use `registry:name@version` and `github:owner/repo@ref`. Omit the
 suffix for the latest package version or repository default branch. Package
@@ -59,12 +73,6 @@ returned patch are needed. Package diffs include sibling paths; a bounded
 result with no package paths does not prove the package unchanged. Treat
 truncation, coverage, and safety warnings as evidence limits. Raw diffs do not
 prove compatibility; use `pkg_upgrade_review` for upgrade assessment.
-
-When applying upgrades assessed with `pkg_upgrade_review`, keep the original
-code and lockfile. Run the original and upgraded apps with their respective
-dependencies; compare API responses, stored values, and side effects locally,
-including paths tests miss. Passing tests alone does not prove compatibility;
-report comparisons and unverified paths.
 
 For `grep`, copy a file/page header's read locator and use its matched line
 numbers when more context is needed. Counts cover one page; follow continuation
