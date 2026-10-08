@@ -168,8 +168,7 @@ snapshot/cache infrastructure. It does not keep callable MCP aliases for
 
 ## Target contract
 
-The original wait/default contract below is superseded by
-[unified indexing timeouts](unified-indexing-timeouts.md) and the current
+The original wait/default contract below is superseded by the current
 [tool documentation](../implementation/tools.md): indexing waits default to
 30000 ms and all CLI wait options use milliseconds.
 

@@ -683,6 +683,23 @@ so expiry maps to `TIMEOUT` rather than malformed JSON or `UNKNOWN`. Research,
 example generation, auth, settings, and local probes keep their independent
 existing durations.
 
+The timeout audit also covers surfaces without indexing-wait fields. Their
+existing deadlines remain independent of the 30,000 ms readiness default:
+
+| Surface | Default client deadline |
+| --- | --- |
+| Resolve, package info/vulnerabilities/dependencies/upgrade review/changelog, legacy docs list/read, and code diff | 120000 ms per GraphQL request |
+| Example generation | 240000 ms per REST request |
+| Research | 210000 ms for the whole operation, including body reads and token refresh |
+| Auth and network settings | 120000 ms per HTTP request |
+| Login callback | 300000 ms |
+| Update check | 1000 ms metadata request |
+
+Init probes and auth locks retain their separate local budgets. Local-only
+commands and branches gain no network calls. Backend-internal preparation on
+surfaces without wait fields is unverified; the client does not invent indexing
+controls for them.
+
 **CLI migration**: search/search-status previously interpreted numeric `--wait`
 values as seconds. They now use milliseconds like the other commands: replace
 `--wait 30` or `--wait 30s` with `--wait 30000` for a 30-second wait. The old `s`
