@@ -103,30 +103,30 @@
     "access": "public"
   },
   "dependencies": {
-    "@inquirer/checkbox": "5.2.1",
-    "@inquirer/confirm": "6.1.1",
-    "@inquirer/core": "11.2.1",
-    "@inquirer/select": "5.2.1",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "@napi-rs/keyring": "^2.0.0",
-    "commander": "15.0.0",
+    "@inquirer/checkbox": "5.2.6",
+    "@inquirer/confirm": "6.3.3",
+    "@inquirer/core": "12.0.4",
+    "@inquirer/select": "5.2.6",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@napi-rs/keyring": "^2.1.0",
+    "commander": "14.0.3",
     "fast-string-width": "^3.0.2",
     "jsonc-parser": "^3.3.1",
-    "open": "^11.0.0",
+    "open": "^11.0.4",
     "semver": "7.8.5",
-    "smol-toml": "^1.6.1",
-    "undici": "7.29.0",
-    "yaml": "^2.9.0",
-    "zod": "^4.4.3"
+    "smol-toml": "^1.9.0",
+    "undici": "7.30.0",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.6",
-    "@types/bun": "latest",
-    "@types/semver": "^7.7.1",
-    "braintrust": "3.29.0",
+    "@biomejs/biome": "2.5.15",
+    "@types/bun": "1.4.2",
+    "@types/semver": "^7.8.0",
+    "braintrust": "3.37.0",
     "bunup": "^0.16.32",
     "husky": "^9.1.7",
-    "lint-staged": "17.3.0",
+    "lint-staged": "17.5.1",
     "typescript": "^7.0.2"
   }
 }

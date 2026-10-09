@@ -1,7 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
+import { subset } from "semver";
 import { parse as parseYaml } from "yaml";
 
 async function readJson<T>(path: string): Promise<T> {
@@ -11,6 +13,7 @@ async function readJson<T>(path: string): Promise<T> {
 interface PackageJson {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+  engines: { node: string };
   exports?: unknown;
   name: string;
   optionalDependencies?: Record<string, string>;
@@ -52,6 +55,20 @@ function allDependencyNames(packageJson: PackageJson): Set<string> {
 }
 
 describe("package release boundaries", () => {
+  it("uses a Commander release supporting every advertised CLI Node version", async () => {
+    const rootPackage = await readJson<PackageJson>(
+      join(import.meta.dir, "..", "package.json"),
+    );
+    const require = createRequire(import.meta.url);
+    const commanderPackage = await readJson<PackageJson>(
+      join(dirname(require.resolve("commander")), "package.json"),
+    );
+
+    expect(
+      subset(rootPackage.engines.node, commanderPackage.engines.node),
+    ).toBe(true);
+  });
+
   it("documents the current public package versions across changelog line endings", async () => {
     const root = join(import.meta.dir, "..");
     const rootPackage = await readJson<PackageJson>(join(root, "package.json"));

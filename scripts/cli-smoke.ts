@@ -2118,7 +2118,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "unified grep source text",
   );
   assert(
-    grepText.includes("1 match in 1 line across 1 file") &&
+    grepText.includes("Found 1 match on 1 line in 1 file.") &&
       grepText.includes("Sources:") &&
       grepText
         .split("\n")
