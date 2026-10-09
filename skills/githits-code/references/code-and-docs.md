@@ -47,7 +47,7 @@ Search returns partial results by default so ready sources contribute while othe
 
 `--path-prefix` filters code results only. Omit it for `--source docs`, `--source symbol`, and standalone site searches. Use it with `--source code` on a package/repository, or with automatic source selection that includes a package/repository.
 
-Use returned hits for ordinary lookup now when they are sufficient, or read a linked file using its emitted target and range. If updated results matter and search returns a `searchRef`, continue with `githits search-status <searchRef> [--wait <seconds>]` only when the output explicitly supplies that active follow-up (`PENDING`, `INDEXING`, or `SEARCHING`). Use the wait in the rendered continuation; `--wait <seconds>` accepts an integer, and `githits search-status --help` gives the installed version's default and limit. Completed references are stored; terminal `DEFERRED`, `TIMEOUT`, or `FAILED` progress, and unrecognized statuses, do not advance: keep any disclosed evidence, do not poll the same reference, and follow the rendered new-search action.
+Use returned hits for ordinary lookup now when they are sufficient, or read a linked file using its emitted target and range. If updated results matter and search returns a `searchRef`, continue with `githits search-status <searchRef> [--wait <ms>]` only when the output explicitly supplies that active follow-up (`PENDING`, `INDEXING`, or `SEARCHING`). Use the wait in the rendered continuation; `--wait <ms>` accepts an integer from 0 to 120000 (default 30000) for search and search-status. Replace former `--wait 30` or `--wait 30s` with `--wait 30000` for 30 seconds; seconds suffixes are no longer accepted. Completed references are stored; terminal `DEFERRED`, `TIMEOUT`, or `FAILED` progress, and unrecognized statuses, do not advance: keep any disclosed evidence, do not poll the same reference, and follow the rendered new-search action.
 
 Stale or provisional evidence remains queryable while refresh or indexing
 continues. Treat the displayed served target as exact provenance and follow a
@@ -64,7 +64,7 @@ If a missing or ambiguous site returns suggested site targets, retry one of thos
 
 `githits list <target> [paths...]` browses one package source tree, repository snapshot, or explicit `site:<host[/path]>` inventory. Package/repository inventories include local documentation files; hosted documentation requires a site target. Quote glob selectors so the shell does not expand them. Add `--recursive` to traverse matched directories.
 
-Useful flags: repeatable `--file-type`, `--language`, `--intent`, `--limit` (1-500), `--after`, `--wait` (milliseconds, 0-300000), `--silent`, `--json`. Text lists paths with direct read guidance; `--silent` emits paths only. JSON retains read/browse actions, lifecycle metadata, and `nextCursor`. Continue by replaying the same selection with the returned opaque cursor. Prefer exact emitted read actions to reconstructed locators.
+Useful flags: repeatable `--file-type`, `--language`, `--intent`, `--limit` (1-500), `--after`, `--wait` (milliseconds, 0-300000; default 30000), `--silent`, `--json`. Text lists paths with direct read guidance; `--silent` emits paths only. JSON retains read/browse actions, lifecycle metadata, and `nextCursor`. Continue by replaying the same selection with the returned opaque cursor. Prefer exact emitted read actions to reconstructed locators.
 
 `--file-type` selects classifications such as `source` or `doc`; select file extensions with a quoted path glob such as `'lib/**/*.js'`. File-type and language names are case-insensitive, so `--language JavaScript` and `--language javascript` select the same source language.
 
@@ -110,7 +110,8 @@ locators; copy the target and optional path and use `read --lines` for more
 context. Counts describe the returned page. Continue only when needed with
 `--cursor` and the same ordered targets, pattern, and matching controls.
 `--limit` is a global page cap (1-1000), and `--wait` is a first-page
-preparation wait in milliseconds (0-300000; default 0).
+preparation wait in milliseconds (0-300000; default 30000). Cursor
+continuation never waits; explicit `--wait 0` skips first-page preparation.
 
 When no matches are found, change the pattern, broaden the file scope, or use
 `search` for topic discovery; do not repeat the same call.

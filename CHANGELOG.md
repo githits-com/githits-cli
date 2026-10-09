@@ -5,6 +5,87 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.28.0] - 2026-10-09
+
+Pre-1.0 minor release with breaking wait behavior. Search and search-status
+`--wait` values now use integer milliseconds: replace `--wait 30` or
+`--wait 30s` with `--wait 30000` for 30 seconds. Seconds suffixes are no longer
+accepted. Omitted indexing waits default to 30000 ms; use explicit zero for
+non-waiting requests. Hosted clients receive MCP changes after adoption and
+deployment of the released MCP package.
+
+### Added
+
+- **Portable upgrade scorer** - Repository eval tooling compares a local Python
+  dependency-upgrade candidate against its original source and lockfile using
+  original tests and an independent probe, with documented setup and optional
+  scenario-specific attribution rules.
+
+### Changed
+
+- **CLI wait units** - Search and search-status use milliseconds, matching other
+  wait-bearing commands and emitted retry actions. Public CLI code guidance
+  documents the migration and grep's new 30000 ms first-page default.
+
+- **Shorter, sectioned GitHits guide** - The MCP skill and `quick_start` share a
+  shorter guide for tool choice, workflow, targets, results, dependency upgrades,
+  and external content. Selected tool descriptions retain per-tool mechanics.
+  Guidance states the private-input boundary directly.
+
+- **Upgrade verification workflow** - Required local before-and-after checks
+  appear directly after tool selection in MCP guidance; CLI package guidance
+  carries the same local checks. Agents preserve original source and
+  lockfiles, record API responses, stored values and side effects beyond
+  existing tests, compare after upgrading, fix unintended differences, and
+  report verification gaps.
+
+### Fixed
+
+- **Consistent indexing waits and timeout errors** - Search/status, read, list,
+  grep, and direct service clients default preparation waits to 30000 ms,
+  including direct `searchStatus`, whose omitted wait previously used zero.
+  Explicit zero and non-waiting grep cursor continuation are preserved. Longer
+  waits receive HTTP headroom; GraphQL and example response-body expiry is
+  classified as `TIMEOUT`.
+
+### Security
+
+- **CLI dependency security and compatibility** - Refresh runtime dependencies
+  to address known direct and transitive advisories, and use maintained
+  Commander 14 to preserve the advertised Node 20 support.
+
+- **Workflow permissions** - CI and package-release workflows default to no
+  token permissions and grant required access per job, preserving manual MCP
+  publishing and validation.
+
+## [@githits/mcp 0.28.0] - 2026-10-09
+
+Pre-1.0 minor release with changed default wait behavior. Omitted indexing
+preparation waits use 30000 ms, including direct `searchStatus`, whose omitted
+wait previously used zero. Use explicit zero for non-waiting requests. Hosted
+clients require adoption and deployment of this package.
+
+### Changed
+
+- **Shorter, sectioned GitHits guide** - The MCP skill and `quick_start` share a
+  shorter guide for tool choice, workflow, targets, results, dependency upgrades,
+  and external content. Selected tool descriptions retain per-tool mechanics.
+  Guidance states the private-input boundary directly.
+
+- **Upgrade verification workflow** - Required local before-and-after checks
+  appear directly after tool selection. Agents preserve original source and
+  lockfiles, record API responses, stored values and side effects beyond
+  existing tests, compare after upgrading, fix unintended differences, and
+  report verification gaps.
+
+### Fixed
+
+- **Consistent indexing waits and timeout errors** - Search/status, read, list,
+  grep, and direct service clients default preparation waits to 30000 ms.
+  Explicit zero and non-waiting grep cursor continuation are preserved. Longer
+  waits receive HTTP headroom; GraphQL and example response-body expiry is
+  classified as `TIMEOUT`.
+
 ## [githits 0.27.1] - 2026-10-07
 
 Patch release. Hosted clients receive the MCP changes after adoption and

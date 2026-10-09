@@ -46,6 +46,20 @@ githits pkg upgrade-review npm:zod@4.3.6 --to 4.4.3
 githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0
 ```
 
+## Dependency Upgrades
+
+When performing an upgrade, package evidence does not replace local checks:
+
+1. Preserve original source and lockfiles. Before upgrading, write and run
+   checks for affected APIs and stored data, including untested paths and
+   omitted or null inputs. Save complete responses and side effects as a
+   baseline.
+2. Run the same cases after upgrading. Compare status codes, response bodies,
+   stored values, and side effects; fix unintended differences.
+
+Passing existing tests does not prove compatibility. Report the comparisons
+and unverified paths.
+
 ## Decision Flow
 
 - Need a canonical target for an OSS dependency name: use `githits resolve "<name>"`; skip resolution for known canonical targets. Reuse only an unambiguous EXACT/HIGH best with CLEAR or NOT_APPLICABLE malicious-content status. Other or missing statuses are non-actionable; narrow or explicitly choose an actionable candidate for MEDIUM/LOW or ambiguity. Never auto-select, and do not treat CLEAR as vulnerability-free. A selected `site:` is docs-only.
