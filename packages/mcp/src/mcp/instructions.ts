@@ -31,6 +31,22 @@ Match the question, then discover that tool and read its schema before calling.
 | Find canonical implementation examples across projects | \`get_example\` |
 | Check progress of an earlier search reference | \`search_status\` |
 
+## Dependency upgrades
+
+Required local checks, beyond package evidence from \`pkg_upgrade_review\`,
+\`pkg_changelog\`, or \`code_diff\`:
+
+1. Preserve original code and lockfile. Before upgrading, write and run extra
+   checks for affected APIs and stored data, including untested paths and
+   omitted or null inputs. Save complete responses and side effects as a
+   baseline.
+2. Run the same cases with upgraded dependencies. Compare status codes,
+   response bodies, stored values, and side effects against the baseline;
+   fix unintended differences.
+
+Passing existing tests does not prove compatibility. Report comparisons and
+unverified paths.
+
 ## Workflow
 
 1. Target: use a known canonical target directly. For a bare name, call
@@ -71,22 +87,7 @@ Match the question, then discover that tool and read its schema before calling.
   indexing, use the displayed estimate to wait longer or pick a listed
   already-indexed version or ref.
 - Cite tool-owned provenance, including example source repositories, and
-  report coverage, truncation, and other evidence limits.
-
-## Dependency upgrades
-
-\`pkg_upgrade_review\`, \`pkg_changelog\`, and \`code_diff\` supply package
-evidence only. Neither they nor passing existing tests prove the application
-still works. Run these local checks:
-
-1. Preserve original code and lockfile. Before upgrading, write and run extra
-   checks for affected APIs and stored data, including untested paths and
-   omitted or null inputs. Save complete responses and side effects as a
-   baseline.
-2. Run the same cases with upgraded dependencies. Compare status codes,
-   response bodies, stored values, and side effects against the baseline;
-   fix unintended differences.
-3. Report the comparisons and unverified paths.`;
+  report coverage, truncation, and other evidence limits.`;
 
 /**
  * Build the guide returned by `quick_start` and published as the skill body.

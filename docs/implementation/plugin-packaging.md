@@ -101,10 +101,10 @@ The guide is token-budgeted and owns only what no single descriptor owns:
 | --- | --- |
 | `# GitHits` | Purpose, private-input boundary, skill/`quick_start` equivalence |
 | `## Choose a tool` | Question-to-tool table covering every stable evidence tool |
+| `## Dependency upgrades` | Local verification beyond package evidence and existing tests |
 | `## Workflow` | Target, locate, read, combine; the hosted-docs hand-off between tools |
 | `## Targets` | Canonical package, repository, and site target conventions |
 | `## Results` | Text versus JSON, evidence reuse, continuation, waits, citation and limits |
-| `## Dependency upgrades` | Local verification beyond package evidence and existing tests |
 | `## External-content posture` | Shared untrusted-content block from `guardrails.ts` |
 
 Each selected descriptor plus schema remains self-sufficient for its distinct
