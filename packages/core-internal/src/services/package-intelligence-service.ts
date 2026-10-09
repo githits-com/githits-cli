@@ -242,6 +242,8 @@ export interface PackageUpgradeReviewPackageParams {
 }
 
 export interface PackageUpgradeReviewParams {
+  /** Select complete statement text only when the caller consumes it. */
+  includeChangelogFullText?: boolean;
   packages: PackageUpgradeReviewPackageParams[];
   includeTransitiveSecurity: boolean;
   includeDependencyIssues: boolean;
@@ -311,6 +313,7 @@ export interface PackageUpgradeSecurity {
 }
 
 export interface PackageUpgradeChangelogEntry {
+  detailSource?: string;
   version?: string;
   publishedAt?: string;
   htmlUrl?: string;
@@ -320,7 +323,45 @@ export interface PackageUpgradeChangelogEntry {
   signals: string[];
 }
 
+/** Backend model labels for one release-note statement, never a package verdict. */
+export interface PackageUpgradeChangelogRiskItem {
+  version: string;
+  tier: "MUST_ACT" | "SHOULD_KNOW" | "UNCLASSIFIED";
+  /** Backend ambiguity policy; confidence is evidence, not a client threshold. */
+  ambiguous: boolean;
+  tierConfidence?: number;
+  kind?: string;
+  kindConfidence?: number;
+  text: string;
+  textTruncated: boolean;
+  /** Complete statement, present only when selected. */
+  fullText?: string;
+  /** Exact backend source locator, independent of sampled entries. */
+  url?: string;
+  heading?: string;
+  source?: string;
+  model: string;
+  formulation: string;
+}
+
+export interface PackageUpgradeChangelogRiskCoverage {
+  versionsClassified: number;
+  versionsNotAssessed: number;
+  versionsWithoutNotes: number;
+  versionsUnparseable: number;
+  unitsNoImpact: number;
+  /** Statement totals before the per-review cap, separated by backend ambiguity. */
+  itemsMustActConfident: number;
+  itemsMustActAmbiguous: number;
+  itemsShouldKnowConfident: number;
+  itemsShouldKnowAmbiguous: number;
+  itemsUnclassified: number;
+  itemsOmitted: number;
+}
+
 export interface PackageUpgradeChangelog {
+  riskItems: PackageUpgradeChangelogRiskItem[];
+  riskCoverage: PackageUpgradeChangelogRiskCoverage;
   source?: string;
   fallback?: string;
   entries: PackageUpgradeChangelogEntry[];
@@ -1975,6 +2016,7 @@ const packageUpgradeSecuritySchema = z.object({
 });
 
 const packageUpgradeChangelogEntrySchema = z.object({
+  detailSource: z.string().nullable(),
   version: z.string().nullable().optional(),
   publishedAt: z.string().nullable().optional(),
   htmlUrl: z.string().nullable().optional(),
@@ -1984,7 +2026,50 @@ const packageUpgradeChangelogEntrySchema = z.object({
   signals: z.array(z.string()),
 });
 
+const packageUpgradeChangelogRiskItemSchema = z.object({
+  version: z.string(),
+  tier: z.enum(["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"]),
+  ambiguous: z.boolean(),
+  tierConfidence: z.number().min(0).max(1).nullable(),
+  kind: z
+    .enum([
+      "REMOVES_OR_RENAMES_API",
+      "CHANGES_BEHAVIOR_OR_DEFAULT",
+      "RAISES_RUNTIME_OR_PLATFORM_REQUIREMENT",
+      "CHANGES_PACKAGING_OR_MODULE_FORMAT",
+      "DEPRECATES_WITHOUT_REMOVAL",
+      "SECURITY_FIX",
+      "NOTABLE_CHANGE",
+    ])
+    .nullable(),
+  kindConfidence: z.number().min(0).max(1).nullable(),
+  text: z.string(),
+  textTruncated: z.boolean(),
+  fullText: z.string().optional(),
+  url: z.string().nullable(),
+  heading: z.string().nullable(),
+  source: z.string().nullable(),
+  model: z.string(),
+  formulation: z.string(),
+});
+
+const packageUpgradeChangelogRiskCoverageSchema = z.object({
+  versionsClassified: z.number().int(),
+  versionsNotAssessed: z.number().int(),
+  versionsWithoutNotes: z.number().int(),
+  versionsUnparseable: z.number().int(),
+  unitsNoImpact: z.number().int(),
+  itemsMustActConfident: z.number().int(),
+  itemsMustActAmbiguous: z.number().int(),
+  itemsShouldKnowConfident: z.number().int(),
+  itemsShouldKnowAmbiguous: z.number().int(),
+  itemsUnclassified: z.number().int(),
+  itemsOmitted: z.number().int(),
+});
+
 const packageUpgradeChangelogSchema = z.object({
+  riskItems: z.array(packageUpgradeChangelogRiskItemSchema),
+  riskCoverage: packageUpgradeChangelogRiskCoverageSchema,
   source: z.string().nullable().optional(),
   fallback: z.string().nullable().optional(),
   entries: z.array(packageUpgradeChangelogEntrySchema),
@@ -2084,6 +2169,7 @@ const packageUpgradeReviewGraphQLResponseSchema = z.object({
 
 const PACKAGE_UPGRADE_REVIEW_QUERY = `
 query PackageUpgradeReview(
+  $includeChangelogFullText: Boolean!
   $packages: [PackageUpgradeReviewPackageInput!]!
   $includeTransitiveSecurity: Boolean!
   $includeDependencyIssues: Boolean!
@@ -2173,6 +2259,35 @@ query PackageUpgradeReview(
         }
       }
       changelog {
+        riskItems {
+          version
+          tier
+          ambiguous
+          tierConfidence
+          kind
+          kindConfidence
+          text
+          textTruncated
+          fullText @include(if: $includeChangelogFullText)
+          url
+          heading
+          source
+          model
+          formulation
+        }
+        riskCoverage {
+          versionsClassified
+          versionsNotAssessed
+          versionsWithoutNotes
+          versionsUnparseable
+          unitsNoImpact
+          itemsMustActConfident
+          itemsMustActAmbiguous
+          itemsShouldKnowConfident
+          itemsShouldKnowAmbiguous
+          itemsUnclassified
+          itemsOmitted
+        }
         source
         fallback
         entries {
@@ -2243,6 +2358,7 @@ fragment PackageUpgradeTransitivePackagePageFields on PackageUpgradeTransitivePa
 }
 
 fragment PackageUpgradeChangelogEntryFields on PackageUpgradeChangelogEntry {
+  detailSource
   version
   publishedAt
   htmlUrl
@@ -3262,6 +3378,7 @@ export class PackageIntelligenceServiceImpl
         token,
         query: PACKAGE_UPGRADE_REVIEW_QUERY,
         variables: {
+          includeChangelogFullText: params.includeChangelogFullText === true,
           packages: params.packages,
           includeTransitiveSecurity: params.includeTransitiveSecurity,
           includeDependencyIssues: params.includeDependencyIssues,

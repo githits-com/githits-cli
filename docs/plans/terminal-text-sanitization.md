@@ -224,3 +224,5 @@ After PR 1 ships, transfer its durable trust-boundary rules to implementation
 documentation, update this file with evidence needed to scope the next slice,
 and remove completed PR 1 implementation detail. Delete this plan when all
 retained work has moved to implementation documentation or a fresh active plan.
+
+Upgrade-review version-grouped quotes, headings, keyword evidence and source locators are sanitized by the risk-items increment and its UX revision. Classifier provenance stays in JSON. Existing non-changelog upgrade-review evidence remains in this plan's scope.

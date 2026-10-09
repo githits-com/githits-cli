@@ -2002,6 +2002,13 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "pkg upgrade-review terminal leaked assessment language",
   );
 
+  assert(
+    upgradeReviewText.includes("Classification versions:") &&
+      upgradeReviewText.includes("labeled no impact") &&
+      upgradeReviewText.includes("Not a compatibility verdict."),
+    "pkg upgrade-review text missing classification coverage or trust limit",
+  );
+
   const upgradeReviewJson = assertJsonOutput(
     await runCli([
       "pkg",
@@ -2024,6 +2031,48 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     | Record<string, unknown>
     | undefined;
   assert(firstUpgradeReview, "pkg upgrade-review json missing first review");
+  assertRecord(firstUpgradeReview.changelog, "pkg upgrade-review changelog");
+  assert(
+    Array.isArray(firstUpgradeReview.changelog.riskItems),
+    "pkg upgrade-review missing riskItems",
+  );
+  for (const item of firstUpgradeReview.changelog.riskItems) {
+    assertRecord(item, "pkg upgrade-review risk item");
+    assert(
+      typeof item.ambiguous === "boolean",
+      "pkg upgrade-review missing item ambiguous flag",
+    );
+    assert(
+      typeof item.fullText === "string",
+      "pkg upgrade-review missing item fullText",
+    );
+    assert(
+      item.url === undefined || typeof item.url === "string",
+      "pkg upgrade-review invalid item URL",
+    );
+  }
+  assertRecord(
+    firstUpgradeReview.changelog.riskCoverage,
+    "pkg upgrade-review riskCoverage",
+  );
+  for (const counter of [
+    "versionsClassified",
+    "versionsNotAssessed",
+    "versionsWithoutNotes",
+    "versionsUnparseable",
+    "unitsNoImpact",
+    "itemsMustActConfident",
+    "itemsMustActAmbiguous",
+    "itemsShouldKnowConfident",
+    "itemsShouldKnowAmbiguous",
+    "itemsUnclassified",
+    "itemsOmitted",
+  ]) {
+    assert(
+      typeof firstUpgradeReview.changelog.riskCoverage[counter] === "number",
+      `pkg upgrade-review missing coverage counter ${counter}`,
+    );
+  }
   for (const forbidden of [
     "risk",
     "riskLevel",

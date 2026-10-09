@@ -1392,7 +1392,10 @@ function smokeResponse(
           "  Direct: 0 affected -> 0 affected | 0 fixed | 0 added | 0 still present\n" +
           "  Transitive: not checked\n\n" +
           "Changes\n" +
-          "  Repository releases | 1 entry | 1 with release notes",
+          "  Repository releases | 1 entry | 1 with release notes\n" +
+          "  Classification versions: 1 classified | 0 not assessed | 0 without notes | 0 unparseable\n" +
+          "  Statements: 0 returned | 1 labeled no impact\n" +
+          "  Classified by a model. Not a compatibility verdict.",
       );
     case "list":
       return textResult(smokeListText(args));
@@ -1552,7 +1555,41 @@ function smokeJsonResponse(
       }
       return jsonResult({ entries: {} });
     case "pkg_upgrade_review":
-      return jsonResult({ summary: {}, reviews: [{}] });
+      return jsonResult({
+        summary: {},
+        reviews: [
+          {
+            changelog: {
+              riskItems: [
+                {
+                  version: "5.0.0",
+                  tier: "must_act",
+                  ambiguous: false,
+                  text: "Removed an API.",
+                  textTruncated: false,
+                  fullText: "Removed an API.",
+                  url: "https://example.com/releases/v5.0.0",
+                  model: "jev-1.13.0",
+                  formulation: "s-hier-v3",
+                },
+              ],
+              riskCoverage: {
+                versionsClassified: 1,
+                versionsNotAssessed: 0,
+                versionsWithoutNotes: 0,
+                versionsUnparseable: 0,
+                unitsNoImpact: 1,
+                itemsMustActConfident: 1,
+                itemsMustActAmbiguous: 0,
+                itemsShouldKnowConfident: 0,
+                itemsShouldKnowAmbiguous: 0,
+                itemsUnclassified: 0,
+                itemsOmitted: 0,
+              },
+            },
+          },
+        ],
+      });
     case "list":
       return jsonResult(smokeListResult(args));
     case "read": {
