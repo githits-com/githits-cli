@@ -29,10 +29,10 @@ describe("buildMcpQuickStart", () => {
     expect(headings).toEqual([
       "# GitHits",
       "## Choose a tool",
+      "## Dependency upgrades",
       "## Workflow",
       "## Targets",
       "## Results",
-      "## Dependency upgrades",
       "## External-content posture",
     ]);
     expect(guide).not.toMatch(/public OSS/i);
@@ -71,7 +71,8 @@ describe("buildMcpQuickStart", () => {
       "`site:` target or page URL from a `[docs page]` hit",
       "`read` never lists directories",
       "support behavioral claims with source, tests, or call sites",
-      "Neither they nor passing existing tests prove the application still works",
+      "Required local checks, beyond package evidence",
+      "Passing existing tests does not prove compatibility",
     ]) {
       expect(guide).toContain(phrase);
     }
