@@ -1,14 +1,24 @@
 import { EXTERNAL_CONTENT_POSTURE } from "../tools/guardrails.js";
 
-/** Shared routing guide; selected descriptions and schemas own call mechanics. */
-const ROUTING_GUIDE = `# GitHits routing guide
+/**
+ * Shared guide: cross-tool workflow and conventions that no single tool
+ * description owns. Selected descriptions and schemas own call mechanics.
+ */
+const GUIDE = `# GitHits
 
-Choose a route, discover that tool, and read its schema for syntax and defaults.
+GitHits answers questions about open-source code, documentation, and packages.
+Inputs leave this machine: never send private code, local paths, credentials,
+or personal data. This guide is both the \`githits-mcp\` skill and the
+\`quick_start\` result; once either is loaded, do not call \`quick_start\`.
 
-| Question | Tool to discover |
+## Choose a tool
+
+Match the question, then discover that tool and read its schema before calling.
+
+| Question | Tool |
 | --- | --- |
 | Identify the package, repository, or docs site for an OSS dependency | \`resolve_target\` |
-| Find a known regex or literal in public source or documentation | \`grep\` |
+| Find a known regex or literal in source or documentation | \`grep\` |
 | Find relevant source, symbols, tests, or documentation for a topic | \`search\` |
 | Browse files or documentation pages in a known package, repository, or site | \`list\` |
 | Read a source file, code symbol, or documentation section | \`read\` |
@@ -21,85 +31,65 @@ Choose a route, discover that tool, and read its schema for syntax and defaults.
 | Find canonical implementation examples across projects | \`get_example\` |
 | Check progress of an earlier search reference | \`search_status\` |
 
-For comparisons, combine relevant package/source evidence with examples as needed.
+## Workflow
 
-Public OSS only; never send local/private/proprietary source. Package/repository
-targets use \`registry:name@version\` and \`github:owner/repo@ref\`. Omit the
-suffix for the latest package version or repository default branch. Package
-targets scope to the package subpath, including in monorepos, except for raw
-\`code_diff\` comparisons, which are repository-wide. Swift uses
-\`swift:github.com/<owner>/<repo>\`, Zig \`zig:gh/<owner>/<repo>\`.
-Use public repository targets for full repositories or sibling packages:
-\`github:\`, \`codeberg:\`, \`gitlab:\`, or a supported full URL. Never infer a provider.
-A ref may be a branch, tag, or commit and contain later \`@\`; \`#\` is for
-semantic fragments, not revisions.
+1. Target: use a known canonical target directly. For a bare name, call
+   \`resolve_target\` and follow its continuation rules; never auto-select an
+   ambiguous candidate.
+2. Locate: \`search\` by topic, \`grep\` for exact text, \`list\` for structure
+   or an exact path. Hosted docs are a separate \`site:\` target that listing a
+   package does not discover: search the package with \`source:"docs"\`, then
+   reuse the \`site:\` target or page URL from a \`[docs page]\` hit.
+3. Read: use snippets when sufficient; otherwise \`read\` focused lines at the
+   returned locators. \`read\` never lists directories.
+4. Combine: support behavioral claims with source, tests, or call sites; add
+   \`get_example\` evidence for comparisons and cross-project patterns.
 
-\`resolve_target\` identifies canonical candidates for an OSS dependency name
-before evidence lookup; skip known canonical targets. Follow its continuation:
-only an unambiguous EXACT/HIGH best with CLEAR or NOT_APPLICABLE malicious-content
-status allows direct reuse. Other or missing statuses are non-actionable; CLEAR
-is not a vulnerability-free claim. For MEDIUM/LOW or ambiguity, narrow or
-explicitly choose an actionable candidate; never auto-select. A selected \`site:\` is docs-only: use
-\`list\` to browse or \`search\` with \`source:"docs"\`.
+## Targets
 
-For \`code_diff\`, pass an unversioned target and separate \`from\`/\`to\`
-versions or refs. Start with default \`name-status\`; use \`stat\` for magnitude
-or a scoped \`patch\` for content. Keep text unless required fields or the full
-returned patch are needed. Package diffs include sibling paths; a bounded
-result with no package paths does not prove the package unchanged. Treat
-truncation, coverage, and safety warnings as evidence limits. Raw diffs do not
-prove compatibility; use \`pkg_upgrade_review\` for upgrade assessment.
+- Packages: \`registry:name@version\`; Swift \`swift:github.com/<owner>/<repo>\`,
+  Zig \`zig:gh/<owner>/<repo>\`. A package target covers its package subpath,
+  including in monorepos.
+- Repositories: \`github:owner/repo@ref\`, \`codeberg:\`, \`gitlab:\`, or a
+  supported full URL, for whole repositories or sibling packages. Never infer
+  a provider.
+- Docs sites: \`site:host[/path]\`.
+- Omit the suffix for the latest package version or default branch. A ref may
+  be a branch, tag, or commit and may contain later \`@\`; \`#\` selects a
+  symbol or heading, never a revision.
 
-For \`grep\`, copy a file/page header's read locator and use its matched line
-numbers when more context is needed. Counts cover one page; follow continuation
-only as needed.
+## Results
 
-\`list\` is for a known target when you need its structure or an exact path;
-use \`search\` for content by topic. A package target covers its own source tree,
-while a repository target covers the whole snapshot; both include source and
-documentation. Hosted docs use a separate explicit \`site:\` inventory that
-\`list\` does not discover. For hosted package docs, search the package with
-\`source:"docs"\`, then pass the explicit \`site:\` target from a \`[docs page]\`
-search header to \`list\`. Use snippets when sufficient; otherwise pass the
-returned HTTP(S) page target unchanged to \`read\`. A \`site:\` read requires a
-separate exact page \`path\`. For an exact section or bounds, request search JSON
-and replay its \`followUp\` unchanged, including supplied \`selector\` and bounds.
-For \`list\` text, pair a listed path with the shared read target in its header
-when present; a full URL row is its own read target. A site row without a
-trailing \`/\` is a page path even if its source URL ended in \`/\`; \`/\` itself
-is the site's landing page. Use JSON for exact entry kinds and per-entry
-\`read\` actions. Keep emitted \`site:\` read paths paired with their returned
-target. For \`list\`, the required target sets the site scope; selectors with
-or without one leading \`/\` stay within it.
-Hosted/crawled HTTP(S) docs locators address mutable current content.
-A direct HTTP(S) docs fragment read without explicit bounds returns its heading
-and full subtree through the next equal-or-higher heading.
-Repository docs are snapshot-addressed and keep returned ranges. When composing
-a direct \`read\`, add bounds only to intentionally select a current page range.
-For source, locate paths or matches, then read focused lines; never probe
-directories with \`read\`. Prefer source, symbols, tests, and call sites for
-behavioral claims.
-When the exact indexed code symbol or docs heading ID is known, pass it as
-\`selector\` to \`read\`; an optional exact \`path\` narrows code symbol lookup.
-Use compact package and repository \`target#symbol\` for code symbol reads;
-keep the fragment in \`target\` unchanged and use an exact \`path\` to narrow it.
-Pass HTTP(S) fragments and emitted repository docs page IDs unchanged.
-The unified read result determines whether the target resolved to code or docs.
+- Omit \`format\`: text serves model reading and follow-ups. Use JSON only when
+  code consumes the raw response or a required field is missing from text;
+  calling through MCP or code is not a reason.
+- Reuse returned targets, paths, locators, references, and ranges unchanged;
+  never invent them.
+- Follow rendered continuation and recovery actions instead of repeating or
+  polling calls. Counts cover one page.
+- Omit \`wait_timeout_ms\` for the default; \`0\` returns without waiting. While
+  indexing, use the displayed estimate to wait longer or pick a listed
+  already-indexed version or ref.
+- Cite tool-owned provenance, including example source repositories, and
+  report coverage, truncation, and other evidence limits.
 
-Omit \`wait_timeout_ms\` for the default; \`0\` returns without waiting.
-Follow rendered continuation/recovery actions, not repeated calls to poll.
-For indexing, use the displayed estimate to choose a longer wait or select a
-listed already-indexed version/ref; suggested refs may still need indexing.
+## Dependency upgrades
 
-Omit \`format\`: model-read summaries, comparisons, and follow-ups use text.
-JSON is only for code consuming the raw response or required fields absent
-from text; MCP/TypeScript invocation alone is not a reason.
-Reuse returned targets, paths, locators, references, and ranges; never invent
-them. Cite tool-owned provenance, including example source repositories, and
-report coverage, truncation, and other evidence limits.`;
+\`pkg_upgrade_review\`, \`pkg_changelog\`, and \`code_diff\` supply package
+evidence only. Neither they nor passing existing tests prove the application
+still works. Run these local checks:
+
+1. Preserve original code and lockfile. Before upgrading, write and run extra
+   checks for affected APIs and stored data, including untested paths and
+   omitted or null inputs. Save complete responses and side effects as a
+   baseline.
+2. Run the same cases with upgraded dependencies. Compare status codes,
+   response bodies, stored values, and side effects against the baseline;
+   fix unintended differences.
+3. Report the comparisons and unverified paths.`;
 
 /**
- * Build the routing guide returned by `quick_start` and embedded in the skill.
+ * Build the guide returned by `quick_start` and published as the skill body.
  */
 export interface BuildMcpQuickStartOptions {
   /**
@@ -120,8 +110,8 @@ export function buildMcpQuickStart(
   const includeExternalContentPosture =
     options.includeExternalContentPosture ?? true;
   return includeExternalContentPosture
-    ? `${ROUTING_GUIDE}\n\n${EXTERNAL_CONTENT_POSTURE}`
-    : ROUTING_GUIDE;
+    ? `${GUIDE}\n\n${EXTERNAL_CONTENT_POSTURE}`
+    : GUIDE;
 }
 
 /**
@@ -143,8 +133,7 @@ export interface BuildLocalMcpQuickStartOptions {
 /** @deprecated Use `BuildLocalMcpQuickStartOptions`. */
 export type BuildLocalMcpInstructionsOptions = BuildLocalMcpQuickStartOptions;
 
-const LOCAL_EXPERIMENTAL_HEADING =
-  "**Local experimental tools (public OSS only)**";
+const LOCAL_EXPERIMENTAL_HEADING = "## Local experimental tools";
 
 const LOCAL_EXPERIMENTAL_PRIVACY =
   "Inputs are sent to GitHits. Never send credentials, personal data, private or proprietary content, local paths, or private targets.";

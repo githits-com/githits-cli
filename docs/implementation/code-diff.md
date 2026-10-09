@@ -12,8 +12,8 @@ server adopts the released package and deploys.
 Both surfaces share request normalization, service errors, and lossless JSON
 projection. CLI defaults to patch output; MCP defaults to bounded name-status
 inventory and compact text. Neither claims a patch proves compatibility.
-The public routing guide and its Agent Skill copy explain raw comparison
-separately from package upgrade review and indexed navigation.
+The shared guide routes raw comparison separately from package upgrade review
+and indexed navigation; the `code_diff` description owns scope and limits.
 
 ## Addressing and modes
 

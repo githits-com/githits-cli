@@ -105,6 +105,11 @@ jobs:
         with:
           node-version-file: ".node-version"
 
+      - name: Setup Python for eval scorer tests
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
       - name: Cache bun dependencies
         uses: actions/cache@v6
         with:

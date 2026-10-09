@@ -59,6 +59,14 @@ appends exactly `Use GitHits for this task.` between the workload and the
 unchanged reporting prompt. It is an identity-bearing test condition, not a
 workload edit or an agent system prompt.
 
+## Dependency-upgrade scoring
+
+For dependency-upgrade application results, use the separate
+[upgrade scorer](upgrade-review/README.md) after an agent run. It checks a local
+candidate against its original source and lockfile with original tests and an
+independent probe; application fixtures and expected behavior stay outside the
+acting workspace and are not bundled with the scorer.
+
 ## Closed scenarios
 
 One-off and named-suite runs use this closed MCP scenario set:

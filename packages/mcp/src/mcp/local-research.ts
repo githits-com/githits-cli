@@ -38,7 +38,7 @@ const schema: ZodRawShape = {
     .min(1)
     .optional()
     .describe(
-      "Optional canonical public OSS package or repository target, such as npm:express or github:expressjs/express. Omit target and thread_id to identify the target from the question.",
+      "Optional canonical open-source package or repository target, such as npm:express or github:expressjs/express. Omit target and thread_id to identify the target from the question.",
     ),
   thread_id: z
     .string()

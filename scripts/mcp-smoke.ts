@@ -203,12 +203,10 @@ async function assertExperimentalMcpSession(
       !quickStart.includes("`ask`") &&
       quickStart.includes("resolve_target") &&
       quickStart.includes("code_diff") &&
-      quickStart.includes("A selected `site:` is docs-only") &&
       quickStart.includes('source:"docs"') &&
       quickStart.includes("`read`") &&
-      quickStart.includes("credentials") &&
-      /Raw diffs do not\s+prove compatibility/.test(quickStart) &&
-      quickStart.includes("public OSS") &&
+      quickStart.includes("## Local experimental tools") &&
+      quickStart.includes("private or proprietary content") &&
       !quickStart.includes("Issue reporting"),
     `${context}: experimental quick_start missing routing/privacy guidance or contains retired issue-reporting guidance`,
   );

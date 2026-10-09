@@ -17,106 +17,104 @@ function buildLocal(
   });
 }
 
-describe("buildLocalMcpQuickStart", () => {
-  it("documents canonical target guidance for package and repository scope", () => {
-    const quickStart = buildMcpQuickStart();
+function normalized(text: string): string {
+  return text.replace(/\s+/g, " ");
+}
 
-    expect(quickStart).toContain("swift:github.com/<owner>/<repo>");
-    expect(quickStart).toContain("zig:gh/<owner>/<repo>");
-    expect(quickStart).toContain("package subpath, including in monorepos");
-    expect(quickStart).toContain("public repository");
-    expect(quickStart).toContain("full repositories or sibling packages");
-    expect(quickStart).toContain(
-      "targets use `registry:name@version` and `github:owner/repo@ref`",
-    );
-    expect(quickStart).toContain(
-      "Browse files or documentation pages in a known package, repository, or site | `list`",
-    );
-    expect(quickStart).toContain(
-      "`list` is for a known target when you need its structure or an exact path",
-    );
-    expect(quickStart).toContain("use `search` for content by topic");
-    expect(quickStart).toContain("both include source and\ndocumentation");
-    expect(quickStart).toContain(
-      "explicit `site:` inventory that\n`list` does not discover",
-    );
-    expect(quickStart).toContain(
-      "pair a listed path with the shared read target in its header",
-    );
-    expect(quickStart).toContain("a full URL row is its own read target");
-    expect(quickStart).toContain(
-      "A site row without a\ntrailing `/` is a page path even if its source URL ended in `/`",
-    );
-    expect(quickStart).toContain(
-      "Use JSON for exact entry kinds and per-entry\n`read` actions",
-    );
-    expect(quickStart).toContain(
-      "the required target sets the site scope; selectors with\nor without one leading `/` stay within it",
-    );
-    expect(quickStart).not.toContain("`code_files`");
-    expect(quickStart).not.toContain("`docs_list`");
-    expect(quickStart).toContain(
-      "suffix for the latest package version or repository default branch",
-    );
-    expect(quickStart).not.toContain("[@version]");
-    expect(quickStart).not.toContain("[@ref]");
-    expect(quickStart).toContain(
-      "returned HTTP(S) page target unchanged to `read`",
-    );
-    expect(quickStart).toContain(
-      "Hosted/crawled HTTP(S) docs locators address mutable current content",
-    );
-    expect(quickStart).toContain(
-      "A `site:` read requires a\nseparate exact page `path`",
-    );
-    expect(quickStart).toContain(
-      "its `followUp` unchanged, including supplied `selector` and bounds",
-    );
-    expect(quickStart).toContain(
-      "A direct HTTP(S) docs fragment read without explicit bounds returns its heading",
-    );
-    expect(quickStart).toContain(
-      "and full subtree through the next equal-or-higher heading",
-    );
-    expect(quickStart).toContain(
-      "Repository docs are snapshot-addressed and keep returned ranges",
-    );
-    expect(quickStart).toContain(
-      "a direct `read`, add bounds only to intentionally select a current page range",
-    );
-    expect(quickStart).toContain("read its schema for syntax and defaults");
-    expect(quickStart).toContain("never probe");
-    expect(quickStart).toContain("directories with `read`");
-    expect(quickStart).toContain(
-      "JSON is only for code consuming the raw response or required fields absent",
-    );
-    expect(quickStart).not.toContain("A fragment needs no bounds");
+describe("buildMcpQuickStart", () => {
+  it("orders guide sections from routing to shared conventions", () => {
+    const guide = buildMcpQuickStart();
+    const headings = guide.match(/^#{1,2} .+$/gm);
+
+    expect(headings).toEqual([
+      "# GitHits",
+      "## Choose a tool",
+      "## Workflow",
+      "## Targets",
+      "## Results",
+      "## Dependency upgrades",
+      "## External-content posture",
+    ]);
+    expect(guide).not.toMatch(/public OSS/i);
+    expect(guide).not.toMatch(/^\*\*.+\*\*$/m);
   });
 
-  it("keeps resolver guidance and continuation gates on the default stable surface", () => {
-    const guide = buildMcpQuickStart();
+  it("documents canonical target conventions shared by every tool", () => {
+    const guide = normalized(buildMcpQuickStart());
+
     for (const phrase of [
-      "`resolve_target`",
-      "canonical candidates for an OSS dependency name",
-      "skip known canonical targets",
-      "EXACT/HIGH",
-      "CLEAR or NOT_APPLICABLE",
-      "CLEAR\nis not a vulnerability-free claim",
-      "Other or missing statuses are non-actionable",
-      "MEDIUM/LOW",
-      "explicitly choose an actionable candidate; never auto-select",
-      "A selected `site:` is docs-only",
-      "`list` to browse",
-      'or `search` with `source:"docs"`',
+      "`registry:name@version`",
+      "`github:owner/repo@ref`",
+      "`site:host[/path]`",
+      "swift:github.com/<owner>/<repo>",
+      "zig:gh/<owner>/<repo>",
+      "covers its package subpath, including in monorepos",
+      "whole repositories or sibling packages",
+      "Never infer a provider",
+      "Omit the suffix for the latest package version or default branch",
+      "`#` selects a symbol or heading, never a revision",
     ]) {
       expect(guide).toContain(phrase);
     }
-    expect(guide).not.toContain("Local experimental tools");
-    expect(
-      buildLocal(["research"]).split("Local experimental tools")[1],
-    ).not.toContain("`resolve_target`");
+    expect(guide).not.toContain("[@version]");
+    expect(guide).not.toContain("[@ref]");
   });
 
+  it("describes the cross-tool workflow without repeating tool mechanics", () => {
+    const guide = normalized(buildMcpQuickStart());
+
+    for (const phrase of [
+      "use a known canonical target directly",
+      "call `resolve_target` and follow its continuation rules; never auto-select an ambiguous candidate",
+      "`search` by topic, `grep` for exact text, `list` for structure or an exact path",
+      'search the package with `source:"docs"`',
+      "`site:` target or page URL from a `[docs page]` hit",
+      "`read` never lists directories",
+      "support behavioral claims with source, tests, or call sites",
+      "Neither they nor passing existing tests prove the application still works",
+    ]) {
+      expect(guide).toContain(phrase);
+    }
+    // Per-tool mechanics belong to the selected tool's description.
+    for (const phrase of [
+      "EXACT/HIGH",
+      "name-status",
+      "followUp",
+      "selector",
+    ]) {
+      expect(guide).not.toContain(phrase);
+    }
+  });
+
+  it("keeps result conventions common to every tool", () => {
+    const guide = normalized(buildMcpQuickStart());
+
+    for (const phrase of [
+      "Omit `format`",
+      "Use JSON only when code consumes the raw response or a required field is missing from text",
+      "Reuse returned targets, paths, locators, references, and ranges unchanged; never invent them",
+      "Follow rendered continuation and recovery actions instead of repeating or polling calls",
+      "Omit `wait_timeout_ms` for the default; `0` returns without waiting",
+      "Cite tool-owned provenance, including example source repositories",
+      "report coverage, truncation, and other evidence limits",
+    ]) {
+      expect(guide).toContain(phrase);
+    }
+  });
+
+  it("states the private-input boundary and skill/quick_start equivalence", () => {
+    const guide = normalized(buildMcpQuickStart());
+
+    expect(guide).toContain(
+      "never send private code, local paths, credentials, or personal data",
+    );
+    expect(guide).toContain(
+      "This guide is both the `githits-mcp` skill and the `quick_start` result; once either is loaded, do not call `quick_start`",
+    );
+  });
+});
+
+describe("buildLocalMcpQuickStart", () => {
   it("keeps deprecated instruction builders as exact compatibility aliases", () => {
     expect(buildMcpInstructions()).toBe(buildMcpQuickStart());
     expect(
@@ -138,8 +136,7 @@ describe("buildLocalMcpQuickStart", () => {
   it("routes enabled experimental tools without feedback guidance", () => {
     const instructions = buildLocal(EXPERIMENTAL_TOOLS);
 
-    expect(instructions).toContain("Local experimental tools");
-    expect(instructions).toContain("public OSS only");
+    expect(instructions).toContain("## Local experimental tools");
     expect(instructions).toContain("`research`");
     expect(instructions).not.toContain("`ask`");
     expect(instructions).toContain(
@@ -154,36 +151,7 @@ describe("buildLocalMcpQuickStart", () => {
     );
     expect(instructions).toContain('`source_format:"url"`');
     expect(instructions).toContain("Do not invent or rewrite sources");
-    expect(instructions).toContain("`resolve_target`");
-    expect(instructions).toContain("`code_diff`");
-    expect(instructions).toContain("skip known canonical targets");
-    expect(instructions).toContain(
-      "canonical candidates for an OSS dependency name",
-    );
-    expect(instructions).toContain("A selected `site:` is docs-only");
-    expect(instructions).toContain('or `search` with `source:"docs"`');
-    expect(instructions).toContain("`list` to browse");
-    expect(instructions).toContain(
-      "JSON is only for code consuming the raw response or required fields absent",
-    );
-    expect(instructions).toContain(
-      "replay its `followUp` unchanged, including supplied `selector` and bounds",
-    );
-    expect(instructions).toContain("EXACT/HIGH");
-    expect(instructions).toContain("CLEAR or NOT_APPLICABLE");
-    expect(instructions).toContain(
-      "Other or missing statuses are non-actionable",
-    );
-    expect(instructions).toContain("CLEAR\nis not a vulnerability-free claim");
-    expect(instructions).toContain("MEDIUM/LOW");
-    expect(instructions).toContain("never auto-select");
-    expect(instructions).toContain("`pkg_upgrade_review`");
-    expect(instructions).toContain("comparisons, which are repository-wide");
-    expect(instructions).toContain("name-status");
-    expect(instructions).toContain(
-      "Keep text unless required fields or the full\nreturned patch are needed",
-    );
-    expect(instructions).toContain("Raw diffs do not\nprove compatibility");
+    expect(instructions.startsWith(buildMcpQuickStart())).toBe(true);
     expect(instructions).toContain("credentials");
     expect(instructions).toContain("private or proprietary content");
     expect(instructions).toContain("targets.\n\n- `research`");

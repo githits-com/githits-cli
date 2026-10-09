@@ -455,6 +455,8 @@ Requirements:
 
 - Node.js `^20.18.1 || >=22.13.0`
 - Bun
+- Python 3.11 or later for the dependency-upgrade scorer tests (`python` on
+  Windows, `python3` elsewhere)
 
 Common commands:
 

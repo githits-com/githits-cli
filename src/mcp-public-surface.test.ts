@@ -269,7 +269,7 @@ describe("public MCP package surface", () => {
     const provider: McpToolServicesProvider<RemoteExtra> = () =>
       createServices();
 
-    expect(buildMcpQuickStart()).toContain("GitHits routing guide");
+    expect(buildMcpQuickStart()).toContain("## Choose a tool");
     expect(getMcpToolDescriptors().map((tool) => tool.name)).toContain(
       "search",
     );

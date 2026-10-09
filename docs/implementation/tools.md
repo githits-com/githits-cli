@@ -1032,19 +1032,22 @@ payload whose privilege, visibility, and repetition vary by host.
 
 `packages/mcp/src/mcp/instructions.ts` owns the `quick_start` guide sections:
 
-- **Routing guide** — question-to-tool table and recurring public scope, canonical
-  targets, model-read text/JSON policy, evidence reuse/citations/limits, focused
-  reads, and wait/recovery discipline. Selected descriptions/schemas own language
-  retry, docs fragment/range behavior, and other single-tool mechanics.
+- **Shared guide** — question-to-tool table, cross-tool workflow, canonical
+  targets, result conventions (text/JSON, evidence reuse, continuation, waits,
+  citations/limits), and dependency-upgrade verification. Selected
+  descriptions/schemas own resolver gates, language retry, docs fragment/range
+  behavior, and other single-tool mechanics. See
+  [plugin packaging](plugin-packaging.md) for the section layout.
 - **External-content block** — appended by default from `packages/mcp/src/tools/guardrails.ts`; tells agents to treat third-party prose as data, not instructions.
-- **Resolver guidance** — part of the stable routing guide. Fuzzy names use
-  `resolve_target`; canonical identities skip resolution. Only unambiguous
-  EXACT/HIGH with CLEAR/NOT_APPLICABLE allows automatic continuation. Other or
-  missing statuses are non-actionable; MEDIUM/LOW or ambiguity needs narrowing
-  or explicit choice. Sites use docs search/list and emitted read actions.
+- **Resolver guidance** — the shared guide sends fuzzy names to
+  `resolve_target`; canonical identities skip resolution. The `resolve_target`
+  description owns the gates: only unambiguous EXACT/HIGH with
+  CLEAR/NOT_APPLICABLE allows automatic continuation. Other or missing statuses
+  are non-actionable; MEDIUM/LOW or ambiguity needs narrowing or explicit
+  choice. Sites use docs search/list and emitted read actions.
 - **Local experimental block** — appended only by the workspace-internal local
   composer when experimental tools are enabled. It routes `research` question
-  answering with public-OSS/privacy limits. Disabling experimental tools returns
+  answering with open-source/privacy limits. Disabling experimental tools returns
   the exact public guide; public and remote servers never receive this appendix.
 
 The stable guide embedded in `skills/githits-mcp/SKILL.md` is an exact copy of
