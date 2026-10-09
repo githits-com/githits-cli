@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test fixture TLS key for proxy smoke test"
+paths = ['''scripts/proxy-node-smoke\.mjs''']

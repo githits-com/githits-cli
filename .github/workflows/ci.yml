@@ -17,6 +17,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Install betterleaks
+        run: |
+          curl -sSfL https://github.com/betterleaks/betterleaks/releases/download/v1.9.0/betterleaks_1.9.0_linux_x64.tar.gz \
+            -o /tmp/betterleaks.tar.gz
+          echo "f8b185a39ffcece2a1ca82bf3a4e7435cd81963ffd16b7a9128daf75f35f6de7  /tmp/betterleaks.tar.gz" | sha256sum --check
+          tar -xzf /tmp/betterleaks.tar.gz -C /usr/local/bin betterleaks
+          chmod +x /usr/local/bin/betterleaks
+
+      - name: Scan for secrets
+        run: betterleaks dir . --no-banner --exit-code 1
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
