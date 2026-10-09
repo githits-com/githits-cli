@@ -1,0 +1,14 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test fixture TLS key for proxy smoke test"
+paths = ['''scripts/proxy-node-smoke\.mjs''']
+
+[[allowlists]]
+description = "Test fixture fake API keys and credential URIs in test files"
+paths = [
+  '''src/commands/search\.test\.ts''',
+  '''packages/mcp/src/services/test-helpers\.ts''',
+  '''packages/mcp/src/shared/repository-target\.test\.ts''',
+]
