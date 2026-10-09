@@ -1,6 +1,7 @@
 name: MCP Package Release
 
 on:
+  # checkov:skip=CKV_GHA_7: Boolean dry_run controls publication only; it does not change build inputs or commands.
   workflow_run:
     workflows: ["Main"]
     types: [completed]
@@ -25,6 +26,8 @@ on:
         required: true
         default: true
         type: boolean
+
+permissions: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

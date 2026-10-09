@@ -6,6 +6,8 @@ on:
         types: [completed]
         branches: [main]
 
+permissions: {}
+
 jobs:
     release:
         # Only run if Main workflow succeeded
@@ -31,31 +33,31 @@ jobs:
               run: |
                   VERSION=$(jq -r '.version' package.json)
                   TAG="v$VERSION"
-                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
                   if git rev-parse "$TAG" >/dev/null 2>&1; then
                     TAG_EXISTS=true
                     TAG_COMMIT=$(git rev-parse "$TAG^{commit}")
-                    echo "tag_exists=true" >> $GITHUB_OUTPUT
+                    echo "tag_exists=true" >> "$GITHUB_OUTPUT"
                   else
                     TAG_EXISTS=false
-                    echo "tag_exists=false" >> $GITHUB_OUTPUT
+                    echo "tag_exists=false" >> "$GITHUB_OUTPUT"
                   fi
 
                   if gh release view "$TAG" >/dev/null 2>&1; then
-                    echo "release_exists=true" >> $GITHUB_OUTPUT
+                    echo "release_exists=true" >> "$GITHUB_OUTPUT"
                   else
-                    echo "release_exists=false" >> $GITHUB_OUTPUT
+                    echo "release_exists=false" >> "$GITHUB_OUTPUT"
                   fi
 
                   if npm view "githits@$VERSION" version >/dev/null 2>&1; then
-                    echo "npm_published=true" >> $GITHUB_OUTPUT
+                    echo "npm_published=true" >> "$GITHUB_OUTPUT"
                     if [ "$TAG_EXISTS" != "true" ]; then
                       echo "::error::githits@$VERSION is published, but $TAG is missing. Refusing to create a tag at a later commit."
                       exit 1
                     fi
                   else
-                    echo "npm_published=false" >> $GITHUB_OUTPUT
+                    echo "npm_published=false" >> "$GITHUB_OUTPUT"
                     if [ "$TAG_EXISTS" = "true" ] && [ "$TAG_COMMIT" != "$(git rev-parse HEAD)" ]; then
                       echo "::error::Existing unpublished tag $TAG points to $TAG_COMMIT, not HEAD."
                       exit 1
@@ -64,10 +66,10 @@ jobs:
 
                   if git rev-parse "$TAG" >/dev/null 2>&1 && npm view "githits@$VERSION" version >/dev/null 2>&1 && gh release view "$TAG" >/dev/null 2>&1; then
                     echo "$TAG, GitHub Release, and githits@$VERSION already exist, skipping root release"
-                    echo "should_release=false" >> $GITHUB_OUTPUT
+                    echo "should_release=false" >> "$GITHUB_OUTPUT"
                   else
                     echo "Root release has missing artifacts, continuing"
-                    echo "should_release=true" >> $GITHUB_OUTPUT
+                    echo "should_release=true" >> "$GITHUB_OUTPUT"
                   fi
 
             - name: Setup Bun

@@ -4,10 +4,14 @@ name: CI
 on:
   workflow_call:
 
+permissions: {}
+
 jobs:
   ci:
     name: Build & Checks
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -86,6 +90,8 @@ jobs:
   test:
     name: Test / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -131,6 +137,8 @@ jobs:
     name: Compat / ${{ matrix.runtime }}
     needs: ci
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:

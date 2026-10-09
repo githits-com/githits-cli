@@ -154,6 +154,16 @@ matching changelog section must fail before release.
 
 ## npm Publication Completion and Recovery
 
+CI and package-release workflows default to `permissions: {}`. CI jobs
+explicitly grant `contents: read`; publishing jobs grant `contents: write`
+for tags and releases and `id-token: write` for trusted publishing.
+
+The MCP release workflow also supports manual dispatch: `dry_run` defaults to
+`true` for validation only. Set it to `false` on `main` for publication or
+recovery; publishing dispatches from other refs are rejected. The workflow
+suppresses Checkov `CKV_GHA_7` with a written justification because this boolean
+controls publication, not build inputs or commands.
+
 Both release workflows use `scripts/publish-npm.ts` from the package's working
 directory. It runs `npm publish --access public` with the existing trusted
 publishing configuration, then verifies that the exact package name and version
