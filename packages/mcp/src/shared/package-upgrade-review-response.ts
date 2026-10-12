@@ -900,7 +900,9 @@ function formatChangesSection(
   options: FormatPackageUpgradeReviewTerminalOptions,
 ): string[] {
   const width = normaliseTerminalWidth(options.terminalWidth);
-  const lines = [sectionTitle("Changes", options.useColors === true)];
+  const lines = [
+    sectionTitle("Changes (classified by agent)", options.useColors === true),
+  ];
   appendWrappedText(
     lines,
     "  ",
@@ -952,19 +954,20 @@ function formatChangesSection(
     );
 
   const sources = new Map<string, { number: number; label: string }>();
+  const sourceName = (source?: string): string | undefined =>
+    source === "releases"
+      ? "Release notes"
+      : source === "changelog_file"
+        ? "Changelog"
+        : source
+          ? safeRiskText(source)
+          : undefined;
   const reference = (url: string | undefined, source?: string): string => {
     const cleanUrl = url ? safeRiskText(url) : undefined;
     const key = cleanUrl ?? `missing:${source ?? "unknown"}`;
     let record = sources.get(key);
     if (!record) {
-      const name =
-        source === "releases"
-          ? "Release notes"
-          : source === "changelog_file"
-            ? "Changelog"
-            : source
-              ? safeRiskText(source)
-              : undefined;
+      const name = sourceName(source);
       record = {
         number: sources.size + 1,
         label: cleanUrl
@@ -1022,7 +1025,6 @@ function formatChangesSection(
     groupFor(item.version).items.push(item);
   let excerpted = false;
   for (const group of groups.values()) {
-    const heuristicTags = new Map<UpgradeChangelogRiskItem, Set<string>>();
     const keywords: Array<{
       text: string;
       signals: string[];
@@ -1048,34 +1050,12 @@ function formatChangesSection(
                   releaseNoteText(item.text, () => "").includes(plain),
               )
             : undefined;
-        if (item) {
-          const tags = heuristicTags.get(item) ?? new Set<string>();
-          for (const signal of signals) tags.add(signal);
-          heuristicTags.set(item, tags);
-        } else keywords.push({ text, signals, entry });
+        // The classified quote already carries this lexical evidence.
+        if (!item) keywords.push({ text, signals, entry });
       }
     }
     if (group.items.length === 0 && keywords.length === 0 && !options.verbose)
       continue;
-    lines.push(
-      `  ${group.version === null ? "Unversioned notes" : safeRiskText(group.version)}`,
-    );
-    const additionalNotes = group.entries.filter(
-      (entry) =>
-        entry.htmlUrl &&
-        !group.items.some(
-          (item) =>
-            item.source !== undefined && item.source === entry.detailSource,
-        ) &&
-        !keywords.some((keyword) => keyword.entry.htmlUrl === entry.htmlUrl),
-    );
-    if (
-      (group.items.length > 0 || keywords.length > 0) &&
-      additionalNotes.length > 0
-    )
-      lines.push(
-        `    Notes: ${[...new Set(additionalNotes.map((entry) => reference(entry.htmlUrl, entry.detailSource)))].join(" ")}`,
-      );
     const sourceForItem = (item: UpgradeChangelogRiskItem): string => {
       const entry = group.entries.find(
         (entry) =>
@@ -1083,8 +1063,38 @@ function formatChangesSection(
           entry.detailSource === item.source &&
           entry.htmlUrl,
       );
-      return reference(entry?.htmlUrl, item.source);
+      return reference(item.url ?? entry?.htmlUrl, item.source);
     };
+    const noteReferences = new Map<string, string>();
+    for (const item of group.items) {
+      if (!item.url) continue;
+      noteReferences.set(
+        sourceForItem(item),
+        sourceName(item.source) ?? "Notes",
+      );
+    }
+    for (const entry of group.entries) {
+      if (!entry.htmlUrl) continue;
+      noteReferences.set(
+        reference(entry.htmlUrl, entry.detailSource),
+        sourceName(entry.detailSource) ?? "Notes",
+      );
+    }
+    const version =
+      group.version === null
+        ? "Unversioned notes"
+        : safeRiskText(group.version);
+    // All note locators sit beside the version; each URL is listed once below.
+    const notes = [...noteReferences].map(
+      ([citation, label]) => `${label} ${citation}`,
+    );
+    appendWrappedText(
+      lines,
+      "  ",
+      `${version}${notes.length ? ` (${notes.join("; ")})` : ""}`,
+      width,
+      "    ",
+    );
     const sections = [
       {
         label: "Requires action",
@@ -1114,7 +1124,7 @@ function formatChangesSection(
     ];
     for (const { label, items } of sections) {
       if (items.length === 0) continue;
-      lines.push(`    ${label} (${items.length})`);
+      lines.push(`    ${label}`);
       for (const item of items) {
         const source = sourceForItem(item);
         const quote = releaseNoteText(item.text, (url) => reference(url));
@@ -1170,22 +1180,7 @@ function formatChangesSection(
         }
       }
     }
-    if (heuristicTags.size > 0 || keywords.length > 0)
-      lines.push("    Keyword matches");
-    for (const [item, signals] of heuristicTags)
-      appendWrappedText(
-        lines,
-        "      * ",
-        `[${safeRiskText([...signals].join(", "))}] matched quoted statement ${sourceForItem(item)}`,
-        width,
-        "        ",
-        (line) =>
-          colorizeSignalKeywords(
-            line,
-            [...signals],
-            options.useColors === true,
-          ),
-      );
+    if (keywords.length > 0) lines.push("    Keyword matches");
     for (const keyword of keywords) {
       const source = reference(
         keyword.entry.htmlUrl,
@@ -1272,13 +1267,7 @@ function formatChangesSection(
       width,
       "  ",
     );
-  appendWrappedText(
-    lines,
-    "  ",
-    "Classified by an agent. Not a compatibility verdict.",
-    width,
-    "  ",
-  );
+  appendWrappedText(lines, "  ", "Not a compatibility verdict.", width, "  ");
   return lines;
 }
 

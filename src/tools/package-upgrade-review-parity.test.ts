@@ -389,6 +389,9 @@ describe("statement classification CLI/MCP parity", () => {
         packageUpgradeReview.mock.calls.at(-1)?.[0].includeChangelogFullText,
       ).toBe(false);
       expect(cli.trimEnd()).toBe(mcp);
+      expect(mcp).toContain("Changes (classified by agent)");
+      expect(mcp).toMatch(/5\.0\.0 \(Changelog \[\d+\]\)/);
+      expect(mcp).toContain(url);
     }
     const cli = await cliJson(
       "npm:express@4.18.0..5.0.0",
@@ -502,9 +505,9 @@ describe("statement classification CLI/MCP parity", () => {
     );
     const mcp = await mcpText(args, service);
     expect(cli.trimEnd()).toBe(mcp);
-    expect(mcp).toContain("Possibly requires action (1)");
+    expect(mcp).toContain("    Possibly requires action\n");
     expect(mcp).toContain('(uncertain) "Removed internal dependency."');
-    expect(mcp).toContain("Too long to classify - read it (1)");
+    expect(mcp).toContain("    Too long to classify - read it\n");
     expect(mcp).not.toContain('(uncertain) "Oversize release-note statement."');
     expect(mcp).toContain('(uncertain) "Possibly deprecated usage."');
     expect(mcp).not.toContain("escalated");
@@ -637,7 +640,7 @@ describe("statement classification CLI/MCP parity", () => {
       cliDeps({ packageIntelligenceService: service }),
     );
     expect(cliDefault.trimEnd()).toBe(await mcpText(args, service));
-    expect(cliDefault).toContain("Requires action (1)");
+    expect(cliDefault).toContain("    Requires action\n");
     expect(cliDefault).toContain("[statement truncated by backend]");
     const other = structuredClone(review);
     other.name = "other";
@@ -673,7 +676,7 @@ describe("statement classification CLI/MCP parity", () => {
       expect(text.indexOf("npm:express")).toBeLessThan(
         text.indexOf("npm:other"),
       );
-      expect(text.includes("Requires action (1)")).toBe(verbose);
+      expect(text.includes("    Requires action\n")).toBe(verbose);
     }
   });
 });

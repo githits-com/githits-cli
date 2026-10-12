@@ -785,9 +785,11 @@ evidence renders `Target: deprecation unknown` so absence is not confused with
 verified non-deprecation. The formatter reports evidence and missing evidence;
 it does not make a package approval, safety, or risk claim. Agent-classified statements are grouped by version, combining releases and changelog
 files in one block and listing each source URL once via numbered references.
-Version-level `Notes` references retain additional returned sources.
+Each displayed version heading includes all available release-note/changelog
+references. Statements use their own backend URL, including outside sampled
+entries; matching entry links are used only when a statement URL is absent.
 Requires action and Possibly requires action quotes are full; Should know and Too long to classify quotes use compact
-240-character prefixes expanded by `--verbose`. Text shows agent attribution;
+240-character prefixes expanded by `--verbose`. `Changes (classified by agent)` shows attribution;
 model/formulation provenance stays in JSON. Every report shows classified,
 not-assessed and without-notes versions, positive unparseable/omitted counts,
 no-impact counts, and rerun guidance when background classification is still running or failed. A rerun a few seconds to a minute later retrieves completed stored labels without rerunning the model.
@@ -796,12 +798,13 @@ Each statement begins with `*`; optional kind labels use brackets such as
 their tier and bullet without inventing a category. Backend `ambiguous: true`
 adds a muted `(uncertain)` marker; uncertain MUST_ACT items appear
 under Possibly requires action. Batch act/know counts separate uncertain
-statements using pre-cap coverage totals, such as `4 act (+2 uncertain)`, and ties never use uncertain counts. Per-version counts describe displayed quotes; omitted quotes do not reduce summary totals. Tier confidence stays evidence, never a client threshold.
+statements using pre-cap coverage totals, such as `4 act (+2 uncertain)`, and ties never use uncertain counts. Per-version section headings omit counts; omitted quotes do not reduce summary totals. Tier confidence stays evidence, never a client threshold.
 UNCLASSIFIED means only oversize statements and renders as Too long to classify
 - read it. Coverage and no-impact
 counts share one summary. Lexical hints have a separate `Keyword matches`
-subsection within each version; already-quoted matches reference that evidence
-instead of repeating it.
+subsection within each version for evidence not already quoted. Literal matches
+in classified quotes are not repeated as separate keyword rows and never imply
+a breaking-change verdict.
 Sampled-entry sections are removed; `--verbose` includes returned note previews
 for versions without statement evidence. Quotes are not a compatibility verdict. See [Upgrade review](pkg-upgrade-review.md).
 

@@ -327,20 +327,20 @@ remain visible. Sources from release notes and changelog files are combined
 without claiming differently worded statements are equivalent.
 
 ```text
-Changes
+Changes (classified by agent)
   0 require action (+8 uncertain) | 6 should know (+2 uncertain) | 0 too long to classify
   Classification versions: 4 classified | 0 not assessed | 0 without notes | 125 statements labeled no impact
   ... other versions, each once
-  5.1.0
-    Possibly requires action (6)
+  5.1.0 (Release notes [5]; Changelog [12])
+    Possibly requires action
       * [runtime/platform] (uncertain) "build: Node.js 23.0 by @bjohansebas in [11]" [5]
       * (uncertain) "deps: remove safe-buffer" [12]
       ... remaining returned quotes
-    Should know (1)
+    Should know
       * [security fix] "fix(securite): fix vulnerabilities by @Abdel-Monaam-Aouini in [13]" [5]
   Sources
     ... each source URL once
-  Classified by an agent. Not a compatibility verdict.
+  Not a compatibility verdict.
 ```
 
 The abbreviated example illustrates grouping; live output quotes every returned
@@ -461,24 +461,26 @@ Too long to classify - read it. Null confidence normalizes to omission for that
 case. Summary and batch counts use the backend coverage totals before the
 50-item cap, not counts reconstructed from returned quotes. Confident and
 ambiguous act/know totals stay separate; batch ranking uses only the confident
-action total, preserving backend order on ties. Per-version section counts
-refer to the quoted items actually shown. Positive omitted counts explain the
+action total, preserving backend order on ties. Per-version section headings omit counts; the summary carries the pre-cap totals. Positive omitted counts explain the
 difference without guessing classifications of absent statements.
 
 
-Every entry/link URL appears once in the Sources list, referenced by quotes.
-Entry links require matching version and `detailSource`; a missing locator is
+Every visible entry/link URL appears once in the Sources list, referenced by
+version headings or quotes. Inline links clipped from compact quotes are omitted.
+Each displayed version heading includes all available release-note/changelog
+references from its items and entries, such as `5.2.1 (Release notes [1]; Changelog [2])`.
+Statement `url` is authoritative even outside the entry sample. When it is absent,
+entry links require matching version and `detailSource`; a missing locator is
 identified by its source type and never borrowed from another source. Quoted
-HTTP(S) links are also available through references. Text identifies agent
-classification without model/formulation identifiers, including verbose and
-batch; JSON retains them and lower-case entry `detailSource`.
+HTTP(S) links are also available through references. The Changes heading identifies agent
+classification without model/formulation identifiers; batch text also identifies attribution; JSON retains them and lower-case entry `detailSource`.
 
 Keyword matching consumes `breakingSignals`, `migrationSignals` and entry
 `signals`. A matched full chunk already contained in a statement with the same
-version and defined source appears in a separate `Keyword matches` subsection
-within that version as `[breaking] matched quoted statement [n]`, using the
-statement source reference rather than repeating its quote. Distinct keyword
-text or source is quoted in that subsection. These are lexical hints, separate
+version and defined source is not repeated as a keyword row. Distinct keyword
+text or source is quoted in a separate `Keyword matches` subsection within that
+version. Keyword matches report literal words, not a breaking-change verdict;
+for example, an erroneous change described as reverted can still contain "breaking". These are lexical hints, separate
 from the agent-assigned tiers and kinds. Commit-list
 noise and generic headings stay excluded. Keywords already displayed with quotes
 are not repeated in an aggregate footer; signals with no returned matching
@@ -626,7 +628,7 @@ The redundant `Heuristic keywords` footer was removed; lexical evidence is
 shown in a per-version `Keyword matches` subsection, and aggregate-only signals retain an
 explicit missing-excerpt line. The old sampled-entry section also carried the Express 5.1.0 changelog URL,
 which was lost when that section was removed because its classified quotes
-came from releases. A version-level `Notes` reference now retains returned
+came from releases. At that point, a version-level `Notes` reference retained returned
 entry URLs whose source is not represented by a quote. Missing-locator
 references still describe absent exact version/source pairs; the notes link
 is never attributed to a quote from another source. The real
@@ -896,3 +898,38 @@ passing build/typecheck/package/four secret-free smoke checks. Code CI passed on
 failed because Claude CLI was not logged in, zero tool calls, no final artifact or
 qualitative grade. This does not affect the successful direct CLI/MCP validation.
 No output-design or backend implementation changes were needed for this verification.
+
+## Owner-requested note navigation verification (2026-10-12)
+
+The shared Changes heading now identifies agent classification. Displayed version
+headings carry available note references, including statement URLs outside sampled
+entries, replacing the earlier standalone Notes row. Subsection counts are omitted;
+pre-cap summary totals remain. Already quoted lexical evidence is not repeated
+as a keyword row; distinct keyword excerpts and raw JSON remain available.
+
+Normal-auth dev Express 5.0.0..5.2.1 CLI and local stdio MCP text matched exactly.
+All displayed versions retained their note locators without missing-URL placeholders:
+
+```text
+Changes (classified by agent)
+  ... summary and coverage
+  5.2.1 (Changelog [1]; Release notes [2])
+    Possibly requires action
+      ... quoted evidence
+    Should know
+      ... quoted evidence
+  5.2.0 (Release notes [5]; Changelog [6])
+  5.1.0 (Release notes [11]; Changelog [12])
+  5.0.1 (Changelog [15])
+```
+
+Dev returned its stored labels: 0 confident / 8 uncertain action statements,
+6 confident / 2 uncertain knowledge statements, 4 classified versions and 125
+no-impact statements. These are dev observations, not inferred production counts.
+The first request waited on Keychain approval; after owner approval the rerun
+passed. Credentials were not inspected or printed. Focused formatter/MCP/parity
+checks passed 55 tests / 498 assertions; typecheck, Biome, build and source/built
+CLI/MCP smokes passed. Internal preflight was clean after one doc wording fix.
+The external PR review cap remains in effect. Targeted agent eval could not run
+tool calls because Claude CLI was not logged in. GraphQL selection is unchanged;
+no new complexity measurement was needed for this presentation-only refinement.

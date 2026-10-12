@@ -884,7 +884,7 @@ describe("package upgrade review response", () => {
     });
     expect(verbose).toContain('"Routine fixes."');
     expect(verbose.split("https://example.com/notes")).toHaveLength(2);
-    expect(verbose.match(/^ {2}4\.4\.2$/gm)).toHaveLength(1);
+    expect(verbose.match(/^ {2}4\.4\.2(?: \(|$)/gm)).toHaveLength(1);
     expect(verbose).not.toContain("Sampled release entries");
   });
 
@@ -944,7 +944,7 @@ describe("package upgrade review response", () => {
     const response = formatterResponse([review]);
     const before = JSON.stringify(response);
     const text = formatPackageUpgradeReviewTerminal(response);
-    expect(text.match(/^ {2}4\.4\.3$/gm)).toHaveLength(1);
+    expect(text.match(/^ {2}4\.4\.3(?: \(|$)/gm)).toHaveLength(1);
     expect(text.split("https://example.com/release")).toHaveLength(2);
     expect(text).toContain('[breaking] "Breaking: removed an API."');
     expect(text).not.toContain("commit noise");
@@ -1233,7 +1233,86 @@ function riskReview(
 }
 
 describe("upgrade review model statement evidence", () => {
-  it("uses all pre-cap coverage totals while version sections count displayed quotes", () => {
+  it("puts all available note links beside versions, preferring each statement's locator", () => {
+    const review = riskReview([
+      riskItem({ url: "https://example.com/actual-release" }),
+      riskItem({
+        source: "changelog_file",
+        url: "https://example.com/changelog#version",
+        text: "Removed another API.",
+      }),
+      riskItem({
+        version: "4.4.2",
+        url: "https://example.com/unsampled-release",
+        text: "Changed an older API.",
+      }),
+    ]);
+    review.changelog.keywordEntries = [];
+    review.changelog.sampledEntries = [];
+    review.changelog.breakingSignals = [];
+    review.changelog.migrationSignals = [];
+    const response = formatterResponse([review]);
+    const before = JSON.stringify(response);
+    for (const verbose of [false, true]) {
+      const text = formatPackageUpgradeReviewTerminal(response, {
+        verbose,
+        terminalWidth: 200,
+      });
+      expect(text).toContain("Changes (classified by agent)");
+      expect(text).toContain(
+        "  4.4.3 (Release notes [1]; Changelog [2]; Release notes [3])",
+      );
+      expect(text).toContain("  4.4.2 (Release notes [4])");
+      expect(text).toContain('"Removed an API." [1]');
+      expect(text).toContain('"Removed another API." [2]');
+      expect(text).toContain('"Changed an older API." [4]');
+      expect(text).not.toContain("    Notes:");
+      expect(text).not.toMatch(/Requires action \(\d+\)/);
+      expect(text).not.toContain("Classified by an agent.");
+      const urls = text.match(/https?:\/\/\S+/g) ?? [];
+      expect(urls).toHaveLength(4);
+      expect(new Set(urls).size).toBe(4);
+    }
+    const narrow = formatPackageUpgradeReviewTerminal(response, {
+      terminalWidth: 40,
+    });
+    expect(narrow.replace(/\s+/g, " ")).toContain(
+      "4.4.3 (Release notes [1]; Changelog [2]; Release notes [3])",
+    );
+    const changes = narrow
+      .split("Changes (classified by agent)\n")[1]!
+      .split("\n\n")[0]!;
+    for (const line of changes.split("\n")) {
+      if (line.includes("http")) continue;
+      expect(Array.from(line).length).toBeLessThanOrEqual(40);
+    }
+    expect(JSON.stringify(response)).toBe(before);
+  });
+
+  it("does not repeat a breaking keyword from an already quoted reverted change", () => {
+    const text =
+      "The prior release included an erroneous breaking change. The change has been fully reverted.";
+    const review = riskReview([
+      riskItem({ ambiguous: true, text, url: "https://example.com/release" }),
+    ]);
+    review.changelog.keywordEntries = [];
+    review.changelog.sampledEntries = [];
+    review.changelog.migrationSignals = [];
+    review.changelog.entries[0]!.body = text;
+    review.changelog.entries[0]!.signals = ["breaking"];
+    review.changelog.breakingSignals = ["breaking"];
+    const response = formatterResponse([review]);
+    const before = JSON.stringify(response);
+    for (const verbose of [false, true]) {
+      const output = formatPackageUpgradeReviewTerminal(response, { verbose });
+      expect(output.replace(/\s+/g, " ")).toContain(`"${text}"`);
+      expect(output).not.toContain("Keyword matches");
+      expect(output).not.toContain("matched quoted statement");
+    }
+    expect(JSON.stringify(response)).toBe(before);
+  });
+
+  it("uses pre-cap coverage totals and keeps version section headings free of counts", () => {
     const review = riskReview([
       ...Array.from({ length: 13 }, () => riskItem()),
       ...Array.from({ length: 28 }, () => riskItem({ ambiguous: true })),
@@ -1257,10 +1336,10 @@ describe("upgrade review model statement evidence", () => {
     expect(detail).toContain(
       "13 require action (+28 uncertain) | 9 should know (+10 uncertain) | 3 too long to classify",
     );
-    expect(detail).toContain("Requires action (13)");
-    expect(detail).toContain("Possibly requires action (28)");
-    expect(detail).toContain("Should know (9)");
-    expect(detail).not.toContain("Should know (19)");
+    expect(detail).toContain("    Requires action\n");
+    expect(detail).toContain("    Possibly requires action\n");
+    expect(detail).toContain("    Should know\n");
+    expect(detail).not.toMatch(/Should know \(\d+\)/);
     expect(detail).not.toContain("Too long to classify - read it (");
     expect(detail).toContain("13 statements omitted by backend");
     const batch = formatPackageUpgradeReviewTerminal(
@@ -1292,7 +1371,7 @@ describe("upgrade review model statement evidence", () => {
       );
       expect(text).toContain("61 act");
       expect(text).toContain("52 act");
-      if (verbose) expect(text).toContain("Requires action (50)");
+      if (verbose) expect(text).toContain("    Requires action\n");
     }
     expect(response.reviews.map((review) => review.name)).toEqual([
       "lower",
@@ -1357,15 +1436,15 @@ describe("upgrade review model statement evidence", () => {
     expect(text).toContain(
       "2 require action (+2 uncertain) | 2 should know (+2 uncertain) | 1 too long to classify",
     );
-    expect(text).toContain("Requires action (2)");
-    expect(text).toContain("Possibly requires action (2)");
+    expect(text).toContain("    Requires action\n");
+    expect(text).toContain("    Possibly requires action\n");
     expect(text).toContain('(uncertain) "Possibly removed API."');
     expect(text).toContain('[removal] "Confident low-confidence action."');
     expect(text).toContain('(uncertain) "Uncertain knowledge."');
     expect(text.indexOf("Confident knowledge.")).toBeLessThan(
       text.indexOf("Uncertain knowledge."),
     );
-    expect(text).toContain("Too long to classify - read it (1)");
+    expect(text).toContain("    Too long to classify - read it\n");
     expect(text).toContain('"Oversize statement."');
     expect(text).not.toContain('(uncertain) "Oversize statement."');
     expect(text).toContain("statement truncated by backend");
@@ -1459,22 +1538,23 @@ describe("upgrade review model statement evidence", () => {
       const text = formatPackageUpgradeReviewTerminal(response, { verbose });
       const compact = text.replace(/\s+/g, " ");
       expect(
-        [...text.matchAll(/^ {2}(5\.\d+\.\d+)$/gm)].map((match) => match[1]),
+        [...text.matchAll(/^ {2}(5\.\d+\.\d+)(?: \(|$)/gm)].map(
+          (match) => match[1],
+        ),
       ).toEqual(["5.2.1", "5.2.0", "5.1.0", "5.0.1"]);
       const urls = text.match(/https?:\/\/\S+/g) ?? [];
       expect(new Set(urls).size).toBe(urls.length);
       expect(text.split("IMPORTANT:")).toHaveLength(2);
-      expect(text).toContain(
-        "Keyword matches\n      * [breaking] matched quoted statement",
-      );
+      expect(text).not.toContain("matched quoted statement");
+      expect(text).not.toContain("    Keyword matches\n");
       expect(text).not.toContain("Heuristic keywords:");
       expect(text).not.toContain("Keyword matches without excerpts:");
       expect(text.match(/^ {6}\* (?=.*")/gm)).toHaveLength(16);
       expect(compact).toContain(
         "0 require action (+8 uncertain) | 6 should know (+2 uncertain) | 0 too long to classify",
       );
-      expect(text).toContain("Possibly requires action (6)");
-      expect(text).not.toContain("    Requires action (");
+      expect(text).toContain("    Possibly requires action\n");
+      expect(text).not.toContain("    Requires action\n");
       expect(compact).toContain('(uncertain) "deps: remove safe-buffer"');
       for (const entry of expressChangelog.entries.filter(
         (entry) => entry.htmlUrl,
@@ -1515,9 +1595,7 @@ describe("upgrade review model statement evidence", () => {
     expect(
       text.replace(/\s+/g, " ").split("Read the migration guide."),
     ).toHaveLength(2);
-    expect(text).toContain(
-      "Keyword matches\n      * [breaking, removed] matched quoted",
-    );
+    expect(text).not.toContain("    Keyword matches\n");
     expect(
       text.replace(/\s+/g, " ").split("Read the migration guide."),
     ).toHaveLength(2);
@@ -1703,9 +1781,9 @@ describe("upgrade review model statement evidence", () => {
     );
     const compact = text.replace(/\s+/g, " ");
     expect(compact).toContain(longText.trim());
-    expect(text).toContain("Requires action (1)");
-    expect(text).toContain("Should know (1)");
-    expect(text).toContain("Too long to classify - read it (1)");
+    expect(text).toContain("    Requires action\n");
+    expect(text).toContain("    Should know\n");
+    expect(text).toContain("    Too long to classify - read it\n");
     expect(text.indexOf("Requires action")).toBeLessThan(
       text.indexOf("Should know"),
     );
@@ -1714,7 +1792,8 @@ describe("upgrade review model statement evidence", () => {
     );
     expect(compact).toContain('[removal] "Removed an API.');
     expect(text).toContain("https://example.com/release");
-    expect(text).toContain("Classified by an agent.");
+    expect(text).toContain("Changes (classified by agent)");
+    expect(text).not.toContain("Classified by an agent.");
     expect(text).not.toContain("jev-1.13.0");
     expect(text).not.toContain("d-hier-v1");
     expect(compact).toContain("Not a compatibility verdict.");
@@ -1856,7 +1935,10 @@ describe("upgrade review model statement evidence", () => {
     expect(text).not.toContain("\u0000");
     expect(text.replace(/\s+/g, " ")).toContain("quote red 漢字 next word");
     expect(text).toContain("changelog_file (entry URL not returned)");
-    expect(text).toContain("Notes:");
+    expect(text.replace(/\s+/g, " ")).toMatch(
+      /4\.4\.3 \(Release notes \[\d+\]\)/,
+    );
+    expect(text).not.toContain("    Notes:");
     expect(JSON.stringify(review)).toBe(before);
   });
 

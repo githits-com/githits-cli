@@ -3,14 +3,16 @@
 Status: implementation delivered and combined-contract dev verification passed
 in draft PR #463. Remaining gate: backend 30-package complexity correction and
 production availability verification before merge/release. No merge, backend
-edits, client split or output-design changes are authorized.
+edits or client split are authorized. The owner requested the scoped output
+refinements below on 2026-10-12.
 
 ## Outcome and ownership
 
 Backend owns ambiguity policy, pre-cap totals, source locators, complete statement
 text and complexity accounting. Core selects/validates those fields; the shared
 CLI/MCP data builder preserves them. JSON keeps false/zero, raw quotes, numeric
-confidence and per-item model/formulation. The owner handles CLI output design.
+confidence and per-item model/formulation. The owner directs CLI output design;
+this lane implements the explicitly requested refinements.
 The client never derives ambiguity from confidence or totals from capped items.
 
 Confirmed contract: Boolean! `ambiguous`; Int! `itemsMustActConfident`,
@@ -32,7 +34,8 @@ an owner-controlled merge/release gate.
 
 - Required field selection, types, Zod validation and raw public JSON propagation.
 - Backend ambiguity alone drives uncertainty; pre-cap counters drive summaries
-  and confident-action sorting, with stable ties. Version counts describe quotes.
+  and confident-action sorting, with stable ties. Summary counts remain pre-cap;
+  version headings omit redundant counts.
 - One aggregate request for the existing public maximum 30 packages. The proposed
   27-package split was removed after the owner chose backend budget handling.
 - Tests cover flags independently of confidence, false/zero, cap-independent totals,
@@ -99,5 +102,47 @@ These remaining data requirements were identified by the owner-directed audit;
 backend design remains outside this CLI PR. Affected API/configuration identifiers
 and reverted/superseded relationships are possible richer facts, not approved
 client heuristics. Private-code usage matching and migration/testing belong to
-the calling agent/user; the backend cannot decide consumer applicability. No CLI
-redesign proposal is being implemented by this lane.
+the calling agent/user; the backend cannot decide consumer applicability. Only
+the owner-requested refinements below change output in this lane.
+
+## Owner-requested output refinements (2026-10-12)
+
+Status: implemented in the shared CLI/MCP formatter; no query or contract change.
+Expected outcome: every displayed version exposes its available note references,
+classified quotes are not followed by redundant lexical matches, and section
+headings stay uncluttered. The owner request supersedes the earlier restriction
+on editing output for these four changes only.
+
+Verified root cause: the formatter ignored item URL and inferred statement links
+from sampled entries; only additional sources appeared as a separate Notes line.
+The keyword row is a literal match in "erroneous breaking change", not a verdict.
+
+Assumptions: available item URLs are the authoritative quoted-source locators
+(verified backend contract); nullable URLs retain the existing same-version/source
+entry fallback. No new dependency, infrastructure or selection. Unknowns/product
+decisions: none for these requested refinements. Backend budget/deployment gates
+above remain separate.
+
+Acceptance: use item URL and all returned note links in version headings; list
+each URL once; remove the standalone Notes row and per-section counts; move
+attribution to Changes (classified by agent), retaining the compatibility caveat;
+suppress lexical rows for already quoted chunks while preserving distinct
+keyword evidence and all raw JSON. Verify narrow-width wrapping, colors, null
+locators, links outside sampling, summary counts and CLI/MCP parity with focused
+Bun tests, typecheck/build and source smoke suites. No performance claim or
+optimization; GraphQL selection/complexity stays unchanged. Earlier external
+code review reached the PR's three-round cap, so no fourth external round.
+
+Verification: focused formatter/MCP/CLI parity suite passed 55 tests / 498
+assertions; typecheck, Biome, build and source/built secret-free CLI/MCP smoke
+suites passed. Internal preflight found no code issues; its documentation note
+was applied so references explicitly include version headings. The new layout
+was also rendered from the previously verified 2026-10-08 dev Express response,
+retaining both source locators for 5.2.1/5.2.0/5.1.0 and the changelog for 5.0.1.
+Normal-auth live dev CLI/local MCP Express text now matches exactly; all note
+locators are present and no redundant matched-quote row remains. Coverage was
+4 classified / 0 not assessed / 0 without notes, with the stored 0/8 action and
+6/2 knowledge labels and 125 no-impact statements. The first request waited for
+Keychain approval and was interrupted; the owner approved and the rerun passed.
+Targeted agent eval remains unavailable: Claude CLI not logged in, zero tool calls, no final
+answer or qualitative grade. No credentials were inspected or printed.
