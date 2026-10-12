@@ -41,11 +41,18 @@ Flags: `--from <version>`, `--to <version>`, `--limit 1-50`, `--verbose`, `--no-
 
 ## Upgrade Review
 
-`githits pkg upgrade-review <registry:name@current> --to <target>` compares current and target package versions and reports upgrade evidence without assigning risk.
+`githits pkg upgrade-review <registry:name@current> --to <target>` compares current and target package versions and reports upgrade evidence without assigning package-level risk.
 
 Batch form: `githits pkg upgrade-review --package <registry:name@current>..<target> --package <registry:name@current>..<target>`.
 
 Evidence includes current and target direct vulnerabilities, changelog range evidence, target deprecation metadata, peer dependency changes, dependency changes, and transitive security by default. Dependency-issue diffs are opt-in with `--dependency-issues`.
+
+Release-note quotes are grouped by version with source references and agent
+classification coverage. Ambiguous classifications are shown as uncertain;
+keyword matches remain separate evidence hints. Batch text defaults to triage
+rows ranked by confident action counts. Use `--verbose` for full per-package
+evidence and expanded quotes. JSON preserves raw statements, complete statement
+text, available source URLs, backend ambiguity and classifier provenance.
 
 Flags: `--package <spec>`, `--to <version>`, `--no-transitive-security`, `--dependency-issues`, `--min-severity low|medium|high|critical`, `--verbose`, `--json`.
 

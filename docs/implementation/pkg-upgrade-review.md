@@ -12,7 +12,8 @@ dev; current CLI/local MCP requests verified the combined ambiguity, pre-cap
 counter, locator and complete-text contract. The merged SDL at
 707adc4571d86f506eed004e975870fbd44e14ff confirms names and nullability; the local
 bf74b72f0 checkout was stale. Dev disables introspection. Production availability
-was not probed, and the 30-package complexity budget remains a backend gate.
+and the formerly rejected 30-package operation passed on 2026-10-12; see the production release verification
+below.
 
 ## Current Schema Fit
 
@@ -27,7 +28,7 @@ packageUpgradeReview(
 ): PackageUpgradeReviewResponse!
 ```
 
-The CLI/MCP implementation must not fall back to composing `packageSummary`, `packageVulnerabilities`, `packageChangelog`, or `packageDependencies` calls. If the aggregate query is unavailable, surface the backend protocol error. The aggregate and combined risk fields are verified on dev after #3072/#3077 deployment. Production support and a corrected 30-package complexity budget remain merge/release gates.
+The CLI/MCP implementation must not fall back to composing `packageSummary`, `packageVulnerabilities`, `packageChangelog`, or `packageDependencies` calls. If the aggregate query is unavailable, surface the backend protocol error. The aggregate and combined risk fields were verified on dev after #3072/#3077 deployment and on production during 0.29.0 release preparation, including the public 30-package maximum.
 
 Optional evidence is controlled by GraphQL field selection and local query variables:
 
@@ -726,9 +727,10 @@ These measurements precede that backend correction. The full supported batch
 range cannot be claimed to fit the budget until the backend fix is verified.
 
 The owner supplied the #3072/#3077 dev deployment notice on 2026-10-08.
-Combined-contract dev verification and server complexity corroboration are now
-complete, as recorded below. Production support and the unresolved 30-package
-budget correction remain merge/release gates. PR #463 stays draft and unmerged.
+Combined-contract dev verification and server complexity corroboration completed
+as recorded below. The production and 30-package gates were subsequently closed
+during 0.29.0 release preparation, recorded at the end of this document. PR #463
+is merged.
 
 Before removal of the proposed client split, full `bun test` passed 5,652 tests /
 22,738 assertions; typecheck, Biome, build, public-package validation and all four
@@ -752,8 +754,8 @@ unwrapped, and detailed security evidence precedes change quotes.
 
 Backend risk items now expose `url` independently of sampled entries and
 `fullText` for complete statements. Both are available in JSON; the existing
-text formatter still uses sampled-entry locators and bounded `text` until the
-owner's design pass. The client does not guess source URLs. Compact prefixes may
+text formatter uses statement URLs and available note references while preserving
+bounded `text`. The client does not guess source URLs. Compact prefixes may
 hide qualifications; verbose currently expands every section rather than a focused
 item and does not recover backend-cut `text`.
 
@@ -762,8 +764,9 @@ reverts. Express evidence includes internal dependency removals/build changes
 and a fix later reverted with its CVE rejected. Backend facts can identify
 changed APIs and supersession; only the calling agent or user can inspect local
 usage and decide what migration/testing is needed. Current output does not guide
-that local investigation explicitly. UX proposals remain in the working plan
-until the owner decides; no redesign is shipped by this assessment.
+that local investigation explicitly. Further evidence requirements are captured
+in the durable data-limitations table and backlog; consumer applicability remains
+with the calling agent.
 
 ## Data available to a separately designed view
 
@@ -780,7 +783,7 @@ keyword signals, security deltas, compatibility and dependency evidence remain.
 | Statement grouping and uncertainty | version, tier, ambiguous, kind, heading, confidence | Missing kind is not a missing tier; consumer relevance is not established. |
 | Accurate triage totals | five pre-cap tier/ambiguity counters | Returned quotes are capped at 50; totals alone cannot supply omitted evidence. |
 | Quoted evidence and provenance | text, textTruncated, fullText in JSON, model, formulation | Bounded text remains unchanged; text/verbose currently do not fetch uncut fullText. |
-| Source navigation | item url independent of entry sampling; source enum and entry htmlUrl | URL can be absent; registry links may be package-wide. Text formatter adoption awaits the owner's design pass. |
+| Source navigation | item url independent of entry sampling; source enum and entry htmlUrl | URL can be absent; registry links may be package-wide. The text formatter uses these locators in version headings and source references. |
 | Coverage overview | classified, not-assessed, without-notes, unparseable version counts | Counts cannot enumerate the affected versions or distinguish a failed job from ongoing classification. |
 | Investigation beyond returned evidence | source text where a URL/body is returned; separate changelog/source tools | No risk-item continuation or item lookup is exposed by this aggregate contract. Reruns can fill classification coverage, not bypass the item/text caps. |
 | Range interpretation | version and original quoted statements; endpoint security/dependency comparisons | No explicit relationship identifies a statement later reverted or superseded. |
@@ -790,8 +793,8 @@ The latest locator/full-text additions close those two data gaps without
 changing text design. A source URL can still be absent where the backend has no
 URL, and registry URLs can be package-wide. Aggregate counts cannot enumerate
 coverage membership, and omitted statements still lack continuation. Prospective
-contract requirements remain in the working plan; no backend fields or CLI design
-are changed here.
+contract requirements are recorded in the durable limitations table above and
+`docs/plans/open-backlog.md`; they require separate backend design.
 
 ## Latest locator and full-text contract (2026-10-08)
 
@@ -934,3 +937,47 @@ CLI/MCP smokes passed. Internal preflight was clean after one doc wording fix.
 The external PR review cap remains in effect. Targeted agent eval could not run
 tool calls because Claude CLI was not logged in. GraphQL selection is unchanged;
 no new complexity measurement was needed for this presentation-only refinement.
+
+## Production release verification (2026-10-12)
+
+The owner confirmed the combined schema and backend batch-budget correction are
+both deployed to production. Release preparation independently ran the local
+CLI and local stdio MCP against the production preset with endpoint overrides removed and normal
+auth handling; credentials were not inspected or printed.
+
+- `pkg upgrade-review npm:express@4.19.2 --to 4.21.2 --json` succeeded with one
+  review and 14 statements, each including complete `fullText`.
+- One unsplit request with 30 repeated `npm:express@4.19.2..4.21.2` package
+  entries succeeded with 30 reviews. This checks the formerly rejected public
+  maximum against the exact current operation, rather than inferring readiness
+  from a backend deployment. Each review preserved all 14 complete statements.
+- Production local stdio MCP single-package JSON matched the CLI response
+  exactly. MCP accepted 30 packages with dependency issues and transitive
+  security enabled, preserving 14 complete statements in every review. MCP text
+  included the version-grouped agent-classified evidence.
+- Required backend ambiguity, pre-cap coverage counters and source locators
+  passed the client response validator. The earlier dev complexity rejection
+  remains historical evidence; no client limit, split, fallback or backend edit
+  was introduced.
+
+The production support and maximum-batch gates are closed. Hosted MCP clients
+receive the new package behavior after `@githits/mcp` adoption and deployment.
+The completed backend verification plan is removed after clean release review.
+
+Release validation: full `bun test` passed 5,694 tests / 22,867 assertions;
+typecheck, formatting, lint, both package builds, generated-asset checks,
+public-package publish dry-run validation and source/built CLI/MCP smoke checks
+passed. Source live cohorts were skipped with `AUTH_REQUIRED` under explicitly
+credential-free file storage; the production CLI/MCP probes above used normal auth.
+The initial source live probes failed in isolated homes with default keyring
+storage; switching the smoke runs to credential-free file storage resolved the
+auth-handling checks. An initial built CLI launch overlapped package validation's
+rebuild and found no `dist/cli.js`; sequential reruns passed.
+
+Targeted neutral descriptor-only Codex `package-upgrade-safety` evaluation
+completed in 115.229 seconds with a high-confidence final answer but zero GitHits
+tool calls. The answer used external web sources, so it provides no qualitative
+coverage of the changed upgrade-review tool. No isolation-violation artifact was
+emitted by the validator. Tool traces, final and metrics were inspected; no
+quality grade ran. Local artifacts are retained under
+`.agent-eval/release-029-upgrade-safety/`.

@@ -29,3 +29,12 @@ source-grep and mixed-docs workloads under intent and full guidance against the
 recorded four-cell baseline. Preserve exact locators, truthful coverage and
 version attribution, and avoid an unnecessary prerequisite search/read step.
 Single-run token changes and self-reported confidence are not quality scores.
+
+## Upgrade review evidence completeness
+
+The aggregate backend contract cannot enumerate coverage membership, retrieve
+statements omitted by the cap, or identify later reverted/superseded statements.
+These require backend API design rather than client heuristics; they are outside
+the completed classification/locator increment. Preserve the concrete data
+requirements in the [upgrade review limitations](../implementation/pkg-upgrade-review.md#known-output-limitations)
+when planning that work. Consumer applicability remains the calling agent's job.

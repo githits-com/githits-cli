@@ -5,6 +5,46 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.29.0] - 2026-10-12
+
+Minor release with version-grouped upgrade evidence and expanded JSON statement
+data. Agent classifications describe release-note statements; callers still
+assess applicability and verify upgrades locally. The backing API must support
+the new statement and coverage fields. Hosted MCP clients receive these changes
+after adoption and deployment of the released MCP package.
+
+### Added
+
+- **Upgrade statement evidence** - Show bulleted agent-classified release-note quotes grouped by version with sources listed once, separate lexical keyword matches and honest coverage in CLI/MCP upgrade reviews, preserve raw quotes and model provenance in JSON, present backend ambiguity as uncertainty and oversize statements explicitly, and use pre-cap backend totals to summarize and rank batch triage by confident action count without assigning package verdicts.
+
+- **Statement source data** - Preserve backend statement URLs independent of sampled entries and return complete uncut statements in CLI/MCP JSON, selecting large full text only for JSON while leaving terminal output design unchanged.
+
+### Changed
+
+- **Upgrade review text** - Remove the redundant compatibility disclaimer from CLI/MCP upgrade-review reports while retaining agent attribution and factual statement evidence.
+
+- **Upgrade note navigation** - Put available note references beside each version, use statement URLs beyond sampled entries, identify agent classification in the Changes heading, and remove redundant section counts and keyword rows for already quoted evidence in CLI/MCP text.
+
+## [@githits/mcp 0.29.0] - 2026-10-12
+
+Minor release with version-grouped upgrade evidence and expanded JSON statement
+data. Agent classifications describe release-note statements; callers still
+assess applicability and verify upgrades locally. The backing API must support
+the new statement and coverage fields. Hosted MCP clients receive these changes
+after adoption and deployment of the released MCP package.
+
+### Added
+
+- **Upgrade statement evidence** - Show bulleted agent-classified release-note quotes grouped by version with sources listed once, separate lexical keyword matches and honest coverage in CLI/MCP upgrade reviews, preserve raw quotes and model provenance in JSON, present backend ambiguity as uncertainty and oversize statements explicitly, and use pre-cap backend totals to summarize and rank batch triage by confident action count without assigning package verdicts.
+
+- **Statement source data** - Preserve backend statement URLs independent of sampled entries and return complete uncut statements in CLI/MCP JSON, selecting large full text only for JSON while leaving terminal output design unchanged.
+
+### Changed
+
+- **Upgrade review text** - Remove the redundant compatibility disclaimer from CLI/MCP upgrade-review reports while retaining agent attribution and factual statement evidence.
+
+- **Upgrade note navigation** - Put available note references beside each version, use statement URLs beyond sampled entries, identify agent classification in the Changes heading, and remove redundant section counts and keyword rows for already quoted evidence in CLI/MCP text.
+
 ## [githits 0.28.0] - 2026-10-09
 
 Pre-1.0 minor release with breaking wait behavior. Search and search-status

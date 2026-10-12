@@ -1,10 +1,11 @@
 # Upgrade review backend ambiguity, totals and locator verification
 
-Status: implementation delivered and combined-contract dev verification passed
-in draft PR #463. Remaining gate: backend 30-package complexity correction and
-production availability verification before merge/release. No merge, backend
-edits or client split are authorized. The owner requested the scoped output
-refinements below on 2026-10-12.
+Status: implementation merged in PR #463; release preparation verifies production
+support and the formerly failing 30-package request on 2026-10-12. The owner
+confirmed both backend changes are deployed to production. No client split or
+backend edit was required. Preserve this plan through release review, then
+remove it in the final release-PR closure commit; permanent evidence lives in
+`docs/implementation/pkg-upgrade-review.md`.
 
 ## Outcome and ownership
 
@@ -27,8 +28,8 @@ extra request, fallback, polling or new infrastructure.
 Owner confirmed backend #3072/#3077 merged and deployed to dev. Merged SDL
 707adc4571d86f506eed004e975870fbd44e14ff contains the combined fields. The earlier
 local bf74b72f0 snapshot was stale, and its missing-field gate is resolved on dev.
-Production is not probed or assumed deployed. Required production support remains
-an owner-controlled merge/release gate.
+Production was not probed during the dev checks below. Release preparation
+verified the combined contract and the 30-package operation on 2026-10-12.
 
 ## Completed implementation and checks
 
@@ -85,14 +86,12 @@ but still contributes complexity. No selected consumer field was removed and no
 client limit or split introduced. Owner chose to fix backend accounting; report
 this verified blocker, do not change backend. After that correction is deployed,
 repeat the narrow exact-operation/30-package check; no broad revalidation absent
-new code or failures. Production support must also be confirmed before release.
+new code or failures. Production support and the 30-package operation passed release verification
+on 2026-10-12; the earlier failure below is retained as historical evidence.
 
-Acceptance still open: all supported batch sizes fit server complexity <=500.
-Unknowns: timing/revision of backend budget fix and production deployment. These
-are external dependencies, not a reason to add client mechanisms or thresholds.
-Keep this plan until that final gate closes; transfer evidence to permanent docs
-and remove it in the final closure commit, not before verification is complete.
-PR #463 stays draft/unmerged for the owner's output design/review pass.
+Acceptance closed: production accepts the exact combined operation at the public
+30-package maximum, with complete statement data. PR #463 is merged. No backend
+deployment gate remains; normal release review and separate merge approval apply.
 
 ## Data gaps outside this implementation
 
