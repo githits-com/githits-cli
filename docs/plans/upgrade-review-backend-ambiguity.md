@@ -125,7 +125,7 @@ above remain separate.
 
 Acceptance: use item URL and all returned note links in version headings; list
 each URL once; remove the standalone Notes row and per-section counts; move
-attribution to Changes (classified by agent), retaining the compatibility caveat;
+attribution to Changes (classified by agent);
 suppress lexical rows for already quoted chunks while preserving distinct
 keyword evidence and all raw JSON. Verify narrow-width wrapping, colors, null
 locators, links outside sampling, summary counts and CLI/MCP parity with focused
@@ -146,3 +146,14 @@ locators are present and no redundant matched-quote row remains. Coverage was
 Keychain approval and was interrupted; the owner approved and the rerun passed.
 Targeted agent eval remains unavailable: Claude CLI not logged in, zero tool calls, no final
 answer or qualitative grade. No credentials were inspected or printed.
+
+Owner follow-up: remove the redundant Not a compatibility verdict sentence from
+single and batch text. Agent attribution and the permanent fact-reporting rule
+remain. No eval rerun for this wording change: the earlier Codex upgrade-safety
+run completed on 2026-10-07 with nine logical MCP calls, including three upgrade
+reviews, and medium final confidence; no quality grading ran. Latest Claude
+attempts were blocked before tool use and do not replace that completed run.
+
+Footer follow-up verification: 55 focused tests / 497 assertions, Biome, build
+and all four source/built CLI/MCP smoke suites passed. Selection, classification
+policy and JSON are unchanged. No new agent eval was run, per owner instruction.

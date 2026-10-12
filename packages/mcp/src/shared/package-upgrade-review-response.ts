@@ -1267,7 +1267,6 @@ function formatChangesSection(
       width,
       "  ",
     );
-  appendWrappedText(lines, "  ", "Not a compatibility verdict.", width, "  ");
   return lines;
 }
 
@@ -1403,7 +1402,7 @@ function formatBatchTriage(
   appendWrappedText(
     lines,
     "  ",
-    "Counts separate backend-confident statements from uncertain ones; ranking uses only confident action totals. Totals include omitted statements; quotes are capped by the backend. Not a compatibility verdict.",
+    "Counts separate backend-confident statements from uncertain ones; ranking uses only confident action totals. Totals include omitted statements; quotes are capped by the backend.",
     width,
     "  ",
   );

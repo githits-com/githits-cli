@@ -340,7 +340,6 @@ Changes (classified by agent)
       * [security fix] "fix(securite): fix vulnerabilities by @Abdel-Monaam-Aouini in [13]" [5]
   Sources
     ... each source URL once
-  Not a compatibility verdict.
 ```
 
 The abbreviated example illustrates grouping; live output quotes every returned
@@ -901,7 +900,9 @@ No output-design or backend implementation changes were needed for this verifica
 
 ## Owner-requested note navigation verification (2026-10-12)
 
-The shared Changes heading now identifies agent classification. Displayed version
+The shared Changes heading now identifies agent classification. The owner also
+removed the redundant compatibility disclaimer from single and batch text; the
+fact-reporting rule remains unchanged. Displayed version
 headings carry available note references, including statement URLs outside sampled
 entries, replacing the earlier standalone Notes row. Subsection counts are omitted;
 pre-cap summary totals remain. Already quoted lexical evidence is not repeated

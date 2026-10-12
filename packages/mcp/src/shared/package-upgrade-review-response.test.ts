@@ -1796,7 +1796,7 @@ describe("upgrade review model statement evidence", () => {
     expect(text).not.toContain("Classified by an agent.");
     expect(text).not.toContain("jev-1.13.0");
     expect(text).not.toContain("d-hier-v1");
-    expect(compact).toContain("Not a compatibility verdict.");
+    expect(compact).not.toContain("Not a compatibility verdict.");
     expect(text).not.toContain("KNOW_END");
     expect(text).not.toContain("READ_END");
     expect(text.replace(/\s+/g, " ")).toContain(
