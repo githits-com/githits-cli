@@ -67,7 +67,11 @@ Timeline-level `source` describes the aggregate and cannot identify every
 entry's source. Use an item's matching URL/source or exact-release source when
 available; otherwise label an entry link generically as Notes. Do not invent
 links or infer sources from URL patterns. The original markdown previews remain
-available and may themselves contain links.
+available and may themselves contain links. Changelog formatter references use
+`[S1]` to stay distinct from note-authored numbered Markdown references; notes
+retain their original links. Only rendered headers, quotes and verbose details
+admit Sources entries; hidden quote-tail links cannot be admitted by matching
+numbers in notes or relative Markdown links. JSON retains original Markdown.
 
 Terminal sanitation runs at presentation only, on notes, quotes, headings,
 versions and locators. JSON retains raw evidence with the established lowercase
@@ -101,12 +105,35 @@ host-native note expansion hints.
 
 ## Verified complexity
 
-Authenticated dev admission measurements on 2026-10-13: exact56, latest50=65,
-range90 for the final maximal client JSON selections, below the500 limit.
-A verified510-cost control operation (51fixed-cost packageVulnerabilities aliases)
+Authenticated dev admission measurements on 2026-10-13: exact **56**, latest
+with 50 entries **65**, and range **90** for the maximal client JSON selections,
+below the 500 limit.
+A verified 510-cost control operation (51 fixed-cost packageVulnerabilities aliases)
 was added only to admission probes, which were rejected before resolvers;
-subtracting510 from566/575/600 gives the client costs. Product calls remain
+subtracting 510 from 566/575/600 gives the client costs. Product calls remain
 a single query. Runtime directives can still count statically.
+
+## Validation
+
+Unit coverage checks wire selections for each output mode, filter-before-cap
+variables, CLI/MCP parity, pending and empty coverage, missing notes, omitted and
+truncated statements, source attribution, raw-version joins, terminal sanitation
+and preserved JSON evidence. Shared helpers retain upgrade-review regressions.
+Source and built CLI/MCP smoke suites, build and typecheck passed.
+
+Authenticated dev CLI/local MCP checks on 2026-10-13 covered exact, latest and
+range targets, each filter, empty ranges, releases without notes and no-body
+timelines. Biome 2.4.2..2.4.15 returned 50 statements with 12 omitted for `all`,
+and 40 with none omitted for `actionable`. All-tier counts stayed unchanged.
+Express 5.0.0..5.2.1 had four classified versions and none pending; the warm
+request kept the same coverage. Stored labels covered multiple formulations.
+Cold pending coverage was tested with fixtures, not observed live.
+
+The exact-release Codex agent workload with explicit GitHits intent used
+`quick_start` and `pkg_changelog` in default and verbose modes, with no isolation
+violations. Its answer preserved uncertainty and cited the rollback evidence.
+The neutral-intent run made no tool calls. These are inspected traces, not graded
+quality results.
 
 ## Release guidance staging
 

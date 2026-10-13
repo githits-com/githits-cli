@@ -75,7 +75,7 @@ export function releaseNoteText(
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\[([^\]]+)\]\[[^\]]*\]/g, "$1")
     // Note-authored numbers must not impersonate our source citations.
-    .replace(/\[(\d+)\](?!\()/g, "($1)");
+    .replace(/\[(S?\d+)\](?!\()/g, "($1)");
   return plain
     .replace(
       /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>]+)/g,

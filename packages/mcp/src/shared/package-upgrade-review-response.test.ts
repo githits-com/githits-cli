@@ -1509,7 +1509,7 @@ describe("upgrade review model statement evidence", () => {
       terminalWidth: 200,
     });
     expect(plain).toContain(
-      "Classification versions: 1 classified | 0 not assessed | 0 without notes | 56 statements labeled no impact\n",
+      "Classification coverage: 1 classified | 0 not assessed | 0 without notes | 56 statements labeled no impact\n",
     );
     expect(plain).toContain('* [security fix] "Fixed a vulnerability."');
     expect(plain).toContain('* "Added a warning."');
@@ -1892,6 +1892,21 @@ describe("upgrade review model statement evidence", () => {
     );
     expect(empty).not.toContain("Rerun to fill");
     expect(empty).toContain("0 statements labeled no impact");
+  });
+
+  it("does not admit hidden quote URLs through relative Markdown link labels", () => {
+    const review = riskReview([
+      riskItem({
+        tier: "should_know",
+        text: `Migration [2](../MIGRATION.md). ${"Long details ".repeat(30)} https://example.com/hidden`,
+      }),
+    ]);
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    );
+    expect(text).toContain("[2](../MIGRATION.md)");
+    expect(text).not.toContain("https://example.com/hidden");
+    expect(text).toContain("https://example.com/release");
   });
 
   it("distinguishes omitted items and backend-truncated quotes from local excerpts", () => {

@@ -699,6 +699,75 @@ describe("changelog classified statement evidence", () => {
     expect(text).toContain(`Release notes: ${primary}`);
     expect(text).not.toContain(`Changelog: ${primary}`);
   });
+  it("distinguishes note references from owned citations and hides unshown excerpt URLs", () => {
+    const primary = "https://example.com/history";
+    const hidden = "https://example.com/hidden";
+    const json = buildPackageChangelogSuccessPayload(
+      {
+        ...report,
+        entries: [
+          {
+            version: "v5.2.1",
+            htmlUrl: primary,
+            body: "- Fixed parser [#12][2]\nSee [3] and [manual](https://example.com/manual)",
+          },
+        ],
+        riskItems: [
+          {
+            ...item,
+            tier: "SHOULD_KNOW",
+            url: primary,
+            text: `${"A noteworthy statement ".repeat(30)} ${hidden}`,
+            heading: "Extra [4] details https://example.com/heading",
+          },
+        ],
+      },
+      baseOptions,
+    );
+    const compact = formatPackageChangelogTerminal(json, { useColors: false });
+    expect(compact).toContain("[#12][2]");
+    expect(compact).not.toContain("[#12](2)");
+    expect(compact).toContain("See [3]");
+    expect(compact).toContain("[manual](https://example.com/manual)");
+    expect(compact).not.toContain(hidden);
+    expect(json.entries.items[0]?.body).toContain("[#12][2]");
+    const verbose = formatPackageChangelogTerminal(json, {
+      useColors: false,
+      verbose: true,
+    });
+    expect(verbose).toContain(hidden);
+    expect(verbose).toContain("https://example.com/heading");
+    expect(verbose).toContain("Extra (4)");
+  });
+  it("does not admit hidden sources from relative links or authored citation markers", () => {
+    for (const authored of [
+      "[S2](../MIGRATION.md)",
+      "[S2]",
+      "[2](../MIGRATION.md)",
+    ]) {
+      const hidden = "https://example.com/hidden";
+      const json = buildPackageChangelogSuccessPayload(
+        {
+          ...report,
+          entries: [
+            { version: "v5.2.1", htmlUrl: item.url, body: "Notes [2]" },
+          ],
+          riskItems: [
+            {
+              ...item,
+              tier: "SHOULD_KNOW",
+              text: `Migration ${authored}. ${"Longer change details ".repeat(30)} ${hidden}`,
+            },
+          ],
+        },
+        baseOptions,
+      );
+      const text = formatPackageChangelogTerminal(json, { useColors: false });
+      expect(text).not.toContain(hidden);
+      expect(text).toContain("[S1]");
+      expect(text).toContain("Notes [2]");
+    }
+  });
   it("retains all per-item provenance and full text in JSON without mutating the report", () => {
     const json = payload();
     expect(json.riskCoverage).toEqual(coverage);

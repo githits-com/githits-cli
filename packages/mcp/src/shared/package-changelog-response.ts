@@ -218,7 +218,7 @@ export function formatPackageChangelogTerminal(
   if (coverage) {
     lines.push(highlight("Changes (classified by agent)", options.useColors));
     prose(`All selected releases: ${changelogRiskSummary(coverage)}`);
-    prose(`Classification versions: ${changelogRiskCoverageText(coverage)}`);
+    prose(`Classification coverage: ${changelogRiskCoverageText(coverage)}`);
     if (envelope.filter?.changes && envelope.filter.changes !== "all")
       prose(
         `Showing ${envelope.filter.changes === "actionable" ? "actionable statements" : "actionable + should know statements"}; note previews and totals include all tiers.`,
@@ -234,6 +234,12 @@ export function formatPackageChangelogTerminal(
       prose("No matching classified statements returned.");
     lines.push("");
   }
+  // Only renderer-owned headers and quotes can cite our source numbers.
+  const cited = new Set<number>();
+  const recordReferences = (text: string): void => {
+    for (const match of text.matchAll(/\[S(\d+)\](?!\()/g))
+      cited.add(Number(match[1]));
+  };
   const sources = new Map<string, { number: number; label: string }>();
   const reference = (url: string, source?: string): string => {
     const clean = safeRiskText(url);
@@ -245,7 +251,7 @@ export function formatPackageChangelogTerminal(
       };
       sources.set(clean, sourceRecord);
     }
-    return `[${sourceRecord.number}]`;
+    return `[S${sourceRecord.number}]`;
   };
   let excerpted = false;
 
@@ -291,6 +297,7 @@ export function formatPackageChangelogTerminal(
       : entry.htmlUrl
         ? dim(safeRiskText(entry.htmlUrl), options.useColors)
         : dim("(no link)", options.useColors);
+    if (coverage) recordReferences(url);
     const padded = padColumn(version, versionWidth);
     const datePadded = padColumn(date, dateWidth);
     lines.push(
@@ -329,6 +336,7 @@ export function formatPackageChangelogTerminal(
           ? reference(item.url, item.source)
           : "[source URL unavailable]";
         const text = `${kind ? `${kind} ` : ""}${item.ambiguous ? "(uncertain) " : ""}"${shown}" ${source}${item.textTruncated ? " [statement truncated by backend; fullText in JSON]" : ""}`;
+        recordReferences(text);
         const rendered = wrapTerminalProse(`    * ${text}`, width, "      ");
         lines.push(
           ...rendered.map((line) => {
@@ -357,7 +365,10 @@ export function formatPackageChangelogTerminal(
           ]
             .filter(Boolean)
             .join(" | ");
-          if (details) prose(details, "      ");
+          if (details) {
+            recordReferences(details);
+            prose(details, "      ");
+          }
         }
       }
     }
@@ -365,14 +376,10 @@ export function formatPackageChangelogTerminal(
   }
   if (coverage && sources.size) {
     lines.push("Sources");
-    const cited = new Set(
-      [...lines.join("\n").matchAll(/\[(\d+)\]/g)].map((match) =>
-        Number(match[1]),
-      ),
-    );
+
     for (const source of sources.values())
       if (cited.has(source.number))
-        lines.push(`  [${source.number}] ${source.label}`);
+        lines.push(`  [S${source.number}] ${source.label}`);
   }
   if (excerpted)
     prose(

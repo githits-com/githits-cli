@@ -907,7 +907,7 @@ function formatChangesSection(
   );
   appendWrappedText(
     lines,
-    "  Classification versions: ",
+    "  Classification coverage: ",
     `${riskCoverageText(changelog)} | ${changelog.riskCoverage.unitsNoImpact} statements labeled no impact`,
     width,
     "    ",
@@ -1216,7 +1216,7 @@ function formatChangesSection(
     );
   // Excerpting may remove an in-note link: list only references still visible.
   const cited = new Set(
-    [...lines.join("\n").matchAll(/\[(\d+)\]/g)].map((match) =>
+    [...lines.join("\n").matchAll(/\[(\d+)\](?!\()/g)].map((match) =>
       Number(match[1]),
     ),
   );

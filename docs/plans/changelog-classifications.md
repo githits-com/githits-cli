@@ -258,3 +258,16 @@ backlog; none is currently proposed.
   No quality grading ran. Initial missing dedicated CODEX_HOME preflight did not
   execute a model; retry used the existing dedicated eval home without reading
   auth material. Last touched request/CLI/parity files:89pass/266 assertions.
+
+
+External code round1: direction sound. Accepted citation collision finding:
+renderer-owned references now tracked separately from raw body previews; original note Markdown is retained; formatter references use a distinct `[S1]`
+namespace. Relative Markdown links cannot count as owned citations. Regression covers
+reference-style links, bare numbered refs, a URL after a cut quote, and verbose
+heading/source admission; raw JSON unchanged. Relabeled mixed count line to
+Classification coverage in both sibling changelog/upgrade formatter surfaces.
+Internal follow-up correctly caught loss of note links in the initial remedy;
+namespace separation replaced body rewriting. Authored markers are escaped in
+quote normalization before formatter references are injected; raw notes stay
+unchanged. Upgrade citation collection excludes relative Markdown links too.
+No findings rejected; internal final closure is clean. The cited-only namespace preserves note links and quote evidence. Source numbers can have gaps after local excerpts; the registry keeps stable identifiers without adding renumbering machinery. Focused closure:123pass/743assertions, build/typecheck pass, compact/verbose live CLI/MCP text parity pass. External round2 pending.
