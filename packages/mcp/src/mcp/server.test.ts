@@ -578,7 +578,15 @@ describe("MCP compact target schemas", () => {
     ],
     [
       "pkg_changelog",
-      ["body_lines", "format", "limit", "omit_bodies", "target", "verbose"],
+      [
+        "body_lines",
+        "changes",
+        "format",
+        "limit",
+        "omit_bodies",
+        "target",
+        "verbose",
+      ],
     ],
   ] as const)("%s exposes the compact target schema", (name, properties) => {
     const descriptor = getMcpToolDescriptors().find(
