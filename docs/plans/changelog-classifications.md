@@ -281,3 +281,17 @@ Tests assert timeline and classified-without-Sources endings; response/parity
 68pass. Internal final closure clean. Updated two documentation catalog rows
 with the implemented changes parameter. External round3 pending; the one final
 fresh-context check was already used in round2.
+
+## Completed
+
+External code round3 closed the newline finding and found one cosmetic empty
+Sources heading when every registered URL was excerpted away. Accepted; heading
+and rows now share the filtered visible-source list. The complete formatter and
+upgrade sibling were checked for the same invariant; no other instances remain.
+69 focused response/parity tests pass, and final internal closure is clean.
+Three external rounds ran; no fourth was dispatched under the round limit.
+All findings are resolved; there was no external round without code findings.
+Final build, typecheck, built MCP smoke and dev compact/verbose text parity pass.
+No backend contract issues or deferred development. Durable requirements,
+complexity, validation and staged release guidance are in implementation docs.
+The reviewed plan can now be deleted in the final cleanup commit.

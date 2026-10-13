@@ -828,6 +828,29 @@ describe("changelog classified statement evidence", () => {
     expect(text.endsWith("\n")).toBe(true);
     expect(text.endsWith("\n\n")).toBe(false);
   });
+  it("omits the Sources heading when its only URL is hidden by an excerpt", () => {
+    const hiddenUrl = "https://example.com/hidden-tail";
+    const json = buildPackageChangelogSuccessPayload(
+      {
+        ...report,
+        entries: [{ version: item.version, body: "Notes" }],
+        riskItems: [
+          {
+            ...item,
+            url: undefined,
+            tier: "SHOULD_KNOW",
+            text: `${"Longer change details ".repeat(30)} ${hiddenUrl}`,
+          },
+        ],
+      },
+      baseOptions,
+    );
+    const text = formatPackageChangelogTerminal(json, { useColors: false });
+    expect(text).toContain("Quotes ending in ... are excerpts");
+    expect(text).not.toContain(hiddenUrl);
+    expect(text).not.toContain("Sources");
+    expect(text.endsWith("\n\n")).toBe(false);
+  });
   it("honestly reports entirely pending, missing and unparseable versions with zero quotes", () => {
     const json = buildPackageChangelogSuccessPayload(
       {

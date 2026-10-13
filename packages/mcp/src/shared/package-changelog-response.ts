@@ -374,12 +374,13 @@ export function formatPackageChangelogTerminal(
     }
     lines.push("");
   }
-  if (coverage && sources.size) {
+  const visibleSources = [...sources.values()].filter((source) =>
+    cited.has(source.number),
+  );
+  if (coverage && visibleSources.length) {
     lines.push("Sources");
-
-    for (const source of sources.values())
-      if (cited.has(source.number))
-        lines.push(`  [S${source.number}] ${source.label}`);
+    for (const source of visibleSources)
+      lines.push(`  [S${source.number}] ${source.label}`);
   }
   if (excerpted)
     prose(
