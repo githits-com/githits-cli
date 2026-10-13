@@ -31,6 +31,8 @@ export interface PackageChangelogRequestInput {
   limit?: number;
   /** Include raw markdown bodies in entries. Defaults to true. */
   includeBodies?: boolean;
+  /** Cumulative statement view; ignored when bodies are omitted. */
+  changes?: string;
 }
 
 /** Fields whose *explicit* presence the envelope echoes under `filter.*`. */
@@ -38,12 +40,16 @@ export type ExplicitFilterField =
   | "fromVersion"
   | "toVersion"
   | "limit"
-  | "version";
+  | "version"
+  | "changes";
+
+export type ChangelogChangesView = "actionable" | "important" | "all";
 
 export type PackageChangelogRequestMode = "latest" | "exact" | "range";
 
 export interface PackageChangelogRequestBuildResult {
   params: PackageChangelogParams;
+  changes?: ChangelogChangesView;
   mode: PackageChangelogRequestMode;
   /**
    * Set of filter fields the caller explicitly supplied. The envelope
@@ -68,6 +74,16 @@ export function buildPackageChangelogParams(
   const flagFrom = normaliseBound(input.fromVersion, registry, "--from");
   const flagTo = normaliseBound(input.toVersion, registry, "--to");
   const limit = normaliseLimit(input.limit);
+  const changes =
+    input.includeBodies === false ? undefined : normaliseChanges(input.changes);
+  const riskTiers: PackageChangelogParams["riskTiers"] =
+    changes === "actionable"
+      ? ["MUST_ACT"]
+      : changes === "important"
+        ? ["MUST_ACT", "SHOULD_KNOW"]
+        : undefined;
+  const explicitChanges =
+    changes !== undefined && Boolean(input.changes?.trim());
 
   if (parsed.mode === "exact") {
     rejectExactConflicts(flagFrom, flagTo, limit);
@@ -79,13 +95,17 @@ export function buildPackageChangelogParams(
     }
     return {
       mode: "exact",
+      changes,
       params: {
         registry,
         packageName: parsed.name,
         version,
         includeBodies: input.includeBodies,
+        riskTiers,
       },
-      explicitFilterFields: new Set<ExplicitFilterField>(["version"]),
+      explicitFilterFields: new Set<ExplicitFilterField>(
+        explicitChanges ? ["version", "changes"] : ["version"],
+      ),
     };
   }
 
@@ -118,12 +138,14 @@ export function buildPackageChangelogParams(
   }
 
   const explicit = new Set<ExplicitFilterField>();
+  if (explicitChanges) explicit.add("changes");
   if (fromVersion !== undefined) explicit.add("fromVersion");
   if (toVersion !== undefined) explicit.add("toVersion");
   if (limit !== undefined) explicit.add("limit");
 
   return {
     mode,
+    changes,
     params: {
       registry,
       packageName: parsed.name,
@@ -131,6 +153,7 @@ export function buildPackageChangelogParams(
       toVersion,
       limit,
       includeBodies: input.includeBodies,
+      riskTiers,
     },
     explicitFilterFields: explicit,
   };
@@ -152,7 +175,7 @@ function rejectExactConflicts(
 }
 
 function joinList(items: string[]): string {
-  if (items.length === 1) return items[0]!;
+  if (items.length === 1) return items.join("");
   if (items.length === 2) return `${items[0]} and ${items[1]}`;
   return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
 }
@@ -176,4 +199,15 @@ function normaliseLimit(raw: number | undefined): number | undefined {
     );
   }
   return raw;
+}
+
+/** Empty agent strings mean the default; omission mode does not validate this knob. */
+function normaliseChanges(raw: string | undefined): ChangelogChangesView {
+  const value = raw?.trim().toLowerCase() || "all";
+  if (value !== "actionable" && value !== "important" && value !== "all") {
+    throw new InvalidPackageSpecError(
+      "changes must be actionable, important (actionable + should know), or all.",
+    );
+  }
+  return value;
 }

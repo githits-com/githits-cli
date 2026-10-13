@@ -1253,7 +1253,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_changelog default leaked CLI verbose flag",
   );
   if (
-    changelogText.includes("truncated") ||
+    changelogText.includes("more lines") ||
     changelogText.includes("full bodies")
   ) {
     assert(
@@ -1274,7 +1274,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   );
   // Live entries may fit within the requested body limit without truncation.
   if (
-    changelogBodyLinesText.includes("truncated") ||
+    changelogBodyLinesText.includes("more lines") ||
     changelogBodyLinesText.includes("full bodies")
   ) {
     assert(
@@ -1316,6 +1316,47 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   );
   assertRecord(changelogJson, "pkg_changelog json");
   assertRecord(changelogJson.entries, "pkg_changelog json entries");
+  assert(
+    Array.isArray(changelogJson.riskItems),
+    "pkg_changelog json missing classification items",
+  );
+  assertRecord(changelogJson.riskCoverage, "pkg_changelog json coverage");
+  const filteredChangelog = assertJsonResult(
+    await callTool(caller, "pkg_changelog", {
+      target: "npm:express@5.2.1",
+      changes: "actionable",
+      format: "json",
+    }),
+    "pkg_changelog actionable",
+  );
+  assertRecord(filteredChangelog, "pkg_changelog actionable");
+  assert(
+    Array.isArray(filteredChangelog.riskItems) &&
+      filteredChangelog.riskItems.every(
+        (item: unknown) =>
+          typeof item === "object" &&
+          item !== null &&
+          "tier" in item &&
+          item.tier === "must_act",
+      ),
+    "pkg_changelog actionable includes another tier",
+  );
+  const timelineChangelog = assertJsonResult(
+    await callTool(caller, "pkg_changelog", {
+      target: "npm:express",
+      limit: 1,
+      omit_bodies: true,
+      changes: "ignored",
+      format: "json",
+    }),
+    "pkg_changelog timeline-only",
+  );
+  assertRecord(timelineChangelog, "pkg_changelog timeline-only");
+  assert(
+    !("riskItems" in timelineChangelog) &&
+      !("riskCoverage" in timelineChangelog),
+    "pkg_changelog timeline-only classified notes",
+  );
 
   const changelogExact = assertJsonResult(
     await callTool(caller, "pkg_changelog", {

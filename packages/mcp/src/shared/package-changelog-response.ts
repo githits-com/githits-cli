@@ -17,9 +17,27 @@
  *   entries omit that field.
  */
 
-import type { ChangelogReport } from "@githits/core-internal";
+import type {
+  ChangelogReport,
+  ChangelogRiskCoverage,
+} from "@githits/core-internal";
+import {
+  type ClassifiedChangelogItem,
+  changelogRiskCoverageText,
+  changelogRiskSections,
+  changelogRiskSummary,
+  normaliseChangelogRiskItems,
+  PENDING_CLASSIFICATION_MESSAGE,
+  RISK_KIND_LABELS,
+  releaseNoteText,
+  safeRiskText,
+} from "./changelog-risk-presentation.js";
 import { colorize, dim, highlight } from "./colors.js";
-import type { ExplicitFilterField } from "./package-changelog-request.js";
+import type {
+  ChangelogChangesView,
+  ExplicitFilterField,
+} from "./package-changelog-request.js";
+import { sanitizeTerminalText, wrapTerminalProse } from "./terminal-text.js";
 
 export type ChangelogMode = "latest" | "exact" | "range";
 
@@ -51,6 +69,7 @@ export interface LeanEntriesBlock {
  * intent.
  */
 export interface LeanChangelogFilter {
+  changes?: ChangelogChangesView;
   fromVersion?: string;
   toVersion?: string;
   limit?: number;
@@ -58,6 +77,8 @@ export interface LeanChangelogFilter {
 }
 
 export interface LeanChangelogEnvelope {
+  riskItems?: ClassifiedChangelogItem[];
+  riskCoverage?: ChangelogRiskCoverage;
   /** Present for spec addressing. */
   registry?: string;
   /** Present for spec addressing. */
@@ -74,6 +95,7 @@ export interface LeanChangelogEnvelope {
 }
 
 export interface BuildChangelogPayloadOptions {
+  changes?: ChangelogChangesView;
   registry?: string;
   name?: string;
   mode: ChangelogMode;
@@ -120,6 +142,10 @@ export function buildPackageChangelogSuccessPayload(
     },
   };
 
+  if (options.includeBodies && report.riskItems && report.riskCoverage) {
+    envelope.riskItems = normaliseChangelogRiskItems(report.riskItems);
+    envelope.riskCoverage = { ...report.riskCoverage };
+  }
   if (report.source) envelope.source = report.source;
 
   if (options.registry) envelope.registry = options.registry;
@@ -137,6 +163,8 @@ function buildFilterBlock(
   const { explicitFilterFields } = options;
   if (explicitFilterFields.size === 0) return undefined;
   const filter: LeanChangelogFilter = {};
+  if (options.explicitFilterFields.has("changes") && options.changes)
+    filter.changes = options.changes;
   if (explicitFilterFields.has("fromVersion") && options.fromVersion) {
     filter.fromVersion = options.fromVersion;
   }
@@ -161,6 +189,7 @@ export interface FormatChangelogTerminalOptions {
   useColors: boolean;
   fullBodyHint?: string;
   bodyPreviewLines?: number;
+  terminalWidth?: number;
 }
 
 const DEFAULT_BODY_PREVIEW_LINES = 10;
@@ -177,6 +206,48 @@ export function formatPackageChangelogTerminal(
   const lines: string[] = [];
   lines.push(buildSummaryLine(envelope, options));
   lines.push("");
+  const width =
+    options.terminalWidth === undefined ||
+    !Number.isFinite(options.terminalWidth)
+      ? 80
+      : Math.max(20, Math.floor(options.terminalWidth));
+  const prose = (text: string, indent = "  "): void => {
+    lines.push(...wrapTerminalProse(`${indent}${text}`, width, indent));
+  };
+  const coverage = envelope.riskCoverage;
+  if (coverage) {
+    lines.push(highlight("Changes (classified by agent)", options.useColors));
+    prose(`All selected releases: ${changelogRiskSummary(coverage)}`);
+    prose(`Classification versions: ${changelogRiskCoverageText(coverage)}`);
+    if (envelope.filter?.changes && envelope.filter.changes !== "all")
+      prose(
+        `Showing ${envelope.filter.changes === "actionable" ? "actionable statements" : "actionable + should know statements"}; note previews and totals include all tiers.`,
+      );
+    if (coverage.itemsOmitted)
+      prose(
+        `${coverage.itemsOmitted} matching statements omitted by backend (lowest priority first).`,
+      );
+    if (coverage.versionsNotAssessed) prose(PENDING_CLASSIFICATION_MESSAGE);
+    if (coverage.versionsWithoutNotes || coverage.versionsUnparseable)
+      prose("Missing or unparseable notes are not evidence of no risk.");
+    if (!envelope.riskItems?.length)
+      prose("No matching classified statements returned.");
+    lines.push("");
+  }
+  const sources = new Map<string, { number: number; label: string }>();
+  const reference = (url: string, source?: string): string => {
+    const clean = safeRiskText(url);
+    let sourceRecord = sources.get(clean);
+    if (!sourceRecord) {
+      sourceRecord = {
+        number: sources.size + 1,
+        label: `${source ? `${noteSourceLabel(source)}: ` : ""}${clean}`,
+      };
+      sources.set(clean, sourceRecord);
+    }
+    return `[${sourceRecord.number}]`;
+  };
+  let excerpted = false;
 
   if (envelope.entries.items.length === 0) {
     lines.push(dim("No entries in this range.", options.useColors));
@@ -188,13 +259,38 @@ export function formatPackageChangelogTerminal(
   const dateWidth = 10; // YYYY-MM-DD
 
   for (const entry of envelope.entries.items) {
-    const version = entry.version ?? "(unversioned)";
+    const version = safeRiskText(entry.version ?? "(unversioned)");
+    const items = (envelope.riskItems ?? []).filter(
+      (item) => item.version === entry.version,
+    );
     const date = entry.publishedAt
-      ? formatDate(entry.publishedAt)
+      ? safeRiskText(formatDate(entry.publishedAt))
       : dim("-", options.useColors);
-    const url = entry.htmlUrl
-      ? dim(entry.htmlUrl, options.useColors)
-      : dim("(no link)", options.useColors);
+    const noteLinks = new Map<string, string>();
+    // Timeline source is aggregate: individual releases can use alternate sources.
+    const entrySource =
+      items.find((item) => item.url === entry.htmlUrl)?.source ??
+      (envelope.mode === "exact" ? envelope.source : undefined);
+    if (entry.htmlUrl)
+      noteLinks.set(
+        reference(entry.htmlUrl, entrySource),
+        noteSourceLabel(entrySource),
+      );
+    for (const item of items)
+      if (item.url)
+        noteLinks.set(
+          reference(item.url, item.source),
+          noteSourceLabel(item.source),
+        );
+    const url = coverage
+      ? dim(
+          [...noteLinks].map(([ref, label]) => `${label} ${ref}`).join("; ") ||
+            "(no link)",
+          options.useColors,
+        )
+      : entry.htmlUrl
+        ? dim(safeRiskText(entry.htmlUrl), options.useColors)
+        : dim("(no link)", options.useColors);
     const padded = padColumn(version, versionWidth);
     const datePadded = padColumn(date, dateWidth);
     lines.push(
@@ -208,9 +304,81 @@ export function formatPackageChangelogTerminal(
     } else if (entry.body != null) {
       appendBodyLines(lines, entry.body, options);
     }
+    if (items.length && entry.body != null) lines.push("");
+    for (const section of changelogRiskSections(items)) {
+      if (!section.items.length) continue;
+      lines.push(`  ${section.label}`);
+      for (const item of section.items) {
+        const quote = releaseNoteText(item.text, (url) => reference(url));
+        const cap =
+          item.tier === "must_act" || options.verbose
+            ? Infinity
+            : item.tier === "should_know"
+              ? 240
+              : 120;
+        const chars = Array.from(quote);
+        const shortened = chars.length > cap;
+        excerpted ||= shortened;
+        const shown = shortened
+          ? `${chars.slice(0, cap).join("").trimEnd()}...`
+          : quote;
+        const kind = item.kind
+          ? `[${RISK_KIND_LABELS[item.kind] ?? safeRiskText(item.kind)}]`
+          : "";
+        const source = item.url
+          ? reference(item.url, item.source)
+          : "[source URL unavailable]";
+        const text = `${kind ? `${kind} ` : ""}${item.ambiguous ? "(uncertain) " : ""}"${shown}" ${source}${item.textTruncated ? " [statement truncated by backend; fullText in JSON]" : ""}`;
+        const rendered = wrapTerminalProse(`    * ${text}`, width, "      ");
+        lines.push(
+          ...rendered.map((line) => {
+            let styled = kind
+              ? line.replace(kind, colorize(kind, "yellow", options.useColors))
+              : line;
+            if (item.ambiguous)
+              styled = styled.replace(
+                "(uncertain)",
+                dim("(uncertain)", options.useColors),
+              );
+            return styled;
+          }),
+        );
+        if (options.verbose) {
+          const details = [
+            item.heading
+              ? `heading: ${releaseNoteText(item.heading, (url) => reference(url))}`
+              : undefined,
+            item.tierConfidence !== undefined
+              ? `tier confidence: ${item.tierConfidence}`
+              : undefined,
+            item.kindConfidence !== undefined
+              ? `kind confidence: ${item.kindConfidence}`
+              : undefined,
+          ]
+            .filter(Boolean)
+            .join(" | ");
+          if (details) prose(details, "      ");
+        }
+      }
+    }
     lines.push("");
   }
-
+  if (coverage && sources.size) {
+    lines.push("Sources");
+    const cited = new Set(
+      [...lines.join("\n").matchAll(/\[(\d+)\]/g)].map((match) =>
+        Number(match[1]),
+      ),
+    );
+    for (const source of sources.values())
+      if (cited.has(source.number))
+        lines.push(`  [${source.number}] ${source.label}`);
+  }
+  if (excerpted)
+    prose(
+      "Quotes ending in ... are excerpts; use verbose for expanded quotes.",
+    );
+  lines.push("");
   return lines.join("\n");
 }
 
@@ -230,7 +398,7 @@ function appendBodyLines(
     : (options.bodyPreviewLines ?? DEFAULT_BODY_PREVIEW_LINES);
   const visible = bodyLines.slice(0, cap);
   for (const bodyLine of visible) {
-    lines.push(`  ${bodyLine}`);
+    lines.push(`  ${sanitizeTerminalText(bodyLine)}`);
   }
   const hidden = bodyLines.length - visible.length;
   if (hidden > 0) {
@@ -254,7 +422,7 @@ function buildSummaryLine(
   const modeLabel = modeSummary(envelope);
   const countLabel = `${envelope.entries.count} ${plural("entry", "entries", envelope.entries.count)}`;
   const parts = [identity, `source: ${sourceLabel}`, modeLabel, countLabel];
-  return colorize(parts.join(" | "), "bold", options.useColors);
+  return colorize(safeRiskText(parts.join(" | ")), "bold", options.useColors);
 }
 
 function modeSummary(envelope: LeanChangelogEnvelope): string {
@@ -324,4 +492,12 @@ const ANSI_SGR_PATTERN = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
 
 function stripAnsi(text: string): string {
   return text.replace(ANSI_SGR_PATTERN, "");
+}
+
+function noteSourceLabel(source?: string): string {
+  if (source === "releases") return "Release notes";
+  if (source === "changelog_file") return "Changelog";
+  if (source === "hexdocs") return "HexDocs";
+  if (source === "registry_release_notes") return "Registry notes";
+  return source ? safeRiskText(source) : "Notes";
 }

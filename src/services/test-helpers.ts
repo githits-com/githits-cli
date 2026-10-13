@@ -822,6 +822,20 @@ export const cratesFeatureDependencyReport: DependencyReport = {
  * markdown, ISO date, and a normalisedVersion that equals the raw.
  */
 export const defaultChangelogReport: ChangelogReport = {
+  riskItems: [],
+  riskCoverage: {
+    versionsClassified: 2,
+    versionsNotAssessed: 0,
+    versionsWithoutNotes: 0,
+    versionsUnparseable: 0,
+    unitsNoImpact: 2,
+    itemsMustActConfident: 0,
+    itemsMustActAmbiguous: 0,
+    itemsShouldKnowConfident: 0,
+    itemsShouldKnowAmbiguous: 0,
+    itemsUnclassified: 0,
+    itemsOmitted: 0,
+  },
   package: {
     name: "express",
     registry: "npm",

@@ -3,12 +3,19 @@ import type {
   PackageIntelligenceService,
   PackageUpgradeChangelogRiskCoverage,
 } from "@githits/core-internal";
+import {
+  type ClassifiedChangelogItem,
+  changelogRiskSections,
+  PENDING_CLASSIFICATION_MESSAGE,
+  RISK_KIND_LABELS,
+  releaseNoteText,
+  safeRiskText,
+} from "./changelog-risk-presentation.js";
 import { colorize, colors, highlight } from "./colors.js";
 import type {
   PackageUpgradeReviewOptions,
   UpgradeReviewPackageRequest,
 } from "./package-upgrade-review-request.js";
-import { sanitizeTerminalText } from "./terminal-text.js";
 
 export type VersionDelta =
   | "patch"
@@ -90,19 +97,7 @@ export interface UpgradeChangelogEntry {
   signals?: string[];
 }
 
-export interface UpgradeChangelogRiskItem {
-  version: string;
-  tier: "must_act" | "should_know" | "unclassified";
-  ambiguous: boolean;
-  tierConfidence?: number;
-  kind?: string;
-  kindConfidence?: number;
-  text: string;
-  textTruncated: boolean;
-  fullText?: string;
-  url?: string;
-  heading?: string;
-  source?: string;
+export interface UpgradeChangelogRiskItem extends ClassifiedChangelogItem {
   model: string;
   formulation: string;
 }
@@ -1095,33 +1090,7 @@ function formatChangesSection(
       width,
       "    ",
     );
-    const sections = [
-      {
-        label: "Requires action",
-        items: group.items.filter(
-          (item) => item.tier === "must_act" && !isUncertainRiskItem(item),
-        ),
-      },
-      {
-        label: "Possibly requires action",
-        items: group.items.filter(
-          (item) => item.tier === "must_act" && isUncertainRiskItem(item),
-        ),
-      },
-      {
-        label: "Should know",
-        items: group.items
-          .filter((item) => item.tier === "should_know")
-          .sort(
-            (a, b) =>
-              Number(isUncertainRiskItem(a)) - Number(isUncertainRiskItem(b)),
-          ),
-      },
-      {
-        label: "Too long to classify - read it",
-        items: group.items.filter((item) => item.tier === "unclassified"),
-      },
-    ];
+    const sections = changelogRiskSections(group.items);
     for (const { label, items } of sections) {
       if (items.length === 0) continue;
       lines.push(`    ${label}`);
@@ -1270,58 +1239,6 @@ function formatChangesSection(
   return lines;
 }
 
-/** Render the observed release-note Markdown as visible words and source references. */
-function releaseNoteText(
-  text: string,
-  reference: (url: string) => string,
-): string {
-  const plain = safeRiskText(
-    text
-      .split(/\r?\n/)
-      .map((line) =>
-        line
-          .replace(/^\s*(?:>\s*)+/, "")
-          .replace(/^\s*(?:[-*+]\s+|\d+[.)]\s+)/, "")
-          .replace(/\[!([A-Z]+)\]/g, "$1:"),
-      )
-      .join(" "),
-  )
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/\[([^\]]+)\]\[[^\]]*\]/g, "$1")
-    // Note-authored numbers must not impersonate our source citations.
-    .replace(/\[(\d+)\](?!\()/g, "($1)");
-  return plain
-    .replace(
-      /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>]+)/g,
-      (
-        _match: string,
-        label: string | undefined,
-        linkedUrl: string | undefined,
-        bareUrl: string | undefined,
-      ): string => {
-        if (linkedUrl) return `${label ?? ""} ${reference(linkedUrl)}`.trim();
-        const rawUrl = bareUrl ?? "";
-        const url = rawUrl.replace(/[.,;:!?)]*$/, "");
-        return `${reference(url)}${rawUrl.slice(url.length)}`;
-      },
-    )
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-const RISK_KIND_LABELS: Record<string, string> = {
-  removes_or_renames_api: "removal",
-  changes_behavior_or_default: "behavior",
-  raises_runtime_or_platform_requirement: "runtime/platform",
-  changes_packaging_or_module_format: "packaging/modules",
-  deprecates_without_removal: "deprecation",
-  security_fix: "security fix",
-  notable_change: "notable change",
-};
-
-const PENDING_CLASSIFICATION_MESSAGE =
-  "Classification is still running or may have failed. Rerun in a few seconds to a minute to fill not-assessed versions from completed stored labels, without rerunning the model.";
-
 function isUncertainRiskItem(item: UpgradeChangelogRiskItem): boolean {
   return item.ambiguous;
 }
@@ -1346,10 +1263,6 @@ function formatRiskTierCount(
 function riskCoverageText(changelog: UpgradeChangelog): string {
   const c = changelog.riskCoverage;
   return `${c.versionsClassified} classified | ${c.versionsNotAssessed} not assessed | ${c.versionsWithoutNotes} without notes${c.versionsUnparseable > 0 ? ` | ${c.versionsUnparseable} unparseable` : ""}`;
-}
-
-function safeRiskText(value: string): string {
-  return sanitizeTerminalText(value.replace(/\s+/g, " ")).trim();
 }
 
 function formatBatchTriage(

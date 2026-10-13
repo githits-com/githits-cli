@@ -30,6 +30,7 @@ export interface PkgChangelogCommandOptions {
   // options; we map it to `includeBodies` in the builder.
   body?: boolean;
   json?: boolean;
+  changes?: string;
 }
 
 export interface PkgChangelogCommandDependencies {
@@ -71,21 +72,27 @@ export async function pkgChangelogAction(
       );
     }
 
-    const { params, mode, explicitFilterFields } = buildPackageChangelogParams({
-      target: spec,
-      fromVersion: options.from,
-      toVersion: options.to,
-      limit,
-      includeBodies,
-    });
+    const { params, mode, explicitFilterFields, changes } =
+      buildPackageChangelogParams({
+        target: spec,
+        fromVersion: options.from,
+        toVersion: options.to,
+        limit,
+        includeBodies,
+        changes: options.changes,
+      });
 
-    const report =
-      await deps.packageIntelligenceService.packageChangelog(params);
+    const report = await deps.packageIntelligenceService.packageChangelog({
+      ...params,
+      includeRiskJsonFields: options.json === true,
+      includeRiskDetails: options.json === true || options.verbose === true,
+    });
 
     const payload = buildPackageChangelogSuccessPayload(report, {
       registry: toPkgseerRegistryLowercase(params.registry),
       name: params.packageName,
       mode,
+      changes,
       explicitFilterFields,
       includeBodies,
       fromVersion: params.fromVersion,
@@ -102,6 +109,7 @@ export async function pkgChangelogAction(
     const output = formatPackageChangelogTerminal(payload, {
       verbose: options.verbose ?? false,
       useColors: shouldUseColors(),
+      terminalWidth: process.stdout.columns,
     });
     process.stdout.write(output);
   } catch (error) {
@@ -178,7 +186,8 @@ or use @from..to for releases after from through to (from excluded,
 to included). --from/--to remain as
 package range flags on a bare spec. --limit changes the latest-mode
 count (1-50). --verbose uncaps the body preview; --no-body drops
-bodies entirely.
+bodies and classification entirely. Classified statements default to all;
+--changes filters them without filtering note previews.
 
 Package spec: <registry>:<name>[@<version> | @<from>..<to>]. Package-only;
 repository and site targets are rejected. Supported registries:
@@ -208,7 +217,11 @@ export function registerPkgChangelogCommand(pkgCommand: Command): Command {
     )
     .option(
       "--no-body",
-      "Drop body fields from entries (affects terminal + JSON)",
+      "Drop note bodies and skip classification (terminal + JSON)",
+    )
+    .option(
+      "--changes <view>",
+      "Classified statements: actionable, important (actionable + should know), all (default); ignored with --no-body",
     )
     .option("--json", "Emit the JSON envelope")
     .action(async (spec: string, options: PkgChangelogCommandOptions) => {

@@ -20,6 +20,9 @@ describe("pkg changelog help", () => {
     const help = command.helpInformation().replace(/\s+/g, " ");
 
     expect(help).toContain("up to ten latest-mode entries");
+    expect(help).toContain("--changes <view>");
+    expect(help).toContain("important (actionable + should know)");
+    expect(help).toContain("ignored with --no-body");
     expect(help).toContain("Package-only");
     expect(help).toContain("Exclusive start of version range");
     expect(help).toContain("Inclusive end of range / latest-mode cap");

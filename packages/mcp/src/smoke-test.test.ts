@@ -1545,15 +1545,18 @@ function smokeJsonResponse(
         },
       });
     case "pkg_changelog":
+      if (args.omit_bodies === true) return jsonResult({ entries: {} });
       if (args.target === "npm:express@5.2.1") {
         return jsonResult({
           mode: "exact",
+          riskItems: [],
+          riskCoverage: {},
           entries: {
             items: [{ version: "5.2.1", hasChangelog: true }],
           },
         });
       }
-      return jsonResult({ entries: {} });
+      return jsonResult({ entries: {}, riskItems: [], riskCoverage: {} });
     case "pkg_upgrade_review":
       return jsonResult({
         summary: {},

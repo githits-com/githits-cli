@@ -584,3 +584,274 @@ describe("formatPackageChangelogTerminal", () => {
     expect(output).not.toContain("exact ^5.0.0");
   });
 });
+
+describe("changelog classified statement evidence", () => {
+  const coverage = {
+    versionsClassified: 1,
+    versionsNotAssessed: 0,
+    versionsWithoutNotes: 0,
+    versionsUnparseable: 0,
+    unitsNoImpact: 133,
+    itemsMustActConfident: 13,
+    itemsMustActAmbiguous: 28,
+    itemsShouldKnowConfident: 12,
+    itemsShouldKnowAmbiguous: 10,
+    itemsUnclassified: 1,
+    itemsOmitted: 13,
+  };
+  const item = {
+    version: "v5.2.1",
+    tier: "MUST_ACT" as const,
+    ambiguous: false,
+    tierConfidence: 0.1,
+    kind: "CHANGES_BEHAVIOR_OR_DEFAULT",
+    kindConfidence: 0.9,
+    text: "Removed a public default.",
+    textTruncated: false,
+    fullText: "Removed a public default.",
+    url: "https://example.com/history#v5.2.1",
+    source: "CHANGELOG_FILE",
+    heading: "Changes",
+    model: "jev-old",
+    formulation: "s-hier-v2",
+  };
+  const report: ChangelogReport = {
+    ...baseReport,
+    entries: [
+      {
+        ...baseReport.entries[0],
+        version: "v5.2.1",
+        normalizedVersion: "5.2.1",
+        body: "## Notes\n- original preview",
+      },
+    ],
+    riskCoverage: coverage,
+    riskItems: [
+      item,
+      {
+        ...item,
+        ambiguous: true,
+        tierConfidence: 0.95,
+        text: "Possible behavior change.",
+        model: "jev-new",
+        formulation: "s-hier-v5",
+      },
+      {
+        ...item,
+        tier: "SHOULD_KNOW",
+        kind: undefined,
+        text: "A kindless notable statement.",
+        url: "https://example.com/release",
+      },
+      {
+        ...item,
+        tier: "UNCLASSIFIED",
+        kind: undefined,
+        tierConfidence: undefined,
+        text: "Large statement.",
+        textTruncated: true,
+      },
+    ],
+  };
+  const payload = (): ReturnType<typeof buildPackageChangelogSuccessPayload> =>
+    buildPackageChangelogSuccessPayload(report, baseOptions);
+  it("preserves note previews and joins by raw version, showing server uncertainty separately", () => {
+    const text = formatPackageChangelogTerminal(payload(), {
+      useColors: false,
+      terminalWidth: 160,
+    });
+    expect(text).toContain("original preview");
+    expect(text).toContain(
+      'Requires action\n    * [behavior] "Removed a public default."',
+    );
+    expect(text).toContain(
+      'Possibly requires action\n    * [behavior] (uncertain) "Possible behavior change."',
+    );
+    expect(text).toContain(
+      'Should know\n    * "A kindless notable statement."',
+    );
+    expect(text).toContain("Too long to classify - read it");
+    expect(text).not.toContain("Requires action (");
+    expect(text).not.toContain("jev-old");
+    expect(text).not.toContain("Not a compatibility verdict");
+    expect(text).toContain("13 require action (+28 uncertain)");
+    expect(text).toContain("133 statements labeled no impact");
+    expect(text).toContain("13 matching statements omitted by backend");
+    expect(text).toContain("statement truncated by backend; fullText in JSON");
+    expect(text.match(/https:\/\/example.com\/history#v5.2.1/g)).toHaveLength(
+      1,
+    );
+  });
+  it("does not mislabel a release URL with the aggregate changelog-file source", () => {
+    const primary = "https://example.com/releases/5.2.1";
+    const json = buildPackageChangelogSuccessPayload(
+      {
+        ...report,
+        source: "changelog_file",
+        entries: [
+          { version: "v5.2.1", htmlUrl: primary, body: "release preview" },
+        ],
+        riskItems: [{ ...item, url: primary, source: "RELEASES" }],
+      },
+      baseOptions,
+    );
+    const text = formatPackageChangelogTerminal(json, { useColors: false });
+    expect(text).toContain(`Release notes: ${primary}`);
+    expect(text).not.toContain(`Changelog: ${primary}`);
+  });
+  it("retains all per-item provenance and full text in JSON without mutating the report", () => {
+    const json = payload();
+    expect(json.riskCoverage).toEqual(coverage);
+    expect(json.riskItems?.[0]).toMatchObject({
+      ...item,
+      tier: "must_act",
+      kind: "changes_behavior_or_default",
+      source: "changelog_file",
+    });
+    expect(json.riskItems?.[1]?.formulation).toBe("s-hier-v5");
+    expect(report.riskItems?.[0]?.tier).toBe("MUST_ACT");
+  });
+  it("keeps all-tier totals while echoing the narrower active view", () => {
+    const json = buildPackageChangelogSuccessPayload(
+      { ...report, riskItems: [item] },
+      {
+        ...baseOptions,
+        changes: "actionable",
+        explicitFilterFields: new Set(["changes"]),
+      },
+    );
+    const text = formatPackageChangelogTerminal(json, {
+      useColors: false,
+      terminalWidth: 180,
+    });
+    expect(json.filter?.changes).toBe("actionable");
+    expect(text).toContain(
+      "Showing actionable statements; note previews and totals include all tiers.",
+    );
+    expect(text).toContain("12 should know (+10 uncertain)");
+  });
+  it("omits both bodies and classification from the timeline envelope", () => {
+    const json = buildPackageChangelogSuccessPayload(report, {
+      ...baseOptions,
+      includeBodies: false,
+    });
+    expect(json.riskItems).toBeUndefined();
+    expect(json.riskCoverage).toBeUndefined();
+    expect(json.entries.items[0]?.body).toBeUndefined();
+    const text = formatPackageChangelogTerminal(json, { useColors: false });
+    expect(text).toContain("v5.2.1");
+    expect(text).not.toContain("classified");
+    expect(text).not.toContain("Removed a public default");
+  });
+  it("honestly reports entirely pending, missing and unparseable versions with zero quotes", () => {
+    const json = buildPackageChangelogSuccessPayload(
+      {
+        ...report,
+        riskItems: [],
+        riskCoverage: {
+          ...coverage,
+          versionsClassified: 0,
+          versionsNotAssessed: 4,
+          versionsWithoutNotes: 2,
+          versionsUnparseable: 1,
+          itemsOmitted: 0,
+        },
+      },
+      baseOptions,
+    );
+    const text = formatPackageChangelogTerminal(json, {
+      useColors: false,
+      terminalWidth: 160,
+    });
+    expect(text).toContain(
+      "0 classified | 4 not assessed | 2 without notes | 1 unparseable",
+    );
+    expect(text).toContain("No matching classified statements returned");
+    expect(text).toContain("Rerun in a few seconds to a minute");
+    expect(text).toContain(
+      "Missing or unparseable notes are not evidence of no risk",
+    );
+    expect(text.toLowerCase()).not.toContain("safe");
+  });
+  it("expands local excerpts in verbose but never uses JSON fullText as terminal evidence", () => {
+    const body = `${"Notable sentence ".repeat(30)}END`;
+    const json = buildPackageChangelogSuccessPayload(
+      {
+        ...report,
+        riskItems: [
+          {
+            ...item,
+            tier: "SHOULD_KNOW",
+            text: body,
+            fullText: "JSON_ONLY_SECRET_SENTINEL",
+          },
+        ],
+      },
+      baseOptions,
+    );
+    const compact = formatPackageChangelogTerminal(json, { useColors: false });
+    expect(compact).not.toContain("END");
+    expect(compact).toContain("Quotes ending in ...");
+    const verbose = formatPackageChangelogTerminal(json, {
+      useColors: false,
+      verbose: true,
+    });
+    expect(verbose).toContain("END");
+    expect(verbose).not.toContain("JSON_ONLY_SECRET_SENTINEL");
+  });
+  it("sanitizes body, quote, metadata and source controls while keeping JSON raw", () => {
+    const controlSequence = "\u001b[31m";
+    const dirty = {
+      ...report,
+      entries: [
+        {
+          version: "v5.2.1",
+          body: `before${controlSequence}after\nsecond\u0007line`,
+        },
+      ],
+      riskItems: [
+        {
+          ...item,
+          text: `quoted${controlSequence}statement`,
+          url: `https://example.com/${controlSequence}notes`,
+          heading: `dirty${controlSequence}heading`,
+        },
+      ],
+    };
+    const json = buildPackageChangelogSuccessPayload(dirty, baseOptions);
+    const text = formatPackageChangelogTerminal(json, {
+      useColors: false,
+      verbose: true,
+    });
+    expect(text).not.toContain("\u001b");
+    expect(text).not.toContain("\u0007");
+    expect(text).toContain("beforeafter");
+    expect(text).toContain("secondline");
+    expect(text).toContain("quotedstatement");
+    expect(json.riskItems?.[0]?.text).toContain(controlSequence);
+  });
+  it("wraps statement prose at the caller width and keeps labels visible without color", () => {
+    const json = buildPackageChangelogSuccessPayload(
+      {
+        ...report,
+        riskItems: [
+          {
+            ...item,
+            text: "This public default changes the request behavior for existing application callers and requires examining each current call site.",
+          },
+        ],
+      },
+      baseOptions,
+    );
+    const text = formatPackageChangelogTerminal(json, {
+      useColors: false,
+      terminalWidth: 45,
+    });
+    const quoted = text
+      .split("\n")
+      .filter((line) => line.startsWith("    *") || line.startsWith("      "));
+    expect(quoted.length).toBeGreaterThan(2);
+    expect(quoted.every((line) => line.length <= 45)).toBe(true);
+    expect(text).toContain("[behavior]");
+  });
+});

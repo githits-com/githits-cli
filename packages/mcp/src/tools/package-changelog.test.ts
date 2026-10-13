@@ -47,6 +47,7 @@ describe("createPackageChangelogTool — metadata", () => {
     );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "body_lines",
+      "changes",
       "format",
       "limit",
       "omit_bodies",
@@ -623,5 +624,56 @@ describe("createPackageChangelogTool — service errors", () => {
     expect(result.isError).toBe(true);
     const payload = parseText(result) as { code: string };
     expect(payload.code).toBe("UNKNOWN");
+  });
+});
+
+describe("changelog classification omission and verbose controls", () => {
+  it("text verbose overrides omission and activates changes", async () => {
+    const packageChangelog = mock(() =>
+      Promise.resolve(defaultChangelogReport),
+    );
+    const tool = createPackageChangelogTool(
+      createMockPackageIntelligenceService({ packageChangelog }),
+    );
+    await tool.handler(
+      {
+        target: "npm:express",
+        omit_bodies: true,
+        verbose: true,
+        changes: "important",
+      },
+      {},
+    );
+    expect(packageChangelog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        includeBodies: true,
+        riskTiers: ["MUST_ACT", "SHOULD_KNOW"],
+        includeRiskDetails: true,
+        includeRiskJsonFields: false,
+      }),
+    );
+  });
+  it("JSON honors omission despite verbose and ignores invalid changes", async () => {
+    const packageChangelog = mock(() =>
+      Promise.resolve(defaultChangelogReport),
+    );
+    const tool = createPackageChangelogTool(
+      createMockPackageIntelligenceService({ packageChangelog }),
+    );
+    const result = await tool.handler(
+      {
+        target: "npm:express",
+        omit_bodies: true,
+        verbose: true,
+        changes: "invalid",
+        format: "json",
+      },
+      {},
+    );
+    expect(result.isError).toBeUndefined();
+    expect(JSON.parse(result.content[0]!.text)).not.toHaveProperty("riskItems");
+    expect(packageChangelog).toHaveBeenCalledWith(
+      expect.objectContaining({ includeBodies: false, riskTiers: undefined }),
+    );
   });
 });

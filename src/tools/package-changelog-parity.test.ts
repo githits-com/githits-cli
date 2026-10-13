@@ -72,6 +72,7 @@ async function cliJson(
 }
 
 interface McpArgs {
+  changes?: string;
   target: string;
   limit?: number;
   omit_bodies?: boolean;
@@ -397,4 +398,174 @@ describe("package_changelog parity", () => {
       retryable: false,
     });
   });
+});
+
+// The backend supplies filtered items; neither host filters a capped result locally.
+describe("classification filter parity", () => {
+  for (const target of [
+    "npm:express",
+    "npm:express@5.2.1",
+    "npm:express@5.0.0..5.2.1",
+  ]) {
+    for (const changes of ["actionable", "important", "all"]) {
+      it(`${target} ${changes} preserves all-tier coverage and per-item evidence`, async () => {
+        const report: ChangelogReport = {
+          ...defaultChangelogReport,
+          riskItems: [
+            {
+              version: "5.2.1",
+              tier: "MUST_ACT",
+              ambiguous: true,
+              tierConfidence: 0.95,
+              text: "Possible default change.",
+              textTruncated: false,
+              fullText: "Possible default change.",
+              source: "RELEASES",
+              url: "https://example.com/v5.2.1",
+              model: "jev-1.13.0",
+              formulation: "s-hier-v5",
+            },
+          ],
+          riskCoverage: {
+            ...defaultChangelogReport.riskCoverage!,
+            itemsMustActAmbiguous: 1,
+            itemsShouldKnowConfident: 13,
+            itemsOmitted: 2,
+          },
+        };
+        const fn = mock(() => Promise.resolve(report));
+        const cli = await cliJson(
+          target,
+          { changes },
+          cliDeps({
+            packageIntelligenceService: createMockPackageIntelligenceService({
+              packageChangelog: fn,
+            }),
+          }),
+        );
+        const mcp = await mcpJson({ target, changes }, fn);
+        expect(cli).toEqual(mcp.json);
+        expect(cli).toMatchObject({
+          filter: { changes },
+          riskItems: [
+            { tier: "must_act", ambiguous: true, formulation: "s-hier-v5" },
+          ],
+          riskCoverage: { itemsShouldKnowConfident: 13, itemsOmitted: 2 },
+        });
+        const calls = fn.mock.calls as unknown as Array<
+          [Record<string, unknown>]
+        >;
+        expect(calls[0]?.[0]).toEqual(calls[1]?.[0]);
+        expect(calls[0]?.[0]?.riskTiers).toEqual(
+          changes === "actionable"
+            ? ["MUST_ACT"]
+            : changes === "important"
+              ? ["MUST_ACT", "SHOULD_KNOW"]
+              : undefined,
+        );
+        expect(calls[0]?.[0]?.includeRiskJsonFields).toBe(true);
+      });
+    }
+  }
+  it("ignores changes and skips risk fields in both timeline JSON surfaces", async () => {
+    const cli = await cliJson("npm:express", {
+      changes: "ignored",
+      body: false,
+    });
+    const mcp = await mcpJson({
+      target: "npm:express",
+      changes: "ignored",
+      omit_bodies: true,
+    });
+    expect(cli).toEqual(mcp.json);
+    expect(cli).not.toHaveProperty("riskItems");
+    expect(cli).not.toHaveProperty("riskCoverage");
+    expect(cli).not.toHaveProperty("filter.changes");
+  });
+  it("maps invalid active changes identically before service access", async () => {
+    const fn = mock(() => Promise.resolve(defaultChangelogReport));
+    const cli = await cliJson(
+      "npm:express",
+      { changes: "safe" },
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageChangelog: fn,
+        }),
+      }),
+    );
+    const mcp = await mcpJson({ target: "npm:express", changes: "safe" }, fn);
+    expect(cli).toEqual(mcp.json);
+    expect(cli).toMatchObject({ code: "INVALID_ARGUMENT" });
+    expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+describe("classified changelog text parity", () => {
+  for (const changes of ["actionable", "important", "all"]) {
+    it(`shares the same version-grouped evidence for ${changes}`, async () => {
+      const report: ChangelogReport = {
+        ...defaultChangelogReport,
+        entries: [
+          {
+            version: "5.2.1",
+            body: "Original short release note.",
+            htmlUrl: "https://example.com/v5.2.1",
+          },
+        ],
+        riskItems: [
+          {
+            version: "5.2.1",
+            tier: "MUST_ACT",
+            ambiguous: true,
+            text: "Possible behavior change.",
+            textTruncated: false,
+            source: "RELEASES",
+            url: "https://example.com/v5.2.1",
+            model: "jev",
+            formulation: "s-hier-v5",
+          },
+        ],
+        riskCoverage: {
+          ...defaultChangelogReport.riskCoverage!,
+          itemsMustActAmbiguous: 1,
+        },
+      };
+      const fn = mock(() => Promise.resolve(report));
+      const writes: string[] = [];
+      const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+        chunk: string | Uint8Array,
+      ) => {
+        writes.push(
+          typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+        );
+        return true;
+      }) as typeof process.stdout.write);
+      try {
+        await pkgChangelogAction(
+          "npm:express@5.2.1",
+          { changes },
+          cliDeps({
+            packageIntelligenceService: createMockPackageIntelligenceService({
+              packageChangelog: fn,
+            }),
+          }),
+        );
+      } finally {
+        writeSpy.mockRestore();
+      }
+      const tool = createParityMcpTool("pkg_changelog", {
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageChangelog: fn,
+        }),
+      });
+      const result = await tool.handler(
+        { target: "npm:express@5.2.1", changes },
+        {},
+      );
+      expect(result.content[0]?.text).toBe(
+        Bun.stripANSI(writes.join("")).trimEnd(),
+      );
+      expect(result.content[0]?.text).toContain("(uncertain)");
+    });
+  }
 });

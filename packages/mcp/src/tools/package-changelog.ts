@@ -27,6 +27,7 @@ export interface PackageChangelogArgs {
   verbose?: boolean;
   body_lines?: number;
   format?: "text" | "json";
+  changes?: string;
 }
 
 /**
@@ -45,11 +46,17 @@ const schema: ZodRawShape = {
     .describe(
       "Latest-mode and upper-cap (`@..to`) count (1-50, default 10). Do not pass with exact `@version` or lower-bound range targets (`@from..to`, `@from..`).",
     ),
+  changes: z
+    .string()
+    .optional()
+    .describe(
+      "Classified statements: actionable (MUST_ACT, including uncertain), important (actionable + SHOULD_KNOW), or all (default, also too-long statements). Filters before the item cap; note previews and coverage totals stay unchanged. Ignored with omit_bodies:true; text verbose:true re-enables it.",
+    ),
   omit_bodies: z
     .boolean()
     .optional()
     .describe(
-      "Omit each entry body (default false). Use for version/date/URL timelines; large notes drop 10 KB+ per entry. Text verbose:true overrides omission.",
+      "Omit each entry body and skip classification (default false). Use for version/date/URL timelines; large notes drop 10 KB+ per entry. Text verbose:true overrides omission.",
     ),
   verbose: z
     .boolean()
@@ -78,7 +85,7 @@ export const DESCRIPTION_BASE: string =
   "`limit` applies only to latest and upper-cap targets. " +
   "A selected release without notes succeeds with `hasChangelog: false`. " +
   "Empty latest or range selections succeed with no entries. " +
-  "Text previews 10 body lines; use `body_lines` or `verbose:true` for more.";
+  "Text previews 10 body lines alongside agent-classified statements; use `changes` to filter statements, or `body_lines` / `verbose:true` for more notes. `omit_bodies:true` skips notes and classification; `changes` is ignored unless text verbose overrides omission.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_CHANGELOG_GUARDRAIL}`;
 
@@ -98,17 +105,23 @@ export function createPackageChangelogTool(
         const bodyPreviewLines = textFormat
           ? validateTextOptions(args)
           : undefined;
-        const { params, mode, explicitFilterFields } =
+        const { params, mode, explicitFilterFields, changes } =
           buildPackageChangelogParams({
             target: args.target,
             limit: args.limit,
             includeBodies,
+            changes: args.changes,
           });
-        const report = await service.packageChangelog(params);
+        const report = await service.packageChangelog({
+          ...params,
+          includeRiskJsonFields: !textFormat,
+          includeRiskDetails: !textFormat || args.verbose === true,
+        });
         const payload = buildPackageChangelogSuccessPayload(report, {
           registry: toPkgseerRegistryLowercase(params.registry),
           name: params.packageName,
           mode,
+          changes,
           explicitFilterFields,
           includeBodies,
           fromVersion: params.fromVersion,

@@ -324,7 +324,7 @@ export interface PackageUpgradeChangelogEntry {
 }
 
 /** Backend model labels for one release-note statement, never a package verdict. */
-export interface PackageUpgradeChangelogRiskItem {
+export interface ChangelogRiskItem {
   version: string;
   tier: "MUST_ACT" | "SHOULD_KNOW" | "UNCLASSIFIED";
   /** Backend ambiguity policy; confidence is evidence, not a client threshold. */
@@ -340,11 +340,17 @@ export interface PackageUpgradeChangelogRiskItem {
   url?: string;
   heading?: string;
   source?: string;
+  model?: string;
+  formulation?: string;
+}
+
+/** Upgrade reviews always select classifier provenance. */
+export interface PackageUpgradeChangelogRiskItem extends ChangelogRiskItem {
   model: string;
   formulation: string;
 }
 
-export interface PackageUpgradeChangelogRiskCoverage {
+export interface ChangelogRiskCoverage {
   versionsClassified: number;
   versionsNotAssessed: number;
   versionsWithoutNotes: number;
@@ -358,6 +364,9 @@ export interface PackageUpgradeChangelogRiskCoverage {
   itemsUnclassified: number;
   itemsOmitted: number;
 }
+
+export interface PackageUpgradeChangelogRiskCoverage
+  extends ChangelogRiskCoverage {}
 
 export interface PackageUpgradeChangelog {
   riskItems: PackageUpgradeChangelogRiskItem[];
@@ -702,6 +711,11 @@ export interface PackageChangelogParams {
   limit?: number;
   /** Include raw markdown bodies in entries. Defaults to true. */
   includeBodies?: boolean;
+  /** Filter classified statements before the backend cap; omitted means all. */
+  riskTiers?: ChangelogRiskItem["tier"][];
+  /** Internal selection controls; full statement/provenance fields are JSON-only. */
+  includeRiskJsonFields?: boolean;
+  includeRiskDetails?: boolean;
 }
 
 /**
@@ -729,6 +743,9 @@ export interface ChangelogEntryDetail {
 }
 
 export interface ChangelogReport {
+  /** Absent in timeline-only (includeBodies:false) requests. */
+  riskItems?: ChangelogRiskItem[];
+  riskCoverage?: ChangelogRiskCoverage;
   /** Echo of addressing + filter as the backend saw it. */
   package?: ChangelogPackageInfo;
   /** `"releases"` | `"changelog_file"` | `"hexdocs"` when resolved; absent for package versions with no changelog entry. */
@@ -2026,11 +2043,10 @@ const packageUpgradeChangelogEntrySchema = z.object({
   signals: z.array(z.string()),
 });
 
-const packageUpgradeChangelogRiskItemSchema = z.object({
+const changelogRiskItemBaseSchema = z.object({
   version: z.string(),
   tier: z.enum(["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"]),
   ambiguous: z.boolean(),
-  tierConfidence: z.number().min(0).max(1).nullable(),
   kind: z
     .enum([
       "REMOVES_OR_RENAMES_API",
@@ -2042,15 +2058,28 @@ const packageUpgradeChangelogRiskItemSchema = z.object({
       "NOTABLE_CHANGE",
     ])
     .nullable(),
-  kindConfidence: z.number().min(0).max(1).nullable(),
   text: z.string(),
   textTruncated: z.boolean(),
   fullText: z.string().optional(),
   url: z.string().nullable(),
-  heading: z.string().nullable(),
   source: z.string().nullable(),
+});
+
+const changelogRiskDetailFields = {
+  tierConfidence: z.number().min(0).max(1).nullable(),
+  kindConfidence: z.number().min(0).max(1).nullable(),
+  heading: z.string().nullable(),
   model: z.string(),
   formulation: z.string(),
+};
+const packageUpgradeChangelogRiskItemSchema =
+  changelogRiskItemBaseSchema.extend(changelogRiskDetailFields);
+const changelogRiskItemSchema = packageUpgradeChangelogRiskItemSchema.partial({
+  tierConfidence: true,
+  kindConfidence: true,
+  heading: true,
+  model: true,
+  formulation: true,
 });
 
 const packageUpgradeChangelogRiskCoverageSchema = z.object({
@@ -2422,6 +2451,9 @@ const changelogEntryDetailSchema = z.object({
 });
 
 const changelogReportResponseSchema = z.object({
+  riskItems: z.array(changelogRiskItemSchema).optional(),
+  riskCoverage: packageUpgradeChangelogRiskCoverageSchema.optional(),
+
   package: changelogPackageInfoSchema,
   source: z.string().nullable().optional(),
   entries: z.array(changelogEntryDetailSchema).nullable().optional(),
@@ -2438,6 +2470,9 @@ const changelogGraphQLResponseSchema = z.object({
 });
 
 const exactChangelogDetailSchema = z.object({
+  riskItems: z.array(changelogRiskItemSchema).optional(),
+  riskCoverage: packageUpgradeChangelogRiskCoverageSchema.optional(),
+
   detailSource: z.string().nullable().optional(),
   hasChangelog: z.boolean(),
   entry: changelogEntryDetailSchema.nullable().optional(),
@@ -2464,6 +2499,24 @@ const exactChangelogGraphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
+// The same wire selection serves latest/range and exact releases. Body omission
+// retains the old timeline and avoids any backend classification work.
+const CHANGELOG_RISK_SELECTION = `
+    riskItems @include(if: $includeBodies) {
+      version tier ambiguous kind text textTruncated url source
+      tierConfidence @include(if: $includeRiskDetails)
+      kindConfidence @include(if: $includeRiskDetails)
+      heading @include(if: $includeRiskDetails)
+      fullText @include(if: $includeRiskJsonFields)
+      model @include(if: $includeRiskJsonFields)
+      formulation @include(if: $includeRiskJsonFields)
+    }
+    riskCoverage @include(if: $includeBodies) {
+      versionsClassified versionsNotAssessed versionsWithoutNotes versionsUnparseable
+      unitsNoImpact itemsMustActConfident itemsMustActAmbiguous
+      itemsShouldKnowConfident itemsShouldKnowAmbiguous itemsUnclassified itemsOmitted
+    }`;
+
 const PACKAGE_CHANGELOG_QUERY = `
 query PackageChangelog(
   $registry: Registry!
@@ -2472,6 +2525,9 @@ query PackageChangelog(
   $toVersion: String
   $limit: Int
   $includeBodies: Boolean! = true
+  $riskTiers: [ChangelogRiskTier!]
+  $includeRiskJsonFields: Boolean! = false
+  $includeRiskDetails: Boolean! = false
 ) {
   packageChangelog(
     registry: $registry
@@ -2479,6 +2535,7 @@ query PackageChangelog(
     fromVersion: $fromVersion
     toVersion: $toVersion
     limit: $limit
+    riskTiers: $riskTiers
   ) {
     package {
       name
@@ -2488,6 +2545,7 @@ query PackageChangelog(
       limit
     }
     source
+    ${CHANGELOG_RISK_SELECTION}
     entries {
       version
       normalizedVersion
@@ -2504,11 +2562,15 @@ query PackageChangelogExact(
   $name: String!
   $version: String
   $includeBodies: Boolean! = true
+  $riskTiers: [ChangelogRiskTier!]
+  $includeRiskJsonFields: Boolean! = false
+  $includeRiskDetails: Boolean! = false
 ) {
   packageInfo(registry: $registry, name: $name, version: $version) {
     selectedVersion {
       resolvedVersion
-      changelog {
+      changelog(riskTiers: $riskTiers) {
+        ${CHANGELOG_RISK_SELECTION}
         detailSource
         hasChangelog
         entry {
@@ -2521,6 +2583,56 @@ query PackageChangelogExact(
     }
   }
 }`;
+
+/** Selected risk fields are mandatory; an old/partial schema is a protocol error. */
+function assertChangelogRiskSelection(
+  data:
+    | z.infer<typeof exactChangelogDetailSchema>
+    | z.infer<typeof changelogReportResponseSchema>
+    | null
+    | undefined,
+  params: PackageChangelogParams,
+): void {
+  if (params.includeBodies === false) return;
+  const items = data?.riskItems;
+  const detailsSelected =
+    params.includeRiskDetails === true || params.includeRiskJsonFields === true;
+  if (
+    !items ||
+    !data?.riskCoverage ||
+    items.some(
+      (item) =>
+        (params.includeRiskJsonFields === true &&
+          (item.fullText === undefined ||
+            item.model === undefined ||
+            item.formulation === undefined)) ||
+        (detailsSelected &&
+          (item.tierConfidence === undefined ||
+            item.kindConfidence === undefined ||
+            item.heading === undefined)),
+    )
+  ) {
+    throw new MalformedPackageIntelligenceResponseError(
+      "Missing selected changelog classification fields from the package-intelligence service.",
+    );
+  }
+}
+
+function normaliseChangelogRisk(
+  data:
+    | Pick<
+        z.infer<typeof changelogReportResponseSchema>,
+        "riskItems" | "riskCoverage"
+      >
+    | null
+    | undefined,
+): Pick<ChangelogReport, "riskItems" | "riskCoverage"> {
+  if (!data?.riskItems || !data.riskCoverage) return {};
+  return stripNullProperties({
+    riskItems: data.riskItems,
+    riskCoverage: data.riskCoverage,
+  }) as Pick<ChangelogReport, "riskItems" | "riskCoverage">;
+}
 
 function normaliseChangelogSource(
   raw: string | null | undefined,
@@ -3897,6 +4009,15 @@ export class PackageIntelligenceServiceImpl
           toVersion: params.toVersion,
           limit: params.limit,
           includeBodies: params.includeBodies !== false,
+          riskTiers:
+            params.includeBodies !== false ? params.riskTiers : undefined,
+          includeRiskJsonFields:
+            params.includeBodies !== false &&
+            params.includeRiskJsonFields === true,
+          includeRiskDetails:
+            params.includeBodies !== false &&
+            (params.includeRiskDetails === true ||
+              params.includeRiskJsonFields === true),
         },
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
@@ -3937,6 +4058,7 @@ export class PackageIntelligenceServiceImpl
       );
     }
 
+    assertChangelogRiskSelection(data, params);
     return this.normaliseTimelineChangelogReport(data);
   }
 
@@ -3955,6 +4077,15 @@ export class PackageIntelligenceServiceImpl
           name: params.packageName,
           version: params.version,
           includeBodies: params.includeBodies !== false,
+          riskTiers:
+            params.includeBodies !== false ? params.riskTiers : undefined,
+          includeRiskJsonFields:
+            params.includeBodies !== false &&
+            params.includeRiskJsonFields === true,
+          includeRiskDetails:
+            params.includeBodies !== false &&
+            (params.includeRiskDetails === true ||
+              params.includeRiskJsonFields === true),
         },
         fetchFn: this.fetchFn,
         clientHeaders: this.runtime.clientHeaders,
@@ -3995,6 +4126,7 @@ export class PackageIntelligenceServiceImpl
       );
     }
 
+    assertChangelogRiskSelection(selected.changelog, params);
     return this.normaliseExactChangelogReport(selected, params);
   }
 
@@ -4025,17 +4157,14 @@ export class PackageIntelligenceServiceImpl
       package: packageInfo,
       source,
       entries,
+      ...normaliseChangelogRisk(data),
     };
   }
 
   private normaliseExactChangelogReport(
     selected: {
       resolvedVersion: string;
-      changelog?: {
-        detailSource?: string | null;
-        hasChangelog: boolean;
-        entry?: z.infer<typeof changelogEntryDetailSchema> | null;
-      } | null;
+      changelog?: z.infer<typeof exactChangelogDetailSchema> | null;
     },
     params: PackageChangelogParams,
   ): ChangelogReport {
@@ -4048,6 +4177,7 @@ export class PackageIntelligenceServiceImpl
         registry: toPkgseerRegistryLowercase(params.registry),
       },
       source: normaliseChangelogSource(changelog?.detailSource),
+      ...normaliseChangelogRisk(changelog),
       entries: [
         {
           version: selected.resolvedVersion,
