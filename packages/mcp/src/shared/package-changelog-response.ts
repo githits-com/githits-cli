@@ -385,7 +385,7 @@ export function formatPackageChangelogTerminal(
     prose(
       "Quotes ending in ... are excerpts; use verbose for expanded quotes.",
     );
-  lines.push("");
+  if (lines.at(-1) !== "") lines.push("");
   return lines.join("\n");
 }
 

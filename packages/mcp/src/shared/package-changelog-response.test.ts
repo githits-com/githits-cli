@@ -811,6 +811,22 @@ describe("changelog classified statement evidence", () => {
     expect(text).toContain("v5.2.1");
     expect(text).not.toContain("classified");
     expect(text).not.toContain("Removed a public default");
+    expect(text.endsWith("\n")).toBe(true);
+    expect(text.endsWith("\n\n")).toBe(false);
+  });
+  it("ends classified output without sources with one newline", () => {
+    const json = buildPackageChangelogSuccessPayload(
+      {
+        ...report,
+        entries: [{ version: item.version, body: "Notes" }],
+        riskItems: [{ ...item, url: undefined }],
+      },
+      baseOptions,
+    );
+    const text = formatPackageChangelogTerminal(json, { useColors: false });
+    expect(text).not.toContain("Sources");
+    expect(text.endsWith("\n")).toBe(true);
+    expect(text.endsWith("\n\n")).toBe(false);
   });
   it("honestly reports entirely pending, missing and unparseable versions with zero quotes", () => {
     const json = buildPackageChangelogSuccessPayload(

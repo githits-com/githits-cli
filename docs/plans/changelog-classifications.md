@@ -271,3 +271,13 @@ namespace separation replaced body rewriting. Authored markers are escaped in
 quote normalization before formatter references are injected; raw notes stay
 unchanged. Upgrade citation collection excludes relative Markdown links too.
 No findings rejected; internal final closure is clean. The cited-only namespace preserves note links and quote evidence. Source numbers can have gaps after local excerpts; the registry keeps stable identifiers without adding renumbering machinery. Focused closure:123pass/743assertions, build/typecheck pass, compact/verbose live CLI/MCP text parity pass. External round2 pending.
+
+External code round2: round1 findings closed; direction sound. Fresh-context final
+check found one low code issue: unconditional final newline sentinel duplicated
+the entry-loop sentinel, including timeline-only output. Accepted; final push now
+only occurs after nonempty content. Bounded sibling scan confirmed the empty
+path already preserves its newline and Sources/excerpt footers still need theirs.
+Tests assert timeline and classified-without-Sources endings; response/parity
+68pass. Internal final closure clean. Updated two documentation catalog rows
+with the implemented changes parameter. External round3 pending; the one final
+fresh-context check was already used in round2.
