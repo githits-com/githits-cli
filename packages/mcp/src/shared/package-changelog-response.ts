@@ -256,10 +256,14 @@ export function formatPackageChangelogTerminal(
       statements.items.some(
         (item) =>
           item.classification?.tier === "must_act" ||
-          item.classification?.tier === "should_know",
+          item.classification?.tier === "should_know" ||
+          item.classification?.tier === "no_impact",
       )
     )
-      prose("! requires action | i should know", "  ");
+      prose(
+        "! requires action | i should know | plain: no impact identified",
+        "  ",
+      );
     const pending = c.reduce((sum, v) => sum + v.statementsNotAssessed, 0);
     const oversize = c.reduce((sum, v) => sum + v.statementsUnclassified, 0);
     if (envelope.filter?.changes && envelope.filter.changes !== "all")

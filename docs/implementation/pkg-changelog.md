@@ -39,7 +39,8 @@ verbose classification-detail mode or implicit default note preview.
 
 Known impact kinds use compact tags such as `[behavior]` or `[deprecation]`.
 `!` marks MUST_ACT and `i` marks SHOULD_KNOW, with a short legend shown once
-when either occurs. Markers keep meaning visible without color and survive a
+when assessed impact or no-impact statements occur. The legend also explains
+plain bullets as no impact identified. Markers keep meaning visible without color and survive a
 missing kind; red/yellow highlighting is optional. NO_IMPACT uses plain bullets.
 Uncertain statements retain `(uncertain)` with muted highlighting, based only on
 the backend `ambiguous` boolean; confidence values remain JSON evidence.
@@ -184,6 +185,19 @@ pkg_changelog(default), pkg_vulns and pkg_changelog(verbatim:true), four logical
 calls in25.154s. Its answer cited the rollback and rejected-CVE evidence. Trace
 validation had zero isolation violations. This is an inspected trace, not a
 quality grade. No new package verdict was inferred from model labels.
+
+The compact-label follow-up uses kind-only tags, !/i tier markers and one legend
+(including plain-bullet meaning); no-impact statements stay untagged. Its focused
+formatter/CLI/MCP/parity/upgrade tests pass165 cases/1,011 assertions, with build,
+typecheck and source/built credential-free smokes passing. Authenticated dev
+built CLI/local MCP text parity covers Express4.20.0 and5.2.1. The exact-release
+text is5,689bytes versus6,482before shortening labels; this is output size, not
+rendering speed. JSON and query selections, and their measured complexity, are
+unchanged. The repeated descriptor-intent workload uses three logical calls in
+27.5s and cites rollback/rejected-CVE evidence with no isolation violations; it
+is an inspected trace, not a quality grade. External Opus round3 found only the
+missing explanation for plain bullets; the legend and no-impact-only regression
+now close that wording finding. No unresolved findings or deferred work remain.
 
 ## Release guidance staging
 

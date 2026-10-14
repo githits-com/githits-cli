@@ -373,7 +373,9 @@ describe("complete statement evidence view", () => {
     expect(text).toContain("* (uncertain) Quoted statement 2");
     expect(text).not.toContain("[no impact identified]");
     expect(text).not.toContain("[notable change]");
-    expect(text).not.toContain("! requires action | i should know");
+    expect(text).toContain(
+      "! requires action | i should know | plain: no impact identified",
+    );
     expect(payload(report).statements?.items[0]?.classification).toMatchObject({
       tier: "no_impact",
       kind: "notable_change",
