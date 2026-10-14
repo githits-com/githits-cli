@@ -61,16 +61,13 @@ export async function pkgUpgradeReviewAction(
       includeDependencyIssues: options.dependencyIssues,
       minSeverity: options.minSeverity,
       changes: options.changes,
+      format: options.json ? "json" : "text",
+      verbose: options.verbose === true,
     });
-    const changelogView = options.json
-      ? "json"
-      : request.packages.length > 1 && options.verbose !== true
-        ? "triage"
-        : "text";
     const response = await buildPackageUpgradeReview(
       deps.packageIntelligenceService,
       request.packages,
-      { ...request.options, changelogView },
+      request.options,
     );
 
     if (options.json) {

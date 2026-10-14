@@ -538,3 +538,26 @@ references. Internal correctness review, external review and PR/CI remain.
 
 Internal code_reviewer full-delta pass: direction sound, no findings. Production
 rollout remains a public-release prerequisite. External Opus review follows.
+
+External Opus round1: direction sound; accepted terminal-sanitation regression,
+keyword-only source duplication/list-marker noise, source nesting, duplicated view
+shaping and misleading oversize terminology. Root cause/sibling closure: keyword
+rendering skipped the established sanitation boundary; checked all detailed
+keyword bodies, signals, source URLs and aggregate unmatched signals. They now
+normalize/sanitize before wrapping/style; JSON stays faithful. Keyword URLs
+already shown for a version/source are suppressed and original list markers
+removed. Upgrade adds two spaces and subtracts two columns around the shared
+source renderer; standalone output unchanged. Shared request builder now owns
+view derivation and tier selection, with required resolved view/selection and no
+response-layer fallback. Checked all build callers/host adapters. Worker dispatch
+11 owns view shaping, dispatch12 owns oversize argument wording; coordinator owns
+formatter regressions and closure. Targeted verification and round2 pending.
+
+Round1 closure verification:124 focused request/response/standalone/host/parity
+tests,663 assertions passed. New schema wording test needed object/non-null
+narrowing for JSONSchema's boolean union; worker dispatch13 corrected it,
+isolated test and typecheck passed. Package validation and both source smoke
+modes passed again. Internal full revised review is clean. Final built smokes,
+narrow Fly parity and description-sensitive agent workload rerun are active.
+No query change, complexity evidence remains applicable; implementation churn
+1650lines, below2k. External round2 follows.

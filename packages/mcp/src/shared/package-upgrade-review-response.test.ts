@@ -933,14 +933,56 @@ describe("complete upgrade statement presentation", () => {
       "Keyword matches without excerpts: 4 matching entries",
     );
   });
+  it("nests source groups under versions and shows keyword-only sources once", () => {
+    const review = statementReview([unit()]);
+    review.changelog.entries = [
+      { version: "4.4.4", htmlUrl: "https://example.com/keyword-only" },
+    ];
+    review.changelog.keywordEntries = [
+      {
+        version: "4.4.4",
+        htmlUrl: "https://example.com/keyword-only",
+        body: "* Breaking keyword-only change",
+        signals: ["breaking"],
+      },
+    ];
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    );
+    expect(text).toContain("\n  4.4.3\n    Release notes:");
+    expect(text.match(/https:\/\/example.com\/keyword-only/g)).toHaveLength(1);
+    expect(text).toContain("* [breaking] Breaking keyword-only change");
+    expect(text).not.toContain("[breaking] * Breaking");
+  });
   it("sanitizes release text, metadata, context and URLs while JSON remains faithful", () => {
     const item = unit();
     item.text = "* raw\x1b[31m quote";
     item.url = "https://example.com/notes\x1b[31m";
     item.heading = "heading\x1b[31m";
     item.context = { text: "context\x1b[31m", textTruncated: false };
-    const response = formatterResponse([statementReview([item])]);
+    const review = statementReview([item]);
+    review.changelog.entries = [
+      {
+        version: "4.4.4",
+        htmlUrl: "https://example.com/entry\x1b]8;;evil\x07",
+      },
+    ];
+    review.changelog.keywordEntries = [
+      {
+        version: "4.4.4",
+        htmlUrl: "https://example.com/keyword\x1b[2J",
+        body: "* Breaking \x1b[31m keyword quote",
+        signals: ["breaking", "removed\x1b[2J"],
+      },
+    ];
+    review.changelog.breakingSignals = ["breaking", "extra\x1b[2J"];
+    const response = formatterResponse([review]);
     const text = formatPackageUpgradeReviewTerminal(response);
+    expect(text).toContain("keyword quote");
+    expect(text).toContain("https://example.com/entry");
+    expect(text).toContain("https://example.com/keyword");
+    expect(text).toContain("extra");
+    expect(text).not.toContain("\x07");
     expect(text).not.toContain("\x1b");
     expect(JSON.stringify(response)).toContain("\\u001b");
   });

@@ -201,12 +201,8 @@ export async function buildPackageUpgradeReview(
       currentVersion: pkg.currentVersion,
       targetVersion: pkg.targetVersion,
     })),
-    changelogView: options.changelogView ?? "text",
-    statementTiers:
-      options.statementTiers ??
-      (options.changesSelection === "all"
-        ? undefined
-        : ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"]),
+    changelogView: options.changelogView,
+    statementTiers: options.statementTiers,
     includeTransitiveSecurity: options.includeTransitiveSecurity,
     includeDependencyIssues: options.includeDependencyIssues,
     changelogLimit: options.changelogLimit,
@@ -214,7 +210,7 @@ export async function buildPackageUpgradeReview(
   });
   const result = normaliseBackendUpgradeReviewResponse(
     response,
-    options.changesSelection ?? "focused",
+    options.changesSelection,
   );
   if (options.explicitChanges)
     result.filter = { changes: options.explicitChanges };
@@ -1043,12 +1039,18 @@ function formatChangesSection(
     lines.push(
       ...formatChangelogVersionStatements(items, {
         useColors: options.useColors === true,
-        terminalWidth: width,
+        terminalWidth: width - 2,
         compactNonAction: !options.verbose,
-      }),
+      }).map((line) => `  ${line}`),
     );
-    if (!items.length && metadata?.htmlUrl)
-      appendWrappedText(lines, "    ", metadata.htmlUrl, width, "    ");
+    const shownUrls = new Set(
+      items.flatMap((item) => (item.url ? [safeRiskText(item.url)] : [])),
+    );
+    if (!items.length && metadata?.htmlUrl) {
+      const url = safeRiskText(metadata.htmlUrl);
+      appendWrappedText(lines, "    ", url, width, "    ");
+      shownUrls.add(url);
+    }
     if (!items.length && !keywords.length)
       appendWrappedText(
         lines,
@@ -1062,25 +1064,26 @@ function formatChangesSection(
     if (keywords.length) {
       lines.push("    Keyword matches (lexical evidence)");
       for (const keyword of keywords) {
-        if (keyword.url)
-          appendWrappedText(lines, "      ", keyword.url, width, "      ");
-        const characters = Array.from(keyword.text);
+        const url = keyword.url ? safeRiskText(keyword.url) : undefined;
+        if (url && !shownUrls.has(url)) {
+          appendWrappedText(lines, "      ", url, width, "      ");
+          shownUrls.add(url);
+        }
+        const quote = releaseNoteText(keyword.text, (sourceUrl) => sourceUrl);
+        const signals = keyword.signals.map(safeRiskText);
+        const characters = Array.from(quote);
         const excerpted = !options.verbose && characters.length > 240;
         const text = excerpted
           ? `${characters.slice(0, 240).join("").trimEnd()}...`
-          : keyword.text;
+          : quote;
         appendWrappedText(
           lines,
           "      * ",
-          `[${keyword.signals.join(", ")}] ${text || "Entry keyword matched; excerpt unavailable."}`,
+          `[${signals.join(", ")}] ${text || "Entry keyword matched; excerpt unavailable."}`,
           width,
           "        ",
           (line) =>
-            colorizeSignalKeywords(
-              line,
-              keyword.signals,
-              options.useColors === true,
-            ),
+            colorizeSignalKeywords(line, signals, options.useColors === true),
         );
         if (excerpted)
           appendWrappedText(
@@ -1106,7 +1109,7 @@ function formatChangesSection(
     appendWrappedText(
       lines,
       "  Keyword matches without excerpts: ",
-      unmatched.join(", ") ||
+      unmatched.map(safeRiskText).join(", ") ||
         `${changelog.totalKeywordEntries} matching entries`,
       width,
       "    ",

@@ -106,7 +106,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Filter detailed statement quotes only: actionable (MUST_ACT), important (MUST_ACT + SHOULD_KNOW), or all parsed units, including no-impact and unassessed. Omit or pass blank to use focused (MUST_ACT + SHOULD_KNOW + UNCLASSIFIED). Whole-range counters and batch ranking do not change.",
+      "Filter detailed statement quotes only: actionable (MUST_ACT), important (MUST_ACT + SHOULD_KNOW), or all parsed units, including no-impact and unassessed. Omit or pass blank to use focused (MUST_ACT + SHOULD_KNOW + too-long-to-classify (oversize) statements). Whole-range counters and batch ranking do not change.",
     ),
   verbose: z
     .boolean()
@@ -158,20 +158,13 @@ export function createPackageUpgradeReviewTool(
           includeDependencyIssues: args.include_dependency_issues,
           minSeverity: args.min_severity,
           changes: args.changes,
+          format: args.format,
+          verbose: args.verbose === true,
         });
-        const changelogView =
-          args.format === "json"
-            ? "json"
-            : request.packages.length > 1 && args.verbose !== true
-              ? "triage"
-              : "text";
         const response = await buildPackageUpgradeReview(
           service,
           request.packages,
-          {
-            ...request.options,
-            changelogView,
-          },
+          request.options,
         );
         if (args.format === "json") return textResult(JSON.stringify(response));
         return textResult(

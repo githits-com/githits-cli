@@ -9,6 +9,22 @@ function parseText(result: { content: Array<{ text: string }> }): unknown {
 }
 
 describe("createPackageUpgradeReviewTool", () => {
+  it("distinguishes oversize from unassessed", () => {
+    const tool = createPackageUpgradeReviewTool(
+      createMockPackageIntelligenceService(),
+    );
+    const changesProperty = z.toJSONSchema(z.object(tool.schema)).properties
+      ?.changes;
+    const changesDescription =
+      typeof changesProperty === "object" && changesProperty !== null
+        ? changesProperty.description
+        : undefined;
+
+    expect(changesDescription).toContain("too-long-to-classify");
+    expect(changesDescription).toContain("oversize");
+    expect(changesDescription).not.toContain("UNCLASSIFIED");
+  });
+
   it("registers metadata and schema keys", () => {
     const tool = createPackageUpgradeReviewTool(
       createMockPackageIntelligenceService(),

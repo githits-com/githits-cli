@@ -16,7 +16,7 @@ inputs; both use the same formatter with color and width as inputs.
 - `src/commands/pkg/upgrade-review.ts`: CLI addressing and flags.
 - `packages/mcp/src/tools/package-upgrade-review.ts`: MCP arguments and handler.
 - `packages/mcp/src/shared/package-upgrade-review-request.ts`: shared validation
-  and tier selection; `changelog-changes.ts` also serves standalone changelog.
+  and tier/view selection; `changelog-changes.ts` also serves standalone changelog.
 - `packages/core-internal/src/services/package-intelligence-service.ts`: aggregate
   query, statement projection/protocol validation and collection.
 - `packages/mcp/src/shared/package-upgrade-review-response.ts`: upgrade envelope
@@ -173,7 +173,10 @@ Existing `breakingSignals`, `migrationSignals` and entry `signals` remain
 functional. Additional keyword excerpts appear as lexical evidence within the
 version; a complete chunk already contained in a displayed same-source statement
 is not repeated. A filtered-out statement does not suppress separate keyword
-facts. The client does not infer classifications from keywords or invent URLs.
+facts. Keyword quotes normalize Markdown list markers and sanitize text/signals;
+URLs already shown for the version or statement sources are not repeated. Source
+groups nest beneath the version header. The client does not infer classifications
+from keywords or invent URLs.
 
 All untrusted quotes, headings, context, dates, versions and URLs follow terminal
 sanitization and prose wrapping. Formatter punctuation is ASCII; backend Unicode

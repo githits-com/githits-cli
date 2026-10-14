@@ -40,6 +40,8 @@ export interface PackageUpgradeReviewRequestInput {
   includeDependencyIssues?: boolean;
   minSeverity?: string;
   changes?: string;
+  format?: "text" | "json";
+  verbose?: boolean;
 }
 
 export type UpgradeChangelogSelection = ChangelogChangesView | "focused";
@@ -54,8 +56,8 @@ export interface UpgradeReviewPackageRequest {
 
 export interface PackageUpgradeReviewOptions {
   /** Internal selection control; not a public tool argument. */
-  changelogView?: "text" | "json" | "triage";
-  changesSelection?: UpgradeChangelogSelection;
+  changelogView: "text" | "json" | "triage";
+  changesSelection: UpgradeChangelogSelection;
   explicitChanges?: ChangelogChangesView;
   statementTiers?: ChangelogStatementTier[];
   includeTransitiveSecurity: boolean;
@@ -122,10 +124,17 @@ export function buildPackageUpgradeReviewRequest(
         : changesSelection === "important"
           ? ["MUST_ACT", "SHOULD_KNOW"]
           : undefined;
+  const changelogView =
+    input.format === "json"
+      ? "json"
+      : packages.length > 1 && input.verbose !== true
+        ? "triage"
+        : "text";
 
   return {
     packages,
     options: {
+      changelogView,
       changesSelection,
       explicitChanges,
       statementTiers,
