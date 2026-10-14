@@ -212,5 +212,28 @@ Full source live smoke harnesses fail their auth probe because isolated HOME
 cannot use this system keychain. No credentials copied/exported. Run required
 source unauthenticated/registration modes and built Node modes; authenticated
 affected-feature matrix above replaces full live harness proof for this task.
-Internal complete code preflight direction sound, no findings; final gates and
-external code review pending. Plan stays until clean external review.
+Internal complete code preflight direction sound, no findings; final gates pass; external code review in progress. Plan stays until clean external review.
+
+## External implementation round1 closure
+
+Direction sound. F1 accepted: blanket four-space detection confused nested prose
+with code. Renderer now measures code indentation relative to the first bullet's
+content indent and excludes nested list markers; prose retains its hanging indent.
+Bounded sibling scan: statement/context renderer (one shared helper), original
+notes (explicit verbatim remains unchanged), width/code/Unicode tests and live
+exact/latest/range evidence. New Express-style case covers long four-space prose
+and nested bullets plus genuinely indented code. F2 accepted: context label now
+explicitly says Context for next statement, including heading variant. Checked
+context truncation hints, heading state and source groups; provenance unchanged.
+No policy, wire or field changes; no complexity/JSON rerun required. New text bytes
+and representative live text output remeasured, with permanent docs updated.
+Round2 reviews the full revised increment.
+
+Round1 closure evidence:162affected tests/992assertions pass; rebuilt/typechecked
+formatter and changed-file Biome pass; all4 source/built unauth smoke modes pass.
+Authenticated rebuilt CLI/local MCP text parity passes all4 representative views;
+final bytes latest57,029/exact6,482/range40,760/Biome260,050, text times
+5.907s/2.174s/3.030s/14.853s under concurrent validation. No speedup claim.
+Wire/JSON/classification policy unchanged, prior85/88/113complexity proof applies.
+Standalone public package validation also passed. Internal full revised closure
+clean, no findings. Prior d8a225d CI all tests/build/compat/package checks green.

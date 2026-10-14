@@ -436,6 +436,26 @@ describe("complete statement evidence view", () => {
     expect(text).toContain("Injected");
     expect(p.statements?.items[0]?.text).toContain("\x1b");
   });
+  it("wraps Express-style four-space continuations and nested bullets while preserving indented code", () => {
+    const report = evidence();
+    report.statements!.items[0]!.text = `- Fixed HTTP header conflict
+    Fixed the behavior of res.send() ${"with explicit response headers ".repeat(15)}
+    * IMPORTANT: ${"this default changes existing usage ".repeat(8)}
+
+      example(  1, ${"argument, ".repeat(10)});`;
+    const text = formatPackageChangelogTerminal(payload(report), {
+      useColors: false,
+      terminalWidth: 72,
+    });
+    expect(text).toContain("Fixed the behavior of res.send()");
+    expect(text).toContain("* IMPORTANT:");
+    expect(text).toContain(`example(  1, ${"argument, ".repeat(10)});`);
+    for (const line of text.split("\n")) {
+      if (!line.includes("example("))
+        expect(line.length).toBeLessThanOrEqual(72);
+    }
+    expect(text).toContain("Context for next statement - Earlier");
+  });
   it("preserves backend Unicode while formatter punctuation stays ASCII", () => {
     const report = evidence();
     report.statements!.items[0]!.text = "* α — 保留 …";

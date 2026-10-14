@@ -326,10 +326,10 @@ export function formatPackageChangelogTerminal(
       if (item.context) {
         if (item.context.heading && item.context.heading !== heading)
           prose(
-            `Context - ${sanitizeTerminalText(item.context.heading)}`,
+            `Context for next statement - ${sanitizeTerminalText(item.context.heading)}`,
             "    ",
           );
-        else prose("Context", "    ");
+        else prose("Context for next statement", "    ");
         renderStatementText(lines, item.context.text, "      ", width);
         if (item.context.textTruncated)
           prose(
@@ -396,6 +396,8 @@ function renderStatementText(
   width: number,
 ): void {
   const raw = text.split("\n");
+  const first = sanitizeTerminalText((raw[0] ?? "").replace(/\t/g, "    "));
+  const contentIndent = first.match(/^ *(?:[-*+]|\d+[.)]) +/)?.[0].length ?? 0;
   let fenced = false;
   raw.forEach((line, index) => {
     const safe = sanitizeTerminalText(line.replace(/\t/g, "    "));
@@ -405,13 +407,21 @@ function renderStatementText(
       lines.push("");
       return;
     }
-    const indent =
-      index === 0 ? prefix : `      ${safe.match(/^ */)?.[0] ?? ""}`;
+    const leading = safe.match(/^ */)?.[0] ?? "";
+    const indent = index === 0 ? prefix : `      ${leading}`;
     const value = index === 0 ? content : content.trimStart();
     const isFence = value.startsWith("```") || value.startsWith("~~~");
-    if (fenced || isFence || (index > 0 && /^ {4}/.test(safe)))
-      lines.push(`${indent}${value}`);
-    else lines.push(...wrapTerminalProse(`${indent}${value}`, width, "      "));
+    const nestedBullet = /^(?:[-*+]|\d+[.)]) +/.test(value.trimStart());
+    const indentedCode = leading.length >= contentIndent + 4 && !nestedBullet;
+    if (fenced || isFence || indentedCode) lines.push(`${indent}${value}`);
+    else
+      lines.push(
+        ...wrapTerminalProse(
+          `${indent}${value}`,
+          width,
+          index === 0 ? "      " : `${indent}${nestedBullet ? "  " : ""}`,
+        ),
+      );
     if (isFence) fenced = !fenced;
   });
 }

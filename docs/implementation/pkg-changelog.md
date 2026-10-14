@@ -147,13 +147,16 @@ Old built preview+risk text versus new all-statements bytes:
 
 | Selection | Before bytes | After bytes | New built text time |
 | --- | --- | --- | --- |
-| Express latest10 | 20,039 | 56,782 | 3.061s |
-| Express4.20.0 | 2,501 | 6,439 | 1.481s |
-| Express4.18.2..5.1.0 | 16,861 | 40,562 | 3.062s |
-| Biome2.4.2..2.4.15 | 39,824 | 259,575 | 10.672s |
+| Express latest10 | 20,039 | 57,029 | 5.907s |
+| Express4.20.0 | 2,501 | 6,482 | 2.174s |
+| Express4.18.2..5.1.0 | 16,861 | 40,760 | 3.030s |
+| Biome2.4.2..2.4.15 | 39,824 | 260,050 | 14.853s |
 
-Biome repeat took10.218s with identical output bytes; its JSON was772,829 bytes
-and took11.570s. Times include CLI startup/auth and all required page requests.
+Initial Biome text runs before the wrapping fix took10.672s and10.218s with
+identical259,575bytes; JSON was772,829bytes and took11.570s. Final text above
+wraps nested prose and labels predecessor context clearly. These individual
+observations include concurrent smoke-validation load, CLI startup/auth and all
+required page requests; they do not isolate rendering cost.
 Pages are100-unit backend pages (collection and selectors verified in wire tests),
 not model spend. The API does not reveal whether labels were initially stored;
 no cold-run claim. Complete all output is larger because it includes no-impact
@@ -161,7 +164,9 @@ statements and uncapped source evidence; filters reduce the same Biome range to
 40 actionable or62 important statements in one page.
 
 Focused core/shared/CLI/MCP/parity/server/smoke, smoke-script and upgrade regression tests passed
-567 cases/2,855 assertions. Build and typecheck passed. Source unauthenticated
+567 cases/2,855 assertions; after the wrapping/context correction, the affected
+formatter/tool/CLI/parity/upgrade checks passed162 cases/992 assertions. Build,
+typecheck and public-package validation passed. Source unauthenticated
 CLI/MCP and built Node smoke modes validate registration/auth handling. Full live
 smoke harnesses could not use macOS keychain authentication under their isolated
 HOME (system-keychain-unavailable), without exporting credentials; the affected
