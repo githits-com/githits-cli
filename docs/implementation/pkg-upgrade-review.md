@@ -340,6 +340,12 @@ the cause was not established. Direct reproduction of its exact seven-package
 arguments succeeded on the explicit endpoint using both built Node and source
 Bun MCP (3.1 and 9.2 seconds). No auth storage or tokens were inspected/exported.
 
+After the review's MCP argument-wording fix, the same workload ran again. Its
+seven-package upgrade review completed in 19.7 seconds and nine calls completed;
+the 182-second harness timeout occurred after it entered broader research. That
+run produced no final answer or quality grade. The completed tool trace does not
+make the whole workload successful; no isolation violations were recorded.
+
 Local verification artifacts are under
 `/tmp/upgrade-review-statements-implementation/`; raw traces/metrics are local
 working evidence, while the measurements and limitations above remain durable.

@@ -561,3 +561,23 @@ modes passed again. Internal full revised review is clean. Final built smokes,
 narrow Fly parity and description-sensitive agent workload rerun are active.
 No query change, complexity evidence remains applicable; implementation churn
 1650lines, below2k. External round2 follows.
+
+Final review-fix built smokes and narrow Fly focused-text/batch text/JSON parity
+passed. Descriptor/intent agent rerun after argument wording completed7-package
+upgrade review19.7s and9calls, then timed out182s during research without final.
+No grading/isolation violations recorded. Earlier successful workload remains
+valid evidence; latest run is explicitly incomplete, not reported successful.
+Permanent docs record both. External round2 still running.
+
+External round2 verified all prior closures. Accepted one test-coverage gap:
+replacement core cases lost security wire/over-fetch/mapping/backend-error
+guards. Root ported those into7 focused cases; core39tests/104assertions and
+Biome passed. Strict JSON model/formulation/confidence tests already existed;
+added nullfullText and missingaggregatefield cases. No runtime/query change.
+Bounded scan compared the deleted aggregate block, new projections/JSON-field
+table and security schemas/callvariables. Internal full revised pass is clean.
+Rejected reviewer notes (2026-10-14): same-count stored reclassification would
+need an unobserved label rewrite; stable counter mismatch is deliberately
+malformed and rerun-bounded. appendWrappedText code-unit width is pre-existing
+and cosmetic outside this delta. Neither warrants new mechanism or scope.
+External fresh-context final check ran inround2; no fanout. Final round3 follows.

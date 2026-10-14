@@ -180,6 +180,96 @@ function setup(
 }
 
 describe("complete upgrade statement retrieval", () => {
+  for (const enabled of [true, false])
+    it(`preserves initial security variables and minimal projection when enabled=${enabled}`, async () => {
+      const { run, requests } = setup([initial([review(page(1))])], {
+        minSeverity: 7,
+        changelogLimit: 12,
+        includeTransitiveSecurity: enabled,
+        includeDependencyIssues: enabled,
+      });
+      await run();
+      expect(requests[0]?.variables).toMatchObject({
+        packages: [identity],
+        minSeverity: 7,
+        changelogLimit: 12,
+        includeTransitiveSecurity: enabled,
+        includeDependencyIssues: enabled,
+      });
+      const query = requests[0]!.query;
+      expect(query).toContain(
+        "dependencyIssues @include(if: $includeDependencyIssues)",
+      );
+      expect(query).toContain(
+        "transitive @include(if: $includeTransitiveSecurity)",
+      );
+      for (const field of [
+        "duplicateIds",
+        "matchedAffectedVersionRanges",
+        "affectsInspectedVersion",
+        "affectedVersionRangesCount",
+        "affectedVersionRangesTruncated",
+      ])
+        expect(query).not.toContain(field);
+    });
+  it("preserves added security advisory mapping", async () => {
+    const body = initial([review(page(1))]);
+    const advisory = {
+      id: "GHSA-added",
+      aliases: ["CVE-added"],
+      summary: "Observed advisory",
+      severity: 7.5,
+      severityLabel: "HIGH",
+      fixedIn: ["2.0.0"],
+      isMalicious: false,
+    };
+    Reflect.set(body.data.packageUpgradeReview.reviews[0]!.security, "added", [
+      advisory,
+    ]);
+    const result = await setup([body]).run();
+    expect(result.reviews[0]!.security.added).toEqual([advisory]);
+  });
+  for (const field of ["security", "versionDelta"])
+    it(`keeps strict aggregate review validation for ${field}`, async () => {
+      const body = initial([review(page(1))]);
+      Reflect.deleteProperty(body.data.packageUpgradeReview.reviews[0]!, field);
+      await expect(setup([body]).run()).rejects.toThrow(
+        MalformedPackageIntelligenceResponseError,
+      );
+    });
+  it("rejects null selected fullText", async () => {
+    const body = initial([review(page(1))]);
+    Reflect.set(
+      body.data.packageUpgradeReview.reviews[0]!.changelog.statements.items[0]!,
+      "fullText",
+      null,
+    );
+    await expect(setup([body]).run()).rejects.toThrow(
+      MalformedPackageIntelligenceResponseError,
+    );
+  });
+  it("passes through backend validation above the public batch maximum", async () => {
+    const { run, requests } = setup(
+      [
+        {
+          errors: [
+            {
+              message: "packages must contain at most 30 upgrades",
+              extensions: { code: "VALIDATION_ERROR" },
+            },
+          ],
+        },
+      ],
+      {
+        packages: Array.from({ length: 31 }, () => ({ ...identity })),
+      },
+    );
+    await expect(run()).rejects.toThrow(
+      "packages must contain at most 30 upgrades",
+    );
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.variables.packages).toHaveLength(31);
+  });
   it("collects past both the legacy cap and first page without repeating aggregate fields", async () => {
     const { run, requests } = setup([initial(), continuation()]);
     const result = await run();
