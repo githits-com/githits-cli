@@ -120,6 +120,95 @@ describe("pkg upgrade-review help", () => {
 });
 
 describe("pkgUpgradeReviewAction", () => {
+  it.each([
+    [
+      "single text",
+      "npm:express@4.18.0",
+      { to: "5.0.0" },
+      "text",
+      ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"],
+    ],
+    [
+      "verbose single",
+      "npm:express@4.18.0",
+      { to: "5.0.0", verbose: true, changes: "  AcTiOnAbLe  " },
+      "text",
+      ["MUST_ACT"],
+    ],
+    [
+      "batch triage",
+      undefined,
+      {
+        package: ["npm:express@4.18.0..5.0.0", "npm:lodash@4.0.0..5.0.0"],
+        changes: "important",
+      },
+      "triage",
+      ["MUST_ACT", "SHOULD_KNOW"],
+    ],
+    [
+      "verbose batch",
+      undefined,
+      {
+        package: ["npm:express@4.18.0..5.0.0", "npm:lodash@4.0.0..5.0.0"],
+        verbose: true,
+        changes: "all",
+      },
+      "text",
+      undefined,
+    ],
+    [
+      "batch JSON",
+      undefined,
+      {
+        package: ["npm:express@4.18.0..5.0.0", "npm:lodash@4.0.0..5.0.0"],
+        json: true,
+        changes: "   ",
+      },
+      "json",
+      ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"],
+    ],
+    [
+      "single JSON",
+      "npm:express@4.18.0",
+      { to: "5.0.0", json: true, changes: "all" },
+      "json",
+      undefined,
+    ],
+  ] as const)(
+    "selects upgrade changelog host projection: %s",
+    async (_case, spec, options, changelogView, statementTiers) => {
+      process.stdout.write = (() => true) as typeof process.stdout.write;
+      const service = createMockPackageIntelligenceService();
+
+      if (_case === "single text") {
+        const help = registerPkgUpgradeReviewCommand(
+          new Command().command("pkg"),
+        )
+          .helpInformation()
+          .replace(/\s+/g, " ");
+        expect(help).toContain("--changes <view>");
+        expect(help).toContain("actionable, important, all");
+        expect(help).toContain("default: focused");
+      }
+
+      const mutableOptions =
+        "package" in options
+          ? { ...options, package: [...options.package] }
+          : options;
+
+      await pkgUpgradeReviewAction(spec, mutableOptions, {
+        packageIntelligenceService: service,
+        codeNavigationUrl: "https://pkgseer.dev",
+        hasValidToken: true,
+        mcpUrl: "https://mcp.githits.com",
+      });
+
+      expect(service.packageUpgradeReview).toHaveBeenCalledWith(
+        expect.objectContaining({ changelogView, statementTiers }),
+      );
+    },
+  );
+
   it("accepts a scoped positional double-dot range", async () => {
     const service = createMockPackageIntelligenceService();
     process.stdout.write = (() => true) as typeof process.stdout.write;

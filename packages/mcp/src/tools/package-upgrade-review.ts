@@ -33,6 +33,7 @@ export interface PackageUpgradeReviewArgs {
   skip_transitive_security?: boolean;
   include_dependency_issues?: boolean;
   min_severity?: string;
+  changes?: string;
   verbose?: boolean;
   format?: "text" | "json";
 }
@@ -101,11 +102,17 @@ const schema: ZodRawShape = {
     .describe(
       "Minimum direct-advisory severity: low, medium, high, or critical.",
     ),
+  changes: z
+    .string()
+    .optional()
+    .describe(
+      "Filter detailed statement quotes only: actionable (MUST_ACT), important (MUST_ACT + SHOULD_KNOW), or all parsed units, including no-impact and unassessed. Omit or pass blank to use focused (MUST_ACT + SHOULD_KNOW + UNCLASSIFIED). Whole-range counters and batch ranking do not change.",
+    ),
   verbose: z
     .boolean()
     .optional()
     .describe(
-      "Text output only. Batches default to triage rows; verbose adds full per-package reports. Expand statement quotes, headings/confidence and dependency change examples.",
+      "Text output only. Batches default to triage rows; verbose adds full per-package reports, expands statement quotes up to backend bounds, and expands dependency change examples.",
     ),
   format: z
     .enum(["text", "json"])
@@ -118,7 +125,7 @@ const schema: ZodRawShape = {
 const DESCRIPTION =
   "Review a package upgrade: vulnerabilities, releases, peers, dependency changes. " +
   "Compares current and target versions using direct vulnerability checks, changelog ranges, target deprecation metadata, peer dependency changes, and optional transitive evidence diffs. " +
-  "The tool reports facts only, including agent-classified release-note quotes grouped by version, with referenced sources and coverage. JSON retains classifier provenance. It does not assign package-level risk or decide whether to accept an upgrade. Batches default to triage rows; use verbose for full per-package evidence. " +
+  "The tool reports facts only, including agent-classified release-note statements in backend source order, with nearby authoritative URLs and assessment coverage. JSON includes complete selected statement pages, source positions and context, and classifier provenance. It does not assign package-level risk or decide whether to accept an upgrade. Batches default to triage rows; use verbose for full per-package evidence. " +
   "Use this instead of inferring acceptability from semver, including patch bumps. " +
   "Use signals as a starting point to evaluate the impact of changes on the codebase. " +
   "You can use pkg_changelog and code_diff to obtain full release-note and source-change details. " +
@@ -150,13 +157,20 @@ export function createPackageUpgradeReviewTool(
           includeTransitiveSecurity: args.skip_transitive_security !== true,
           includeDependencyIssues: args.include_dependency_issues,
           minSeverity: args.min_severity,
+          changes: args.changes,
         });
+        const changelogView =
+          args.format === "json"
+            ? "json"
+            : request.packages.length > 1 && args.verbose !== true
+              ? "triage"
+              : "text";
         const response = await buildPackageUpgradeReview(
           service,
           request.packages,
           {
             ...request.options,
-            includeChangelogFullText: args.format === "json",
+            changelogView,
           },
         );
         if (args.format === "json") return textResult(JSON.stringify(response));

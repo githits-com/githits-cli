@@ -2,7 +2,7 @@
 
 ## Status and destination
 
-Overall: **READY**. One implementation increment; no production changes
+Overall: **IMPLEMENTING**. One implementation increment; no production changes
 are made during planning. Branch `jlitola/upgrade-review-statements`, planning base
 `acd717488569485bf4af68bc09dab6c0ef2be7e4` (origin/main, merged PR476).
 
@@ -272,7 +272,7 @@ the existing pending-classification guidance, not as a safety verdict.
 ## Phase map
 
 **Phase1 — complete, filtered upgrade evidence reaches both hosts without cap or
-unused quote fetching (READY).** Expected outcome: default focused
+unused quote fetching (IMPLEMENTING).** Expected outcome: default focused
 reviews and explicit filters return all selected quotes; compact batches stay
 small, counts/coverage stay honest and old security/keyword behavior works.
 Assumptions: approved defaults/projections above; dev contract and counters verified.
@@ -439,4 +439,102 @@ is malformed protocol evidence while observed page changes are retryable; clarif
 retained position versus sourcePosition gaps. Internal closure review was clean.
 Minimum changelogLimit1 continuation cost was independently confirmed88. All
 review notes are adjudicated, none remain open. No production changes were made.
-This plan is READY for its single implementation increment.
+The planning gate was READY; its single implementation increment is now underway.
+
+## Orchestration ledger
+
+Actual sandbox: danger-full-access, approval never; workers inherit it. One callable
+luna_implementor, sequential bounded dispatches; coordinator owns judgment, all
+network evidence, full verification, commits and reviews. Currentmain stillacd7174.
+
+Sequence before first dispatch (re-slice at each verified return):
+1. Worker: shared changes parsing and upgrade request filter mapping only; prove
+   named default/blank/actionable/important/all/invalid request tests.
+2. Coordinator: mode-specific core queries/schemas and complete sequential
+   collection/counter consistency; ordering/attribution judgment stays inline.
+3. Coordinator: shared statement renderer, upgrade JSON/Changes migration and
+   keyword preservation; evidence-contract judgment stays inline.
+4. Worker: CLI changes/view wiring only against settled service contract; prove
+   named command-param tests.
+5. Worker: MCP changes/view wiring only, same contract; prove named tool-param tests.
+6. Worker: mechanical migration of canonical fixtures/test factories and existing
+   smoke assertions to the settled statement shape, separate artifact dispatches.
+7. Worker: settled docs/release-fragment updates, separate documentation concern;
+   coordinator checks assertions against final evidence.
+8. Coordinator: affected regressions, live dev/parity/complexity/built timing/eval,
+   one fresh luna_reviewer preflight, own full review, internal code_reviewer and
+   external Opus loop, PR/CI and final-plan retirement after clean review.
+
+Workers return verified uncommitted changes at each checkpoint; never commit/push
+or edit outside the exhaustive slice list. Interrupts are normal. No broad extra
+validation/platform/infrastructure invented by workers. No coordinator tests/builds
+while a worker is active. Rewrite the next slice if scope or evidence changes.
+
+### Implementation checkpoint (2026-10-14)
+
+Core complete collection/projections and shared JSON/source bullet rendering are
+implemented. Initial batches remain unsplit, continuations sequential; all mode
+compares assessment coverage, and stable counter disagreement is malformed.
+Standalone all still tolerates label arrival. Legacy risk item schemas/types and
+presentation helpers are removed; the kind schema is neutral before that removal.
+Keyword bodies, unversioned/aggregate matches, 240-character compact bounds and
+same-source quote suppression remain functional. No backend changes were needed.
+
+Luna dispatches: shared parser/filter mapping; CLI wiring; MCP wiring; MCP proof
+wording correction; readonly table correction; union correction; default fixtures;
+public smoke contract; reference docs; release fragment (10 total). Coordinator
+owns canonical fixture migration, pagination/renderer semantics/tests and durable
+implementation doc. Runtime proofs passed, but host table fixes still failed
+TypeScript; coordinator explicitly took over those two tables and resolved them.
+The documentation proof guessed an absent row prefix; coordinator ran and passed
+the explicit two-section wording check. These were evidence-contract/slicing costs,
+not product decisions. No interrupts, worker commits, scope fanouts or extra
+platform validation. Final worker edits are accepted after diff/proof inspection.
+
+Final query complexity: JSON1/3/30=330/340/475; all30=475; triage30=391;
+JSON continuation=88. Independently calibrated control5100. Exact requested dev
+URLs were used for final built CLI/local MCP parity; the repository's dev preset
+now routes code navigation to oss-dev.githits.dev. Initial preset smoke parity
+also passed, but explicit endpoint evidence is authoritative for this task.
+
+Coverage remains the planning counts: Express141/15 (0+8 act,6+1 know,126 no
+impact,4 classified); Express57/14 (3+4 act,7 know,43 no impact,4 classified);
+Biome875/62 (13+27 act,12+10 know,813 no impact,13 classified). All have zero
+pending/missing/unparseable versions. No cold claim. Biome all875 collected in
+9 observed requests and13.683s built Node walltime including auth/startup/observer.
+Raw same-case projection bytes: baseline443505, detailed467275, triage16202.
+
+262 affected tests initially passed; expanded regression run618 passed with one
+source launch timeout. A diagnostic and an unchanged default-timeout rerun passed
+that exact case; no timeout or product change was made. Core final32 and renderer
+final26 passed after edge-case and keyword checks. Typecheck/public-package
+validation and four source/built smoke modes passed before the last keyword fix;
+final affected checks/build/smokes are pending below.
+
+Agent workload: first preset run timed out302s after starting pkg_upgrade_review,
+no final, cause unproven. Exact arguments succeeded directly on Fly dev via built
+Node/source Bun MCP. Correct-endpoint descriptor/intent rerun succeeded177.3s,
+9 logical calls including2 completed upgrade reviews; final/metrics/trace inspected,
+no isolation violations recorded. One missing-release follow-up failed and research
+was unfinished in the trace. No grading ran; no quality claim. Permanent facts are
+in docs/implementation/pkg-upgrade-review.md. Final preflight/internal/external
+reviews, stable commits, PR/CI and plan retirement remain.
+
+Final local gates: public package validation (both builds/packed consumers) passed;
+624 affected/regression tests and2858 assertions passed; all four source/built
+CLI/MCP smoke modes passed; changed TypeScript files pass Biome with no warnings.
+The final typecheck found one test-only indexed access after wire-fixture types
+were tightened; corrected it and the canonical-Go input fixture, then32 core cases
+and typecheck passed. No product fallback/timeout change. Implementation churn is
+1628 changed lines (tests/docs excluded), below the agreed2k stop threshold.
+The exact release fragment has pending minor impacts for both artifacts.
+
+Preflight direction is sound and acceptance evidence meets the plan. Its three
+minor documentation findings are closed: sibling changelog ownership notes no
+longer claim upgrade review is unchanged, and the JSON example marks fullText,
+sourcePosition and classification provenance as required where JSON requires
+them. Bounded scan covered the changelog/upgrade implementation and tool/CLI
+references. Internal correctness review, external review and PR/CI remain.
+
+Internal code_reviewer full-delta pass: direction sound, no findings. Production
+rollout remains a public-release prerequisite. External Opus review follows.

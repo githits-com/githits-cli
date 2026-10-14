@@ -77,7 +77,9 @@ minute to read completed stored labels. No client polling or automatic reruns.
 Backend #3228 exposes `statements(first, offset, tiers)` on PackageChangelogResult
 and PackageVersionChangelog, in dev and production. Its 100-item maximum page
 size replaces the old risk-only 50-item cap for changelog views. Filters apply
-before pagination. The upgrade-review risk API remains unchanged.
+before pagination. Upgrade review also collects this statement shape, with a
+focused default instead of changelog's all-statements default; see
+[pkg-upgrade-review.md](pkg-upgrade-review.md) for its projections and coverage.
 
 The core service retrieves every matching page. Original-note/timeline and up
 to 100 matching statements need one query; larger results need one query/page.

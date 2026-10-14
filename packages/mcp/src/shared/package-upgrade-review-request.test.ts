@@ -16,6 +16,67 @@ function batchPackage(index: number): UpgradeReviewPackageInput {
 }
 
 describe("buildPackageUpgradeReviewRequest", () => {
+  it.each([
+    [
+      "omitted",
+      undefined,
+      "focused",
+      undefined,
+      ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"],
+    ],
+    [
+      "blank",
+      "  ",
+      "focused",
+      undefined,
+      ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"],
+    ],
+    [
+      "mixed-case actionable",
+      "  AcTiOnAbLe  ",
+      "actionable",
+      "actionable",
+      ["MUST_ACT"],
+    ],
+    [
+      "important",
+      "important",
+      "important",
+      "important",
+      ["MUST_ACT", "SHOULD_KNOW"],
+    ],
+    ["all", "all", "all", "all", undefined],
+  ] as const)(
+    "changelog filter selection: %s",
+    (_case, changes, changesSelection, explicitChanges, statementTiers) => {
+      const { options } = buildPackageUpgradeReviewRequest({
+        registry: "npm",
+        packageName: "express",
+        currentVersion: "4.18.0",
+        targetVersion: "5.0.0",
+        changes,
+      });
+
+      expect(options.changesSelection).toBe(changesSelection);
+      expect(options.explicitChanges).toBe(explicitChanges);
+      expect(options.statementTiers).toEqual(
+        statementTiers === undefined ? undefined : [...statementTiers],
+      );
+    },
+  );
+
+  it("changelog filter selection: invalid", () => {
+    expect(() =>
+      buildPackageUpgradeReviewRequest({
+        registry: "npm",
+        packageName: "express",
+        currentVersion: "4.18.0",
+        targetVersion: "5.0.0",
+        changes: "unknown",
+      }),
+    ).toThrow(InvalidPackageSpecError);
+  });
+
   it("treats an empty packages array as absent for single-package mode", () => {
     const { packages } = buildPackageUpgradeReviewRequest({
       registry: "npm",

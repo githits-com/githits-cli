@@ -34,10 +34,24 @@ Single-run token changes and self-reported confidence are not quality scores.
 
 The new aggregate `changelog.statements` contract exposes per-version coverage
 membership and complete pages beyond the legacy risk-item cap. Client adoption
-is covered by the [upgrade statement migration plan](upgrade-review-statements.md).
+is documented in [upgrade review](../implementation/pkg-upgrade-review.md).
 
 Structured supersession/revert relationships remain unavailable. That requires
 backend API design, not client heuristics, and stays outside this migration.
 Preserve the concrete requirements in the
-[upgrade review limitations](../implementation/pkg-upgrade-review.md#known-output-limitations).
+[upgrade review limitations](../implementation/pkg-upgrade-review.md#other-evidence-and-fact-reporting-rules).
 Consumer applicability remains the calling agent's job.
+
+Concrete remaining case: Express 5.2.0 describes a security fix for
+CVE-2024-51999; 5.2.1 says the prior change was erroneous, reverted, and the CVE
+rejected. Separate versioned quotes are available, but no field links the earlier
+claim to its correction. A reader must reconcile them manually; tier counts do
+not describe the effective state at the target version.
+
+Outcome: backend-provided supersession/revert relationships that retain the
+original statements and cite the correcting statement's version/source evidence.
+Acceptance: fixtures for that Express range expose the relationship with locators
+and provenance; clients can display it without keyword-based guessing or a
+package verdict. This needs backend/domain design and remains outside the
+completed statement migration. Private-code applicability still requires local
+usage inspection and before/after checks by the caller.

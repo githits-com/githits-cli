@@ -239,8 +239,9 @@ export interface PackageUpgradeReviewPackageParams {
 }
 
 export interface PackageUpgradeReviewParams {
-  /** Select complete statement text only when the caller consumes it. */
-  includeChangelogFullText?: boolean;
+  /** Host projection; compact batch text skips statement retrieval entirely. */
+  changelogView?: "text" | "json" | "triage";
+  statementTiers?: ChangelogStatementTier[];
   packages: PackageUpgradeReviewPackageParams[];
   includeTransitiveSecurity: boolean;
   includeDependencyIssues: boolean;
@@ -320,59 +321,31 @@ export interface PackageUpgradeChangelogEntry {
   signals: string[];
 }
 
-/** Backend model labels for one release-note statement, never a package verdict. */
-export interface ChangelogRiskItem {
-  version: string;
-  tier: "MUST_ACT" | "SHOULD_KNOW" | "UNCLASSIFIED";
-  /** Backend ambiguity policy; confidence is evidence, not a client threshold. */
-  ambiguous: boolean;
-  tierConfidence?: number;
-  kind?: string;
-  kindConfidence?: number;
-  text: string;
-  textTruncated: boolean;
-  /** Complete statement, present only when selected. */
-  fullText?: string;
-  /** Exact backend source locator, independent of sampled entries. */
-  url?: string;
-  heading?: string;
-  source?: string;
-  model?: string;
-  formulation?: string;
-}
-
-/** Upgrade reviews always select classifier provenance. */
-export interface PackageUpgradeChangelogRiskItem extends ChangelogRiskItem {
-  model: string;
-  formulation: string;
-}
-
 export interface ChangelogRiskCoverage {
   versionsClassified: number;
   versionsNotAssessed: number;
   versionsWithoutNotes: number;
   versionsUnparseable: number;
   unitsNoImpact: number;
-  /** Statement totals before the per-review cap, separated by backend ambiguity. */
+  /** Whole-range statement totals, separated by backend ambiguity. */
   itemsMustActConfident: number;
   itemsMustActAmbiguous: number;
   itemsShouldKnowConfident: number;
   itemsShouldKnowAmbiguous: number;
   itemsUnclassified: number;
-  itemsOmitted: number;
 }
 
 export interface PackageUpgradeChangelogRiskCoverage
   extends ChangelogRiskCoverage {}
 
 export interface PackageUpgradeChangelog {
-  riskItems: PackageUpgradeChangelogRiskItem[];
+  statements?: ChangelogStatements;
   riskCoverage: PackageUpgradeChangelogRiskCoverage;
   source?: string;
   fallback?: string;
-  entries: PackageUpgradeChangelogEntry[];
-  sampledEntries: PackageUpgradeChangelogEntry[];
-  keywordEntries: PackageUpgradeChangelogEntry[];
+  entries?: PackageUpgradeChangelogEntry[];
+  sampledEntries?: PackageUpgradeChangelogEntry[];
+  keywordEntries?: PackageUpgradeChangelogEntry[];
   totalKeywordEntries: number;
   totalEntries: number;
   totalEntriesWithBodies: number;
@@ -752,7 +725,7 @@ export type ChangelogStatementAssessmentStatus =
 export interface ChangelogStatementClassification {
   tier: ChangelogStatementTier;
   ambiguous: boolean;
-  kind?: ChangelogRiskItem["kind"];
+  kind?: string;
   tierConfidence?: number;
   kindConfidence?: number;
   model?: string;
@@ -2097,37 +2070,18 @@ const packageUpgradeChangelogEntrySchema = z.object({
   signals: z.array(z.string()),
 });
 
-const changelogRiskItemBaseSchema = z.object({
-  version: z.string(),
-  tier: z.enum(["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"]),
-  ambiguous: z.boolean(),
-  kind: z
-    .enum([
-      "REMOVES_OR_RENAMES_API",
-      "CHANGES_BEHAVIOR_OR_DEFAULT",
-      "RAISES_RUNTIME_OR_PLATFORM_REQUIREMENT",
-      "CHANGES_PACKAGING_OR_MODULE_FORMAT",
-      "DEPRECATES_WITHOUT_REMOVAL",
-      "SECURITY_FIX",
-      "NOTABLE_CHANGE",
-    ])
-    .nullable(),
-  text: z.string(),
-  textTruncated: z.boolean(),
-  fullText: z.string().optional(),
-  url: z.string().nullable(),
-  source: z.string().nullable(),
-});
+const changelogKindSchema = z
+  .enum([
+    "REMOVES_OR_RENAMES_API",
+    "CHANGES_BEHAVIOR_OR_DEFAULT",
+    "RAISES_RUNTIME_OR_PLATFORM_REQUIREMENT",
+    "CHANGES_PACKAGING_OR_MODULE_FORMAT",
+    "DEPRECATES_WITHOUT_REMOVAL",
+    "SECURITY_FIX",
+    "NOTABLE_CHANGE",
+  ])
+  .nullable();
 
-const changelogRiskDetailFields = {
-  tierConfidence: z.number().min(0).max(1).nullable(),
-  kindConfidence: z.number().min(0).max(1).nullable(),
-  heading: z.string().nullable(),
-  model: z.string(),
-  formulation: z.string(),
-};
-const packageUpgradeChangelogRiskItemSchema =
-  changelogRiskItemBaseSchema.extend(changelogRiskDetailFields);
 const packageUpgradeChangelogRiskCoverageSchema = z.object({
   versionsClassified: z.number().int(),
   versionsNotAssessed: z.number().int(),
@@ -2139,17 +2093,70 @@ const packageUpgradeChangelogRiskCoverageSchema = z.object({
   itemsShouldKnowConfident: z.number().int(),
   itemsShouldKnowAmbiguous: z.number().int(),
   itemsUnclassified: z.number().int(),
-  itemsOmitted: z.number().int(),
 });
 
+const changelogStatementClassificationSchema = z.object({
+  tier: z.enum(["MUST_ACT", "SHOULD_KNOW", "NO_IMPACT", "UNCLASSIFIED"]),
+  ambiguous: z.boolean(),
+  kind: changelogKindSchema,
+  tierConfidence: z.number().min(0).max(1).nullable().optional(),
+  kindConfidence: z.number().min(0).max(1).nullable().optional(),
+  model: z.string().optional(),
+  formulation: z.string().optional(),
+});
+const changelogStatementContextSchema = z.object({
+  heading: z.string().nullable(),
+  text: z.string(),
+  textTruncated: z.boolean(),
+  fullText: z.string().optional(),
+});
+const changelogStatementSchema = z.object({
+  version: z.string(),
+  position: z.number().int().nonnegative(),
+  sourceIndex: z.number().int().nonnegative(),
+  sourcePosition: z.number().int().nonnegative().optional(),
+  heading: z.string().nullable(),
+  source: z.string().nullable(),
+  url: z.string().nullable(),
+  text: z.string(),
+  textTruncated: z.boolean(),
+  fullText: z.string().optional(),
+  context: changelogStatementContextSchema.nullable(),
+  classification: changelogStatementClassificationSchema.nullable(),
+});
+const changelogStatementCoverageSchema = z.object({
+  version: z.string(),
+  status: z.enum([
+    "CLASSIFIED",
+    "NOT_ASSESSED",
+    "WITHOUT_NOTES",
+    "UNPARSEABLE",
+  ]),
+  statementsTotal: z.number().int().nonnegative(),
+  statementsAssessed: z.number().int().nonnegative().optional(),
+  statementsNotAssessed: z.number().int().nonnegative().optional(),
+  statementsNoImpact: z.number().int().nonnegative().optional(),
+  statementsUnclassified: z.number().int().nonnegative().optional(),
+});
+const changelogStatementPageSchema = z.object({
+  items: z.array(changelogStatementSchema),
+  coverage: z.array(changelogStatementCoverageSchema),
+  totalCount: z.number().int().nonnegative(),
+  matchingCount: z.number().int().nonnegative(),
+  remainingCount: z.number().int().nonnegative(),
+  nextOffset: z.number().int().nonnegative().nullable(),
+  hasMore: z.boolean(),
+});
+type ChangelogStatementPage = z.infer<typeof changelogStatementPageSchema>;
+
 const packageUpgradeChangelogSchema = z.object({
-  riskItems: z.array(packageUpgradeChangelogRiskItemSchema),
+  statements: changelogStatementPageSchema.optional(),
   riskCoverage: packageUpgradeChangelogRiskCoverageSchema,
   source: z.string().nullable().optional(),
   fallback: z.string().nullable().optional(),
-  entries: z.array(packageUpgradeChangelogEntrySchema),
-  sampledEntries: z.array(packageUpgradeChangelogEntrySchema),
-  keywordEntries: z.array(packageUpgradeChangelogEntrySchema),
+  entries: z.array(packageUpgradeChangelogEntrySchema).optional(),
+  sampledEntries: z.array(packageUpgradeChangelogEntrySchema).optional(),
+  keywordEntries: z.array(packageUpgradeChangelogEntrySchema).optional(),
   totalKeywordEntries: z.number().int(),
   totalEntries: z.number().int(),
   totalEntriesWithBodies: z.number().int(),
@@ -2242,9 +2249,25 @@ const packageUpgradeReviewGraphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
-const PACKAGE_UPGRADE_REVIEW_QUERY = `
+/** Upgrade projections share statement fields with standalone changelog. */
+export function packageUpgradeReviewQuery(
+  params: PackageUpgradeReviewParams,
+  continuation = false,
+): string {
+  const view = params.changelogView ?? "text";
+  const statements =
+    view === "triage" ? "" : changelogStatementSelection(view === "json", true);
+  if (continuation)
+    return `query PackageUpgradeReviewStatements(
+    $packages: [PackageUpgradeReviewPackageInput!]! $offset: Int! $tiers: [ChangelogStatementTier!]
+  ) {
+    packageUpgradeReview(packages: $packages, includeTransitiveSecurity: false, changelogLimit: 1) {
+      reviews { registry name currentVersion targetVersion changelog { ${statements} } }
+    }
+  }`;
+  return `
 query PackageUpgradeReview(
-  $includeChangelogFullText: Boolean!
+  ${view !== "triage" ? "$offset: Int! $tiers: [ChangelogStatementTier!]" : ""}
   $packages: [PackageUpgradeReviewPackageInput!]!
   $includeTransitiveSecurity: Boolean!
   $includeDependencyIssues: Boolean!
@@ -2334,22 +2357,7 @@ query PackageUpgradeReview(
         }
       }
       changelog {
-        riskItems {
-          version
-          tier
-          ambiguous
-          tierConfidence
-          kind
-          kindConfidence
-          text
-          textTruncated
-          fullText @include(if: $includeChangelogFullText)
-          url
-          heading
-          source
-          model
-          formulation
-        }
+        ${statements}
         riskCoverage {
           versionsClassified
           versionsNotAssessed
@@ -2361,18 +2369,15 @@ query PackageUpgradeReview(
           itemsShouldKnowConfident
           itemsShouldKnowAmbiguous
           itemsUnclassified
-          itemsOmitted
         }
         source
         fallback
-        entries {
-          ...PackageUpgradeChangelogEntryFields
-        }
-        sampledEntries {
-          ...PackageUpgradeChangelogEntryFields
-        }
-        keywordEntries {
-          ...PackageUpgradeChangelogEntryFields
+        ${
+          view === "triage"
+            ? ""
+            : `entries { detailSource version publishedAt htmlUrl signals ${view === "json" ? "body bodyPreview headline" : ""} }
+        sampledEntries { detailSource version publishedAt htmlUrl signals ${view === "json" ? "body bodyPreview headline" : ""} }
+        keywordEntries { detailSource version publishedAt htmlUrl signals body ${view === "json" ? "bodyPreview headline" : ""} }`
         }
         totalKeywordEntries
         totalEntries
@@ -2432,17 +2437,6 @@ fragment PackageUpgradeTransitivePackagePageFields on PackageUpgradeTransitivePa
   truncated
 }
 
-fragment PackageUpgradeChangelogEntryFields on PackageUpgradeChangelogEntry {
-  detailSource
-  version
-  publishedAt
-  htmlUrl
-  body
-  bodyPreview
-  headline
-  signals
-}
-
 fragment PackageUpgradeDependencyChangeGroupFields on PackageUpgradeDependencyChangeGroup {
   added {
     name
@@ -2472,6 +2466,7 @@ fragment PackageUpgradeDependencyChangeGroupFields on PackageUpgradeDependencyCh
     type
   }
 }`;
+}
 
 // --------------------------------------------------------------------
 // Zod schema + query for packageChangelog
@@ -2485,59 +2480,6 @@ const changelogEntryDetailSchema = z.object({
   publishedAt: z.string().nullable().optional(),
 });
 
-const changelogStatementClassificationSchema = z.object({
-  tier: z.enum(["MUST_ACT", "SHOULD_KNOW", "NO_IMPACT", "UNCLASSIFIED"]),
-  ambiguous: z.boolean(),
-  kind: changelogRiskItemBaseSchema.shape.kind,
-  tierConfidence: z.number().min(0).max(1).nullable().optional(),
-  kindConfidence: z.number().min(0).max(1).nullable().optional(),
-  model: z.string().optional(),
-  formulation: z.string().optional(),
-});
-const changelogStatementContextSchema = z.object({
-  heading: z.string().nullable(),
-  text: z.string(),
-  textTruncated: z.boolean(),
-  fullText: z.string().optional(),
-});
-const changelogStatementSchema = z.object({
-  version: z.string(),
-  position: z.number().int().nonnegative(),
-  sourceIndex: z.number().int().nonnegative(),
-  sourcePosition: z.number().int().nonnegative().optional(),
-  heading: z.string().nullable(),
-  source: z.string().nullable(),
-  url: z.string().nullable(),
-  text: z.string(),
-  textTruncated: z.boolean(),
-  fullText: z.string().optional(),
-  context: changelogStatementContextSchema.nullable(),
-  classification: changelogStatementClassificationSchema.nullable(),
-});
-const changelogStatementCoverageSchema = z.object({
-  version: z.string(),
-  status: z.enum([
-    "CLASSIFIED",
-    "NOT_ASSESSED",
-    "WITHOUT_NOTES",
-    "UNPARSEABLE",
-  ]),
-  statementsTotal: z.number().int().nonnegative(),
-  statementsAssessed: z.number().int().nonnegative().optional(),
-  statementsNotAssessed: z.number().int().nonnegative().optional(),
-  statementsNoImpact: z.number().int().nonnegative().optional(),
-  statementsUnclassified: z.number().int().nonnegative().optional(),
-});
-const changelogStatementPageSchema = z.object({
-  items: z.array(changelogStatementSchema),
-  coverage: z.array(changelogStatementCoverageSchema),
-  totalCount: z.number().int().nonnegative(),
-  matchingCount: z.number().int().nonnegative(),
-  remainingCount: z.number().int().nonnegative(),
-  nextOffset: z.number().int().nonnegative().nullable(),
-  hasMore: z.boolean(),
-});
-type ChangelogStatementPage = z.infer<typeof changelogStatementPageSchema>;
 const changelogReportResponseSchema = z.object({
   source: z.string().nullable().optional(),
   entries: z.array(changelogEntryDetailSchema).nullable().optional(),
@@ -2579,6 +2521,148 @@ const exactChangelogGraphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
+function changelogStatementSelection(
+  json: boolean,
+  assessment: boolean,
+): string {
+  return `statements(first: 100, offset: $offset, tiers: $tiers) {
+    totalCount matchingCount remainingCount nextOffset hasMore
+    coverage { version status statementsTotal ${assessment ? "statementsAssessed statementsNotAssessed statementsNoImpact statementsUnclassified" : ""} }
+    items {
+      version position sourceIndex heading source url text textTruncated
+      ${json ? "sourcePosition fullText" : ""}
+      context { heading text textTruncated ${json ? "fullText" : ""} }
+      classification { tier ambiguous kind ${json ? "tierConfidence kindConfidence model formulation" : ""} }
+    }
+  }`;
+}
+
+const upgradeStatementContinuationSchema = z.object({
+  data: z
+    .object({
+      packageUpgradeReview: z
+        .object({
+          reviews: z.array(
+            z.object({
+              registry: z.string(),
+              name: z.string(),
+              currentVersion: z.string(),
+              targetVersion: z.string(),
+              changelog: z.object({ statements: changelogStatementPageSchema }),
+            }),
+          ),
+        })
+        .nullable()
+        .optional(),
+    })
+    .nullable()
+    .optional(),
+  errors: z.array(graphQLErrorSchema).optional(),
+});
+
+function validateChangelogStatementPage(
+  page: ChangelogStatementPage,
+  offset: number,
+  json: boolean,
+): void {
+  if (
+    json &&
+    page.items.some(
+      (item) =>
+        item.fullText === undefined ||
+        item.sourcePosition === undefined ||
+        (item.context && item.context.fullText === undefined) ||
+        (item.classification &&
+          (item.classification.model === undefined ||
+            item.classification.formulation === undefined ||
+            item.classification.tierConfidence === undefined ||
+            item.classification.kindConfidence === undefined)),
+    )
+  )
+    throw new MalformedPackageIntelligenceResponseError(
+      "Missing selected changelog statement evidence fields.",
+    );
+  const next = offset + page.items.length;
+  if (
+    page.items.length > 100 ||
+    page.remainingCount !== page.matchingCount - next ||
+    page.hasMore !== page.remainingCount > 0 ||
+    (page.hasMore
+      ? page.nextOffset !== next || next <= offset
+      : page.nextOffset !== null)
+  )
+    throw new MalformedPackageIntelligenceResponseError(
+      "Invalid changelog statement page progress.",
+    );
+}
+
+function changelogCoverageSignature(
+  coverage: ChangelogStatementPage["coverage"],
+): string {
+  return JSON.stringify(
+    coverage.map((c) => [
+      c.version,
+      c.status,
+      c.statementsTotal,
+      c.statementsAssessed,
+      c.statementsNotAssessed,
+      c.statementsNoImpact,
+      c.statementsUnclassified,
+    ]),
+  );
+}
+
+function validateUpgradeStatementCounts(
+  statements: ChangelogStatements,
+  counters: ChangelogRiskCoverage,
+  tiers?: ChangelogStatementTier[],
+): void {
+  const coverage = statements.coverage;
+  const versionCounts = [
+    "CLASSIFIED",
+    "NOT_ASSESSED",
+    "WITHOUT_NOTES",
+    "UNPARSEABLE",
+  ].map((status) => coverage.filter((c) => c.status === status).length);
+  const expectedVersions = [
+    counters.versionsClassified,
+    counters.versionsNotAssessed,
+    counters.versionsWithoutNotes,
+    counters.versionsUnparseable,
+  ];
+  const selected = tiers?.length
+    ? tiers
+    : ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED", "NO_IMPACT"];
+  const count = (tier: ChangelogStatementTier, ambiguous: boolean): number =>
+    statements.items.filter(
+      (item) =>
+        item.classification?.tier === tier &&
+        item.classification.ambiguous === ambiguous,
+    ).length;
+  if (
+    JSON.stringify(versionCounts) !== JSON.stringify(expectedVersions) ||
+    coverage.reduce((sum, c) => sum + c.statementsNoImpact, 0) !==
+      counters.unitsNoImpact ||
+    (selected.includes("MUST_ACT") &&
+      (count("MUST_ACT", false) !== counters.itemsMustActConfident ||
+        count("MUST_ACT", true) !== counters.itemsMustActAmbiguous)) ||
+    (selected.includes("SHOULD_KNOW") &&
+      (count("SHOULD_KNOW", false) !== counters.itemsShouldKnowConfident ||
+        count("SHOULD_KNOW", true) !== counters.itemsShouldKnowAmbiguous)) ||
+    (selected.includes("UNCLASSIFIED") &&
+      statements.items.filter(
+        (item) => item.classification?.tier === "UNCLASSIFIED",
+      ).length !== counters.itemsUnclassified) ||
+    (!tiers?.length &&
+      statements.items.filter(
+        (item) => item.classification?.tier === "NO_IMPACT",
+      ).length !== counters.unitsNoImpact)
+  )
+    throw new MalformedPackageIntelligenceResponseError(
+      "Upgrade statement evidence disagrees with whole-range counters.",
+    );
+}
+
 /** Build only the projection consumed by the selected host view and page. */
 function packageChangelogQuery(
   params: PackageChangelogParams,
@@ -2589,19 +2673,7 @@ function packageChangelogQuery(
   const firstPage = offset === 0;
   const entry = `${params.version === undefined ? "version" : ""} ${json ? "normalizedVersion" : ""} htmlUrl publishedAt ${params.view === "verbatim" ? "body" : ""}`;
   const statements = statementView
-    ? `statements(first: 100, offset: $offset, tiers: $tiers) {
-    totalCount matchingCount remainingCount nextOffset hasMore
-    coverage {
-      version status statementsTotal
-      ${params.statementTiers?.length ? "statementsAssessed statementsNotAssessed statementsNoImpact statementsUnclassified" : ""}
-    }
-    items {
-      version position sourceIndex heading source url text textTruncated
-      ${json ? "sourcePosition fullText" : ""}
-      context { heading text textTruncated ${json ? "fullText" : ""} }
-      classification { tier ambiguous kind ${json ? "tierConfidence kindConfidence model formulation" : ""} }
-    }
-  }`
+    ? changelogStatementSelection(json, Boolean(params.statementTiers?.length))
     : "";
   const pageVars = statementView
     ? "$offset: Int! $tiers: [ChangelogStatementTier!]"
@@ -2652,6 +2724,11 @@ function collectChangelogStatements(
       "Missing selected changelog statements.",
     );
   const coverage = first.coverage;
+  if (new Set(coverage.map((c) => c.version)).size !== coverage.length)
+    throw new MalformedPackageIntelligenceResponseError(
+      "Duplicate changelog coverage versions.",
+    );
+  const sourceIndices = new Map<string, number>();
   const items: ChangelogStatement[] = [];
   const positions = new Map<string, number>();
   let lastVersionIndex = -1;
@@ -2663,6 +2740,8 @@ function collectChangelogStatements(
         index < lastVersionIndex ||
         index < 0 ||
         item.position <= previous ||
+        item.position >= (coverage[index]?.statementsTotal ?? 0) ||
+        item.sourceIndex < (sourceIndices.get(item.version) ?? -1) ||
         (!filtered && item.position !== previous + 1)
       )
         throw new MalformedPackageIntelligenceResponseError(
@@ -2670,6 +2749,7 @@ function collectChangelogStatements(
         );
       lastVersionIndex = index;
       positions.set(item.version, item.position);
+      sourceIndices.set(item.version, item.sourceIndex);
       items.push(normaliseChangelogStatement(item));
     }
   }
@@ -2689,7 +2769,8 @@ function collectChangelogStatements(
         c.statementsNotAssessed === undefined ||
         c.statementsNoImpact === undefined ||
         c.statementsUnclassified === undefined ||
-        c.statementsAssessed + c.statementsNotAssessed !== c.statementsTotal
+        c.statementsAssessed + c.statementsNotAssessed !== c.statementsTotal ||
+        c.statementsNoImpact + c.statementsUnclassified > c.statementsAssessed
       )
         throw new MalformedPackageIntelligenceResponseError(
           "Missing or inconsistent selected changelog coverage counts.",
@@ -3585,9 +3666,11 @@ export class PackageIntelligenceServiceImpl
       response = await postPkgseerGraphql({
         endpointUrl: this.endpointUrl,
         token,
-        query: PACKAGE_UPGRADE_REVIEW_QUERY,
+        query: packageUpgradeReviewQuery(params),
         variables: {
-          includeChangelogFullText: params.includeChangelogFullText === true,
+          ...((params.changelogView ?? "text") === "triage"
+            ? {}
+            : { offset: 0, tiers: params.statementTiers }),
           packages: params.packages,
           includeTransitiveSecurity: params.includeTransitiveSecurity,
           includeDependencyIssues: params.includeDependencyIssues,
@@ -3630,7 +3713,156 @@ export class PackageIntelligenceServiceImpl
       );
     }
 
-    return stripNullProperties(data) as PackageUpgradeReviewResponse;
+    const detailed = (params.changelogView ?? "text") !== "triage";
+    if (!detailed)
+      return stripNullProperties(data) as PackageUpgradeReviewResponse;
+    const result: PackageUpgradeReviewResponse = {
+      summary: data.summary,
+      reviews: [],
+    };
+    for (const review of data.reviews) {
+      const page = review.changelog.statements;
+      if (
+        !page ||
+        !review.changelog.entries ||
+        !review.changelog.sampledEntries ||
+        !review.changelog.keywordEntries
+      )
+        throw new MalformedPackageIntelligenceResponseError(
+          "Missing selected upgrade changelog evidence.",
+        );
+      const pages: ChangelogStatementPage[] = [];
+      let current = page;
+      let offset = 0;
+      while (true) {
+        if (
+          current.items.some(
+            (item) =>
+              params.statementTiers?.length &&
+              (!item.classification ||
+                !params.statementTiers.includes(item.classification.tier)),
+          )
+        )
+          throw new MalformedPackageIntelligenceResponseError(
+            "Statement does not match selected tiers.",
+          );
+        if (
+          current.totalCount !== page.totalCount ||
+          current.matchingCount !== page.matchingCount ||
+          changelogCoverageSignature(current.coverage) !==
+            changelogCoverageSignature(page.coverage)
+        )
+          throw new PackageIntelligenceBackendError(
+            "Changelog evidence changed during retrieval; classification may still be in progress. Rerun to retrieve the current view.",
+            undefined,
+            undefined,
+            true,
+          );
+        validateChangelogStatementPage(
+          current,
+          offset,
+          params.changelogView === "json",
+        );
+        pages.push(current);
+        if (current.nextOffset === null) break;
+        offset = current.nextOffset;
+        current = await this.fetchUpgradeStatementPage(
+          token,
+          params,
+          review,
+          offset,
+        );
+      }
+      // Upgrade counters were read on page one, so even unfiltered assessment
+      // coverage must stay stable; standalone all deliberately tolerates arrival.
+      const collected = collectChangelogStatements(
+        pages,
+        Boolean(params.statementTiers?.length),
+      );
+      if (
+        changelogCoverageSignature(collected.coverage) !==
+        changelogCoverageSignature(page.coverage)
+      )
+        throw new MalformedPackageIntelligenceResponseError(
+          "Upgrade statement assessment coverage disagrees with collected evidence.",
+        );
+      validateUpgradeStatementCounts(
+        collected,
+        review.changelog.riskCoverage,
+        params.statementTiers,
+      );
+      const normalizedReview = stripNullProperties(
+        review,
+      ) as PackageUpgradeReview;
+      normalizedReview.changelog.statements = collected;
+      result.reviews.push(normalizedReview);
+    }
+    return result;
+  }
+
+  private async fetchUpgradeStatementPage(
+    token: string,
+    params: PackageUpgradeReviewParams,
+    identity: Pick<
+      PackageUpgradeReview,
+      "registry" | "name" | "currentVersion" | "targetVersion"
+    >,
+    offset: number,
+  ): Promise<ChangelogStatementPage> {
+    let response: PkgseerGraphqlResponse;
+    try {
+      response = await postPkgseerGraphql({
+        endpointUrl: this.endpointUrl,
+        token,
+        query: packageUpgradeReviewQuery(params, true),
+        variables: {
+          packages: [
+            {
+              registry: identity.registry,
+              name: identity.name,
+              currentVersion: identity.currentVersion,
+              targetVersion: identity.targetVersion,
+            },
+          ],
+          offset,
+          tiers: params.statementTiers,
+        },
+        fetchFn: this.fetchFn,
+        clientHeaders: this.runtime.clientHeaders,
+        userAgent: this.runtime.userAgent,
+        diagnostics: this.runtime.diagnostics,
+      });
+    } catch (cause) {
+      if (cause instanceof PkgseerTransportError)
+        throw this.createTransportError(cause);
+      throw cause;
+    }
+    if (response.status < 200 || response.status >= 300)
+      throw this.createHttpError(response);
+    const parsed = upgradeStatementContinuationSchema.safeParse(
+      response.parsedBody,
+    );
+    if (!parsed.success)
+      throw new MalformedPackageIntelligenceResponseError(
+        "Malformed upgrade statement continuation.",
+      );
+    if (parsed.data.errors?.length)
+      throw this.createGraphQLError(parsed.data.errors);
+    const reviews = parsed.data.data?.packageUpgradeReview?.reviews;
+    const review = reviews?.[0];
+    if (
+      reviews?.length !== 1 ||
+      !review ||
+      ["registry", "name", "currentVersion", "targetVersion"].some(
+        (key) =>
+          review[key as keyof typeof identity] !==
+          identity[key as keyof typeof identity],
+      )
+    )
+      throw new MalformedPackageIntelligenceResponseError(
+        "Upgrade statement continuation identity mismatch.",
+      );
+    return review.changelog.statements;
   }
 
   private async executePackageUpgradeDependencyProbe(
@@ -4096,35 +4328,11 @@ export class PackageIntelligenceServiceImpl
         throw new MalformedPackageIntelligenceResponseError(
           "Missing selected changelog statements.",
         );
-      if (
-        params.includeJsonFields &&
-        statements.items.some(
-          (item) =>
-            item.fullText === undefined ||
-            item.sourcePosition === undefined ||
-            (item.context && item.context.fullText === undefined) ||
-            (item.classification &&
-              (item.classification.model === undefined ||
-                item.classification.formulation === undefined ||
-                item.classification.tierConfidence === undefined ||
-                item.classification.kindConfidence === undefined)),
-        )
-      )
-        throw new MalformedPackageIntelligenceResponseError(
-          "Missing selected changelog statement evidence fields.",
-        );
-      const next = offset + statements.items.length;
-      if (
-        statements.items.length > 100 ||
-        statements.remainingCount !== statements.matchingCount - next ||
-        statements.hasMore !== statements.remainingCount > 0 ||
-        (statements.hasMore
-          ? statements.nextOffset !== next || next <= offset
-          : statements.nextOffset !== null)
-      )
-        throw new MalformedPackageIntelligenceResponseError(
-          "Invalid changelog statement page progress.",
-        );
+      validateChangelogStatementPage(
+        statements,
+        offset,
+        params.includeJsonFields === true,
+      );
       pages.push(statements);
       // Validate comparable evidence before making another request. Final counts
       // and ordering are checked by collection once all pages have arrived.

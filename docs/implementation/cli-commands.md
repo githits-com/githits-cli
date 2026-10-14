@@ -56,7 +56,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--transitive`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift), optionally including affected versions resolved in its dependency graph |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--depth`, `--issues`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional capped transitive graph, and opt-in dependency issue analysis (npm/pypi/hex/crates/nuget/maven/zig/vcpkg/packagist/rubygems/go/swift) |
 | `pkg changelog <spec>` | package spec (`registry:name[@version\|@from..to]`) | `--from`, `--to`, `--limit`, `--changes`, `--no-body`, `--verbatim`, `--verbose`, `--json` | All parsed statements with available classifications. `--changes` filters; `--verbatim` shows original notes instead, `--verbose` is its deprecated alias; `--no-body` shows only the timeline. |
-| `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, release-note quotes grouped by version, agent classification, sources and coverage, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports evidence without a package verdict. |
+| `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--changes <view>`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for vulnerabilities, release-note statements, compatibility and dependency changes, and security evidence. `--changes` filters detailed quotes; whole-range counters and batch ranking remain unchanged. Reports evidence without a package verdict. |
 | `docs list <spec>` *(legacy compatibility)* | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | Help points hosted-site browsing to `githits list site:<host[/path]>` and package-local docs to the package target. Existing execution remains unchanged: text emits target-based read commands; JSON retains `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and exact repo-file metadata when available. |
 | `list <target> [paths...]` | package, repository, or `site:<host[/path]>` target; optional literal paths/globs | `-R, --recursive`, `-s, --silent`, repeatable `--file-type`, `--language`, `--intent`, `--limit`, `--after`, `--wait`, `--json` | List one package/repository source inventory, including package-local documentation files, or one explicitly targeted hosted site. Text is one path per line with `/` on directories; the header reuses backend-authored read targets for follow-up, while `--silent` emits only paths for piping. JSON carries exact actions, cursors, and metadata. |
 | `grep <pattern> <targets...>` | ordered package, repository and `site:` operands | `-F/--fixed-strings`, `-i/--ignore-case`, `-s/--case-sensitive`, `-A`, `-B`, `-C`, repeatable `--path`, `--path-prefix`, `--glob`, `--corpus`, `--limit`, `--cursor`, `--wait`, `--json` | Regex, case-sensitive and zero-context defaults; all repository files plus independently selected hosted package docs. Text groups matching rows beneath numbered copyable file/page locators, with native highlighting, one Sources summary and reusable read templates; coverage gaps and continuation stay visible. JSON preserves all selected fields and backend occurrence order. See [unified grep](unified-grep.md). Legacy `code grep` remains unchanged. |
@@ -756,65 +756,74 @@ githits pkg upgrade-review npm:express@5.0.0..5.2.1
 githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1
 githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0
 githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1 --verbose
+githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1 --changes important
 githits pkg upgrade-review npm:express@5.0.0 --to 5.2.1 --json
 ```
 
 Use `..` for positional and repeatable `--package` ranges. The legacy `->`
 delimiter is rejected with guidance to use `..`.
 
+`--changes <view>` accepts `actionable`, `important`, or `all`. Omitted or blank
+input selects `focused` (`MUST_ACT`, `SHOULD_KNOW`, and `UNCLASSIFIED`).
+`actionable` selects `MUST_ACT`, including uncertain labels; `important` selects
+`MUST_ACT` and `SHOULD_KNOW`; `all` includes every parsed statement, including
+no-impact, null-classification, and oversized units. This upgrade-review default
+is focused; standalone `pkg changelog` still defaults to all parsed statements.
+
 The human-readable CLI and MCP `pkg_upgrade_review` output use one shared
 formatter. It starts with `Upgrade review - N package(s)`, adds one
-`Across packages:` line and a triage table only for batches. Default batch rows
-are sorted by backend confident action-statement totals before the cap and include classification coverage,
-peer-change and compatibility-note counts.
-The public 30-package limit and one aggregate request remain. The owner is
-addressing the dev-confirmed large-batch complexity violation in the backend
-(30 packages cost 524 against a limit of 500); the combined #3072/#3077 risk
-contract passes on dev. See [Upgrade review](pkg-upgrade-review.md) for evidence.
-`--verbose` adds full per-package reports. Single-package reports group identity,
-security, deprecation, changes, compatibility, dependencies, dependency
-issues, and unknown evidence. Empty optional groups are omitted, but a returned
-zero-valued dependency comparison remains visible. Missing target security
-evidence renders `Target: deprecation unknown` so absence is not confused with
-verified non-deprecation. The formatter reports evidence and missing evidence;
-it does not make a package approval, safety, or risk claim. Agent-classified statements are grouped by version, combining releases and changelog
-files in one block and listing each source URL once via numbered references.
-Each displayed version heading includes all available release-note/changelog
-references. Statements use their own backend URL, including outside sampled
-entries; matching entry links are used only when a statement URL is absent.
-Requires action and Possibly requires action quotes are full; Should know and Too long to classify quotes use compact
-240-character prefixes expanded by `--verbose`. `Changes (classified by agent)` shows attribution;
-model/formulation provenance stays in JSON. Every report shows classified,
-not-assessed and without-notes versions, positive unparseable/omitted counts,
-no-impact counts, and rerun guidance when background classification is still running or failed. A rerun a few seconds to a minute later retrieves completed stored labels without rerunning the model.
-Each statement begins with `*`; optional kind labels use brackets such as
-`[security fix]`, colored in color-enabled output. Quotes without a kind retain
-their tier and bullet without inventing a category. Backend `ambiguous: true`
-adds a muted `(uncertain)` marker; uncertain MUST_ACT items appear
-under Possibly requires action. Batch act/know counts separate uncertain
-statements using pre-cap coverage totals, such as `4 act (+2 uncertain)`, and ties never use uncertain counts. Per-version section headings omit counts; omitted quotes do not reduce summary totals. Tier confidence stays evidence, never a client threshold.
-UNCLASSIFIED means only oversize statements and renders as Too long to classify
-- read it. Coverage and no-impact
-counts share one summary. Lexical hints have a separate `Keyword matches`
-subsection within each version for evidence not already quoted. Literal matches
-in classified quotes are not repeated as separate keyword rows and never imply
-a breaking-change verdict.
-Sampled-entry sections are removed; `--verbose` includes returned note previews
-for versions without statement evidence. Quotes are not a compatibility verdict. See [Upgrade review](pkg-upgrade-review.md).
+`Across packages:` line and a triage table only for batches. Compact batch text
+does not fetch statement pages. Its coverage counters and row ranking use
+whole-range evidence, regardless of `--changes`; default rows are sorted by
+confident action-statement totals and include classification coverage,
+peer-change, and compatibility-note counts.
+
+The public 30-package limit and one initial aggregate request remain; detailed
+reports continue only matching statement pages. Dev-only
+measurements put 30-package JSON at 475 units and triage at 391, both below the
+500-unit limit. The new aggregate statement field passes on dev; production availability must
+be confirmed before releasing this migration.
+See [Upgrade review](pkg-upgrade-review.md) for evidence.
+
+Single-package and verbose batch reports show identity, security, deprecation,
+Changes, compatibility, dependencies, dependency issues, and unknown evidence.
+Empty optional groups are omitted, but a returned zero-valued dependency
+comparison remains visible. Missing target security evidence renders
+`Target: deprecation unknown` so absence is not confused with verified
+non-deprecation. The formatter reports evidence and missing evidence; it does
+not make a package approval, safety, or risk claim.
+
+Detailed Changes output renders all matching statements from their paginated
+pages as source-ordered bullets with nearby source links and context. Known and
+kindless tiers use bracketed tags; ambiguous labels are marked uncertain. It
+has no tier headings, global numbered reference table, or duplicate sampled-note
+previews. Keyword matches remain separate lexical evidence, are not repeated
+when already shown in a quote, and never imply a breaking-change verdict.
+Whole-range action/know counts separate uncertain labels and batch ranking uses
+confident totals, so filters do not change counters or package order. Coverage
+retains classified, not-assessed, without-notes, no-impact, oversize, and
+unparseable totals, plus rerun guidance for pending classification. Quotes are
+evidence, not a compatibility verdict.
+
+`--verbose` expands quotes to their backend-bounded text and adds full batch,
+security, and dependency detail. JSON alone includes uncut `fullText`, source
+positions, and classification provenance. Upgrade JSON replaces `changelog.riskItems` with
+`changelog.statements`, including the effective `selection` in detailed
+results; `riskCoverage.itemsOmitted` is removed. `--json` and MCP
+`format: "json"` share this lossless machine surface. `text-v1` remains an
+in-place evolving presentation, not a byte-stable prose contract. See
+[Upgrade review](pkg-upgrade-review.md) for evidence.
 
 The shared formatter wraps free prose to the caller width (minimum 20 columns).
 The CLI passes `process.stdout.columns` and enables ANSI only when supported;
 MCP disables ANSI and uses the 80-column default. Outcome and section headings
 are bold, package identity is bold cyan, and yellow is limited to compact
-attention summaries, labels, and matched signal terms. Kind labels and matched keywords are yellow. Detail
+attention summaries, labels, and matched signal terms. Action tags are red, should-know tags yellow, and uncertain tags muted. Detail
 prose and locators remain plain. Color never carries information that is absent
 from the words. Formatter-authored punctuation stays ASCII while backend
-Unicode is preserved. `--verbose` expands the bounded evidence rows in place.
-Statement `url` is selected independently of sampled entries, and `--json`
-selects the complete `fullText` separately from bounded `text`/`textTruncated`.
-Text and verbose output keep their existing design and do not fetch fullText;
-locator/full-text adoption in the text view belongs to the owner's design pass.
-`--json` remains the structured, lossless machine surface and is shared with MCP
+Unicode is preserved. Statement URLs accompany their own quotes, independently
+of the release-entry details. `--json` remains the structured, lossless machine
+surface and is shared with MCP
 `format: "json"`; `text-v1` is an in-place evolving presentation, not a
 byte-stable prose contract.
 

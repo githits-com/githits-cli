@@ -294,7 +294,7 @@ describe("classified statement views", () => {
       });
     }
   }
-  it("defaults empty agent strings to all without an explicit filter echo", () => {
+  it("retains changelog changes defaults", () => {
     for (const changes of [undefined, "", "  "]) {
       const result = buildPackageChangelogParams({
         target: "npm:express",
@@ -304,6 +304,14 @@ describe("classified statement views", () => {
       expect(result.params.statementTiers).toBeUndefined();
       expect(result.explicitFilterFields.has("changes")).toBe(false);
     }
+
+    const explicitAll = buildPackageChangelogParams({
+      target: "npm:express",
+      changes: "all",
+    });
+    expect(explicitAll.changes).toBe("all");
+    expect(explicitAll.params.statementTiers).toBeUndefined();
+    expect(explicitAll.explicitFilterFields.has("changes")).toBe(true);
   });
   it("ignores the changes knob entirely for timeline-only requests", () => {
     const result = buildPackageChangelogParams({

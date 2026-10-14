@@ -1007,7 +1007,12 @@ export const defaultPackageUpgradeReviewResponse: PackageUpgradeReviewResponse =
           hasReleaseNoteBodies: true,
           breakingSignals: [],
           migrationSignals: [],
-          riskItems: [],
+          statements: {
+            totalCount: 0,
+            matchingCount: 0,
+            items: [],
+            coverage: [],
+          },
           riskCoverage: {
             versionsClassified: 0,
             versionsNotAssessed: 0,
@@ -1019,7 +1024,6 @@ export const defaultPackageUpgradeReviewResponse: PackageUpgradeReviewResponse =
             itemsShouldKnowConfident: 0,
             itemsShouldKnowAmbiguous: 0,
             itemsUnclassified: 0,
-            itemsOmitted: 0,
           },
         },
         compatibility: { peerDependencyChanges: [], notes: [] },

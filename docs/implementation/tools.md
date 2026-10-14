@@ -176,7 +176,7 @@ callable.
 | `pkg_vulns` | `target` (package string), `min_severity?`, `advisory_scope?`, `include_withdrawn?`, `include_transitive?`, `verbose?`, `format?` | Check current package advisories. Use current evidence, not memory or cutoff disclaimers; distinguish selected-version risk from package history. Transitive evidence is opt-in and adds graph-analysis cost; selected fields define filter/scope limits. |
 | `pkg_deps` | `target` (package string), `lifecycle?`, `include_importers?`, `include_issues?`, `max_depth?`, `format?` | Inspect what a package depends on, directly or transitively. Direct runtime dependencies are the default; fields opt into other groups, transitive footprint, importer provenance or issue analysis. Public graphs are not application lockfile/reachability evidence. |
 | `pkg_changelog` | `target`, `limit?`, `changes?`, `omit_bodies?`, `verbatim?`, `verbose?`, `body_lines?`, `format?` | All parsed statements with available classifications; `changes` filters before pagination. `verbatim` shows original notes instead; `verbose` is its deprecated alias. Body omission shows only the timeline. Latest mode caps entries; pins select one release; `@from..to` excludes `from` and includes `to`. Empty selections succeed. |
-| `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `skip_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Review a package upgrade: vulnerabilities, releases, peers, dependency changes. Reports facts, not upgrade risk or acceptance. Supports a single package or at most 30 batch upgrades. |
+| `pkg_upgrade_review` | `registry?`, `package_name?`, `current_version?`, `target_version?`, `packages?`, `changes?: string`, `skip_transitive_security?`, `include_dependency_issues?`, `min_severity?`, `verbose?`, `format?` | Review a package upgrade: vulnerabilities, release statements, compatibility, and dependency changes. `changes` accepts `actionable`, `important`, or `all`; omitted or blank means focused. Filters affect detailed quotes, not whole-range counters or batch ranking. Reports facts without an upgrade verdict; supports up to 30 packages. |
 | `read` | `target` (string), `path?`, `selector?`, `start_line?`, `end_line?`, `wait_timeout_ms?`, `format?` | Pass a code file target + path, an explicit `site:` target + target-relative page path, a compact `target#symbol` or selector, or another emitted docs target to unified backend read; the returned type determines code/docs presentation. Preserve emitted site action values exactly; do not repeat the target's scope in the path. `/` reads the site's landing page. HTTP(S) docs fragments select sections unless explicit bounds override them. Text displays 150/300 lines; exact-file code caps before fetching, while docs JSON keeps the backend selection. The backend applies wait where relevant. See [unified read](unified-read.md). |
 | `grep` | `targets` (ordered `{target, corpus?, path_selectors?}` objects), `pattern`, `pattern_type?`, `ignore_case?`, `context_lines_before?`, `context_lines_after?`, `max_matches?`, `cursor?`, `wait_timeout_ms?`, `format?` | Search known regex or literal matches across package, repository, and explicit site targets. Regex, case-sensitive matching, zero context, all indexed repository files, 100 matches, and a 30,000 ms first-page preparation wait are the defaults. Package targets also include selected hosted docs. Follow exact read locators and replay partial pages with the same targets and controls. Legacy repository-file filters remain on CLI `githits code grep`. See [unified grep](unified-grep.md). |
 
@@ -537,7 +537,7 @@ contract, coverage, projections and release guidance staging.
 
 **Data-first envelope.** The top level carries addressing (`registry` + `name`), optional `source` when a concrete changelog source exists, and `mode` (`"latest"`, `"exact"`, or `"range"`). Entries live under `entries: { count, items }`. `count` is computed client-side from `items.length`.
 
-**Per-entry shape.** `{version, normalizedVersion?, publishedAt?, htmlUrl?, body?, hasChangelog?}`. `version` is kept even when `null` so agents can write `items.map(e => e.version)` without guarding; every other nullable field is stripped when absent. `hasChangelog` is present only for exact selected-release results. `body` is present only in original-note mode (`verbatim:true` or deprecated `verbose:true`). Default JSON adds `statements:{count,totalCount,matchingCount,items,coverage}` with full statement/context text and per-item classification provenance, preserving classification:null. Deprecated top-level riskItems/riskCoverage are no longer selected for changelog; upgrade review is unchanged. The backend's opaque per-entry `metadata` GenericJSON is deliberately dropped from the envelope.
+**Per-entry shape.** `{version, normalizedVersion?, publishedAt?, htmlUrl?, body?, hasChangelog?}`. `version` is kept even when `null` so agents can write `items.map(e => e.version)` without guarding; every other nullable field is stripped when absent. `hasChangelog` is present only for exact selected-release results. `body` is present only in original-note mode (`verbatim:true` or deprecated `verbose:true`). Default JSON adds `statements:{count,totalCount,matchingCount,items,coverage}` with full statement/context text and per-item classification provenance, preserving classification:null. Deprecated top-level riskItems/riskCoverage are no longer selected for changelog. Upgrade review also uses a complete statement collection, with a focused default and whole-range riskCoverage counters; see [pkg-upgrade-review.md](pkg-upgrade-review.md). The backend's opaque per-entry `metadata` GenericJSON is deliberately dropped from the envelope.
 
 **Package-only compact target.** MCP `pkg_changelog` takes one required `target` string: `registry:name` for latest, `registry:name@version` for one selected release, and `registry:name@from..to` for releases after `from` through `to` (starting version excluded, ending version included). Open bounds `from..` and `..to` are accepted. Repository and site targets are rejected before network access. Use `registry:name@from` separately for the starting release's own notes. Exact pins query `packageInfo.selectedVersion.changelog`; latest and interval targets query `packageChangelog`.
 
@@ -567,15 +567,29 @@ Source links stay next to release/source groups, without a global Sources table.
 
 Tool and CLI guidance encourage using heuristic signals as a starting point to
 evaluate codebase impact, with `pkg_changelog` / `pkg changelog` and `code_diff` /
-`code diff` available for full release-note and source-change details. This does
-not require exhaustive changelog retrieval or prescribe an assessment format.
+`code diff` available for original release-note bodies and source-change detail.
+Upgrade review returns filtered statement evidence without prescribing an
+assessment format.
 
-The JSON envelope is the stable structured boundary: it preserves the existing
-`summary` and `reviews` fields, normalized evidence categories, bounded backend
-metadata, and unknown evidence without adding assessment fields. CLI
-`--json` and MCP `format: "json"` use this same envelope and are compared by
-the package-upgrade-review parity test. `text-v1` evolves in place and is not a
-byte-stable contract.
+`changes` is a string filter: omitted or blank means `focused` (`MUST_ACT`,
+`SHOULD_KNOW`, and `UNCLASSIFIED`); `actionable` selects `MUST_ACT`, including
+uncertain labels; `important` selects `MUST_ACT` and `SHOULD_KNOW`; `all` includes
+all parsed statements, including no-impact, null-classification, and oversized
+units. Standalone `pkg_changelog` still defaults to all parsed statements.
+Filters select detailed quotes only. Compact batch triage fetches no statement
+pages, and its whole-range coverage counters and package ranking do not change
+with the selected filter.
+
+The JSON envelope preserves `summary`, `reviews`, security/dependency evidence,
+and unknowns. Upgrade changelog JSON replaces `changelog.riskItems` with the
+paginated `changelog.statements` collection, including `count`, `totalCount`,
+`matchingCount`, `selection`, `items`, and `coverage`; detailed results always
+include the effective `selection`. Statement items retain source positions,
+context, uncut `fullText`, and nullable classification with provenance. The
+whole-range `riskCoverage` counters remain, except `itemsOmitted`, which is
+removed. CLI `--json` and MCP `format: "json"` use this same envelope and are
+compared by the package-upgrade-review parity test. `text-v1` evolves in place
+and is not a byte-stable contract.
 
 Default text is one shared formatter for CLI and MCP. It leads with
 `Upgrade review - N package(s)`, then groups each package as identity,
@@ -590,19 +604,24 @@ locators, truncation facts, and follow-up guidance.
 The formatter accepts ANSI and width as inputs. CLI supplies its current
 terminal width and enables ANSI when supported; MCP uses no ANSI and the
 80-column default. Outcome and section headings are bold-only, package identity
-is bold cyan, and yellow is limited to compact attention summaries, labels, and
-matched signal terms. Heuristic section labels remain plain; only the matched
-keyword and excerpt marker are yellow. Evidence detail and locators remain
+is bold cyan, compact attention summaries use yellow. Action statement tags use red,
+should-know tags yellow, and uncertain annotations muted. Keyword sections
+remain separate lexical evidence. Evidence detail and locators remain
 plain, and prose remains meaningful without color. Free prose uses hanging
 indentation and a minimum width of 20, while coordinates, versions, advisory
-IDs, and URLs remain unsplit. Changelog labels are exact (`Repository releases`,
-`Package versions (no release notes)`, or the normalized non-empty source
-verbatim). A defined
-zero-valued dependency comparison renders both direct and transitive zero
-counts; undefined evidence is omitted. Existing sample caps and `verbose`
-expansion remain unchanged except
-that dependency-issue locators are capped at five rows per category in default
-text with an explicit remainder; `verbose` expands them fully.
+IDs, and URLs remain unsplit. Changelog groups use backend source labels such as Release notes or
+Changelog and their authoritative URLs. A defined zero-valued dependency comparison renders both direct and transitive zero
+counts; undefined evidence is omitted. Existing security/advisory sample caps
+remain unchanged. Dependency-issue locators are capped at five rows per
+category in default text with an explicit remainder; `verbose` expands them
+fully. Detailed `Changes` renders all matching statements from their paginated
+pages as source-ordered bullets with nearby source links and context, without
+tier headings, global numbered references, or duplicate sampled-note previews.
+`verbose` expands quotes only to backend-bounded text and adds full batch,
+security, and dependency detail; JSON alone contains uncut `fullText` and
+classification provenance. Filters never change whole-range counters or
+package ranking. See [Upgrade review](pkg-upgrade-review.md) for the complete
+shared CLI/MCP behavior and JSON contract.
 
 ### `list` / `read` / `grep` response shapes
 

@@ -2047,27 +2047,75 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(firstUpgradeReview, "pkg upgrade-review json missing first review");
   assertRecord(firstUpgradeReview.changelog, "pkg upgrade-review changelog");
   assert(
-    Array.isArray(firstUpgradeReview.changelog.riskItems),
-    "pkg upgrade-review missing riskItems",
+    !("riskItems" in firstUpgradeReview.changelog),
+    "pkg upgrade-review returned deprecated riskItems",
   );
-  for (const item of firstUpgradeReview.changelog.riskItems) {
-    assertRecord(item, "pkg upgrade-review risk item");
-    assert(
-      typeof item.ambiguous === "boolean",
-      "pkg upgrade-review missing item ambiguous flag",
-    );
+  const upgradeStatements = firstUpgradeReview.changelog.statements;
+  assertRecord(upgradeStatements, "pkg upgrade-review statements");
+  assert(
+    upgradeStatements.selection === "focused",
+    "pkg upgrade-review statements selection must be focused",
+  );
+  assert(
+    Array.isArray(upgradeStatements.items),
+    "pkg upgrade-review statements missing items array",
+  );
+  assert(
+    Array.isArray(upgradeStatements.coverage),
+    "pkg upgrade-review statements missing coverage array",
+  );
+  assert(
+    typeof upgradeStatements.count === "number" &&
+      upgradeStatements.count === upgradeStatements.items.length,
+    "pkg upgrade-review statements count does not match items",
+  );
+  assert(
+    typeof upgradeStatements.totalCount === "number",
+    "pkg upgrade-review statements missing totalCount",
+  );
+  assert(
+    typeof upgradeStatements.matchingCount === "number",
+    "pkg upgrade-review statements missing matchingCount",
+  );
+  for (const item of upgradeStatements.items) {
+    assertRecord(item, "pkg upgrade-review statement item");
     assert(
       typeof item.fullText === "string",
-      "pkg upgrade-review missing item fullText",
+      "pkg upgrade-review missing statement fullText",
+    );
+    assert(
+      typeof item.sourcePosition === "number",
+      "pkg upgrade-review missing statement sourcePosition",
     );
     assert(
       item.url === undefined || typeof item.url === "string",
-      "pkg upgrade-review invalid item URL",
+      "pkg upgrade-review invalid statement URL",
     );
+    if (item.classification !== null) {
+      assertRecord(item.classification, "pkg upgrade-review classification");
+      assert(
+        typeof item.classification.tier === "string",
+        "pkg upgrade-review missing classification tier",
+      );
+      assert(
+        typeof item.classification.ambiguous === "boolean",
+        "pkg upgrade-review missing classification ambiguous flag",
+      );
+      assert(
+        typeof item.classification.model === "string",
+        "pkg upgrade-review missing classification model",
+      );
+      assert(
+        typeof item.classification.formulation === "string",
+        "pkg upgrade-review missing classification formulation",
+      );
+    }
   }
-  assertRecord(
-    firstUpgradeReview.changelog.riskCoverage,
-    "pkg upgrade-review riskCoverage",
+  const riskCoverage = firstUpgradeReview.changelog.riskCoverage;
+  assertRecord(riskCoverage, "pkg upgrade-review riskCoverage");
+  assert(
+    !("itemsOmitted" in riskCoverage),
+    "pkg upgrade-review returned deprecated itemsOmitted counter",
   );
   for (const counter of [
     "versionsClassified",
@@ -2080,10 +2128,9 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "itemsShouldKnowConfident",
     "itemsShouldKnowAmbiguous",
     "itemsUnclassified",
-    "itemsOmitted",
   ]) {
     assert(
-      typeof firstUpgradeReview.changelog.riskCoverage[counter] === "number",
+      typeof riskCoverage[counter] === "number",
       `pkg upgrade-review missing coverage counter ${counter}`,
     );
   }

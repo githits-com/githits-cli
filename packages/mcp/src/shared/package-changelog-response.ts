@@ -133,28 +133,7 @@ export function buildPackageChangelogSuccessPayload(
   };
 
   if (options.view === "statements" && report.statements) {
-    envelope.statements = {
-      ...report.statements,
-      count: report.statements.items.length,
-      items: report.statements.items.map((item) => ({
-        ...item,
-        ...(item.source ? { source: item.source.toLowerCase() } : {}),
-        classification:
-          item.classification === null
-            ? null
-            : {
-                ...item.classification,
-                tier: item.classification.tier.toLowerCase(),
-                ...(item.classification.kind
-                  ? { kind: item.classification.kind.toLowerCase() }
-                  : {}),
-              },
-      })),
-      coverage: report.statements.coverage.map((c) => ({
-        ...c,
-        status: c.status.toLowerCase(),
-      })),
-    };
+    envelope.statements = normaliseChangelogStatements(report.statements);
   }
   if (report.source) envelope.source = report.source;
 
@@ -165,6 +144,34 @@ export function buildPackageChangelogSuccessPayload(
   if (filter) envelope.filter = filter;
 
   return envelope;
+}
+
+/** Shared lossless statement envelope; the hosts only normalize enum spelling. */
+export function normaliseChangelogStatements(
+  statements: ChangelogStatements,
+): LeanChangelogStatements {
+  return {
+    ...statements,
+    count: statements.items.length,
+    items: statements.items.map((item) => ({
+      ...item,
+      ...(item.source ? { source: item.source.toLowerCase() } : {}),
+      classification:
+        item.classification === null
+          ? null
+          : {
+              ...item.classification,
+              tier: item.classification.tier.toLowerCase(),
+              ...(item.classification.kind
+                ? { kind: item.classification.kind.toLowerCase() }
+                : {}),
+            },
+    })),
+    coverage: statements.coverage.map((c) => ({
+      ...c,
+      status: c.status.toLowerCase(),
+    })),
+  };
 }
 
 function buildFilterBlock(
@@ -319,91 +326,115 @@ export function formatPackageChangelogTerminal(
       );
       continue;
     }
-    let sourceIndex: number | undefined;
-    let heading: string | undefined;
-    for (const item of items) {
-      if (sourceIndex !== item.sourceIndex) {
-        sourceIndex = item.sourceIndex;
-        heading = undefined;
-        const source = noteSourceLabel(item.source);
-        prose(
-          `${source}${item.url ? `: ${sanitizeTerminalText(item.url)}` : " (source URL unavailable)"}`,
-          "  ",
-        );
-      }
-      if (item.heading !== heading) {
-        heading = item.heading;
-        if (heading) prose(sanitizeTerminalText(heading), "    ");
-      }
-      if (item.context) {
-        if (item.context.heading && item.context.heading !== heading)
-          prose(
-            `Context for next statement - ${sanitizeTerminalText(item.context.heading)}`,
-            "    ",
-          );
-        else prose("Context for next statement", "    ");
-        renderStatementText(lines, item.context.text, "      ", width);
-        if (item.context.textTruncated)
-          prose(
-            `Context truncated; ${options.fullStatementHint ?? "use --json for full text"}.`,
-            "      ",
-          );
-      }
-      const classification = item.classification;
-      const tier = classification?.tier;
-      const kind = classification?.kind
-        ? RISK_KIND_LABELS[classification.kind as keyof typeof RISK_KIND_LABELS]
-        : undefined;
-      const annotation =
-        tier === "no_impact"
-          ? undefined
-          : tier === "unclassified"
-            ? "[too long to classify - read it]"
-            : !classification
-              ? "[not assessed]"
-              : kind
-                ? `[${tier === "must_act" ? "!" : ""}${kind}]`
-                : tier === "must_act"
-                  ? "[!]"
-                  : "[should know]";
-      const start = lines.length;
-      renderStatementText(
-        lines,
-        item.text,
-        `    * ${annotation ? `${annotation} ` : ""}${classification?.ambiguous ? "(uncertain) " : ""}`,
-        width,
+    lines.push(...formatChangelogVersionStatements(items, options));
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+/** Source ordering and trusted tags belong to the shared statement presentation. */
+export function formatChangelogVersionStatements(
+  items: LeanChangelogStatement[],
+  options: FormatChangelogTerminalOptions & { compactNonAction?: boolean },
+): string[] {
+  const lines: string[] = [];
+  const width = Math.max(20, options.terminalWidth ?? 80);
+  const prose = (text: string, indent = ""): void => {
+    lines.push(...wrapTerminalProse(`${indent}${text}`, width, indent));
+  };
+  let sourceIndex: number | undefined;
+  let heading: string | undefined;
+  for (const item of items) {
+    if (sourceIndex !== item.sourceIndex) {
+      sourceIndex = item.sourceIndex;
+      heading = undefined;
+      const source = noteSourceLabel(item.source);
+      prose(
+        `${source}${item.url ? `: ${sanitizeTerminalText(item.url)}` : " (source URL unavailable)"}`,
+        "  ",
       );
-      // Style only the trusted prefix after sanitation and wrapping. Missing
-      // kinds retain explicit tier meaning; plain bullets cannot style a quote.
-      if (annotation && lines[start]?.startsWith(`    * ${annotation}`)) {
-        const styled =
-          classification?.ambiguous || !classification
-            ? dim(annotation, options.useColors)
-            : colorize(
-                annotation,
-                tier === "must_act"
-                  ? "red"
-                  : tier === "should_know"
-                    ? "yellow"
-                    : "cyan",
-                options.useColors,
-              );
-        lines[start] =
-          `    * ${styled}${lines[start].slice(6 + annotation.length)}`;
-      }
-      if (classification?.ambiguous && lines[start])
-        lines[start] = lines[start].replace(
-          "(uncertain)",
-          dim("(uncertain)", options.useColors),
-        );
-      if (item.textTruncated)
+    }
+    if (item.heading !== heading) {
+      heading = item.heading;
+      if (heading) prose(sanitizeTerminalText(heading), "    ");
+    }
+    if (item.context) {
+      if (item.context.heading && item.context.heading !== heading)
         prose(
-          `Statement truncated; ${options.fullStatementHint ?? "use --json for full text"}.`,
+          `Context for next statement - ${sanitizeTerminalText(item.context.heading)}`,
+          "    ",
+        );
+      else prose("Context for next statement", "    ");
+      renderStatementText(lines, item.context.text, "      ", width);
+      if (item.context.textTruncated)
+        prose(
+          `Context truncated; ${options.fullStatementHint ?? "use --json for full text"}.`,
           "      ",
         );
     }
+    const classification = item.classification;
+    const tier = classification?.tier;
+    const kind = classification?.kind
+      ? RISK_KIND_LABELS[classification.kind as keyof typeof RISK_KIND_LABELS]
+      : undefined;
+    const annotation =
+      tier === "no_impact"
+        ? undefined
+        : tier === "unclassified"
+          ? "[too long to classify - read it]"
+          : !classification
+            ? "[not assessed]"
+            : kind
+              ? `[${tier === "must_act" ? "!" : ""}${kind}]`
+              : tier === "must_act"
+                ? "[!]"
+                : "[should know]";
+    const start = lines.length;
+    renderStatementText(
+      lines,
+      options.compactNonAction &&
+        tier !== "must_act" &&
+        Array.from(item.text).length > 240
+        ? `${Array.from(item.text).slice(0, 240).join("")}...`
+        : item.text,
+      `    * ${annotation ? `${annotation} ` : ""}${classification?.ambiguous ? "(uncertain) " : ""}`,
+      width,
+    );
+    // Style only the trusted prefix after sanitation and wrapping. Missing
+    // kinds retain explicit tier meaning; plain bullets cannot style a quote.
+    if (annotation && lines[start]?.startsWith(`    * ${annotation}`)) {
+      const styled =
+        classification?.ambiguous || !classification
+          ? dim(annotation, options.useColors)
+          : colorize(
+              annotation,
+              tier === "must_act"
+                ? "red"
+                : tier === "should_know"
+                  ? "yellow"
+                  : "cyan",
+              options.useColors,
+            );
+      lines[start] =
+        `    * ${styled}${lines[start].slice(6 + annotation.length)}`;
+    }
+    if (classification?.ambiguous && lines[start])
+      lines[start] = lines[start].replace(
+        "(uncertain)",
+        dim("(uncertain)", options.useColors),
+      );
+    if (
+      options.compactNonAction &&
+      tier !== "must_act" &&
+      Array.from(item.text).length > 240
+    )
+      prose("Excerpt; use verbose for the full bounded quote.", "      ");
+    if (item.textTruncated)
+      prose(
+        `Statement truncated; ${options.fullStatementHint ?? "use --json for full text"}.`,
+        "      ",
+      );
   }
-  return `${lines.join("\n")}\n`;
+  return lines;
 }
 
 /** Preserve nested lines and code, wrap prose without flattening the unit. */

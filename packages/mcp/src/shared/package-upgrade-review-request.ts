@@ -1,4 +1,7 @@
-import type { PackageUpgradeDependencyProbeParams } from "@githits/core-internal";
+import type {
+  ChangelogStatementTier,
+  PackageUpgradeDependencyProbeParams,
+} from "@githits/core-internal";
 import {
   isKnownPkgseerRegistryArg,
   PKGSEER_REGISTRY_LIST,
@@ -6,6 +9,10 @@ import {
   type PkgseerRegistryArg,
   toPkgseerRegistry,
 } from "@githits/core-internal";
+import {
+  type ChangelogChangesView,
+  normaliseChangelogChanges,
+} from "./changelog-changes.js";
 import {
   InvalidPackageSpecError,
   UnsupportedRegistryError,
@@ -32,7 +39,10 @@ export interface PackageUpgradeReviewRequestInput {
   includeTransitiveSecurity?: boolean;
   includeDependencyIssues?: boolean;
   minSeverity?: string;
+  changes?: string;
 }
+
+export type UpgradeChangelogSelection = ChangelogChangesView | "focused";
 
 export interface UpgradeReviewPackageRequest {
   registry: PkgseerRegistry;
@@ -44,7 +54,10 @@ export interface UpgradeReviewPackageRequest {
 
 export interface PackageUpgradeReviewOptions {
   /** Internal selection control; not a public tool argument. */
-  includeChangelogFullText?: boolean;
+  changelogView?: "text" | "json" | "triage";
+  changesSelection?: UpgradeChangelogSelection;
+  explicitChanges?: ChangelogChangesView;
+  statementTiers?: ChangelogStatementTier[];
   includeTransitiveSecurity: boolean;
   includeDependencyIssues: boolean;
   includeDependencyChanges: boolean;
@@ -95,10 +108,27 @@ export function buildPackageUpgradeReviewRequest(
       ];
 
   const minSeverityLabel = resolveMinSeverityLabel(input.minSeverity);
+  const hasExplicitChanges = Boolean(input.changes?.trim());
+  const explicitChanges = hasExplicitChanges
+    ? normaliseChangelogChanges(input.changes)
+    : undefined;
+  const changesSelection: UpgradeChangelogSelection =
+    explicitChanges ?? "focused";
+  const statementTiers: ChangelogStatementTier[] | undefined =
+    changesSelection === "focused"
+      ? ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"]
+      : changesSelection === "actionable"
+        ? ["MUST_ACT"]
+        : changesSelection === "important"
+          ? ["MUST_ACT", "SHOULD_KNOW"]
+          : undefined;
 
   return {
     packages,
     options: {
+      changesSelection,
+      explicitChanges,
+      statementTiers,
       includeTransitiveSecurity: input.includeTransitiveSecurity !== false,
       includeDependencyIssues: input.includeDependencyIssues === true,
       includeDependencyChanges: true,

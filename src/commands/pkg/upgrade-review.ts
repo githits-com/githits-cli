@@ -23,6 +23,7 @@ export interface PkgUpgradeReviewCommandOptions {
   transitiveSecurity?: boolean;
   dependencyIssues?: boolean;
   minSeverity?: string;
+  changes?: string;
   verbose?: boolean;
   json?: boolean;
 }
@@ -59,11 +60,17 @@ export async function pkgUpgradeReviewAction(
       includeTransitiveSecurity: options.transitiveSecurity,
       includeDependencyIssues: options.dependencyIssues,
       minSeverity: options.minSeverity,
+      changes: options.changes,
     });
+    const changelogView = options.json
+      ? "json"
+      : request.packages.length > 1 && options.verbose !== true
+        ? "triage"
+        : "text";
     const response = await buildPackageUpgradeReview(
       deps.packageIntelligenceService,
       request.packages,
-      { ...request.options, includeChangelogFullText: options.json === true },
+      { ...request.options, changelogView },
     );
 
     if (options.json) {
@@ -282,6 +289,10 @@ export function registerPkgUpgradeReviewCommand(pkgCommand: Command): Command {
     .option(
       "--min-severity <label>",
       "Minimum direct advisory severity: low, medium, high, critical",
+    )
+    .option(
+      "--changes <view>",
+      "Changelog filter: actionable, important, all (default: focused)",
     )
     .option(
       "-v, --verbose",

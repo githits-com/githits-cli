@@ -19,9 +19,13 @@ import type {
   PackageChangelogView,
 } from "@githits/core-internal";
 import { toPkgseerRegistry } from "@githits/core-internal";
+import type { ChangelogChangesView } from "./changelog-changes.js";
+import { normaliseChangelogChanges } from "./changelog-changes.js";
 import { parsePackageChangelogTarget } from "./package-changelog-target.js";
 import { InvalidPackageSpecError } from "./package-spec.js";
 import { normalisePackageVersion } from "./package-version.js";
+
+export type { ChangelogChangesView } from "./changelog-changes.js";
 
 export interface PackageChangelogRequestInput {
   /** Compact package target. Required. */
@@ -44,8 +48,6 @@ export type ExplicitFilterField =
   | "limit"
   | "version"
   | "changes";
-
-export type ChangelogChangesView = "actionable" | "important" | "all";
 
 export type PackageChangelogRequestMode = "latest" | "exact" | "range";
 
@@ -78,7 +80,9 @@ export function buildPackageChangelogParams(
   const limit = normaliseLimit(input.limit);
   const view = input.view ?? "statements";
   const changes =
-    view === "statements" ? normaliseChanges(input.changes) : undefined;
+    view === "statements"
+      ? normaliseChangelogChanges(input.changes)
+      : undefined;
   const statementTiers: PackageChangelogParams["statementTiers"] =
     changes === "actionable"
       ? ["MUST_ACT"]
@@ -202,17 +206,6 @@ function normaliseLimit(raw: number | undefined): number | undefined {
     );
   }
   return raw;
-}
-
-/** Empty agent strings mean the default; omission mode does not validate this knob. */
-function normaliseChanges(raw: string | undefined): ChangelogChangesView {
-  const value = raw?.trim().toLowerCase() || "all";
-  if (value !== "actionable" && value !== "important" && value !== "all") {
-    throw new InvalidPackageSpecError(
-      "changes must be actionable, important (actionable + should know), or all.",
-    );
-  }
-  return value;
 }
 
 export interface PackageChangelogViewInput {

@@ -624,6 +624,45 @@ describe("runMcpSmoke", () => {
     });
   });
 
+  it("upgrade statement smoke accepts null classification and rejects missing statements", async () => {
+    const createUpgradeCaller = (omitStatements: boolean): McpSmokeCaller =>
+      createCaller(async (name, args) => {
+        const response = smokeResponse(name, args);
+        if (name !== "pkg_upgrade_review" || args.format !== "json") {
+          return response;
+        }
+
+        const payload = JSON.parse(
+          resultText(response, "upgrade statement smoke fixture"),
+        ) as {
+          reviews: Array<{ changelog: Record<string, unknown> }>;
+        };
+        const changelog = payload.reviews[0]?.changelog;
+        if (!changelog) throw new Error("missing smoke changelog fixture");
+
+        if (omitStatements) {
+          delete changelog.statements;
+        } else {
+          const statements = changelog.statements as {
+            items: Array<{ classification: unknown }>;
+          };
+          const firstItem = statements.items[0];
+          if (!firstItem) throw new Error("missing smoke statement fixture");
+          firstItem.classification = null;
+        }
+
+        return jsonResult(payload);
+      });
+    const logger = { log: () => {}, error: () => {} };
+
+    await expect(
+      runMcpSmoke(createUpgradeCaller(false), { logger }),
+    ).resolves.toBeUndefined();
+    await expect(
+      runMcpSmoke(createUpgradeCaller(true), { logger }),
+    ).rejects.toThrow("pkg_upgrade_review statements: expected object");
+  });
+
   it("rejects hosted documentation follow-ups that replay search bounds", async () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.source === "docs") {
@@ -1565,19 +1604,31 @@ function smokeJsonResponse(
         reviews: [
           {
             changelog: {
-              riskItems: [
-                {
-                  version: "5.0.0",
-                  tier: "must_act",
-                  ambiguous: false,
-                  text: "Removed an API.",
-                  textTruncated: false,
-                  fullText: "Removed an API.",
-                  url: "https://example.com/releases/v5.0.0",
-                  model: "jev-1.13.0",
-                  formulation: "s-hier-v3",
-                },
-              ],
+              statements: {
+                selection: "focused",
+                count: 1,
+                totalCount: 2,
+                matchingCount: 1,
+                items: [
+                  {
+                    version: "5.0.0",
+                    position: 0,
+                    sourceIndex: 0,
+                    sourcePosition: 0,
+                    text: "Removed an API.",
+                    textTruncated: false,
+                    fullText: "Removed an API.",
+                    url: "https://example.com/releases/v5.0.0",
+                    classification: {
+                      tier: "must_act",
+                      ambiguous: false,
+                      model: "jev-1.13.0",
+                      formulation: "s-hier-v3",
+                    },
+                  },
+                ],
+                coverage: [],
+              },
               riskCoverage: {
                 versionsClassified: 1,
                 versionsNotAssessed: 0,
@@ -1589,7 +1640,6 @@ function smokeJsonResponse(
                 itemsShouldKnowConfident: 0,
                 itemsShouldKnowAmbiguous: 0,
                 itemsUnclassified: 0,
-                itemsOmitted: 0,
               },
             },
           },
