@@ -1947,8 +1947,8 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "pkg changelog terminal missing context",
   );
   assert(
-    !/[·…—–→]/.test(changelogText),
-    "pkg changelog terminal contains non-ASCII punctuation",
+    !/[·…—–→]/.test(changelogText.split("\n")[0] ?? ""),
+    "pkg changelog summary contains non-ASCII punctuation",
   );
 
   const changelogJson = assertJsonOutput(
@@ -1957,6 +1957,20 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
   assertRecord(changelogJson, "pkg changelog json");
   assertRecord(changelogJson.entries, "pkg changelog json entries");
+  assertRecord(changelogJson.statements, "pkg changelog json statements");
+  assert(
+    Array.isArray(changelogJson.statements.items) &&
+      Array.isArray(changelogJson.statements.coverage),
+    "pkg changelog missing statements or coverage",
+  );
+  assert(
+    Array.isArray(changelogJson.entries.items) &&
+      changelogJson.entries.items.every(
+        (entry: unknown) =>
+          typeof entry === "object" && entry !== null && !("body" in entry),
+      ),
+    "pkg changelog default JSON over-fetched raw bodies",
+  );
 
   const changelogExact = assertJsonOutput(
     await runCli(["pkg", "changelog", "npm:express@5.2.1", "--json"]),

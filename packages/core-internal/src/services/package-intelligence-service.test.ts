@@ -2422,22 +2422,6 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
 
 describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
   const ENDPOINT = "https://pkgseer.dev";
-  const emptyRisk = {
-    riskItems: [],
-    riskCoverage: {
-      versionsClassified: 2,
-      versionsNotAssessed: 0,
-      versionsWithoutNotes: 0,
-      versionsUnparseable: 0,
-      unitsNoImpact: 2,
-      itemsMustActConfident: 0,
-      itemsMustActAmbiguous: 0,
-      itemsShouldKnowConfident: 0,
-      itemsShouldKnowAmbiguous: 0,
-      itemsUnclassified: 0,
-      itemsOmitted: 0,
-    },
-  };
 
   it("treats an empty source with no entries as a successful empty selection", async () => {
     const fetchFn = mock(() =>
@@ -2445,7 +2429,6 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
         jsonResponse({
           data: {
             packageChangelog: {
-              ...emptyRisk,
               package: { name: "express", registry: "NPM" },
               source: "",
               entries: [],
@@ -2462,13 +2445,15 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
 
     const result = await service.packageChangelog({
       registry: "NPM",
+      view: "verbatim",
+      includeJsonFields: true,
       packageName: "express",
     });
     expect(result.source).toBeUndefined();
     expect(result.entries).toEqual([]);
   });
 
-  it("sends includeBodies and omits unused metadata from changelog query", async () => {
+  it("selects timeline fields and omits unused metadata", async () => {
     let capturedBody: string | undefined;
     const fetchFn = mock((_url: string, init?: RequestInit) => {
       capturedBody = init?.body as string;
@@ -2476,7 +2461,6 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
         jsonResponse({
           data: {
             packageChangelog: {
-              ...emptyRisk,
               package: { name: "express", registry: "NPM" },
               source: "releases",
               entries: [
@@ -2501,12 +2485,12 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
     await service.packageChangelog({
       registry: "NPM",
       packageName: "express",
-      includeBodies: false,
+      view: "timeline",
     });
 
     const parsed = JSON.parse(capturedBody ?? "{}");
     expect(parsed.query).toContain("query PackageChangelog(");
-    expect(parsed.query).toContain("body @include(if: $includeBodies)");
+    expect(parsed.query).not.toContain("statements(");
     expect(parsed.query).not.toContain("metadata");
     expect(parsed.query).not.toContain("repoUrl");
     expect(parsed.query).not.toContain("gitRef");
@@ -2514,9 +2498,6 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
     expect(parsed.variables).toEqual({
       registry: "NPM",
       name: "express",
-      includeBodies: false,
-      includeRiskJsonFields: false,
-      includeRiskDetails: false,
     });
   });
 
@@ -2526,7 +2507,6 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
         jsonResponse({
           data: {
             packageChangelog: {
-              ...emptyRisk,
               package: { name: "react", registry: "NPM" },
               source: null,
               entries: [
@@ -2551,6 +2531,8 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
 
     const result = await service.packageChangelog({
       registry: "NPM",
+      view: "verbatim",
+      includeJsonFields: true,
       packageName: "react",
     });
 
@@ -2564,7 +2546,6 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
         jsonResponse({
           data: {
             packageChangelog: {
-              ...emptyRisk,
               package: { name: "react", registry: "NPM" },
               source: "",
               entries: [
@@ -2589,6 +2570,8 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
 
     const result = await service.packageChangelog({
       registry: "NPM",
+      view: "verbatim",
+      includeJsonFields: true,
       packageName: "react",
     });
 
@@ -2607,7 +2590,6 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
               selectedVersion: {
                 resolvedVersion: "5.2.1",
                 changelog: {
-                  ...emptyRisk,
                   detailSource: "RELEASES",
                   hasChangelog: true,
                   entry: {
@@ -2632,6 +2614,8 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
 
     const result = await service.packageChangelog({
       registry: "NPM",
+      view: "verbatim",
+      includeJsonFields: true,
       packageName: "express",
       version: "^5.0.0",
     });
@@ -2642,7 +2626,7 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
     expect(parsed.query).toContain("resolvedVersion");
     expect(parsed.query).toContain("detailSource");
     expect(parsed.query).toContain("hasChangelog");
-    expect(parsed.query).toContain("body @include(if: $includeBodies)");
+    expect(parsed.query).not.toContain("statements(");
     expect(parsed.query).not.toContain("requestedVersion");
     expect(parsed.query).not.toContain("packageChangelog(");
     expect(parsed.query).not.toContain("repoUrl");
@@ -2651,9 +2635,6 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
       registry: "NPM",
       name: "express",
       version: "^5.0.0",
-      includeBodies: true,
-      includeRiskJsonFields: false,
-      includeRiskDetails: false,
     });
     expect(result.source).toBe("releases");
     expect(result.entries).toEqual([
@@ -2679,7 +2660,6 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
               selectedVersion: {
                 resolvedVersion: "5.2.1",
                 changelog: {
-                  ...emptyRisk,
                   detailSource: "PACKAGE_VERSION",
                   hasChangelog: false,
                   entry: {
@@ -2705,16 +2685,13 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
       registry: "NPM",
       packageName: "express",
       version: "5.2.1",
-      includeBodies: false,
+      view: "timeline",
     });
     const parsed = JSON.parse(capturedBody ?? "{}");
     expect(parsed.variables).toEqual({
       registry: "NPM",
       name: "express",
       version: "5.2.1",
-      includeBodies: false,
-      includeRiskJsonFields: false,
-      includeRiskDetails: false,
     });
     expect(result.source).toBe("package_version");
     expect(result.entries[0]).toMatchObject({
@@ -2733,7 +2710,6 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
               selectedVersion: {
                 resolvedVersion: "0.0.1",
                 changelog: {
-                  ...emptyRisk,
                   detailSource: null,
                   hasChangelog: false,
                   entry: null,
@@ -2752,11 +2728,12 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
 
     const result = await service.packageChangelog({
       registry: "NPM",
+      view: "verbatim",
+      includeJsonFields: true,
       packageName: "tiny-empty",
       version: "0.0.1",
     });
     expect(result.source).toBeUndefined();
-    expect(result.package?.registry).toBe("npm");
     expect(result.entries).toEqual([
       {
         version: "0.0.1",
@@ -2779,6 +2756,8 @@ describe("PackageIntelligenceServiceImpl — packageChangelog", () => {
     try {
       await service.packageChangelog({
         registry: "NPM",
+        view: "verbatim",
+        includeJsonFields: true,
         packageName: "express",
         version: "99.99.99",
       });
@@ -4343,158 +4322,5 @@ describe("PackageIntelligenceServiceImpl — packageDependencies", () => {
     await expect(
       service.packageDependencies({ registry: "NPM", packageName: "x" }),
     ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
-  });
-});
-
-describe("changelog classification wire selection", () => {
-  const c = {
-    versionsClassified: 1,
-    versionsNotAssessed: 0,
-    versionsWithoutNotes: 0,
-    versionsUnparseable: 0,
-    unitsNoImpact: 20,
-    itemsMustActConfident: 0,
-    itemsMustActAmbiguous: 1,
-    itemsShouldKnowConfident: 3,
-    itemsShouldKnowAmbiguous: 0,
-    itemsUnclassified: 0,
-    itemsOmitted: 0,
-  };
-  const compact = {
-    version: "5.2.1",
-    tier: "MUST_ACT",
-    ambiguous: true,
-    kind: "CHANGES_BEHAVIOR_OR_DEFAULT",
-    text: "Changed a default.",
-    textTruncated: false,
-    url: "https://example.com/v5.2.1",
-    source: "RELEASES",
-  };
-  const details = { tierConfidence: 0.95, kindConfidence: 0.9, heading: null };
-  const provenance = {
-    model: "jev-1.13.0",
-    formulation: "s-hier-v5",
-    fullText: "Changed a default.",
-  };
-  for (const version of [undefined, "5.2.1"]) {
-    for (const mode of ["compact", "verbose", "json", "timeline"] as const) {
-      it(`requests only consumed fields for ${version ? "exact" : "timeline/range"} ${mode}`, async () => {
-        let request:
-          | { query: string; variables: Record<string, unknown> }
-          | undefined;
-        const includeBodies = mode !== "timeline";
-        const includeRiskDetails = mode === "verbose" || mode === "json";
-        const includeRiskJsonFields = mode === "json";
-        const selectedItem = {
-          ...compact,
-          ...(includeRiskDetails ? details : {}),
-          ...(includeRiskJsonFields ? provenance : {}),
-        };
-        const block = {
-          source: "releases",
-          entries: [],
-          detailSource: "RELEASES",
-          hasChangelog: true,
-          entry: { normalizedVersion: "5.2.1" },
-          ...(includeBodies
-            ? { riskItems: [selectedItem], riskCoverage: c }
-            : {}),
-        };
-        const fetchFn = mock((_url: string, init?: RequestInit) => {
-          request = JSON.parse(String(init?.body));
-          return Promise.resolve(
-            jsonResponse({
-              data: version
-                ? {
-                    packageInfo: {
-                      selectedVersion: {
-                        resolvedVersion: version,
-                        changelog: block,
-                      },
-                    },
-                  }
-                : { packageChangelog: block },
-            }),
-          );
-        });
-        const service = new PackageIntelligenceServiceImpl(
-          "https://pkgseer.dev",
-          createMockTokenProvider(),
-          asFetchFn(fetchFn),
-        );
-        const report = await service.packageChangelog({
-          registry: "NPM",
-          packageName: "express",
-          version,
-          ...(!version ? { fromVersion: "5.0.0", toVersion: "5.2.1" } : {}),
-          riskTiers: ["MUST_ACT"],
-          includeBodies,
-          includeRiskDetails,
-          includeRiskJsonFields,
-        });
-        expect(fetchFn).toHaveBeenCalledTimes(1);
-        expect(request?.variables).toMatchObject({
-          includeBodies,
-          includeRiskDetails,
-          includeRiskJsonFields,
-          ...(includeBodies ? { riskTiers: ["MUST_ACT"] } : {}),
-        });
-        expect(request?.query).toContain(
-          "riskItems @include(if: $includeBodies)",
-        );
-        expect(request?.query).toContain(
-          "riskCoverage @include(if: $includeBodies)",
-        );
-        expect(request?.query).toContain(
-          "fullText @include(if: $includeRiskJsonFields)",
-        );
-        expect(request?.query).toContain(
-          "model @include(if: $includeRiskJsonFields)",
-        );
-        expect(request?.query).toContain(
-          "tierConfidence @include(if: $includeRiskDetails)",
-        );
-        expect(request?.query).toContain("riskTiers: $riskTiers");
-        if (mode === "timeline") {
-          expect(request?.variables.riskTiers).toBeUndefined();
-          expect(report.riskItems).toBeUndefined();
-          expect(report.riskCoverage).toBeUndefined();
-        } else {
-          expect(report.riskCoverage).toEqual(c);
-          expect(report.riskItems?.[0]?.ambiguous).toBe(true);
-          expect(report.riskItems?.[0]?.model).toBe(
-            includeRiskJsonFields ? provenance.model : undefined,
-          );
-          expect(report.riskItems?.[0]?.tierConfidence).toBe(
-            includeRiskDetails ? 0.95 : undefined,
-          );
-          expect(report.riskItems?.[0]?.heading).toBeUndefined();
-        }
-      });
-    }
-  }
-  it("rejects missing selected evidence instead of implying zero risk", async () => {
-    for (const block of [
-      { entries: [] },
-      { entries: [], riskItems: [compact] },
-      { entries: [], riskCoverage: c },
-      { entries: [], riskItems: [compact], riskCoverage: c },
-    ]) {
-      const fetchFn = mock(() =>
-        Promise.resolve(jsonResponse({ data: { packageChangelog: block } })),
-      );
-      const service = new PackageIntelligenceServiceImpl(
-        "https://pkgseer.dev",
-        createMockTokenProvider(),
-        asFetchFn(fetchFn),
-      );
-      await expect(
-        service.packageChangelog({
-          registry: "NPM",
-          packageName: "express",
-          includeRiskJsonFields: true,
-        }),
-      ).rejects.toThrow(MalformedPackageIntelligenceResponseError);
-    }
   });
 });

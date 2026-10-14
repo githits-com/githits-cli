@@ -14,7 +14,10 @@
  *   intent.
  */
 
-import type { PackageChangelogParams } from "@githits/core-internal";
+import type {
+  PackageChangelogParams,
+  PackageChangelogView,
+} from "@githits/core-internal";
 import { toPkgseerRegistry } from "@githits/core-internal";
 import { parsePackageChangelogTarget } from "./package-changelog-target.js";
 import { InvalidPackageSpecError } from "./package-spec.js";
@@ -29,9 +32,8 @@ export interface PackageChangelogRequestInput {
   toVersion?: string;
   /** Latest-mode entry count cap. Rejected for exact and lower-bound range targets. */
   limit?: number;
-  /** Include raw markdown bodies in entries. Defaults to true. */
-  includeBodies?: boolean;
-  /** Cumulative statement view; ignored when bodies are omitted. */
+  view?: PackageChangelogView;
+  /** Cumulative statement filter; ignored outside statement mode. */
   changes?: string;
 }
 
@@ -74,9 +76,10 @@ export function buildPackageChangelogParams(
   const flagFrom = normaliseBound(input.fromVersion, registry, "--from");
   const flagTo = normaliseBound(input.toVersion, registry, "--to");
   const limit = normaliseLimit(input.limit);
+  const view = input.view ?? "statements";
   const changes =
-    input.includeBodies === false ? undefined : normaliseChanges(input.changes);
-  const riskTiers: PackageChangelogParams["riskTiers"] =
+    view === "statements" ? normaliseChanges(input.changes) : undefined;
+  const statementTiers: PackageChangelogParams["statementTiers"] =
     changes === "actionable"
       ? ["MUST_ACT"]
       : changes === "important"
@@ -100,8 +103,8 @@ export function buildPackageChangelogParams(
         registry,
         packageName: parsed.name,
         version,
-        includeBodies: input.includeBodies,
-        riskTiers,
+        view,
+        statementTiers,
       },
       explicitFilterFields: new Set<ExplicitFilterField>(
         explicitChanges ? ["version", "changes"] : ["version"],
@@ -152,8 +155,8 @@ export function buildPackageChangelogParams(
       fromVersion,
       toVersion,
       limit,
-      includeBodies: input.includeBodies,
-      riskTiers,
+      view,
+      statementTiers,
     },
     explicitFilterFields: explicit,
   };
@@ -210,4 +213,38 @@ function normaliseChanges(raw: string | undefined): ChangelogChangesView {
     );
   }
   return value;
+}
+
+export interface PackageChangelogViewInput {
+  omitBodies?: boolean;
+  verbatim?: boolean;
+  verbose?: boolean;
+  bodyLines?: number;
+  json?: boolean;
+}
+
+/** Resolve the view once; explicit raw-note switches cannot coexist with timeline. */
+export function resolvePackageChangelogView(input: PackageChangelogViewInput): {
+  view: PackageChangelogView;
+  bodyPreviewLines?: number;
+} {
+  const fullNotes = input.verbatim === true || input.verbose === true;
+  if (input.omitBodies && fullNotes)
+    throw new InvalidPackageSpecError(
+      "--no-body / omit_bodies cannot be combined with --verbatim / verbatim or its --verbose / verbose alias.",
+    );
+  if (input.omitBodies) return { view: "timeline" };
+  if (fullNotes) return { view: "verbatim" };
+  if (!input.json && input.bodyLines !== undefined) {
+    if (
+      !Number.isInteger(input.bodyLines) ||
+      input.bodyLines < 1 ||
+      input.bodyLines > 50
+    )
+      throw new InvalidPackageSpecError(
+        `body_lines must be an integer between 1 and 50. Got ${input.bodyLines}.`,
+      );
+    return { view: "verbatim", bodyPreviewLines: input.bodyLines };
+  }
+  return { view: "statements" };
 }

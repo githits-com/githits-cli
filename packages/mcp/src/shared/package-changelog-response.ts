@@ -11,27 +11,19 @@
  * - **`version` kept when null**, every other per-entry nullable
  *   field stripped only when null/undefined.
  * - **`filter.*` emits only when caller explicitly supplied them.**
- * - **Body omission lever.** When requested, each entry drops its
- *   `body` field.
+ * - Original bodies appear only in the explicit original-note view.
+ * - Complete statements preserve missing classifications as null.
  * - Exact selected-release entries add `hasChangelog`. Timeline
  *   entries omit that field.
  */
 
 import type {
   ChangelogReport,
-  ChangelogRiskCoverage,
+  ChangelogStatement,
+  ChangelogStatements,
+  PackageChangelogView,
 } from "@githits/core-internal";
-import {
-  type ClassifiedChangelogItem,
-  changelogRiskCoverageText,
-  changelogRiskSections,
-  changelogRiskSummary,
-  normaliseChangelogRiskItems,
-  PENDING_CLASSIFICATION_MESSAGE,
-  RISK_KIND_LABELS,
-  releaseNoteText,
-  safeRiskText,
-} from "./changelog-risk-presentation.js";
+import { RISK_KIND_LABELS } from "./changelog-risk-presentation.js";
 import { colorize, dim, highlight } from "./colors.js";
 import type {
   ChangelogChangesView,
@@ -77,8 +69,7 @@ export interface LeanChangelogFilter {
 }
 
 export interface LeanChangelogEnvelope {
-  riskItems?: ClassifiedChangelogItem[];
-  riskCoverage?: ChangelogRiskCoverage;
+  statements?: LeanChangelogStatements;
   /** Present for spec addressing. */
   registry?: string;
   /** Present for spec addressing. */
@@ -100,8 +91,7 @@ export interface BuildChangelogPayloadOptions {
   name?: string;
   mode: ChangelogMode;
   explicitFilterFields: Set<ExplicitFilterField>;
-  /** When false, drop each entry's `body` field. Default: true. */
-  includeBodies: boolean;
+  view: PackageChangelogView;
   fromVersion?: string;
   toVersion?: string;
   limit?: number;
@@ -125,7 +115,7 @@ export function buildPackageChangelogSuccessPayload(
     if (entry.htmlUrl != null) {
       lean.htmlUrl = entry.htmlUrl;
     }
-    if (options.includeBodies && entry.body != null) {
+    if (options.view === "verbatim" && entry.body != null) {
       lean.body = entry.body;
     }
     if (options.mode === "exact" && entry.hasChangelog !== undefined) {
@@ -142,9 +132,29 @@ export function buildPackageChangelogSuccessPayload(
     },
   };
 
-  if (options.includeBodies && report.riskItems && report.riskCoverage) {
-    envelope.riskItems = normaliseChangelogRiskItems(report.riskItems);
-    envelope.riskCoverage = { ...report.riskCoverage };
+  if (options.view === "statements" && report.statements) {
+    envelope.statements = {
+      ...report.statements,
+      count: report.statements.items.length,
+      items: report.statements.items.map((item) => ({
+        ...item,
+        ...(item.source ? { source: item.source.toLowerCase() } : {}),
+        classification:
+          item.classification === null
+            ? null
+            : {
+                ...item.classification,
+                tier: item.classification.tier.toLowerCase(),
+                ...(item.classification.kind
+                  ? { kind: item.classification.kind.toLowerCase() }
+                  : {}),
+              },
+      })),
+      coverage: report.statements.coverage.map((c) => ({
+        ...c,
+        status: c.status.toLowerCase(),
+      })),
+    };
   }
   if (report.source) envelope.source = report.source;
 
@@ -180,332 +190,267 @@ function buildFilterBlock(
   return Object.keys(filter).length > 0 ? filter : undefined;
 }
 
-// --------------------------------------------------------------------
-// Shared terminal/text formatter used by both CLI and MCP.
-// --------------------------------------------------------------------
+/** Structured JSON retains evidence; only enum spelling is normalised. */
+export interface LeanChangelogStatement
+  extends Omit<ChangelogStatement, "classification"> {
+  classification:
+    | (Omit<
+        NonNullable<ChangelogStatement["classification"]>,
+        "tier" | "kind"
+      > & { tier: string; kind?: string })
+    | null;
+}
+export interface LeanChangelogStatements
+  extends Omit<ChangelogStatements, "items" | "coverage"> {
+  count: number;
+  items: LeanChangelogStatement[];
+  coverage: (Omit<ChangelogStatements["coverage"][number], "status"> & {
+    status: string;
+  })[];
+}
 
 export interface FormatChangelogTerminalOptions {
-  verbose?: boolean;
   useColors: boolean;
   fullBodyHint?: string;
+  fullStatementHint?: string;
   bodyPreviewLines?: number;
   terminalWidth?: number;
 }
 
-const DEFAULT_BODY_PREVIEW_LINES = 10;
-
-/**
- * Format an envelope for terminal display. The summary header leads
- * with the addressing + count + source; each entry renders as
- * `version  date  url` plus an indented body preview.
- */
+/** One source-ordered evidence view shared by CLI and MCP. */
 export function formatPackageChangelogTerminal(
   envelope: LeanChangelogEnvelope,
   options: FormatChangelogTerminalOptions,
 ): string {
+  const width = Number.isFinite(options.terminalWidth)
+    ? Math.max(20, Math.floor(options.terminalWidth as number))
+    : 80;
   const lines: string[] = [];
-  lines.push(buildSummaryLine(envelope, options));
-  lines.push("");
-  const width =
-    options.terminalWidth === undefined ||
-    !Number.isFinite(options.terminalWidth)
-      ? 80
-      : Math.max(20, Math.floor(options.terminalWidth));
-  const prose = (text: string, indent = "  "): void => {
+  const prose = (text: string, indent = ""): void => {
     lines.push(...wrapTerminalProse(`${indent}${text}`, width, indent));
   };
-  const coverage = envelope.riskCoverage;
-  if (coverage) {
-    lines.push(highlight("Changes (classified by agent)", options.useColors));
-    prose(`All selected releases: ${changelogRiskSummary(coverage)}`);
-    prose(`Classification coverage: ${changelogRiskCoverageText(coverage)}`);
+  const identity =
+    envelope.registry && envelope.name
+      ? `${envelope.registry}:${envelope.name}`
+      : "(unknown package)";
+  lines.push(
+    ...wrapTerminalProse(
+      sanitizeTerminalText(
+        `${identity} | ${modeSummary(envelope)} | ${envelope.entries.count} release${envelope.entries.count === 1 ? "" : "s"}`,
+      ),
+      width,
+    ).map((line) => colorize(line, "bold", options.useColors)),
+  );
+  const statements = envelope.statements;
+  if (statements) {
+    lines.push(
+      "",
+      highlight("Changes (classified by agent)", options.useColors),
+    );
+    const c = statements.coverage;
+    prose(
+      `${statements.count} ${envelope.filter?.changes && envelope.filter.changes !== "all" ? "matching " : ""}statements of ${statements.totalCount} parsed | versions: ${c.filter((v) => v.status === "classified").length} classified | ${c.filter((v) => v.status === "not_assessed").length} not assessed | ${c.filter((v) => v.status === "without_notes").length} without notes | ${c.filter((v) => v.status === "unparseable").length} without parsed statements`,
+      "  ",
+    );
+    const pending = c.reduce((sum, v) => sum + v.statementsNotAssessed, 0);
+    const oversize = c.reduce((sum, v) => sum + v.statementsUnclassified, 0);
     if (envelope.filter?.changes && envelope.filter.changes !== "all")
       prose(
-        `Showing ${envelope.filter.changes === "actionable" ? "actionable statements" : "actionable + should know statements"}; note previews and totals include all tiers.`,
+        `Filter excludes ${pending} not-assessed and ${oversize} too-long-to-classify statements.`,
+        "  ",
       );
-    if (coverage.itemsOmitted)
+    if (pending)
       prose(
-        `${coverage.itemsOmitted} matching statements omitted by backend (lowest priority first).`,
+        "Classification is still in progress or failed. Rerun in a few seconds to a minute to fill stored answers.",
+        "  ",
       );
-    if (coverage.versionsNotAssessed) prose(PENDING_CLASSIFICATION_MESSAGE);
-    if (coverage.versionsWithoutNotes || coverage.versionsUnparseable)
-      prose("Missing or unparseable notes are not evidence of no risk.");
-    if (!envelope.riskItems?.length)
-      prose("No matching classified statements returned.");
-    lines.push("");
+    if (
+      c.some((v) => v.status === "without_notes" || v.status === "unparseable")
+    )
+      prose("Missing or unparseable notes are not evidence of no risk.", "  ");
   }
-  // Only renderer-owned headers and quotes can cite our source numbers.
-  const cited = new Set<number>();
-  const recordReferences = (text: string): void => {
-    for (const match of text.matchAll(/\[S(\d+)\](?!\()/g))
-      cited.add(Number(match[1]));
-  };
-  const sources = new Map<string, { number: number; label: string }>();
-  const reference = (url: string, source?: string): string => {
-    const clean = safeRiskText(url);
-    let sourceRecord = sources.get(clean);
-    if (!sourceRecord) {
-      sourceRecord = {
-        number: sources.size + 1,
-        label: `${source ? `${noteSourceLabel(source)}: ` : ""}${clean}`,
-      };
-      sources.set(clean, sourceRecord);
-    }
-    return `[S${sourceRecord.number}]`;
-  };
-  let excerpted = false;
-
-  if (envelope.entries.items.length === 0) {
-    lines.push(dim("No entries in this range.", options.useColors));
-    lines.push("");
-    return lines.join("\n");
-  }
-
-  const versionWidth = computeVersionColumnWidth(envelope.entries.items);
-  const dateWidth = 10; // YYYY-MM-DD
-
+  if (!envelope.entries.items.length)
+    lines.push("", "No releases in this selection.");
   for (const entry of envelope.entries.items) {
-    const version = safeRiskText(entry.version ?? "(unversioned)");
-    const items = (envelope.riskItems ?? []).filter(
+    lines.push("");
+    lines.push(
+      ...wrapTerminalProse(
+        sanitizeTerminalText(
+          `${entry.version ?? "(unversioned)"}${entry.publishedAt ? ` (${formatDate(entry.publishedAt)})` : ""}`,
+        ),
+        width,
+      ).map((line) => highlight(line, options.useColors)),
+    );
+    if (!statements) {
+      if (entry.htmlUrl) prose(sanitizeTerminalText(entry.htmlUrl), "  ");
+      if (entry.body !== undefined)
+        renderOriginalNotes(lines, entry.body, options);
+      else if (entry.hasChangelog === false)
+        lines.push("  No release notes available.");
+      continue;
+    }
+    const items = statements.items.filter(
       (item) => item.version === entry.version,
     );
-    const date = entry.publishedAt
-      ? safeRiskText(formatDate(entry.publishedAt))
-      : dim("-", options.useColors);
-    const noteLinks = new Map<string, string>();
-    // Timeline source is aggregate: individual releases can use alternate sources.
-    const entrySource =
-      items.find((item) => item.url === entry.htmlUrl)?.source ??
-      (envelope.mode === "exact" ? envelope.source : undefined);
-    if (entry.htmlUrl)
-      noteLinks.set(
-        reference(entry.htmlUrl, entrySource),
-        noteSourceLabel(entrySource),
+    if (!items.length) {
+      if (entry.htmlUrl) prose(sanitizeTerminalText(entry.htmlUrl), "  ");
+      const coverage = statements.coverage.find(
+        (v) => v.version === entry.version,
       );
-    for (const item of items)
-      if (item.url)
-        noteLinks.set(
-          reference(item.url, item.source),
-          noteSourceLabel(item.source),
-        );
-    const url = coverage
-      ? dim(
-          [...noteLinks].map(([ref, label]) => `${label} ${ref}`).join("; ") ||
-            "(no link)",
-          options.useColors,
-        )
-      : entry.htmlUrl
-        ? dim(safeRiskText(entry.htmlUrl), options.useColors)
-        : dim("(no link)", options.useColors);
-    if (coverage) recordReferences(url);
-    const padded = padColumn(version, versionWidth);
-    const datePadded = padColumn(date, dateWidth);
-    lines.push(
-      `${highlight(`${padded}  ${datePadded}`, options.useColors)}  ${url}`,
-    );
-    if (entry.hasChangelog === false) {
-      lines.push("");
-      lines.push(
-        `  ${dim("Release notes are unavailable.", options.useColors)}`,
+      prose(
+        coverage?.status === "without_notes"
+          ? "No release notes available."
+          : coverage?.status === "unparseable"
+            ? "Notes contain no parsed statements."
+            : "No statements match this filter.",
+        "  ",
       );
-    } else if (entry.body != null) {
-      appendBodyLines(lines, entry.body, options);
+      continue;
     }
-    if (items.length && entry.body != null) lines.push("");
-    for (const section of changelogRiskSections(items)) {
-      if (!section.items.length) continue;
-      lines.push(`  ${section.label}`);
-      for (const item of section.items) {
-        const quote = releaseNoteText(item.text, (url) => reference(url));
-        const cap =
-          item.tier === "must_act" || options.verbose
-            ? Infinity
-            : item.tier === "should_know"
-              ? 240
-              : 120;
-        const chars = Array.from(quote);
-        const shortened = chars.length > cap;
-        excerpted ||= shortened;
-        const shown = shortened
-          ? `${chars.slice(0, cap).join("").trimEnd()}...`
-          : quote;
-        const kind = item.kind
-          ? `[${RISK_KIND_LABELS[item.kind] ?? safeRiskText(item.kind)}]`
-          : "";
-        const source = item.url
-          ? reference(item.url, item.source)
-          : "[source URL unavailable]";
-        const text = `${kind ? `${kind} ` : ""}${item.ambiguous ? "(uncertain) " : ""}"${shown}" ${source}${item.textTruncated ? " [statement truncated by backend; fullText in JSON]" : ""}`;
-        recordReferences(text);
-        const rendered = wrapTerminalProse(`    * ${text}`, width, "      ");
-        lines.push(
-          ...rendered.map((line) => {
-            let styled = kind
-              ? line.replace(kind, colorize(kind, "yellow", options.useColors))
-              : line;
-            if (item.ambiguous)
-              styled = styled.replace(
-                "(uncertain)",
-                dim("(uncertain)", options.useColors),
-              );
-            return styled;
-          }),
+    let sourceIndex: number | undefined;
+    let heading: string | undefined;
+    for (const item of items) {
+      if (sourceIndex !== item.sourceIndex) {
+        sourceIndex = item.sourceIndex;
+        heading = undefined;
+        const source = noteSourceLabel(item.source);
+        prose(
+          `${source}${item.url ? `: ${sanitizeTerminalText(item.url)}` : " (source URL unavailable)"}`,
+          "  ",
         );
-        if (options.verbose) {
-          const details = [
-            item.heading
-              ? `heading: ${releaseNoteText(item.heading, (url) => reference(url))}`
-              : undefined,
-            item.tierConfidence !== undefined
-              ? `tier confidence: ${item.tierConfidence}`
-              : undefined,
-            item.kindConfidence !== undefined
-              ? `kind confidence: ${item.kindConfidence}`
-              : undefined,
-          ]
-            .filter(Boolean)
-            .join(" | ");
-          if (details) {
-            recordReferences(details);
-            prose(details, "      ");
-          }
-        }
       }
+      if (item.heading !== heading) {
+        heading = item.heading;
+        if (heading) prose(sanitizeTerminalText(heading), "    ");
+      }
+      if (item.context) {
+        if (item.context.heading && item.context.heading !== heading)
+          prose(
+            `Context - ${sanitizeTerminalText(item.context.heading)}`,
+            "    ",
+          );
+        else prose("Context", "    ");
+        renderStatementText(lines, item.context.text, "      ", width);
+        if (item.context.textTruncated)
+          prose(
+            `Context truncated; ${options.fullStatementHint ?? "use --json for full text"}.`,
+            "      ",
+          );
+      }
+      const classification = item.classification;
+      const tier = classification?.tier;
+      const tierLabel =
+        tier === "must_act"
+          ? "requires action"
+          : tier === "should_know"
+            ? "should know"
+            : tier === "no_impact"
+              ? "no impact identified"
+              : tier === "unclassified"
+                ? "too long to classify - read it"
+                : "not assessed";
+      const kind = classification?.kind
+        ? RISK_KIND_LABELS[classification.kind as keyof typeof RISK_KIND_LABELS]
+        : undefined;
+      const label = `[${tierLabel}${kind ? `: ${kind}` : ""}]`;
+      const muted =
+        classification?.ambiguous || tier === "no_impact" || !classification;
+      const coloredLabel = muted
+        ? dim(label, options.useColors)
+        : colorize(
+            label,
+            tier === "must_act"
+              ? "red"
+              : tier === "should_know"
+                ? "yellow"
+                : "cyan",
+            options.useColors,
+          );
+      const start = lines.length;
+      renderStatementText(
+        lines,
+        item.text,
+        `    * ${label}${classification?.ambiguous ? " (uncertain)" : ""} `,
+        width,
+      );
+      // Apply trusted styling after sanitation and wrapping; it never changes meaning.
+      if (lines[start])
+        lines[start] = lines[start]
+          .replace(label, coloredLabel)
+          .replace("(uncertain)", dim("(uncertain)", options.useColors));
+      if (item.textTruncated)
+        prose(
+          `Statement truncated; ${options.fullStatementHint ?? "use --json for full text"}.`,
+          "      ",
+        );
     }
-    lines.push("");
   }
-  const visibleSources = [...sources.values()].filter((source) =>
-    cited.has(source.number),
-  );
-  if (coverage && visibleSources.length) {
-    lines.push("Sources");
-    for (const source of visibleSources)
-      lines.push(`  [S${source.number}] ${source.label}`);
-  }
-  if (excerpted)
-    prose(
-      "Quotes ending in ... are excerpts; use verbose for expanded quotes.",
-    );
-  if (lines.at(-1) !== "") lines.push("");
-  return lines.join("\n");
+  return `${lines.join("\n")}\n`;
 }
 
-function appendBodyLines(
+/** Preserve nested lines and code, wrap prose without flattening the unit. */
+function renderStatementText(
+  lines: string[],
+  text: string,
+  prefix: string,
+  width: number,
+): void {
+  const raw = text.split("\n");
+  let fenced = false;
+  raw.forEach((line, index) => {
+    const safe = sanitizeTerminalText(line.replace(/\t/g, "    "));
+    const content =
+      index === 0 ? safe.replace(/^\s*(?:[-*+] |\d+[.)] )/, "") : safe;
+    if (!content.trim()) {
+      lines.push("");
+      return;
+    }
+    const indent =
+      index === 0 ? prefix : `      ${safe.match(/^ */)?.[0] ?? ""}`;
+    const value = index === 0 ? content : content.trimStart();
+    const isFence = value.startsWith("```") || value.startsWith("~~~");
+    if (fenced || isFence || (index > 0 && /^ {4}/.test(safe)))
+      lines.push(`${indent}${value}`);
+    else lines.push(...wrapTerminalProse(`${indent}${value}`, width, "      "));
+    if (isFence) fenced = !fenced;
+  });
+}
+
+function renderOriginalNotes(
   lines: string[],
   body: string,
   options: FormatChangelogTerminalOptions,
 ): void {
-  lines.push("");
-  if (body.length === 0) {
-    lines.push(`  ${dim("(empty release notes)", options.useColors)}`);
+  if (!body.trim()) {
+    lines.push("  (empty release notes)");
     return;
   }
   const bodyLines = body.split("\n");
-  const cap = options.verbose
-    ? bodyLines.length
-    : (options.bodyPreviewLines ?? DEFAULT_BODY_PREVIEW_LINES);
-  const visible = bodyLines.slice(0, cap);
-  for (const bodyLine of visible) {
-    lines.push(`  ${sanitizeTerminalText(bodyLine)}`);
-  }
-  const hidden = bodyLines.length - visible.length;
-  if (hidden > 0) {
+  const cap = options.bodyPreviewLines ?? bodyLines.length;
+  for (const line of bodyLines.slice(0, cap))
+    lines.push(`  ${sanitizeTerminalText(line.replace(/\t/g, "    "))}`);
+  if (bodyLines.length > cap)
     lines.push(
-      `  ${dim(`... (+${hidden} more line${hidden === 1 ? "" : "s"} - ${options.fullBodyHint ?? "use --verbose for the full body"})`, options.useColors)}`,
+      `  ... (+${bodyLines.length - cap} more lines - ${options.fullBodyHint ?? "use --verbatim for full original notes"})`,
     );
-  }
-}
-
-function buildSummaryLine(
-  envelope: LeanChangelogEnvelope,
-  options: FormatChangelogTerminalOptions,
-): string {
-  const identity =
-    envelope.registry && envelope.name
-      ? `${envelope.name} | ${envelope.registry}`
-      : "(unknown)";
-  const sourceLabel = envelope.source
-    ? humanizeSource(envelope.source)
-    : "package versions";
-  const modeLabel = modeSummary(envelope);
-  const countLabel = `${envelope.entries.count} ${plural("entry", "entries", envelope.entries.count)}`;
-  const parts = [identity, `source: ${sourceLabel}`, modeLabel, countLabel];
-  return colorize(safeRiskText(parts.join(" | ")), "bold", options.useColors);
 }
 
 function modeSummary(envelope: LeanChangelogEnvelope): string {
-  if (envelope.mode === "exact") {
-    const version =
-      envelope.entries.items[0]?.version ?? envelope.filter?.version;
-    return version ? `exact ${version}` : "exact";
-  }
-  if (envelope.mode === "range") {
-    const from = envelope.filter?.fromVersion ?? "earliest";
-    const to = envelope.filter?.toVersion ?? "latest";
-    return `range (${from}, ${to}] (start excluded; end included)`;
-  }
-  if (envelope.filter?.toVersion) {
-    return `latest up to ${envelope.filter.toVersion}`;
-  }
-  return "latest";
+  if (envelope.mode === "exact")
+    return `exact ${envelope.entries.items[0]?.version ?? envelope.filter?.version ?? ""}`.trim();
+  if (envelope.mode === "range")
+    return `range (${envelope.filter?.fromVersion ?? "earliest"}, ${envelope.filter?.toVersion ?? "latest"}] (start excluded; end included)`;
+  return envelope.filter?.toVersion
+    ? `latest up to ${envelope.filter.toVersion}`
+    : "latest";
 }
-
-function humanizeSource(source: string): string {
-  switch (source) {
-    case "releases":
-      return "GitHub Releases";
-    case "changelog_file":
-      return "CHANGELOG.md";
-    case "hexdocs":
-      return "HexDocs";
-    case "registry_release_notes":
-      return "registry release notes";
-    case "registry_link":
-      return "registry link";
-    case "generated_github_url":
-      return "generated GitHub URL";
-    case "package_version":
-      return "package versions";
-    default:
-      return source;
-  }
-}
-
-function plural(singular: string, pluralForm: string, count: number): string {
-  return count === 1 ? singular : pluralForm;
-}
-
 function formatDate(iso: string): string {
-  if (/^\d{4}-\d{2}-\d{2}/.test(iso)) return iso.slice(0, 10);
-  return iso;
+  return /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(0, 10) : iso;
 }
-
-function computeVersionColumnWidth(items: LeanChangelogEntry[]): number {
-  let width = 0;
-  for (const item of items) {
-    const label = item.version ?? "(unversioned)";
-    if (label.length > width) width = label.length;
-  }
-  return width;
-}
-
-function padColumn(text: string, width: number): string {
-  const visible = stripAnsi(text);
-  if (visible.length >= width) return text;
-  return text + " ".repeat(width - visible.length);
-}
-
-const ESC = String.fromCharCode(0x1b);
-const ANSI_SGR_PATTERN = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
-
-function stripAnsi(text: string): string {
-  return text.replace(ANSI_SGR_PATTERN, "");
-}
-
 function noteSourceLabel(source?: string): string {
   if (source === "releases") return "Release notes";
   if (source === "changelog_file") return "Changelog";
   if (source === "hexdocs") return "HexDocs";
   if (source === "registry_release_notes") return "Registry notes";
-  return source ? safeRiskText(source) : "Notes";
+  return source ? sanitizeTerminalText(source) : "Notes";
 }

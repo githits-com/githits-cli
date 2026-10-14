@@ -286,7 +286,7 @@ describe("classified statement views", () => {
     ] as const) {
       it(`maps ${changes} to backend tiers for ${target}`, () => {
         const result = buildPackageChangelogParams({ target, changes });
-        expect(result.params.riskTiers).toEqual(
+        expect(result.params.statementTiers).toEqual(
           expected ? [...expected] : undefined,
         );
         expect(result.changes).toBe(changes);
@@ -301,23 +301,38 @@ describe("classified statement views", () => {
         changes,
       });
       expect(result.changes).toBe("all");
-      expect(result.params.riskTiers).toBeUndefined();
+      expect(result.params.statementTiers).toBeUndefined();
       expect(result.explicitFilterFields.has("changes")).toBe(false);
     }
   });
   it("ignores the changes knob entirely for timeline-only requests", () => {
     const result = buildPackageChangelogParams({
       target: "npm:express",
-      includeBodies: false,
+      view: "timeline",
       changes: "unknown",
     });
     expect(result.changes).toBeUndefined();
-    expect(result.params.riskTiers).toBeUndefined();
+    expect(result.params.statementTiers).toBeUndefined();
     expect(result.explicitFilterFields.has("changes")).toBe(false);
   });
   it("rejects unknown active views locally", () => {
     expect(() =>
       buildPackageChangelogParams({ target: "npm:express", changes: "safe" }),
     ).toThrow("changes must be actionable");
+  });
+});
+
+describe("view resolution", () => {
+  it("ignores changes for both raw notes and timeline", () => {
+    for (const view of ["verbatim", "timeline"] as const) {
+      const result = buildPackageChangelogParams({
+        target: "npm:express",
+        view,
+        changes: "ignored",
+      });
+      expect(result.changes).toBeUndefined();
+      expect(result.params.statementTiers).toBeUndefined();
+      expect(result.explicitFilterFields.has("changes")).toBe(false);
+    }
   });
 });

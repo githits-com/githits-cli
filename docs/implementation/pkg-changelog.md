@@ -1,154 +1,186 @@
 # Package changelog evidence
 
-`pkg changelog` and MCP `pkg_changelog` show release-note previews alongside
-agent-classified statements. They answer what shipped in selected releases;
-upgrade review additionally compares security and dependencies between versions.
-Statements and their source links are the evidence. Classification does not
-establish an application's compatibility or assign a package-level risk.
+`pkg changelog` and MCP `pkg_changelog` show every parsed release-note statement
+in source order, with available agent classifications. Raw notes are a separate
+view, avoiding duplicate previews. Statements and source links are the evidence;
+classifications never assign a package-level verdict. Upgrade review additionally
+compares security and dependencies between installed and target versions.
 
 ## Selection and views
 
-Existing package targets remain unchanged: latest `registry:name`, exact
-`registry:name@version`, or range `registry:name@from..to`. The lower bound is
-excluded and the upper bound included. Latest uses a 1–50 entry limit; ranges
-return all selected entries. Exact uses the backend-selected release, including
-prereleases, without inventing a prior version.
+Targets remain latest `registry:name`, exact `registry:name@version`, or range
+`registry:name@from..to`. The lower bound is excluded, the upper included. Latest
+uses a 1-50 entry limit (default 10); ranges return all selected entries. Exact
+uses the backend-selected release, including prereleases, without inventing a
+previous version. Statement joins use raw `entry.version`, not normalizedVersion.
 
-Default output retains the first ten logical lines of each note body and adds
-classified statements grouped under that release's raw `version`. The normalized
-version is available in JSON but is not the statement join key. Per-version
-sections separate confident action from possible action, should-know statements
-and statements too long to classify. A missing kind still retains its tier.
-Uncertainty comes only from the backend `ambiguous` boolean; confidence numbers
-are evidence, never a client policy. Labels remain understandable without color.
-
-| CLI `--changes` / MCP `changes` | Statements returned |
+| CLI / MCP | View |
 | --- | --- |
-| `all` (default) | Actionable, should know and too-long statements |
-| `actionable` | MUST_ACT, including visibly uncertain MUST_ACT |
-| `important` | MUST_ACT and SHOULD_KNOW, including uncertain items |
+| Default | All parsed statements, including NO_IMPACT, oversize and unassessed |
+| `--changes actionable` / `changes: "actionable"` | MUST_ACT, including visibly uncertain items |
+| `--changes important` / `changes: "important"` | MUST_ACT and SHOULD_KNOW, including uncertain items |
+| `--changes all` / `changes: "all"` | Default complete view |
+| `--verbatim` / `verbatim: true` | Full original notes instead of statements; no classification work |
+| `--verbose` / `verbose: true` | Deprecated alias for verbatim in text and JSON |
+| `--no-body` / `omit_bodies: true` | Version/date/URL timeline; no bodies, parsing or classification |
 
-The backend filters before its 50-item cap. Filtering does not filter release
-entries or their note previews. A filter therefore retains context and may still
-show other changes in the original notes. Empty optional agent strings mean
-`all`; unknown active values fail before service access.
+Empty optional filter strings mean all. Unknown active filters fail before
+service access. `changes` is ignored, including validation and envelope echo,
+outside statement mode. Timeline and an explicit original-note flag conflict
+before service access. Explicit false alone preserves the default view.
 
-`--no-body` / `omit_bodies:true` preserves the version/date/link timeline and
-skips both bodies and classification. `changes` is ignored, including validation
-and echo, in that mode. MCP text `verbose:true` keeps its existing override:
-notes and classifications are enabled even when `omit_bodies:true`. CLI still
-rejects `--no-body` combined with `--verbose`. JSON honors omission despite
-verbose because verbose is text-only.
+MCP `body_lines` remains a deprecated text-only original-note preview request
+and line cap (1-50). It selects that legacy view even with `verbatim:false`;
+`verbatim:true`/`verbose:true` show full notes and ignore its cap. Timeline wins
+over `body_lines` alone. JSON ignores this text-only knob. There is no separate
+verbose classification-detail mode or implicit default note preview.
 
-Verbose expands note bodies and locally abbreviated quotes, plus headings and
-confidence evidence. Text uses the backend-bounded `text`; a backend cut is
-explicitly marked and the complete `fullText` is available in JSON. No-impact
-statements appear only as a count. Model and formulation stay per-item JSON
-provenance, allowing stored labels from different classifier revisions.
+## Evidence, coverage and sources
 
-## Coverage and locators
+Each bullet identifies its tier, any kind, and uncertainty. NO_IMPACT reads
+`[no impact identified]`, a model statement assessment rather than a guarantee.
+A null classification reads `[not assessed]`; UNCLASSIFIED means only too large
+to classify. A missing kind retains its tier. Uncertainty comes only from the
+backend `ambiguous` boolean, never a client confidence threshold. Model and
+formulation can differ per item and remain machine-readable provenance.
 
-The summary uses backend counts before filtering and capping, never counts of
-returned quotes. Confident and uncertain counts remain separate. Version
-coverage and no-impact counts likewise cover all selected releases. Only
-`itemsOmitted` describes the selected filter: matching statements cut by the cap.
-The text labels those scopes explicitly.
+The backend owns parsing, headings, source order and conservative alternate-source
+restatement suppression. The client preserves nested wording/code and predecessor
+`context` when suppression would otherwise remove needed context. It performs
+no extraction, local deduplication or generated summarization. Text shows the
+bounded backend `text` without additional local excerpt limits; backend cuts
+are marked. JSON includes uncut statement/context fullText.
 
-Pending versions may still be running or their job may have failed; rerun in a
-few seconds to a minute to read completed stored labels. Current backend jobs
-share a six-second wait budget and allow at most ten classification batches;
-there is no twenty-version ceiling. Missing notes and unparseable statements
-are never evidence of no risk. Empty selections and exact releases without
-notes remain successful.
+Source URLs appear once at each release/source block, close to their statements.
+Embedded Markdown links retain their inline URLs. There is no response-wide
+Sources table or invented locator. Missing URLs are stated. Entry-level htmlUrl
+is a fallback for releases with no displayed statements, not proof of every
+statement's source. Terminal controls are removed from all untrusted text at
+presentation; JSON preserves evidence with lowercase enum spelling and the
+existing absent-null convention, except classification:null is preserved.
 
-Each item uses its own backend `url`, including alternate note sources. Version
-headings collect available note locators and the Sources table lists URLs once.
-Timeline-level `source` describes the aggregate and cannot identify every
-entry's source. Use an item's matching URL/source or exact-release source when
-available; otherwise label an entry link generically as Notes. Do not invent
-links or infer sources from URL patterns. The original markdown previews remain
-available and may themselves contain links. Changelog formatter references use
-`[S1]` to stay distinct from note-authored numbered Markdown references; notes
-retain their original links. Only rendered headers, quotes and verbose details
-admit Sources entries; hidden quote-tail links cannot be admitted by matching
-numbers in notes or relative Markdown links. JSON retains original Markdown.
+Coverage names classified/not-assessed versions, versions without notes and
+versions without parsed statements. Missing notes never establish no risk.
+Filtered text explicitly reports pending and oversize statements excluded by
+the filter, including zero matches. Coverage in JSON includes every selected
+release, regardless of filtering. Pending may mean a background job is still
+running, failed or exceeded the request budget; rerun in a few seconds to a
+minute to read completed stored labels. No client polling or automatic reruns.
 
-Terminal sanitation runs at presentation only, on notes, quotes, headings,
-versions and locators. JSON retains raw evidence with the established lowercase
-enum and absent-null conventions.
+## Transport, pagination and ownership
 
-## Transport and envelope
+Backend #3228 exposes `statements(first, offset, tiers)` on PackageChangelogResult
+and PackageVersionChangelog, in dev and production. Its 100-item maximum page
+size replaces the old risk-only 50-item cap for changelog views. Filters apply
+before pagination. The upgrade-review risk API remains unchanged.
 
-Backend #3204 added `riskItems` and `riskCoverage` to `PackageChangelogResult`
-and `PackageVersionChangelog`, with optional `riskTiers` on `packageChangelog`
-and `selectedVersion.changelog`. Its production deployment was confirmed by the
-owner on 2026-10-13. Both surfaces reuse existing stored labels and alternate
-bodies. Risk computation is lazy when selected, and sibling fields share work.
+The core service retrieves every matching page. Original-note/timeline and up
+to 100 matching statements need one query; larger results need one query/page.
+Follow-up pages reuse the same release/range selector and omit first-page release
+metadata. No product-side second query is added for optional details.
 
-The client makes one query. Body and risk fields use `includeBodies` directives
-so timeline-only calls do not trigger classification. Compact text selects only
-consumed statement fields; verbose adds confidence/heading fields. JSON adds
-`fullText`, model and formulation. The shared risk schema keeps upgrade-review
-provenance required while permitting omitted compact changelog fields. Missing
-selected fields are protocol errors; there is no old-schema fallback.
+| Projection | Selected data |
+| --- | --- |
+| Statement text | First-page version/date/URL; every-page text, position/sourceIndex, heading/source/URL, context, tier/ambiguous/kind and page controls |
+| Statement JSON | Above plus normalizedVersion, sourcePosition, fullText/context fullText, confidences, model/formulation and aggregate source; no entry.body |
+| All statements | Coverage version/status/statementsTotal; assessment counts derived from collected answers |
+| Filtered statements | Full backend assessment coverage to detect shifting filtered offsets |
+| Original notes | Entry.body and timeline fields; JSON adds normalizedVersion/source; no statements/risk/provenance |
+| Timeline | Timeline fields only; JSON adds normalizedVersion/source; no bodies/statements/risk |
+| Follow-up page | Statement projection/controls/coverage only; no entries, source summary, dates, normalized versions or body |
 
-The existing envelope retains `registry`, `name`, optional `source`, `mode`,
-`entries: {count, items}` and explicit `filter`. When classification is selected,
-add top-level `riskItems` and `riskCoverage`. `filter.changes` echoes only an
-explicit, effective view. Timeline-only envelopes retain their earlier shape.
+Offsets address current evidence, not immutable snapshots. In all mode, arriving
+labels cannot shift parsed positions: compare parse coverage/totals, validate
+contiguous ordered positions and derive final assessment coverage from collected
+items. Some earlier items may still be null when later pages carry new answers;
+coverage honestly describes the returned evidence. Zero-unit note statuses remain
+authoritative. Filtered mode compares full coverage and matching counts; observable
+changes return a retryable rerun error because labels can shift filtered offsets.
+All modes validate forward offsets, page counts and nonduplicate ordered keys.
+Same-count source edits cannot reliably be detected; no snapshot guarantee.
 
-Core transport lives in `package-intelligence-service.ts`; shared request,
-envelope and per-tool formatter live under `packages/mcp/src/shared`.
-`changelog-risk-presentation.ts` owns the small statement presentation primitives
-also consumed by upgrade review. CLI and MCP handlers select modes and supply
-host-native note expansion hints.
+Core package-intelligence service owns transport/page validation. Shared request
+resolution, JSON shaping and the per-tool formatter live in packages/mcp/src/shared;
+CLI and MCP supply host-native expansion hints. The small kind-label vocabulary
+is shared with upgrade review, whose classification/provenance contract is retained.
 
-## Verified complexity
+## JSON compatibility
 
-Authenticated dev admission measurements on 2026-10-13: exact **56**, latest
-with 50 entries **65**, and range **90** for the maximal client JSON selections,
-below the 500 limit.
-A verified 510-cost control operation (51 fixed-cost packageVulnerabilities aliases)
-was added only to admission probes, which were rejected before resolvers;
-subtracting 510 from 566/575/600 gives the client costs. Product calls remain
-a single query. Runtime directives can still count statically.
+The envelope retains registry/name, optional source, mode, entries:{count,items}
+and explicit filter. Statement mode adds statements:{count,totalCount,matchingCount,
+items,coverage}; count equals items.length after all pages are collected. Entry
+version remains present (possibly null), hasChangelog is present for exact JSON.
+Default JSON no longer includes raw entry.body or deprecated top-level riskItems/
+riskCoverage. Callers needing original bodies use `--verbatim --json` or
+`verbatim:true,format:"json"`. Verbose now selects the same original-note JSON
+view; it is no longer a text-only expansion option. Both artifacts have minor
+pending impact during 0.x. Empty selections and exact releases without notes
+remain successful; actual missing packages/versions keep mapped errors.
 
-## Validation
+## Validation and measurements
 
-Unit coverage checks wire selections for each output mode, filter-before-cap
-variables, CLI/MCP parity, pending and empty coverage, missing notes, omitted and
-truncated statements, source attribution, raw-version joins, terminal sanitation
-and preserved JSON evidence. Shared helpers retain upgrade-review regressions.
-Source and built CLI/MCP smoke suites, build and typecheck passed.
+Verified on 2026-10-14 against dev, using normal CLI authentication. Maximal
+filtered JSON operations measured **85 exact / 88 latest-50 / 113 range**, below
+500. Admission-only probes add a separately verified 510-cost control (51 fixed
+packageVulnerabilities aliases); rejected totals595/598/623 minus510 give those
+costs. Resolvers do not execute the rejection probes. Text, unfiltered JSON and
+follow-up projections select fewer fields than these maxima.
 
-Authenticated dev CLI/local MCP checks on 2026-10-13 covered exact, latest and
-range targets, each filter, empty ranges, releases without notes and no-body
-timelines. Biome 2.4.2..2.4.15 returned 50 statements with 12 omitted for `all`,
-and 40 with none omitted for `actionable`. All-tier counts stayed unchanged.
-Express 5.0.0..5.2.1 had four classified versions and none pending; the warm
-request kept the same coverage. Stored labels covered multiple formulations.
-Cold pending coverage was tested with fixtures, not observed live.
+Built Node CLI and local stdio MCP matched text/JSON for exact/latest/range, all
+three filters, empty ranges, missing notes, original-note aliases and timelines.
+Observed selected evidence:
 
-The exact-release Codex agent workload with explicit GitHits intent used
-`quick_start` and `pkg_changelog` in default and verbose modes, with no isolation
-violations. Its answer preserved uncertainty and cited the rollback evidence.
-The neutral-intent run made no tool calls. These are inspected traces, not graded
-quality results.
+| Selection | Parsed / assessed | No impact identified | All pages | Actionable / important |
+| --- | --- | --- | --- | --- |
+| Express latest10 | 335 / 335 | 284 | 4 | Not measured |
+| Express4.20.0 exact | 40 / 40 | 32 | 1 | 6 / 8 |
+| Express4.18.2..5.1.0 | 271 / 271 | 228 | 3 | 30 / 43 |
+| Biome2.4.2..2.4.15 | 875 / 875 | 813 | 9 | 40 / 62 |
+
+No pending, oversize or unparseable units were observed in these live ranges.
+Missing-note is-even1.0.0 succeeded with one WITHOUT_NOTES version and zero units.
+Pending/oversize/unparseable and labels arriving between pages are tested with
+fixtures. Stored formulations included s-hier-v2, s-hier-v3 and s-hier-v5.
+
+These are complete-output size/timing observations, not a speedup benchmark.
+Old built preview+risk text versus new all-statements bytes:
+
+| Selection | Before bytes | After bytes | New built text time |
+| --- | --- | --- | --- |
+| Express latest10 | 20,039 | 56,782 | 3.061s |
+| Express4.20.0 | 2,501 | 6,439 | 1.481s |
+| Express4.18.2..5.1.0 | 16,861 | 40,562 | 3.062s |
+| Biome2.4.2..2.4.15 | 39,824 | 259,575 | 10.672s |
+
+Biome repeat took10.218s with identical output bytes; its JSON was772,829 bytes
+and took11.570s. Times include CLI startup/auth and all required page requests.
+Pages are100-unit backend pages (collection and selectors verified in wire tests),
+not model spend. The API does not reveal whether labels were initially stored;
+no cold-run claim. Complete all output is larger because it includes no-impact
+statements and uncapped source evidence; filters reduce the same Biome range to
+40 actionable or62 important statements in one page.
+
+Focused core/shared/CLI/MCP/parity/server/smoke, smoke-script and upgrade regression tests passed
+567 cases/2,855 assertions. Build and typecheck passed. Source unauthenticated
+CLI/MCP and built Node smoke modes validate registration/auth handling. Full live
+smoke harnesses could not use macOS keychain authentication under their isolated
+HOME (system-keychain-unavailable), without exporting credentials; the affected
+feature's live matrix above uses ordinary CLI/local stdio authentication instead.
+
+The descriptor-intent Codex exact-release workload used quick_start,
+pkg_changelog(default), pkg_vulns and pkg_changelog(verbatim:true), four logical
+calls in25.154s. Its answer cited the rollback and rejected-CVE evidence. Trace
+validation had zero isolation violations. This is an inspected trace, not a
+quality grade. No new package verdict was inferred from model labels.
 
 ## Release guidance staging
 
-Keep published `skills/githits-package` unchanged until this behavior is in its
-release branch, following `.agents/skills/githits-release/SKILL.md`. At release:
-
-- In SKILL.md, add an example `githits pkg changelog npm:express --changes important`.
-- Expand the changelog routing sentence: "Release-note previews include
-  agent-classified statements by default. Use `--changes actionable` for action
-  statements or `--changes important` for action plus should-know statements;
-  these filter classifications, not note previews. `--no-body` remains a compact
-  timeline and skips classification, so `--changes` is ignored there."
-- In references/package.md, add `--changes actionable|important|all` to changelog
-  flags and the same filtering/body-omission distinction. Retain range boundaries,
-  exact selection and upgrade-review routing. Do not add a package verdict.
-
-Run plugin generation/check and skill packaging tests when applying those
-canonical release edits. No generated plugin input changes in this feature PR.
+Published skills/githits-package stays unchanged until this behavior reaches its
+release branch, following .agents/skills/githits-release/SKILL.md. At release,
+update changelog examples/flags and routing to describe all parsed bullets with
+available classifications, `--changes actionable|important|all`, explicit
+`--verbatim` original notes and timeline `--no-body`. Verbose is a deprecated
+verbatim alias; changes is ignored outside statement mode. Raw bodies require
+verbatim even in JSON. Preserve exact/range boundaries and upgrade-review routing;
+never add a package verdict. Generate/check plugin assets and skill packaging
+when applying those canonical release edits.

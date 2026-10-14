@@ -822,19 +822,37 @@ export const cratesFeatureDependencyReport: DependencyReport = {
  * markdown, ISO date, and a normalisedVersion that equals the raw.
  */
 export const defaultChangelogReport: ChangelogReport = {
-  riskItems: [],
-  riskCoverage: {
-    versionsClassified: 2,
-    versionsNotAssessed: 0,
-    versionsWithoutNotes: 0,
-    versionsUnparseable: 0,
-    unitsNoImpact: 2,
-    itemsMustActConfident: 0,
-    itemsMustActAmbiguous: 0,
-    itemsShouldKnowConfident: 0,
-    itemsShouldKnowAmbiguous: 0,
-    itemsUnclassified: 0,
-    itemsOmitted: 0,
+  statements: {
+    totalCount: 2,
+    matchingCount: 2,
+    items: ["5.2.1", "5.2.0"].map((version, index) => ({
+      version,
+      position: 0,
+      sourceIndex: 0,
+      sourcePosition: 0,
+      text: index === 0 ? "- fixed a thing" : "- added WebSocket support",
+      fullText: index === 0 ? "- fixed a thing" : "- added WebSocket support",
+      textTruncated: false,
+      heading: index === 0 ? "Patch" : "Minor",
+      source: "RELEASES",
+      url: `https://github.com/expressjs/express/releases/tag/${version}`,
+      classification: {
+        tier: "NO_IMPACT",
+        ambiguous: false,
+        tierConfidence: 0.9,
+        model: "jev-1.13.0",
+        formulation: "s-hier-v5",
+      },
+    })),
+    coverage: ["5.2.1", "5.2.0"].map((version) => ({
+      version,
+      status: "CLASSIFIED",
+      statementsTotal: 1,
+      statementsAssessed: 1,
+      statementsNotAssessed: 0,
+      statementsNoImpact: 1,
+      statementsUnclassified: 0,
+    })),
   },
   package: {
     name: "express",

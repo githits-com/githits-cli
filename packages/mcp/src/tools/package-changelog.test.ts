@@ -43,7 +43,7 @@ describe("createPackageChangelogTool — metadata", () => {
       "Set `json` only when code consumes",
     );
     expect(tool.schema.verbose?.description).toContain(
-      "overriding body_lines and omit_bodies:true",
+      "cannot combine with omit_bodies:true",
     );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "body_lines",
@@ -52,6 +52,7 @@ describe("createPackageChangelogTool — metadata", () => {
       "limit",
       "omit_bodies",
       "target",
+      "verbatim",
       "verbose",
     ]);
     expect(tool.annotations?.readOnlyHint).toBe(true);
@@ -121,37 +122,9 @@ describe("createPackageChangelogTool — happy path", () => {
     const result = await tool.handler({ target: "npm:express" }, {});
     expect(result.isError).toBeUndefined();
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("express | npm");
-    expect(text).toContain("2 entries");
+    expect(text).toContain("npm:express");
+    expect(text).toContain("2 releases");
     expect(() => JSON.parse(text)).toThrow();
-  });
-
-  it("uses MCP-native hint when compact changelog text truncates bodies", async () => {
-    const tool = createPackageChangelogTool(
-      createMockPackageIntelligenceService({
-        packageChangelog: mock(() =>
-          Promise.resolve({
-            ...defaultChangelogReport,
-            entries: [
-              {
-                ...defaultChangelogReport.entries[0]!,
-                body: Array.from(
-                  { length: 12 },
-                  (_, i) => `line ${i + 1}`,
-                ).join("\n"),
-              },
-            ],
-          }),
-        ),
-      }),
-    );
-
-    const result = await tool.handler({ target: "npm:express" }, {});
-    const text = result.content[0]?.text ?? "";
-    expect(text).toContain(
-      'pass verbose=true, body_lines=<n>, or format="json"',
-    );
-    expect(text).not.toContain("--verbose");
   });
 
   it("uses body_lines to cap MCP text previews", async () => {
@@ -202,7 +175,7 @@ describe("createPackageChangelogTool — happy path", () => {
       const tool = createPackageChangelogTool(
         createMockPackageIntelligenceService({ packageChangelog }),
       );
-      for (const omit_bodies of [undefined, false, true]) {
+      for (const omit_bodies of [undefined, false]) {
         const result = await tool.handler(
           { target: "npm:express", verbose: true, body_lines, omit_bodies },
           {},
@@ -213,9 +186,9 @@ describe("createPackageChangelogTool — happy path", () => {
         expect(text).not.toContain("more line");
       }
       for (const [params] of packageChangelog.mock.calls as unknown as Array<
-        [{ includeBodies: boolean }]
+        [{ view: string }]
       >) {
-        expect(params.includeBodies).toBe(true);
+        expect(params.view).toBe("verbatim");
       }
     },
   );
@@ -254,7 +227,7 @@ describe("createPackageChangelogTool — happy path", () => {
     );
     expect(result.isError).toBeUndefined();
     expect(packageChangelog).toHaveBeenCalledWith(
-      expect.objectContaining({ includeBodies: false }),
+      expect.objectContaining({ view: "timeline" }),
     );
     expect(result.content[0]?.text).not.toContain(
       defaultChangelogReport.entries[0]!.body!,
@@ -362,7 +335,7 @@ describe("createPackageChangelogTool — happy path", () => {
     expect(payload.filter?.toVersion).toBe("5.2.1");
   });
 
-  it.each([undefined, false, true])(
+  it.each([undefined, false])(
     "JSON omission is preserved with verbose=%s",
     async (verbose) => {
       const packageChangelog = mock(() =>
@@ -385,7 +358,7 @@ describe("createPackageChangelogTool — happy path", () => {
         entries: { items: Array<{ body?: string }> };
       };
       expect(packageChangelog).toHaveBeenCalledWith(
-        expect.objectContaining({ includeBodies: false }),
+        expect.objectContaining({ view: "timeline" }),
       );
       for (const item of payload.entries.items) {
         expect(item.body).toBeUndefined();
@@ -406,14 +379,13 @@ describe("createPackageChangelogTool — happy path", () => {
         target: "npm:express",
         format: "json",
         body_lines: 3,
-        verbose: true,
       },
       {},
     );
     expect(parseText(withTextControls)).toEqual(parseText(baseline));
   });
 
-  it("keeps body fields by default", async () => {
+  it("omits body fields by default", async () => {
     const tool = createPackageChangelogTool(
       createMockPackageIntelligenceService(),
     );
@@ -424,7 +396,7 @@ describe("createPackageChangelogTool — happy path", () => {
     const payload = parseText(result) as {
       entries: { items: Array<{ body?: string }> };
     };
-    expect(payload.entries.items[0]?.body).toBeTruthy();
+    expect(payload.entries.items[0]?.body).toBeUndefined();
   });
 });
 
@@ -627,53 +599,73 @@ describe("createPackageChangelogTool — service errors", () => {
   });
 });
 
-describe("changelog classification omission and verbose controls", () => {
-  it("text verbose overrides omission and activates changes", async () => {
-    const packageChangelog = mock(() =>
-      Promise.resolve(defaultChangelogReport),
-    );
+describe("changelog view precedence", () => {
+  for (const format of ["text", "json"] as const) {
+    for (const alias of ["verbatim", "verbose"] as const) {
+      it(`${alias} selects full original notes for ${format}, ignoring filter/cap`, async () => {
+        const fn = mock(() => Promise.resolve(defaultChangelogReport));
+        const tool = createPackageChangelogTool(
+          createMockPackageIntelligenceService({ packageChangelog: fn }),
+        );
+        const result = await tool.handler(
+          {
+            target: "npm:express",
+            [alias]: true,
+            changes: "ignored",
+            body_lines: 0,
+            format,
+          },
+          {},
+        );
+        expect(result.isError).toBeUndefined();
+        expect(fn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            view: "verbatim",
+            statementTiers: undefined,
+          }),
+        );
+        expect(result.content[0]?.text).toContain("fixed a thing");
+        expect(result.content[0]?.text).not.toContain("no impact identified");
+      });
+      it(`${alias} conflicts with omission in ${format} before service access`, async () => {
+        const fn = mock(() => Promise.resolve(defaultChangelogReport));
+        const result = await createPackageChangelogTool(
+          createMockPackageIntelligenceService({ packageChangelog: fn }),
+        ).handler(
+          { target: "npm:express", [alias]: true, omit_bodies: true, format },
+          {},
+        );
+        expect(result.isError).toBe(true);
+        expect(fn).not.toHaveBeenCalled();
+      });
+    }
+  }
+  it("explicit false allows an explicit legacy preview request", async () => {
+    const fn = mock(() => Promise.resolve(defaultChangelogReport));
     const tool = createPackageChangelogTool(
-      createMockPackageIntelligenceService({ packageChangelog }),
-    );
-    await tool.handler(
-      {
-        target: "npm:express",
-        omit_bodies: true,
-        verbose: true,
-        changes: "important",
-      },
-      {},
-    );
-    expect(packageChangelog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        includeBodies: true,
-        riskTiers: ["MUST_ACT", "SHOULD_KNOW"],
-        includeRiskDetails: true,
-        includeRiskJsonFields: false,
-      }),
-    );
-  });
-  it("JSON honors omission despite verbose and ignores invalid changes", async () => {
-    const packageChangelog = mock(() =>
-      Promise.resolve(defaultChangelogReport),
-    );
-    const tool = createPackageChangelogTool(
-      createMockPackageIntelligenceService({ packageChangelog }),
+      createMockPackageIntelligenceService({ packageChangelog: fn }),
     );
     const result = await tool.handler(
-      {
-        target: "npm:express",
-        omit_bodies: true,
-        verbose: true,
-        changes: "invalid",
-        format: "json",
-      },
+      { target: "npm:express", verbatim: false, body_lines: 1 },
       {},
     );
-    expect(result.isError).toBeUndefined();
-    expect(JSON.parse(result.content[0]!.text)).not.toHaveProperty("riskItems");
-    expect(packageChangelog).toHaveBeenCalledWith(
-      expect.objectContaining({ includeBodies: false, riskTiers: undefined }),
+    expect(fn).toHaveBeenCalledWith(
+      expect.objectContaining({ view: "verbatim" }),
     );
+    expect(result.content[0]?.text).toContain("pass verbatim=true");
+    expect(result.content[0]?.text).not.toContain("--verbatim");
+  });
+  it("uses MCP-native full-statement hint for backend cuts", async () => {
+    const report = structuredClone(defaultChangelogReport);
+    report.statements!.items[0]!.textTruncated = true;
+    const result = await createPackageChangelogTool(
+      createMockPackageIntelligenceService({
+        packageChangelog: mock(() => Promise.resolve(report)),
+      }),
+    ).handler({ target: "npm:express" }, {});
+    expect(result.content[0]?.text).toContain(
+      'pass format="json" for full text',
+    );
+    expect(result.content[0]?.text).not.toContain("--json");
   });
 });

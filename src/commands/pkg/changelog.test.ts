@@ -19,10 +19,10 @@ describe("pkg changelog help", () => {
     const command = registerPkgChangelogCommand(new Command().command("pkg"));
     const help = command.helpInformation().replace(/\s+/g, " ");
 
-    expect(help).toContain("up to ten latest-mode entries");
+    expect(help).toContain("all parsed release-note statements");
     expect(help).toContain("--changes <view>");
     expect(help).toContain("important (actionable + should know)");
-    expect(help).toContain("ignored with --no-body");
+    expect(help).toContain("ignored with --verbatim and --no-body");
     expect(help).toContain("Package-only");
     expect(help).toContain("Exclusive start of version range");
     expect(help).toContain("Inclusive end of range / latest-mode cap");
@@ -65,66 +65,14 @@ describe("pkgChangelogAction", () => {
     await pkgChangelogAction("npm:express", {}, createDeps());
 
     const combined = writes.join("");
-    expect(combined).toContain("express | npm");
-    expect(combined).toContain("source: GitHub Releases");
-    expect(combined).toContain("2 entries");
+    expect(combined).toContain("npm:express");
+    expect(combined).toContain("Changes (classified by agent)");
+    expect(combined).toContain("2 releases");
     expect(combined).toContain("5.2.1");
-    // Default now shows bodies (capped at 10 lines). Fixture bodies
-    // are well under the cap, so full content appears without the
-    // "... more lines" footer.
-    expect(combined).toContain("## Patch");
-    expect(combined).toContain("- fixed a thing");
+    // The default retains statement wording without raw note duplication.
+    expect(combined).not.toContain("## Patch");
+    expect(combined).toContain("[no impact identified] fixed a thing");
     expect(combined).not.toContain("use --verbose");
-    writeSpy.mockRestore();
-  });
-
-  it("renders the truncation footer when a body exceeds the default cap", async () => {
-    const writes: string[] = [];
-    const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
-      chunk: string | Uint8Array,
-    ) => {
-      writes.push(
-        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
-      );
-      return true;
-    }) as typeof process.stdout.write);
-
-    // Service returns a single entry with 25 body lines — exceeds
-    // the 10-line default cap. Expect the first 10 lines + a footer.
-    const longBody = Array.from({ length: 25 }, (_, i) => `line ${i + 1}`).join(
-      "\n",
-    );
-    const longReport = {
-      package: { name: "big-pkg", registry: "npm", limit: 10 },
-      source: "releases",
-      entries: [
-        {
-          version: "1.0.0",
-          normalizedVersion: "1.0.0",
-          publishedAt: "2026-01-01T00:00:00Z",
-          htmlUrl: "https://example.com",
-          body: longBody,
-        },
-      ],
-    };
-    await pkgChangelogAction(
-      "npm:big-pkg",
-      {},
-      createDeps({
-        packageIntelligenceService: createMockPackageIntelligenceService({
-          packageChangelog: mock(() => Promise.resolve(longReport)),
-        }),
-      }),
-    );
-
-    const combined = writes.join("");
-    expect(combined).toContain("line 1");
-    expect(combined).toContain("line 10");
-    expect(combined).not.toContain("line 11");
-    expect(combined).toContain("+15 more lines");
-    expect(combined).toContain(
-      "... (+15 more lines - use --verbose for the full body)",
-    );
     writeSpy.mockRestore();
   });
 
@@ -187,7 +135,8 @@ describe("pkgChangelogAction", () => {
     expect(payload.source).toBe("releases");
     expect(payload.mode).toBe("latest");
     expect(payload.entries.count).toBe(2);
-    expect(payload.entries.items[0].body).toBe("## Patch\n- fixed a thing");
+    expect(payload.entries.items[0].body).toBeUndefined();
+    expect(payload.statements.items[0].fullText).toBe("- fixed a thing");
     logSpy.mockRestore();
   });
 
@@ -386,7 +335,7 @@ describe("pkgChangelogAction", () => {
     const msg = errorSpy.mock.calls[0]?.[0] as string;
     expect(msg).toContain("--no-body");
     expect(msg).toContain("--verbose");
-    expect(msg).toContain("uncaps");
+    expect(msg).toContain("cannot be combined");
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
@@ -437,7 +386,7 @@ describe("pkgChangelogAction", () => {
     );
 
     const combined = writes.join("");
-    expect(combined).toContain("No entries in this range.");
+    expect(combined).toContain("No releases in this selection.");
     writeSpy.mockRestore();
   });
 

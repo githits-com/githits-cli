@@ -55,7 +55,7 @@ envelope when `--json` is requested; terminal output remains human-readable.
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--transitive`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift), optionally including affected versions resolved in its dependency graph |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--depth`, `--issues`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional capped transitive graph, and opt-in dependency issue analysis (npm/pypi/hex/crates/nuget/maven/zig/vcpkg/packagist/rubygems/go/swift) |
-| `pkg changelog <spec>` | package spec (`registry:name[@version\|@from..to]`) | `--from`, `--to`, `--limit`, `--changes`, `--no-body`, `--verbose`, `--json` | Release-note previews and classified statements. Pin a version for one release; `--changes` filters statements, `--verbose` expands notes, `--no-body` skips notes and classification. |
+| `pkg changelog <spec>` | package spec (`registry:name[@version\|@from..to]`) | `--from`, `--to`, `--limit`, `--changes`, `--no-body`, `--verbatim`, `--verbose`, `--json` | All parsed statements with available classifications. `--changes` filters; `--verbatim` shows original notes instead, `--verbose` is its deprecated alias; `--no-body` shows only the timeline. |
 | `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for upgrade evidence: vulnerabilities, release-note quotes grouped by version, agent classification, sources and coverage, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. Reports evidence without a package verdict. |
 | `docs list <spec>` *(legacy compatibility)* | package spec (optional `@version`) | `--limit`, `--after`, `--verbose`, `--json` | Help points hosted-site browsing to `githits list site:<host[/path]>` and package-local docs to the package target. Existing execution remains unchanged: text emits target-based read commands; JSON retains `docsReadTarget`, stable `pageId`, provenance `sourceUrl`, and exact repo-file metadata when available. |
 | `list <target> [paths...]` | package, repository, or `site:<host[/path]>` target; optional literal paths/globs | `-R, --recursive`, `-s, --silent`, repeatable `--file-type`, `--language`, `--intent`, `--limit`, `--after`, `--wait`, `--json` | List one package/repository source inventory, including package-local documentation files, or one explicitly targeted hosted site. Text is one path per line with `/` on directories; the header reuses backend-authored read targets for follow-up, while `--silent` emits only paths for piping. JSON carries exact actions, cursors, and metadata. |
@@ -721,42 +721,33 @@ Compact issue evidence also stays within the resolved terminal width, using ASCI
 
 ### `githits pkg changelog`
 
-```
-githits pkg changelog npm:express
-githits pkg changelog npm:express@5.2.1
-githits pkg changelog npm:express@4.0.0..5.2.1
+```bash
+githits pkg changelog npm:express                       # all parsed statements
+githits pkg changelog npm:express@5.2.1                 # one selected release
+githits pkg changelog npm:express@4.0.0..5.2.1           # start excluded, end included
 githits pkg changelog npm:express --from 4.0.0
 githits pkg changelog npm:express --to 4.18.0 --limit 5
-githits pkg changelog npm:express --changes important
-githits pkg changelog npm:express --json
-githits pkg changelog pypi:requests --no-body --json       # lean timeline
+githits pkg changelog npm:express --changes important   # action + should know
+githits pkg changelog npm:express --changes actionable
+githits pkg changelog npm:express --verbatim             # full original notes
+githits pkg changelog npm:express --verbatim --json      # original bodies in JSON
+githits pkg changelog npm:express --json                 # full statement evidence
+githits pkg changelog pypi:requests --no-body --json      # lean timeline
 ```
 
-Fetches release notes or changelog entries for a package. Output preserves source ordering, which may interleave maintained release lines, and includes a summary header identifying the source.
+Default output shows all parsed statements with available agent classifications,
+including no-impact and unassessed units; no original-note previews. Source links
+appear beside each release/source group. `--changes actionable|important|all`
+filters statements before pagination; all is default. Every matching page is
+retrieved. Pending and missing-note coverage stays visible; no package verdict.
 
-**Addressing.** Required `<spec>` in `registry:name`, `registry:name@version`, or `registry:name@from..to` form. Repository and site targets are rejected.
-
-**Exact selected release.** `<spec>@<version>` selects one backend-resolved release, including prereleases. Missing concrete versions return `VERSION_NOT_FOUND`. A selected release without notes succeeds and says release notes are unavailable.
-
-**Three modes.** Latest mode is the default; `--limit <n>` (1–50, default 10) caps entry count. `--from <version>` or an inline from bound switches to range mode — returns every entry after the from bound through `--to` (or latest), `(from, to]`, with no count cap. An upper-cap target or `--to` remains latest mode. `--from` + `--limit` together is rejected client-side with a hint. Inline exact pins reject `--from`, `--to`, and `--limit`.
-
-**Pre-release versions.** Normalised versions flow through unchanged (`5.0.0-rc.1`, `2.32.0.dev0`, `1.7.0-rc.5`). Tag-style `v`-prefixed inputs are rejected except for Go canonicalisation and Swift.
-
-**Default terminal output.** Summary header (`name | registry | source | mode | entry count`), one classification summary/coverage block, then each entry's `version  date  source references` header plus the first 10 lines of its markdown body, indented and dimmed. Bodies longer than the cap show a footer `... (+N more lines - use --verbose for the full body)`. Missing dates render as `-`; missing versions render as `(unversioned)`. Exact mode labels the resolved release, not the requested selector. Classified statements follow each preview, with kind labels and uncertain items separated from confident action statements. Source references resolve once below the entries. Exact no-notes results say `Release notes are unavailable.`
-
-**`--verbose`.** Uncaps the body preview — every entry's full markdown body renders, indented and dimmed, with no truncation footer. Terminal-only — does not change `--json` output.
-
-**`--changes <view>`.** Selects classified statements: `all` (default), `actionable` (MUST_ACT including uncertain items), or `important` (MUST_ACT plus SHOULD_KNOW). Backend filtering precedes the 50-item cap; note previews and all-tier coverage totals remain unchanged. See [changelog evidence](pkg-changelog.md) for uncertainty, coverage and source semantics.
-
-**`--no-body`.** Drops body fields from entries and skips classification. `--changes` is ignored in this mode, including validation and filter echo. Affects both terminal output (no body preview, no footer) and `--json` (entry objects lose the `body` field). Mirrors MCP's `omit_bodies: true`. Default `--json` keeps full markdown bodies; use `--no-body` when you only need the version / date / URL timeline.
-
-**JSON envelope.** `{registry?, name?, source?, mode, entries: {count, items}, riskItems?, riskCoverage?, filter?}`. Classification fields are present unless bodies are omitted; JSON includes complete statement text and per-item provenance. `source` is omitted when the backend returned no concrete source. `entries.count` is computed client-side from `items.length`. `filter` emits only when the caller explicitly supplied one of `--from`, `--to`, `--limit`, an effective `--changes`, or an exact version selector; backend defaults don't round-trip as caller intent. Exact mode adds `filter.version` and `hasChangelog` on the single entry.
-
-**Per-entry shape.** `{version, normalizedVersion?, publishedAt?, htmlUrl?, body?, hasChangelog?}`. `version` is kept even when null so agents can map `items.map(e => e.version)` without guarding; other nullable fields are stripped. `hasChangelog` is exact-mode only.
-
-**Errors.** `NOT_FOUND` covers a missing package. Empty timeline selections and exact releases without notes are successful. `VERSION_NOT_FOUND` enriches with structured `package` / `requested` / `available` detail lines.
-
-**Troubleshooting.** Same debug areas as the rest of the `pkg` family.
+`--verbatim` shows full original notes instead, skipping classification.
+`--verbose` is a deprecated alias in text and JSON. `--no-body` skips parsing,
+notes and classification and cannot combine with either original-note flag.
+`--changes` is ignored outside statement mode. Default JSON omits raw bodies and
+carries statements with uncut text and per-item provenance; use `--verbatim --json`
+for original bodies. See [changelog evidence](pkg-changelog.md) for coverage,
+projection, paging and compatibility details.
 
 ### `githits pkg upgrade-review`
 

@@ -585,6 +585,7 @@ describe("MCP compact target schemas", () => {
         "limit",
         "omit_bodies",
         "target",
+        "verbatim",
         "verbose",
       ],
     ],
