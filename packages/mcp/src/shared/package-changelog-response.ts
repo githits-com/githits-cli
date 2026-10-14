@@ -261,7 +261,7 @@ export function formatPackageChangelogTerminal(
       )
     )
       prose(
-        "! requires action | i should know | plain: no impact identified",
+        "! requires action | kind tags: should know | plain: no impact identified",
         "  ",
       );
     const pending = c.reduce((sum, v) => sum + v.statementsNotAssessed, 0);
@@ -351,12 +351,10 @@ export function formatPackageChangelogTerminal(
       }
       const classification = item.classification;
       const tier = classification?.tier;
-      const marker =
-        tier === "must_act" ? "!" : tier === "should_know" ? "i" : undefined;
       const kind = classification?.kind
         ? RISK_KIND_LABELS[classification.kind as keyof typeof RISK_KIND_LABELS]
         : undefined;
-      const label =
+      const annotation =
         tier === "no_impact"
           ? undefined
           : tier === "unclassified"
@@ -364,9 +362,10 @@ export function formatPackageChangelogTerminal(
             : !classification
               ? "[not assessed]"
               : kind
-                ? `[${kind}]`
-                : undefined;
-      const annotation = [marker, label].filter(Boolean).join(" ");
+                ? `[${tier === "must_act" ? "!" : ""}${kind}]`
+                : tier === "must_act"
+                  ? "[!]"
+                  : "[should know]";
       const start = lines.length;
       renderStatementText(
         lines,
@@ -375,7 +374,7 @@ export function formatPackageChangelogTerminal(
         width,
       );
       // Style only the trusted prefix after sanitation and wrapping. Missing
-      // kinds leave the marker intact; an empty annotation cannot style a quote.
+      // kinds retain explicit tier meaning; plain bullets cannot style a quote.
       if (annotation && lines[start]?.startsWith(`    * ${annotation}`)) {
         const styled =
           classification?.ambiguous || !classification

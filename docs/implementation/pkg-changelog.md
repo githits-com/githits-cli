@@ -37,11 +37,11 @@ verbose classification-detail mode or implicit default note preview.
 
 ## Evidence, coverage and sources
 
-Known impact kinds use compact tags such as `[behavior]` or `[deprecation]`.
-`!` marks MUST_ACT and `i` marks SHOULD_KNOW, with a short legend shown once
-when assessed impact or no-impact statements occur. The legend also explains
-plain bullets as no impact identified. Markers keep meaning visible without color and survive a
-missing kind; red/yellow highlighting is optional. NO_IMPACT uses plain bullets.
+Action kinds use compact tags such as `[!behavior]`; should-know kinds use
+`[deprecation]` or `[security fix]`. Action without a kind uses `[!]`, and
+should-know without a kind uses `[should know]`. One short legend explains
+these tags and plain no-impact bullets. Red/yellow highlighting is optional;
+the action marker keeps meaning visible without color. NO_IMPACT stays untagged.
 Uncertain statements retain `(uncertain)` with muted highlighting, based only on
 the backend `ambiguous` boolean; confidence values remain JSON evidence.
 Unassessed statements retain `[not assessed]`; oversize UNCLASSIFIED statements
@@ -186,7 +186,7 @@ calls in25.154s. Its answer cited the rollback and rejected-CVE evidence. Trace
 validation had zero isolation violations. This is an inspected trace, not a
 quality grade. No new package verdict was inferred from model labels.
 
-The compact-label follow-up uses kind-only tags, !/i tier markers and one legend
+The compact-label follow-up uses kind tags with bracketed action markers and one legend
 (including plain-bullet meaning); no-impact statements stay untagged. Its focused
 formatter/CLI/MCP/parity/upgrade tests pass165 cases/1,011 assertions, with build,
 typecheck and source/built credential-free smokes passing. Authenticated dev

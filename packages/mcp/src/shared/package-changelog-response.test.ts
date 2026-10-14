@@ -343,15 +343,15 @@ describe("complete statement evidence view", () => {
     expect(text.indexOf("https://example.com/history#L1")).toBeLessThan(
       text.indexOf("Quoted statement 0"),
     );
-    expect(text).toContain("! requires action | i should know");
-    expect(text).toContain("* ! [behavior] (uncertain) Quoted statement 0");
-    expect(text).toContain("* i (uncertain) Quoted statement 1");
+    expect(text).toContain("! requires action | kind tags: should know");
+    expect(text).toContain("* [!behavior] (uncertain) Quoted statement 0");
+    expect(text).toContain("* [should know] (uncertain) Quoted statement 1");
     expect(text).toContain("* Quoted statement 2");
     expect(text).toContain("[too long to classify - read it]");
     expect(text).toContain("[not assessed]");
     expect(text).not.toContain("[no impact identified]");
     expect(text).not.toContain("[requires action");
-    expect(text).not.toContain("[should know");
+    expect(text).not.toContain("* i ");
     expect(text.match(/\(uncertain\)/g)).toHaveLength(2);
     expect(text).toContain("nested wording");
     expect(text).toContain("foo(  1)");
@@ -374,7 +374,7 @@ describe("complete statement evidence view", () => {
     expect(text).not.toContain("[no impact identified]");
     expect(text).not.toContain("[notable change]");
     expect(text).toContain(
-      "! requires action | i should know | plain: no impact identified",
+      "! requires action | kind tags: should know | plain: no impact identified",
     );
     expect(payload(report).statements?.items[0]?.classification).toMatchObject({
       tier: "no_impact",
@@ -389,10 +389,10 @@ describe("complete statement evidence view", () => {
     const text = formatPackageChangelogTerminal(payload(report), {
       useColors: false,
     });
-    expect(text).toContain("* ! Quoted statement 0");
-    expect(text).toContain("* i (uncertain) Quoted statement 1");
+    expect(text).toContain("* [!] Quoted statement 0");
+    expect(text).toContain("* [should know] (uncertain) Quoted statement 1");
     expect(text).not.toContain("[requires action]");
-    expect(text).not.toContain("[should know]");
+    expect(text).toContain("[should know]");
   });
   it("colors confident action and should-know prefixes while keeping the same no-color meaning", () => {
     const report = evidence();
@@ -403,9 +403,9 @@ describe("complete statement evidence view", () => {
     const p = payload(report);
     const plain = formatPackageChangelogTerminal(p, { useColors: false });
     const colored = formatPackageChangelogTerminal(p, { useColors: true });
-    expect(colored).toContain("\x1b[31m! [behavior]");
-    expect(colored).toContain("\x1b[33mi [deprecation]");
-    expect(plain).toContain("* i [deprecation] Quoted statement 1");
+    expect(colored).toContain("\x1b[31m[!behavior]");
+    expect(colored).toContain("\x1b[33m[deprecation]");
+    expect(plain).toContain("* [deprecation] Quoted statement 1");
     expect(Bun.stripANSI(colored)).toBe(plain);
   });
   it("preserves structured evidence and null classification without mutating the service result", () => {
@@ -511,7 +511,7 @@ describe("complete statement evidence view", () => {
       useColors: false,
     });
     expect(text).toContain("α — 保留 …");
-    expect(text).toContain("! [behavior]");
+    expect(text).toContain("[!behavior]");
   });
   it("wraps prose to caller width without truncating ordinary statements", () => {
     const report = evidence();
@@ -532,7 +532,7 @@ describe("complete statement evidence view", () => {
       useColors: true,
     });
     expect(Bun.stripANSI(colored)).toBe(plain);
-    expect(colored).toContain("\x1b[2m! [behavior]");
+    expect(colored).toContain("\x1b[2m[!behavior]");
   });
   it("original-note view shows all lines unless the deprecated explicit cap is present", () => {
     const report = {
