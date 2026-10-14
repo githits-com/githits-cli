@@ -252,6 +252,14 @@ export function formatPackageChangelogTerminal(
       `${statements.count} ${envelope.filter?.changes && envelope.filter.changes !== "all" ? "matching " : ""}statements of ${statements.totalCount} parsed | versions: ${c.filter((v) => v.status === "classified").length} classified | ${c.filter((v) => v.status === "not_assessed").length} not assessed | ${c.filter((v) => v.status === "without_notes").length} without notes | ${c.filter((v) => v.status === "unparseable").length} without parsed statements`,
       "  ",
     );
+    if (
+      statements.items.some(
+        (item) =>
+          item.classification?.tier === "must_act" ||
+          item.classification?.tier === "should_know",
+      )
+    )
+      prose("! requires action | i should know", "  ");
     const pending = c.reduce((sum, v) => sum + v.statementsNotAssessed, 0);
     const oversize = c.reduce((sum, v) => sum + v.statementsUnclassified, 0);
     if (envelope.filter?.changes && envelope.filter.changes !== "all")
@@ -339,45 +347,52 @@ export function formatPackageChangelogTerminal(
       }
       const classification = item.classification;
       const tier = classification?.tier;
-      const tierLabel =
-        tier === "must_act"
-          ? "requires action"
-          : tier === "should_know"
-            ? "should know"
-            : tier === "no_impact"
-              ? "no impact identified"
-              : tier === "unclassified"
-                ? "too long to classify - read it"
-                : "not assessed";
+      const marker =
+        tier === "must_act" ? "!" : tier === "should_know" ? "i" : undefined;
       const kind = classification?.kind
         ? RISK_KIND_LABELS[classification.kind as keyof typeof RISK_KIND_LABELS]
         : undefined;
-      const label = `[${tierLabel}${kind ? `: ${kind}` : ""}]`;
-      const muted =
-        classification?.ambiguous || tier === "no_impact" || !classification;
-      const coloredLabel = muted
-        ? dim(label, options.useColors)
-        : colorize(
-            label,
-            tier === "must_act"
-              ? "red"
-              : tier === "should_know"
-                ? "yellow"
-                : "cyan",
-            options.useColors,
-          );
+      const label =
+        tier === "no_impact"
+          ? undefined
+          : tier === "unclassified"
+            ? "[too long to classify - read it]"
+            : !classification
+              ? "[not assessed]"
+              : kind
+                ? `[${kind}]`
+                : undefined;
+      const annotation = [marker, label].filter(Boolean).join(" ");
       const start = lines.length;
       renderStatementText(
         lines,
         item.text,
-        `    * ${label}${classification?.ambiguous ? " (uncertain)" : ""} `,
+        `    * ${annotation ? `${annotation} ` : ""}${classification?.ambiguous ? "(uncertain) " : ""}`,
         width,
       );
-      // Apply trusted styling after sanitation and wrapping; it never changes meaning.
-      if (lines[start])
-        lines[start] = lines[start]
-          .replace(label, coloredLabel)
-          .replace("(uncertain)", dim("(uncertain)", options.useColors));
+      // Style only the trusted prefix after sanitation and wrapping. Missing
+      // kinds leave the marker intact; an empty annotation cannot style a quote.
+      if (annotation && lines[start]?.startsWith(`    * ${annotation}`)) {
+        const styled =
+          classification?.ambiguous || !classification
+            ? dim(annotation, options.useColors)
+            : colorize(
+                annotation,
+                tier === "must_act"
+                  ? "red"
+                  : tier === "should_know"
+                    ? "yellow"
+                    : "cyan",
+                options.useColors,
+              );
+        lines[start] =
+          `    * ${styled}${lines[start].slice(6 + annotation.length)}`;
+      }
+      if (classification?.ambiguous && lines[start])
+        lines[start] = lines[start].replace(
+          "(uncertain)",
+          dim("(uncertain)", options.useColors),
+        );
       if (item.textTruncated)
         prose(
           `Statement truncated; ${options.fullStatementHint ?? "use --json for full text"}.`,

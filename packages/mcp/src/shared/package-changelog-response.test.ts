@@ -343,14 +343,15 @@ describe("complete statement evidence view", () => {
     expect(text.indexOf("https://example.com/history#L1")).toBeLessThan(
       text.indexOf("Quoted statement 0"),
     );
-    for (const label of [
-      "requires action: behavior",
-      "should know",
-      "no impact identified",
-      "too long to classify - read it",
-      "not assessed",
-    ])
-      expect(text).toContain(`[${label}]`);
+    expect(text).toContain("! requires action | i should know");
+    expect(text).toContain("* ! [behavior] (uncertain) Quoted statement 0");
+    expect(text).toContain("* i (uncertain) Quoted statement 1");
+    expect(text).toContain("* Quoted statement 2");
+    expect(text).toContain("[too long to classify - read it]");
+    expect(text).toContain("[not assessed]");
+    expect(text).not.toContain("[no impact identified]");
+    expect(text).not.toContain("[requires action");
+    expect(text).not.toContain("[should know");
     expect(text.match(/\(uncertain\)/g)).toHaveLength(2);
     expect(text).toContain("nested wording");
     expect(text).toContain("foo(  1)");
@@ -359,6 +360,51 @@ describe("complete statement evidence view", () => {
     expect(text).toContain("still in progress or failed");
     expect(text).not.toContain("jev");
     expect(text).not.toContain("Full uncut statement");
+  });
+  it("leaves no-impact bullets untagged, preserving uncertainty and JSON evidence", () => {
+    const report = evidence();
+    const item = report.statements!.items[2]!;
+    item.classification!.kind = "NOTABLE_CHANGE";
+    item.classification!.ambiguous = true;
+    report.statements!.items = [item];
+    const text = formatPackageChangelogTerminal(payload(report), {
+      useColors: false,
+    });
+    expect(text).toContain("* (uncertain) Quoted statement 2");
+    expect(text).not.toContain("[no impact identified]");
+    expect(text).not.toContain("[notable change]");
+    expect(text).not.toContain("! requires action | i should know");
+    expect(payload(report).statements?.items[0]?.classification).toMatchObject({
+      tier: "no_impact",
+      kind: "notable_change",
+      ambiguous: true,
+    });
+  });
+  it("keeps severity markers when the kind is absent, without inventing tags", () => {
+    const report = evidence();
+    report.statements!.items[0]!.classification!.kind = undefined;
+    report.statements!.items[0]!.classification!.ambiguous = false;
+    const text = formatPackageChangelogTerminal(payload(report), {
+      useColors: false,
+    });
+    expect(text).toContain("* ! Quoted statement 0");
+    expect(text).toContain("* i (uncertain) Quoted statement 1");
+    expect(text).not.toContain("[requires action]");
+    expect(text).not.toContain("[should know]");
+  });
+  it("colors confident action and should-know prefixes while keeping the same no-color meaning", () => {
+    const report = evidence();
+    report.statements!.items[0]!.classification!.ambiguous = false;
+    report.statements!.items[1]!.classification!.ambiguous = false;
+    report.statements!.items[1]!.classification!.kind =
+      "DEPRECATES_WITHOUT_REMOVAL";
+    const p = payload(report);
+    const plain = formatPackageChangelogTerminal(p, { useColors: false });
+    const colored = formatPackageChangelogTerminal(p, { useColors: true });
+    expect(colored).toContain("\x1b[31m! [behavior]");
+    expect(colored).toContain("\x1b[33mi [deprecation]");
+    expect(plain).toContain("* i [deprecation] Quoted statement 1");
+    expect(Bun.stripANSI(colored)).toBe(plain);
   });
   it("preserves structured evidence and null classification without mutating the service result", () => {
     const report = evidence();
@@ -463,7 +509,7 @@ describe("complete statement evidence view", () => {
       useColors: false,
     });
     expect(text).toContain("α — 保留 …");
-    expect(text).toContain("[requires action: behavior]");
+    expect(text).toContain("! [behavior]");
   });
   it("wraps prose to caller width without truncating ordinary statements", () => {
     const report = evidence();
@@ -484,7 +530,7 @@ describe("complete statement evidence view", () => {
       useColors: true,
     });
     expect(Bun.stripANSI(colored)).toBe(plain);
-    expect(colored).toContain("\x1b[2m[requires action: behavior]");
+    expect(colored).toContain("\x1b[2m! [behavior]");
   });
   it("original-note view shows all lines unless the deprecated explicit cap is present", () => {
     const report = {

@@ -37,12 +37,16 @@ verbose classification-detail mode or implicit default note preview.
 
 ## Evidence, coverage and sources
 
-Each bullet identifies its tier, any kind, and uncertainty. NO_IMPACT reads
-`[no impact identified]`, a model statement assessment rather than a guarantee.
-A null classification reads `[not assessed]`; UNCLASSIFIED means only too large
-to classify. A missing kind retains its tier. Uncertainty comes only from the
-backend `ambiguous` boolean, never a client confidence threshold. Model and
-formulation can differ per item and remain machine-readable provenance.
+Known impact kinds use compact tags such as `[behavior]` or `[deprecation]`.
+`!` marks MUST_ACT and `i` marks SHOULD_KNOW, with a short legend shown once
+when either occurs. Markers keep meaning visible without color and survive a
+missing kind; red/yellow highlighting is optional. NO_IMPACT uses plain bullets.
+Uncertain statements retain `(uncertain)` with muted highlighting, based only on
+the backend `ambiguous` boolean; confidence values remain JSON evidence.
+Unassessed statements retain `[not assessed]`; oversize UNCLASSIFIED statements
+retain `[too long to classify - read it]`. Model/formulation remain per-item JSON
+provenance. Omitting no-impact tags changes presentation only, not classification
+or coverage data.
 
 The backend owns parsing, headings, source order and conservative alternate-source
 restatement suppression. The client preserves nested wording/code and predecessor

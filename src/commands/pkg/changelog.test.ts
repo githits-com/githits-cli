@@ -71,7 +71,8 @@ describe("pkgChangelogAction", () => {
     expect(combined).toContain("5.2.1");
     // The default retains statement wording without raw note duplication.
     expect(combined).not.toContain("## Patch");
-    expect(combined).toContain("[no impact identified] fixed a thing");
+    expect(combined).toContain("* fixed a thing");
+    expect(combined).not.toContain("[no impact identified]");
     expect(combined).not.toContain("use --verbose");
     writeSpy.mockRestore();
   });
