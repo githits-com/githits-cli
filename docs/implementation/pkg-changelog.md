@@ -186,18 +186,20 @@ calls in25.154s. Its answer cited the rollback and rejected-CVE evidence. Trace
 validation had zero isolation violations. This is an inspected trace, not a
 quality grade. No new package verdict was inferred from model labels.
 
-The compact-label follow-up uses kind tags with bracketed action markers and one legend
-(including plain-bullet meaning); no-impact statements stay untagged. Its focused
-formatter/CLI/MCP/parity/upgrade tests pass165 cases/1,011 assertions, with build,
-typecheck and source/built credential-free smokes passing. Authenticated dev
-built CLI/local MCP text parity covers Express4.20.0 and5.2.1. The exact-release
-text is5,688bytes versus6,482before shortening labels; this is output size, not
-rendering speed. JSON and query selections, and their measured complexity, are
-unchanged. The repeated descriptor-intent workload uses three logical calls in
-27.5s and cites rollback/rejected-CVE evidence with no isolation violations; it
-is an inspected trace, not a quality grade. External Opus round3 found only the
-missing explanation for plain bullets; the legend and no-impact-only regression
-now close that wording finding. No unresolved findings or deferred work remain.
+The final compact tags use `[!kind]` for action and `[kind]` for should-know,
+with `[!]` / `[should know]` when a kind is missing. No-impact statements stay
+plain bullets, explained once in the legend; uncertainty stays explicit.
+Focused formatter/CLI/MCP/parity/upgrade tests pass165 cases/1,013 assertions,
+with build, typecheck and all four source/built credential-free smoke modes
+passing. Authenticated dev built CLI/local MCP text parity passes Express4.22.0,
+4.20.0 and5.2.1. Express4.20.0 text is5,687bytes versus6,482before shortening
+labels; this is output size, not rendering speed. JSON and query selections,
+and their measured complexity, are unchanged. The final descriptor-intent
+workload uses three logical calls in19.1s and cites rollback/rejected-CVE evidence
+with no isolation violations; this is an inspected trace, not a quality grade.
+External Opus bracket-tag review and its independent final check have no code
+findings. The final check's stale documentation assertion count is corrected.
+No unresolved findings or deferred work remain.
 
 ## Release guidance staging
 
