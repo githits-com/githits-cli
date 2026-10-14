@@ -22,7 +22,7 @@ previous version. Statement joins use raw `entry.version`, not normalizedVersion
 | `--changes all` / `changes: "all"` | Default complete view |
 | `--verbatim` / `verbatim: true` | Full original notes instead of statements; no classification work |
 | `--verbose` / `verbose: true` | Deprecated alias for verbatim in text and JSON |
-| `--no-body` / `omit_bodies: true` | Version/date/URL timeline; no bodies, parsing or classification |
+| `--no-body` / `omit_bodies: true` | Version/date/URL timeline; no bodies, statement parsing or classification |
 
 Empty optional filter strings mean all. Unknown active filters fail before
 service access. `changes` is ignored, including validation and envelope echo,
@@ -167,7 +167,10 @@ Focused core/shared/CLI/MCP/parity/server/smoke, smoke-script and upgrade regres
 567 cases/2,855 assertions; after the wrapping/context correction, the affected
 formatter/tool/CLI/parity/upgrade checks passed162 cases/992 assertions. Build,
 typecheck and public-package validation passed. Source unauthenticated
-CLI/MCP and built Node smoke modes validate registration/auth handling. Full live
+CLI/MCP and built Node smoke modes validate registration/auth handling. External
+Opus review round2 was clean after fixing continuation wrapping/context wording;
+its one independent final review also found no issues. Both reviewed commits
+passed Linux/Windows, build, Bun/Node20/22/24/26 and package-validation CI checks. Full live
 smoke harnesses could not use macOS keychain authentication under their isolated
 HOME (system-keychain-unavailable), without exporting credentials; the affected
 feature's live matrix above uses ordinary CLI/local stdio authentication instead.
