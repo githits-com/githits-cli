@@ -191,7 +191,7 @@ The compact-label follow-up uses kind-only tags, !/i tier markers and one legend
 formatter/CLI/MCP/parity/upgrade tests pass165 cases/1,011 assertions, with build,
 typecheck and source/built credential-free smokes passing. Authenticated dev
 built CLI/local MCP text parity covers Express4.20.0 and5.2.1. The exact-release
-text is5,689bytes versus6,482before shortening labels; this is output size, not
+text is5,688bytes versus6,482before shortening labels; this is output size, not
 rendering speed. JSON and query selections, and their measured complexity, are
 unchanged. The repeated descriptor-intent workload uses three logical calls in
 27.5s and cites rollback/rejected-CVE evidence with no isolation violations; it
