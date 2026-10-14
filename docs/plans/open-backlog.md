@@ -32,9 +32,12 @@ Single-run token changes and self-reported confidence are not quality scores.
 
 ## Upgrade review evidence completeness
 
-The aggregate backend contract cannot enumerate coverage membership, retrieve
-statements omitted by the cap, or identify later reverted/superseded statements.
-These require backend API design rather than client heuristics; they are outside
-the completed classification/locator increment. Preserve the concrete data
-requirements in the [upgrade review limitations](../implementation/pkg-upgrade-review.md#known-output-limitations)
-when planning that work. Consumer applicability remains the calling agent's job.
+The new aggregate `changelog.statements` contract exposes per-version coverage
+membership and complete pages beyond the legacy risk-item cap. Client adoption
+is covered by the [upgrade statement migration plan](upgrade-review-statements.md).
+
+Structured supersession/revert relationships remain unavailable. That requires
+backend API design, not client heuristics, and stays outside this migration.
+Preserve the concrete requirements in the
+[upgrade review limitations](../implementation/pkg-upgrade-review.md#known-output-limitations).
+Consumer applicability remains the calling agent's job.
