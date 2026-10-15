@@ -4,11 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionIdConfigError } from "@githits/core-internal";
 import { AuthRequiredError } from "@githits/mcp/internal";
-import { InvalidArgumentError } from "commander";
+import { CommanderError, InvalidArgumentError } from "commander";
 import { AuthConfigError } from "../services/auth-config.js";
 import { ExperimentalToolsDisabledError } from "../services/experimental-cli-policy.js";
 import { ExperimentalConfigError } from "../services/experimental-config.js";
 import { AuthStorageLockTimeoutError } from "../services/locked-auth-storage.js";
+import { AuthStoragePolicyError } from "../services/mode-aware-file-auth-storage.js";
 import { handleCliError, runCliMain } from "./errors.js";
 
 const configHomeEnvKey =
@@ -168,6 +169,67 @@ describe("handleCliError", () => {
     });
   });
 
+  it.each([
+    new CommanderError(1, "commander.missingArgument", "missing argument"),
+    new CommanderError(1, "commander.unknownOption", "unknown option"),
+  ])("renders parser failures as INVALID_ARGUMENT JSON", (error) => {
+    const result = captureCliError(error, true);
+    expect(JSON.parse(result.output)).toEqual({
+      error: error.message,
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+  });
+
+  it("replaces Commander's error-help placeholder with command guidance", () => {
+    const result = captureCliError(
+      new CommanderError(1, "commander.help", "(outputHelp)"),
+      true,
+    );
+    expect(JSON.parse(result.output)).toEqual({
+      error: "A command is required. Run with --help for usage.",
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+  });
+
+  it("preserves the existing auth payload at the root boundary", () => {
+    const result = captureCliError(
+      new AuthRequiredError("Authentication required.", "https://mcp.invalid"),
+      true,
+    );
+    expect(JSON.parse(result.output)).toEqual({
+      error: "Authentication required.",
+      code: "AUTH_REQUIRED",
+      retryable: false,
+      details: { authSource: "local" },
+    });
+  });
+
+  it.each([
+    new Error("first line\nsecond line"),
+    new TypeError("fetch failed"),
+    new AuthStorageLockTimeoutError("lock timed out"),
+    new AuthStoragePolicyError("file storage disabled"),
+    { privateData: "must not be serialized" },
+  ])(
+    "renders unclassified failures as UNKNOWN JSON without stacks",
+    (error) => {
+      process.env.GITHITS_DEBUG = "*";
+      const result = captureCliError(error, true);
+      expect(JSON.parse(result.output)).toEqual({
+        error:
+          error instanceof Error
+            ? error.message.replaceAll("\n", " ")
+            : "Unexpected error.",
+        code: "UNKNOWN",
+        retryable: false,
+      });
+      expect(result.output).not.toContain("must not be serialized");
+      expect(result.output).not.toContain("\n    at ");
+    },
+  );
+
   it("renders action argument errors without the unexpected-error footer", () => {
     const result = captureCliError(
       new InvalidArgumentError("Provide a question to continue the thread."),
@@ -291,7 +353,10 @@ describe("handleCliError", () => {
       expect(exitCode).toBe(1);
       expect(stdout).toBe("");
       expect(stderr.match(/Invalid GITHITS_API_URL/g)).toHaveLength(1);
-      expect(stderr).toContain("githits doctor");
+      expect(JSON.parse(stderr)).toMatchObject({
+        code: "UNKNOWN",
+        retryable: false,
+      });
       expect(stderr).not.toContain("\n    at ");
     } finally {
       rmSync(xdgConfigHome, { recursive: true, force: true });
@@ -459,6 +524,86 @@ describe("handleCliError", () => {
     }
   });
 });
+
+describe("CLI parser output", () => {
+  it.each(
+    [
+      ["pkg", "info", "--json"],
+      ["pkg", "info", "npm:express", "--not-a-real-flag", "--json"],
+      ["not-a-command", "--json"],
+      ["search", "router", "--in", "npm:express", "--json", "--limit"],
+      ["pkg", "--json"],
+      ["pkg", "info", "npm:express", "unexpected", "--json"],
+    ].map((args) => ({ args })),
+  )("returns one JSON argument error for $args", async ({ args }) => {
+    const result = await runIsolatedCli(args);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: expect.any(String),
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+    expect(JSON.parse(result.stderr).error).not.toBe("(outputHelp)");
+  });
+
+  it.each(
+    [
+      ["--help", "--json"],
+      ["pkg", "info", "--help", "--json"],
+      ["help", "pkg", "--json"],
+      ["--version", "--json"],
+    ].map((args) => ({ args })),
+  )("preserves successful help/version for $args", async ({ args }) => {
+    const result = await runIsolatedCli(args);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim()).not.toBe("");
+    expect(result.stderr).toBe("");
+  });
+
+  it("keeps non-JSON parser errors human readable", async () => {
+    const result = await runIsolatedCli(["pkg", "info"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("missing required argument 'spec'");
+    expect(() => JSON.parse(result.stderr)).toThrow();
+  });
+});
+
+async function runIsolatedCli(args: string[]): Promise<{
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}> {
+  const configHome = mkdtempSync(join(tmpdir(), "githits-json-parser-"));
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.startsWith("GITHITS_")),
+  );
+  try {
+    const proc = Bun.spawn([process.execPath, "run", "src/cli.ts", ...args], {
+      stdout: "pipe",
+      stderr: "pipe",
+      env: withConfigHomeEnv(
+        {
+          ...env,
+          HOME: configHome,
+          GITHITS_AUTH_STORAGE: "file",
+          GITHITS_DISABLE_UPDATE_CHECK: "1",
+          NO_COLOR: "1",
+        },
+        configHome,
+      ),
+    });
+    const [exitCode, stdout, stderr] = await Promise.all([
+      proc.exited,
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+    return { exitCode, stdout, stderr };
+  } finally {
+    rmSync(configHome, { recursive: true, force: true });
+  }
+}
 
 function captureCliError(
   error: unknown,

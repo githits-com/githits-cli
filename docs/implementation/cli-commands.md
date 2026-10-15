@@ -1057,12 +1057,23 @@ For complex commands with multiple submodules, a subdirectory (`src/commands/xxx
 
 ## Error Handling
 
-- **Auth errors** — `requireAuth()` prints instructions and calls `process.exit(1)`
+- **Auth errors** — `requireAuth()` throws; command or root boundaries render the failure and exit 1. JSON callers receive `AUTH_REQUIRED` with the existing local/server source details.
 - **Service errors** — Caught in action, printed to stderr via `console.error("Failed to <operation>: <message>")`, then `process.exit(1)`. REST transport errors distinguish connection failures from timeouts. REST and GraphQL HTTP classifiers retain the status and bounded JSON details; non-JSON HTML/plain-text response bodies are not printed.
 - **Validation errors** — Checked before service call (e.g., mutually exclusive target selectors), printed to stderr, `process.exit(1)`
 - **Unexpected errors** — All asynchronous startup, registration, pre-action, and action failures terminate through the root CLI boundary. The default output is a normalized single-line message plus doctor/issue guidance, never a Node stack trace.
-- **Debug stacks** — Set `GITHITS_DEBUG=cli` or `GITHITS_DEBUG=*` to include the original stack for diagnostics.
-- **JSON errors** — Under `--json`, REST-backed commands emit `{error, code, retryable, details?}` on stderr for auth, transport/backend, and validation failures.
+- **Debug stacks** — Set `GITHITS_DEBUG=cli` or `GITHITS_DEBUG=*` to include the original stack for terminal diagnostics. The root JSON error envelope never appends a stack.
+- **JSON errors** — Under `--json`, command failures and root startup/registration/action failures emit `{error, code, retryable, details?}` on stderr. Commander parsing errors (missing arguments/option values, unknown options/commands, and excess arguments) use `INVALID_ARGUMENT`. Existing configuration argument errors keep that code; root auth failures reuse `AUTH_REQUIRED`, while unclassified root failures, including storage failures, use `UNKNOWN`. These root failures exit 1 and set `retryable: false`; command-specific mapped codes and retryability remain unchanged. Do not infer retry safety from `UNKNOWN`.
+
+The root CLI configures Commander's JSON error interception before constructing
+child commands, including the lazily registered command groups. Commander does
+not write parser diagnostics or error-help pages directly in that mode. The
+root boundary writes one JSON object with a trailing newline; failures before
+command output keep stdout empty. Successful help/version retain their normal
+output and exit 0, classified by exit status rather than the Commander code
+string. Routine advisory update notices are skipped for JSON invocations;
+required-update enforcement retains its own `UPDATE_REQUIRED` envelope.
+Explicit debug/telemetry streams and command-specific progress output are
+separate opt-in/existing behaviors, not part of this root error envelope.
 
 ## Output Modes
 

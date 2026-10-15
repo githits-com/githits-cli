@@ -493,6 +493,15 @@ describe("shouldRunUpdateCheck", () => {
     );
   });
 
+  it("skips JSON invocations even with TTY stderr", () => {
+    expect(
+      shouldRunUpdateCheck({
+        ...base,
+        args: ["pkg", "info", "npm:express", "--json"],
+      }),
+    ).toBe(false);
+  });
+
   it("skips help and version invocations", () => {
     expect(shouldRunUpdateCheck({ ...base, args: ["--help"] })).toBe(false);
     expect(shouldRunUpdateCheck({ ...base, args: ["help"] })).toBe(false);

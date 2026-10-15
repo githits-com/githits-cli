@@ -4,9 +4,10 @@ import {
 } from "@githits/core-internal";
 import {
   AuthRequiredError,
+  buildAuthRequiredErrorPayload,
   formatAuthRequiredForTerminal,
 } from "@githits/mcp/internal";
-import { InvalidArgumentError } from "commander";
+import { CommanderError, InvalidArgumentError } from "commander";
 import { AuthConfigError } from "../services/auth-config.js";
 import { ExperimentalToolsDisabledError } from "../services/experimental-cli-policy.js";
 import { ExperimentalConfigError } from "../services/experimental-config.js";
@@ -35,14 +36,30 @@ export function handleCliError(
   error: unknown,
   deps: CliErrorHandlerDeps,
 ): never {
-  if (deps.json && isJsonUserFacingError(error)) {
-    deps.stderr.write(
-      `${JSON.stringify({
-        error: error.message,
-        code: "INVALID_ARGUMENT",
-        retryable: false,
-      })}\n`,
-    );
+  // Commander also throws after successfully printing help or version.
+  if (error instanceof CommanderError && error.exitCode === 0) {
+    deps.exit(0);
+  }
+
+  if (deps.json) {
+    const argumentError = isJsonArgumentError(error);
+    const message =
+      error instanceof CommanderError && error.code === "commander.help"
+        ? "A command is required. Run with --help for usage."
+        : isUserFacingError(error) || error instanceof CommanderError
+          ? error.message
+          : error instanceof Error
+            ? normalizeSingleLineText(error.message) || "Unexpected error."
+            : "Unexpected error.";
+    const payload =
+      error instanceof AuthRequiredError
+        ? buildAuthRequiredErrorPayload(error)
+        : {
+            error: message,
+            code: argumentError ? "INVALID_ARGUMENT" : "UNKNOWN",
+            retryable: false,
+          };
+    deps.stderr.write(`${JSON.stringify(payload)}\n`);
     deps.exit(1);
   }
 
@@ -82,8 +99,9 @@ function isUserFacingError(error: unknown): error is Error {
   );
 }
 
-function isJsonUserFacingError(error: unknown): error is Error {
+function isJsonArgumentError(error: unknown): error is Error {
   return (
+    error instanceof CommanderError ||
     error instanceof AuthConfigError ||
     error instanceof SessionIdConfigError ||
     error instanceof ExperimentalConfigError ||

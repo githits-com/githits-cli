@@ -146,6 +146,7 @@ parses the command.
 Checks are skipped for:
 
 - help and version invocations
+- `--json` invocations, including when stderr is a TTY
 - CI
 - non-TTY stderr
 - truthy `GITHITS_DISABLE_UPDATE_CHECK`
@@ -153,7 +154,7 @@ Checks are skipped for:
 - MCP stdio server invocations
 
 Required-update refresh/enforcement uses broader eligibility: it skips
-help/version and ephemeral package runners, but not CI, non-TTY, disabled
+help/version and ephemeral package runners, but not JSON, CI, non-TTY, disabled
 advisory checks, or MCP stdio. This keeps compatibility enforcement effective
 for automation and MCP clients while keeping advisory output conservative.
 

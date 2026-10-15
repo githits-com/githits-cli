@@ -53,6 +53,12 @@ import {
 
 const program = new Command();
 const argv = process.argv.slice(2);
+const json = argv.includes("--json");
+if (json) {
+  // Children inherit these settings at registration. Route parser failures
+  // through our JSON boundary instead of Commander's write-and-exit path.
+  program.configureOutput({ writeErr: () => {} }).exitOverride();
+}
 // Bridge the --no-color flag to the NO_COLOR convention that every
 // shouldUseColors() call across the CLI reads.
 if (argv.includes("--no-color")) {
@@ -203,7 +209,7 @@ async function main(): Promise<void> {
 await runCliMain(main, {
   stderr: process.stderr,
   exit: process.exit as (code: number) => never,
-  json: argv.includes("--json"),
+  json,
 });
 
 /**

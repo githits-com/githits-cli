@@ -378,7 +378,7 @@ export function resolveConfigHome(
 export function shouldRunUpdateCheck(
   input: UpdateCheckEligibilityInput,
 ): boolean {
-  if (input.stderrIsTTY !== true) {
+  if (input.stderrIsTTY !== true || input.args.includes("--json")) {
     return false;
   }
 

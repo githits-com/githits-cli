@@ -101,6 +101,20 @@ describe("update-check CLI orchestration", () => {
     expect(createService).not.toHaveBeenCalled();
   });
 
+  it("does not construct the advisory update service for JSON invocations", () => {
+    const createService = mock(() => createMockUpdateCheckService());
+    const task = startUpdateCheckTaskForInvocation({
+      args: ["pkg", "info", "--json"],
+      env: {},
+      stderrIsTTY: true,
+      stdinIsTTY: true,
+      stdoutIsTTY: true,
+      createService,
+    });
+    expect(task).toBeUndefined();
+    expect(createService).not.toHaveBeenCalled();
+  });
+
   it("starts required update refresh task for MCP stdio invocations", () => {
     const createService = mock(() => createMockUpdateCheckService());
 

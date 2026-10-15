@@ -1035,6 +1035,46 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
   const { env } = isolated;
   try {
     const configPath = writeSmokeConfig(env, "[experimental]\ntools = false\n");
+    for (const args of [
+      ["pkg", "info", "--json"],
+      ["pkg", "info", "npm:express", "--unknown-option", "--json"],
+      ["unknown-command", "--json"],
+    ]) {
+      const result = await runCliWithEnv(args, env);
+      const context = `JSON parser failure: ${args.join(" ")}`;
+      assert(result.exitCode === 1, `${context}: expected exit 1`);
+      assert(result.stdout === "", `${context}: expected empty stdout`);
+      const payload = JSON.parse(result.stderr) as ErrorEnvelope;
+      assert(payload.code === "INVALID_ARGUMENT", `${context}: wrong code`);
+      assert(payload.retryable === false, `${context}: must not retry`);
+      assert(payload.error.length > 0, `${context}: missing message`);
+    }
+    const startupFailure = await runCliWithEnv(["example", "test", "--json"], {
+      ...env,
+      GITHITS_API_TOKEN: "synthetic-smoke-token",
+      GITHITS_API_URL: "http://invalid.test",
+    });
+    assert(
+      startupFailure.exitCode === 1,
+      "JSON startup failure: expected exit 1",
+    );
+    assert(
+      startupFailure.stdout === "",
+      "JSON startup failure: stdout not empty",
+    );
+    const startupPayload = JSON.parse(startupFailure.stderr) as ErrorEnvelope;
+    assert(
+      startupPayload.code === "UNKNOWN",
+      "JSON startup failure: wrong code",
+    );
+    assert(
+      startupPayload.retryable === false,
+      "JSON startup failure: must not retry",
+    );
+    assert(
+      startupPayload.error.includes("Invalid GITHITS_API_URL"),
+      "JSON startup failure: missing message",
+    );
     const helpResult = await runCliWithEnv(["--help"], env);
     assert(helpResult.exitCode === 0, "root help should succeed");
     assert(
