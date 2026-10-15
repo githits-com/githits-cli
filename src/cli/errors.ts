@@ -45,7 +45,7 @@ export function handleCliError(
     const argumentError = isJsonArgumentError(error);
     const message =
       error instanceof CommanderError && error.code === "commander.help"
-        ? "A command is required. Run with --help for usage."
+        ? "Unknown or missing command. Run githits --help for usage."
         : isUserFacingError(error) || error instanceof CommanderError
           ? error.message
           : error instanceof Error

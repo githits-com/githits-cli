@@ -2,7 +2,7 @@
 
 ## Objective and status
 
-Status: IMPLEMENTING; plan review clean after minor clarifications. One implementation phase; no product decisions.
+Status: IMPLEMENTED; validation passed, external implementation review pending. One implementation phase; no product decisions.
 When an invocation requests `--json`, parser and top-level failures return one
 JSON error envelope on stderr and exit nonzero, without text diagnostics mixed
 into that envelope. Existing command-specific JSON envelopes remain unchanged.
@@ -33,7 +33,7 @@ direct error stream and throw its exit objects into the existing boundary.
 Preserve successful help/version output by checking `exitCode === 0`, not
 the Commander code string (help uses the same code for success and failure). Convert parser
 failures to `INVALID_ARGUMENT`; replace the error-help placeholder with useful
-missing-command guidance: `A command is required. Run with --help for usage.`
+missing-command guidance: `Unknown or missing command. Run githits --help for usage.`
 No command-path inference or exit callback binding is needed. Reuse the auth payload builder; retain current config
 classification. Other top-level failures use `UNKNOWN`, `retryable: false`,
 and an error message, without stack traces even when debug logging is enabled.
@@ -58,7 +58,7 @@ are not redesigned. No performance claim or benchmark is warranted.
 
 ## Phase 1 — consistent CLI JSON failures
 
-Status: IMPLEMENTING after clean plan review. Dependencies: reviewed plan only.
+Status: IMPLEMENTED; external implementation review pending. Dependencies: reviewed plan only.
 Assumptions and unknowns: as above; no additional product decisions.
 
 1. Add failing unit tests for parser-error classification, successful Commander
@@ -114,4 +114,15 @@ successful help-command coverage, generic missing-command guidance). Clean.
 Implementation evidence: focused suite passed 198 tests; typecheck and build
 passed; source CLI unauthenticated, source MCP registration, built CLI
 unauthenticated and built MCP registration smoke passed. Internal implementation
-pre-flight found no issues. Full unit suite and external review pending.
+pre-flight found no issues. Full unit suite passed: 5793 tests across 238 files, zero failures; external
+implementation review pending.
+
+External implementation round 1: direction sound; accepted LOW unknown-help
+guidance finding. Root cause: Commander error-help uses one placeholder for
+unknown help topics and missing commands. Updated the sole root rendering
+branch and its unit assertion; added an exact-envelope process regression for
+`help nonexistent --json`. Bounded sibling scan across root errors/tests, CLI
+docs, plan and smoke found no other rendering branches. Preserved the existing
+Commander `error:` prefix inside JSON messages (acceptable, no change needed).
+Internal revised-delta pre-flight clean. Affected tests: 38 passed, zero failed;
+rebuild passed; Node CLI smoke rerun pending, then external round 2.

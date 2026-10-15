@@ -187,7 +187,7 @@ describe("handleCliError", () => {
       true,
     );
     expect(JSON.parse(result.output)).toEqual({
-      error: "A command is required. Run with --help for usage.",
+      error: "Unknown or missing command. Run githits --help for usage.",
       code: "INVALID_ARGUMENT",
       retryable: false,
     });
@@ -526,6 +526,17 @@ describe("handleCliError", () => {
 });
 
 describe("CLI parser output", () => {
+  it("explains an unknown help topic without printing an error-help page", async () => {
+    const result = await runIsolatedCli(["help", "nonexistent", "--json"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: "Unknown or missing command. Run githits --help for usage.",
+      code: "INVALID_ARGUMENT",
+      retryable: false,
+    });
+  });
+
   it.each(
     [
       ["pkg", "info", "--json"],
