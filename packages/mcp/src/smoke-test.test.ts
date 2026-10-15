@@ -185,6 +185,12 @@ describe("MCP smoke-test helpers", () => {
     );
   });
 
+  it("keeps the size budget for compact default text", () => {
+    expect(() =>
+      assertDefaultText(textResult("release note ".repeat(2000)), "probe"),
+    ).toThrow("default text too large");
+  });
+
   it("validates remote HTTP bearer challenges", () => {
     expect(() =>
       assertHttpUnauthorizedChallenge({
@@ -203,6 +209,30 @@ describe("MCP smoke-test helpers", () => {
 });
 
 describe("runMcpSmoke", () => {
+  it("accepts complete changelog and upgrade evidence beyond the compact budget", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (
+        name === "pkg_changelog" &&
+        args.format !== "json" &&
+        (args.body_lines === undefined || args.verbatim === true) &&
+        args.omit_bodies !== true
+      ) {
+        return textResult(
+          `express release notes\n${"* Complete statement.\n".repeat(1000)}`,
+        );
+      }
+      if (name === "pkg_upgrade_review" && args.format !== "json") {
+        const response = smokeResponse(name, args);
+        const content = response.content as [{ type: "text"; text: string }];
+        return textResult(
+          content[0].text + "\n* Complete statement.".repeat(1000),
+        );
+      }
+      return smokeResponse(name, args);
+    });
+    await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+  });
+
   it("accepts untruncated short changelog bodies with an explicit line budget", async () => {
     const caller = createCaller(async (name, args) => {
       if (
@@ -1430,11 +1460,11 @@ function smokeResponse(
           "Security\n" +
           "  Direct: 0 affected -> 0 affected | 0 fixed | 0 added | 0 still present\n" +
           "  Transitive: not checked\n\n" +
-          "Changes\n" +
+          "Changes (classified by agent)\n" +
           "  Repository releases | 1 entry | 1 with release notes\n" +
-          "  Classification versions: 1 classified | 0 not assessed | 0 without notes | 0 unparseable\n" +
+          "  Classification coverage: 1 classified | 0 not assessed | 0 without notes | 0 statements labeled no impact\n" +
           "  Statements: 0 returned | 1 labeled no impact\n" +
-          "  Classified by a model. Not a compatibility verdict.",
+          "  Selection: focused | 0 matching statements of 1 parsed.",
       );
     case "list":
       return textResult(smokeListText(args));

@@ -485,16 +485,24 @@ function listTextFirstFile(text: string, context: string): string {
 }
 
 function assertTerminalOutput(result: CommandResult, context: string): string {
+  const text = assertCompleteTerminalOutput(result, context);
+  assert(
+    text.length < DEFAULT_TEXT_LIMIT,
+    `${context}: terminal output too large (${text.length} chars)`,
+  );
+  return text;
+}
+
+function assertCompleteTerminalOutput(
+  result: CommandResult,
+  context: string,
+): string {
   assert(
     result.exitCode === 0,
     `${context}: command failed (${result.exitCode})\n${result.stderr}`,
   );
   const text = result.stdout.trim();
   assert(text.length > 0, `${context}: expected stdout`);
-  assert(
-    text.length < DEFAULT_TEXT_LIMIT,
-    `${context}: terminal output too large (${text.length} chars)`,
-  );
   assertNotJson(text, context);
   return text;
 }
@@ -1978,7 +1986,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "pkg vulns scoped json missing advisory scope echo",
   );
 
-  const changelogText = assertTerminalOutput(
+  const changelogText = assertCompleteTerminalOutput(
     await runCli(["pkg", "changelog", "npm:express", "--limit", "1"]),
     "pkg changelog terminal",
   );
@@ -2030,7 +2038,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "pkg changelog exact json missing hasChangelog",
   );
 
-  const upgradeReviewText = assertTerminalOutput(
+  const upgradeReviewText = assertCompleteTerminalOutput(
     await runCli([
       "pkg",
       "upgrade-review",
@@ -2047,7 +2055,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(
     upgradeReviewText.includes("npm:express 5.0.0 -> 5.2.1") &&
       upgradeReviewText.includes("\nSecurity\n") &&
-      upgradeReviewText.includes("\nChanges\n"),
+      upgradeReviewText.includes("\nChanges (classified by agent)\n"),
     "pkg upgrade-review terminal missing grouped evidence",
   );
   assert(
@@ -2057,10 +2065,10 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
 
   assert(
-    upgradeReviewText.includes("Classification versions:") &&
+    upgradeReviewText.includes("Classification coverage:") &&
       upgradeReviewText.includes("labeled no impact") &&
-      upgradeReviewText.includes("Not a compatibility verdict."),
-    "pkg upgrade-review text missing classification coverage or trust limit",
+      upgradeReviewText.includes("Selection: focused"),
+    "pkg upgrade-review text missing classification coverage or selection",
   );
 
   const upgradeReviewJson = assertJsonOutput(

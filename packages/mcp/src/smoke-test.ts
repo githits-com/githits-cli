@@ -229,13 +229,18 @@ export function assertDefaultText(
   result: McpSmokeToolResult,
   context: string,
 ): string {
-  assert(result.isError !== true, `${context}: expected success`);
-  const text = resultText(result, context);
-  assert(text.length > 0, `${context}: expected non-empty text`);
+  const text = assertToolText(result, context);
   assert(
     text.length < DEFAULT_TEXT_LIMIT,
     `${context}: default text too large (${text.length} chars)`,
   );
+  return text;
+}
+
+function assertToolText(result: McpSmokeToolResult, context: string): string {
+  assert(result.isError !== true, `${context}: expected success`);
+  const text = resultText(result, context);
+  assert(text.length > 0, `${context}: expected non-empty text`);
   assertNotJson(text, context);
   assert(
     !text.includes("--lifecycle"),
@@ -1241,7 +1246,8 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_vulns scoped json missing advisory scope echo",
   );
 
-  const changelogText = assertDefaultText(
+  // Complete statement and original-note views have no fixed text-size bound.
+  const changelogText = assertToolText(
     await callTool(caller, "pkg_changelog", {
       target: "npm:express",
       limit: 1,
@@ -1285,7 +1291,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_changelog body_lines leaked CLI verbose flag",
   );
 
-  const changelogFullBodiesText = assertDefaultText(
+  const changelogFullBodiesText = assertToolText(
     await callTool(caller, "pkg_changelog", {
       target: "npm:express",
       limit: 2,
@@ -1416,7 +1422,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_changelog omit_bodies=true still emitted bodies",
   );
 
-  const upgradeReviewText = assertDefaultText(
+  const upgradeReviewText = assertToolText(
     await callTool(caller, "pkg_upgrade_review", {
       registry: "npm",
       package_name: "express",
@@ -1434,7 +1440,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   assert(
     upgradeReviewText.includes("npm:express 5.0.0 -> 5.2.1") &&
       upgradeReviewText.includes("\nSecurity\n") &&
-      upgradeReviewText.includes("\nChanges\n"),
+      upgradeReviewText.includes("\nChanges (classified by agent)\n"),
     "pkg_upgrade_review default missing grouped evidence",
   );
   assert(
@@ -1444,10 +1450,10 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   );
 
   assert(
-    upgradeReviewText.includes("Classification versions:") &&
+    upgradeReviewText.includes("Classification coverage:") &&
       upgradeReviewText.includes("labeled no impact") &&
-      upgradeReviewText.includes("Not a compatibility verdict."),
-    "pkg_upgrade_review text missing classification coverage or trust limit",
+      upgradeReviewText.includes("Selection: focused"),
+    "pkg_upgrade_review text missing classification coverage or selection",
   );
 
   const upgradeReviewJson = assertJsonResult(
