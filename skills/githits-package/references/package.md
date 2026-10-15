@@ -35,7 +35,21 @@ Use `--depth` to request capped transitive output. Without it, output is direct 
 
 Ranges exclude `from` and include `to`: `npm:express@4.21.2..5.2.1` returns releases after 4.21.2 through 5.2.1, including 5.2.1 but excluding 4.21.2. Use `npm:express@4.21.2` to read the starting release itself. `@from..` excludes `from` and continues through latest; `@..to` includes `to` and remains capped by `--limit`.
 
-Flags: `--from <version>`, `--to <version>`, `--limit 1-50`, `--verbose`, `--no-body`, `--json`.
+Flags: `--from <version>`, `--to <version>`, `--limit 1-50`, `--changes actionable|important|all`, `--verbatim`, `--verbose` (deprecated verbatim alias), `--no-body`, `--json`.
+
+The default view shows all parsed statements in source order with available agent
+classifications, uncertainty, coverage and nearby sources. Kind tags describe the
+statement; bracketed `!` marks action labels, while no-impact statements remain
+plain bullets. `--changes actionable` selects action labels; `important` adds
+knowledge labels. Both retain uncertain classifications. Filters apply before
+statement pagination; `all` is the default.
+
+`--verbatim` shows full original notes instead of statements; `--verbose` is its
+deprecated alias in text and JSON. `--no-body` shows a version/date/URL timeline
+and skips parsing/classification; it cannot be combined with verbatim or verbose.
+`--changes` is ignored outside statement views. Default JSON contains complete
+statement evidence rather than raw entry bodies or the old risk-only fields;
+use `--verbatim --json` for original bodies.
 
 `--from` (excluded) and `--to` (included) remain package range flags on a bare spec. Inline single-release targets reject those flags and `--limit`. Repository and site targets are not supported.
 
@@ -47,14 +61,23 @@ Batch form: `githits pkg upgrade-review --package <registry:name@current>..<targ
 
 Evidence includes current and target direct vulnerabilities, changelog range evidence, target deprecation metadata, peer dependency changes, dependency changes, and transitive security by default. Dependency-issue diffs are opt-in with `--dependency-issues`.
 
-Release-note quotes are grouped by version with source references and agent
-classification coverage. Ambiguous classifications are shown as uncertain;
-keyword matches remain separate evidence hints. Batch text defaults to triage
-rows ranked by confident action counts. Use `--verbose` for full per-package
-evidence and expanded quotes. JSON preserves raw statements, complete statement
-text, available source URLs, backend ambiguity and classifier provenance.
+Release-note statements follow backend source order with nearby source URLs and
+agent classification coverage. Ambiguous classifications are shown as uncertain;
+keyword matches remain separate evidence hints. Detailed views collect every
+statement matching the selection across the range. The default focused selection
+includes action, knowledge and unclassified statements. `--changes actionable`
+selects action labels, `important` selects action and knowledge labels, and `all`
+includes no-impact statements too. Filters retain uncertain labels and change
+only detailed evidence, not whole-range counters or batch ranking.
 
-Flags: `--package <spec>`, `--to <version>`, `--no-transitive-security`, `--dependency-issues`, `--min-severity low|medium|high|critical`, `--verbose`, `--json`.
+Batch text defaults to triage rows ranked by confident action counts. Use
+`--verbose` for full per-package evidence and expanded quotes. JSON preserves
+complete selected statements, source positions and context, backend uncertainty
+and classifier provenance under `changelog.statements`, replacing
+`changelog.riskItems`; `riskCoverage.itemsOmitted` is removed. An absent statement
+or zero counter does not establish compatibility with your code.
+
+Flags: `--package <spec>`, `--to <version>`, `--no-transitive-security`, `--dependency-issues`, `--min-severity low|medium|high|critical`, `--changes actionable|important|all`, `--verbose`, `--json`.
 
 Use `pkg upgrade-review` for dependency update assessment instead of inferring safety from semver alone. Use `pkg changelog` directly only when you need release notes without a current-to-target comparison.
 
@@ -74,5 +97,5 @@ nor a patch version establishes compatibility.
 - `githits pkg info` maps to MCP `pkg_info`.
 - `githits pkg vulns` maps to MCP `pkg_vulns`; CLI `--transitive` maps to `include_transitive:true`.
 - `githits pkg deps` maps to MCP `pkg_deps`.
-- `githits pkg changelog` maps to MCP `pkg_changelog`.
-- `githits pkg upgrade-review` maps to MCP `pkg_upgrade_review`.
+- `githits pkg changelog` maps to MCP `pkg_changelog`; `--changes`, `--verbatim`, `--no-body`, and `--json` map to `changes`, `verbatim:true`, `omit_bodies:true`, and `format:"json"`.
+- `githits pkg upgrade-review` maps to MCP `pkg_upgrade_review`; `--changes <view>` maps to `changes:"<view>"`.

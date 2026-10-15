@@ -41,8 +41,11 @@ githits pkg deps npm:express --depth 3
 githits pkg changelog npm:express --limit 3
 githits pkg changelog npm:express@5.2.1
 githits pkg changelog npm:express --from 4.18.0 --to 4.19.0
+githits pkg changelog npm:express@5.2.1 --changes important
+githits pkg changelog npm:express@5.2.1 --verbatim
 
 githits pkg upgrade-review npm:zod@4.3.6 --to 4.4.3
+githits pkg upgrade-review npm:zod@4.3.6 --to 4.4.3 --changes all
 githits pkg upgrade-review --package npm:zod@4.3.6..4.4.3 --package npm:lint-staged@16.2.7..16.4.0
 ```
 
@@ -69,7 +72,7 @@ and unverified paths.
 - Need historical advisories that do not affect the inspected version: use `pkg vulns --scope non_affecting`; use `--scope all` for affected plus historical rows.
 - Need dependency footprint: start with `pkg deps`; add `--lifecycle all` for non-runtime groups and `--depth <n>` for aggregate transitive graph data.
 - Need upgrade evidence for dependency updates, outdated package bumps, or lockfile changes: prefer `pkg upgrade-review` because it compares current vs target vulnerabilities, changelog range evidence, deprecation metadata, peer changes, dependency changes, and transitive security evidence by default. It reports facts only; you still own the final assessment. Use signals as a starting point to evaluate the impact of changes on the codebase. You can use `pkg changelog` and `code diff` to obtain full release-note and source-change details. Use `--verbose` when you need expanded per-package evidence in batch output before assessing individual upgrades.
-- Need release notes without a current-to-target comparison: use `pkg changelog`; `--no-body` for compact timelines.
+- Need release notes without a current-to-target comparison: use `pkg changelog` for all parsed statements with available agent classifications and nearby sources. Use `--changes actionable|important|all` to select statements, `--verbatim` for full original notes, or `--no-body` for compact timelines. Changelog `--verbose` is a deprecated alias for `--verbatim`; original bodies require `--verbatim` even with `--json`.
 - Need exact source changes to supplement upgrade evidence, including missing or uninformative release notes: use the `githits-code` skill and `githits code diff <registry:name> <current>..<target>`. Diff is repository-wide even for package targets; report scope and content limits, and combine it with advisory evidence rather than inferring compatibility from the patch.
 
 ## Gotchas
@@ -79,6 +82,7 @@ and unverified paths.
 - Dependency graphs support npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, Zig, vcpkg, RubyGems, Go, and Swift.
 - Go exact-version inputs accept either `v1.2.3` or `1.2.3` (including pseudo versions) and are sent in canonical `v`-prefixed form. Other changelog range inputs omit a leading `v`, except Swift release tags.
 - For repeatable `pkg upgrade-review --package` entries, use `<registry>:<name>@<current>..<target>`.
+- Upgrade reviews default to focused changelog evidence: action, knowledge and unclassified statements. `--changes actionable|important|all` filters detailed statements without changing whole-range counters or batch ranking. `important` includes action and knowledge labels; both filtered views retain uncertain labels. Classification describes release-note statements, not applicability to your code.
 - Reuse returned versions and provenance; report graph scope, truncation, and other evidence limits. Public package graphs do not establish your application's lockfile or reachability.
 
 ## External Content Posture

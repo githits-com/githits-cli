@@ -5,6 +5,52 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.30.0] - 2026-10-15
+
+Pre-1.0 minor release with complete parsed changelog statements and shared
+change filters. Changelog JSON consumers needing original bodies must request
+`--verbatim --json` / `verbatim:true,format:"json"`. Upgrade-review JSON replaces
+`changelog.riskItems` with `changelog.statements` and removes
+`riskCoverage.itemsOmitted`. The production API must support the aggregate
+statement schema. Hosted MCP clients receive these changes after adoption and
+deployment of the released MCP package.
+
+### Changed
+
+- **Complete changelog statements** - Package changelogs now default to all parsed bullets with available agent classifications, compact kind tags with bracketed action markers, uncertainty, coverage and nearby sources; no-impact statements stay plain bullets. `changes` filters actionable, important or all statements before pagination. `verbatim` shows full original notes instead; `verbose` is its deprecated alias. Timeline-only omission skips parsing/classification. Default JSON replaces raw bodies and risk-only fields with complete statement evidence; use `--verbatim --json` / `verbatim:true,format:"json"` for original bodies.
+
+- **Research source guidance** - Describe local MCP `research` results as verified answers whose sources should be cited directly, with a source read only when the answer lacks a needed detail; sources remain MCP read calls by default.
+
+- **Complete upgrade changelog evidence** - Upgrade reviews collect every matching parsed statement with source links, context and backend-owned uncertainty; add actionable, important and all filters while keeping whole-range batch triage. JSON replaces changelog.riskItems with changelog.statements and removes riskCoverage.itemsOmitted; the public MCP smoke helper adopts that contract. Release and hosted adoption require the aggregate statement schema in production.
+
+- **Package skill guidance** - Update the CLI package skill and reference for statement filters, original-note views and the changelog/upgrade-review JSON migrations.
+
+### Fixed
+
+- **Complete-evidence smoke validation** - Accept uncapped changelog and upgrade-review text in live CLI/MCP smoke checks while retaining compact-output budgets; align upgrade-review assertions with the current classification heading, coverage and selection.
+
+- **Consistent CLI JSON failures** - Return structured error envelopes for argument parsing and top-level auth, storage, and unexpected failures under `--json`; suppress routine update notices in JSON mode while preserving help/version and mandatory-update behavior.
+
+## [@githits/mcp 0.30.0] - 2026-10-15
+
+Pre-1.0 minor release with complete parsed changelog statements and shared
+change filters. Changelog JSON consumers needing original bodies must request
+`--verbatim --json` / `verbatim:true,format:"json"`. Upgrade-review JSON replaces
+`changelog.riskItems` with `changelog.statements` and removes
+`riskCoverage.itemsOmitted`. The production API must support the aggregate
+statement schema. Hosted MCP clients receive these changes after adoption and
+deployment of the released MCP package.
+
+### Changed
+
+- **Complete changelog statements** - Package changelogs now default to all parsed bullets with available agent classifications, compact kind tags with bracketed action markers, uncertainty, coverage and nearby sources; no-impact statements stay plain bullets. `changes` filters actionable, important or all statements before pagination. `verbatim` shows full original notes instead; `verbose` is its deprecated alias. Timeline-only omission skips parsing/classification. Default JSON replaces raw bodies and risk-only fields with complete statement evidence; use `--verbatim --json` / `verbatim:true,format:"json"` for original bodies.
+
+- **Complete upgrade changelog evidence** - Upgrade reviews collect every matching parsed statement with source links, context and backend-owned uncertainty; add actionable, important and all filters while keeping whole-range batch triage. JSON replaces changelog.riskItems with changelog.statements and removes riskCoverage.itemsOmitted; the public MCP smoke helper adopts that contract. Release and hosted adoption require the aggregate statement schema in production.
+
+### Fixed
+
+- **Complete-evidence smoke validation** - Accept uncapped changelog and upgrade-review text in live CLI/MCP smoke checks while retaining compact-output budgets; align upgrade-review assertions with the current classification heading, coverage and selection.
+
 ## [githits 0.29.0] - 2026-10-12
 
 Minor release with version-grouped upgrade evidence and expanded JSON statement

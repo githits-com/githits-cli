@@ -203,14 +203,21 @@ External Opus bracket-tag review and its independent final check have no code
 findings. The final check's stale documentation assertion count is corrected.
 No unresolved findings or deferred work remain.
 
-## Release guidance staging
+## Public skill guidance
 
-Published skills/githits-package stays unchanged until this behavior reaches its
-release branch, following .agents/skills/githits-release/SKILL.md. At release,
-update changelog examples/flags and routing to describe all parsed bullets with
-available classifications, `--changes actionable|important|all`, explicit
-`--verbatim` original notes and timeline `--no-body`. Verbose is a deprecated
-verbatim alias; changes is ignored outside statement mode. Raw bodies require
-verbatim even in JSON. Preserve exact/range boundaries and upgrade-review routing;
-never add a package verdict. Generate/check plugin assets and skill packaging
-when applying those canonical release edits.
+The 0.30.0 release branch updates `skills/githits-package` and its reference to
+describe all parsed bullets with available classifications,
+`--changes actionable|important|all`, explicit `--verbatim` original notes and
+timeline `--no-body`. Verbose is a deprecated verbatim alias; changes is ignored
+outside statement mode. Raw bodies require verbatim even in JSON. Exact/range
+boundaries and upgrade-review routing are preserved; classifications do not
+assign a package verdict. Root code, MCP and onboarding skills need no changes
+for these package-only flags. Generate/check plugin assets and skill packaging
+when changing canonical guidance.
+
+Live CLI/MCP smoke validation checks complete statement, upgrade-review and
+verbatim text structurally without applying the compact-output size budget.
+Compact previews and timelines retain that budget. Upgrade smoke assertions use
+the shared formatter's agent classification heading, coverage and effective
+selection. Regression coverage accepts complete reports longer than the compact
+budget and still rejects oversized compact defaults.
