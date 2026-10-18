@@ -222,6 +222,153 @@ describe("package_upgrade_review parity", () => {
     expect(cli).toEqual(json);
   });
 
+  it("PARITY-JSON-KEYS: Pub upgrade preserves versions and evidence CLI === MCP", async () => {
+    const currentVersion = "1.2.3+build.7";
+    const targetVersion = "1.2.4+build.8";
+    const unknown = "synthetic Pub advisory evidence unavailable";
+    const response = structuredClone(defaultPackageUpgradeReviewResponse);
+    response.summary.withUnknowns = 1;
+    response.summary.withDirectDependencyChanges = 1;
+    const review = response.reviews[0]!;
+    review.registry = "PUB";
+    review.name = "Synthetic_Pub";
+    review.currentVersion = currentVersion;
+    review.targetVersion = targetVersion;
+    review.latestVersion = targetVersion;
+    review.versionDelta = "PATCH";
+    review.security.current!.version = currentVersion;
+    review.security.target!.version = targetVersion;
+    review.changelog.entries![0]!.version = targetVersion;
+    review.changelog.entries![0]!.htmlUrl =
+      "https://example.com/releases/1-2-4";
+    review.dependencyChanges!.direct.added = [
+      {
+        name: "collection",
+        registry: "PUB",
+        fromVersions: [],
+        toVersions: ["1.18.0"],
+        constraint: "^1.18.0",
+        type: "RUNTIME",
+      },
+    ];
+    review.unknowns = [unknown];
+
+    const packageUpgradeReview = mock((_params: PackageUpgradeReviewParams) =>
+      Promise.resolve(response),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageUpgradeReview,
+    });
+    const cli = await cliJson(
+      `pub:Synthetic_Pub@${currentVersion}`,
+      { to: targetVersion },
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const { json, isError } = await mcpJson(
+      {
+        registry: "pub",
+        package_name: "Synthetic_Pub",
+        current_version: currentVersion,
+        target_version: targetVersion,
+      },
+      service,
+    );
+
+    expect(isError).toBeUndefined();
+    expect(cli).toEqual(json);
+    expect(packageUpgradeReview).toHaveBeenCalledTimes(2);
+    expect(
+      packageUpgradeReview.mock.calls.map(([params]) => params.packages),
+    ).toEqual([
+      [
+        {
+          registry: "PUB",
+          name: "Synthetic_Pub",
+          currentVersion,
+          targetVersion,
+        },
+      ],
+      [
+        {
+          registry: "PUB",
+          name: "Synthetic_Pub",
+          currentVersion,
+          targetVersion,
+        },
+      ],
+    ]);
+    expect(cli).toMatchObject({
+      summary: {
+        total: 1,
+        withUnknowns: 1,
+        withDirectDependencyChanges: 1,
+        withAddedAdvisories: 0,
+        withBreakingSignals: 0,
+        withTransitiveVulnerabilityAdditions: 0,
+      },
+      reviews: [
+        {
+          registry: "pub",
+          name: "Synthetic_Pub",
+          currentVersion,
+          targetVersion,
+          latestVersion: targetVersion,
+          versionDelta: "patch",
+          security: {
+            current: {
+              version: currentVersion,
+              affectedCount: 0,
+              nonAffectingCount: 0,
+              allCount: 0,
+              advisories: [],
+            },
+            target: {
+              version: targetVersion,
+              affectedCount: 0,
+              nonAffectingCount: 0,
+              allCount: 0,
+              advisories: [],
+            },
+            added: [],
+            removed: [],
+            notAddressed: [],
+            fixed: [],
+            introduced: [],
+            unchanged: [],
+          },
+          changelog: {
+            entries: [
+              {
+                version: targetVersion,
+                htmlUrl: "https://example.com/releases/1-2-4",
+              },
+            ],
+          },
+          unknowns: [unknown],
+        },
+      ],
+    });
+    const outputReview = (
+      cli as {
+        reviews: Array<{
+          dependencyChanges: {
+            direct: { added: Array<Record<string, unknown>> };
+          };
+        }>;
+      }
+    ).reviews[0]!;
+    expect(outputReview.dependencyChanges.direct.added).toEqual([
+      {
+        name: "collection",
+        registry: "pub",
+        fromVersions: [],
+        toVersions: ["1.18.0"],
+        constraint: "^1.18.0",
+        type: "runtime",
+      },
+    ]);
+  });
+
   it("PARITY-JSON-KEYS: batch CLI === MCP", async () => {
     const cli = await cliJson(undefined, {
       package: ["npm:express@4.18.0..5.0.0", "npm:zod@4.3.6..4.4.3"],

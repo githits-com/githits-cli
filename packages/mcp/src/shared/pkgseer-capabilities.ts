@@ -34,6 +34,7 @@ export const SUPPORTED_VULN_REGISTRY_ARGS = [
   "rubygems",
   "go",
   "swift",
+  "pub",
 ] as const satisfies readonly PkgseerRegistryArg[];
 
 export const SUPPORTED_VULN_REGISTRIES: ReadonlySet<PkgseerRegistry> = new Set(
@@ -45,8 +46,9 @@ export const SUPPORTED_VULN_REGISTRIES_LIST: string =
   SUPPORTED_VULN_REGISTRY_ARGS.join(", ");
 
 /** Vulnerability registry list with the existing error-message conjunction. */
-export const SUPPORTED_VULN_REGISTRIES_HUMAN: string =
-  "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift";
+export const SUPPORTED_VULN_REGISTRIES_HUMAN: string = `${SUPPORTED_VULN_REGISTRY_ARGS.slice(0, -1).join(", ")}, and ${
+  SUPPORTED_VULN_REGISTRY_ARGS[SUPPORTED_VULN_REGISTRY_ARGS.length - 1]
+}`;
 
 export function supportsVulnerabilitiesRegistry(
   registry: PkgseerRegistry,

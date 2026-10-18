@@ -59,6 +59,9 @@ describe("pkg vulns help", () => {
 
     expect(singleLineDescription).not.toContain("capped");
     expect(singleLineDescription).toContain(
+      "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, pub. vcpkg and zig are not supported.",
+    );
+    expect(singleLineDescription).toContain(
       "CLI text shows every selected direct and transitive advisory row",
     );
     expect(singleLineDescription).toContain(
@@ -618,7 +621,7 @@ describe("pkgVulnsAction", () => {
     }
 
     expect(errorSpy.mock.calls[0]?.[0]).toBe(
-      "pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: vcpkg.",
+      "pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, and pub. Got: vcpkg.",
     );
     errorSpy.mockRestore();
     exitSpy.mockRestore();

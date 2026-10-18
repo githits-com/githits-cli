@@ -51,7 +51,9 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
     );
     expect(tool.name).toBe("pkg_vulns");
     expect(tool.description).toContain("NuGet, Maven, Packagist");
-    expect(tool.description).toContain("Swift");
+    expect(tool.description).toContain(
+      "Supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, and Pub; vcpkg and Zig unsupported.",
+    );
     expect(tool.description).toContain("vcpkg and Zig");
     expect(tool.description).toContain(
       "Check current package advisories. Do not trust your memory for vulnerabilities.",
@@ -674,7 +676,7 @@ describe("createPackageVulnerabilitiesTool — validation errors via shared pars
     expect(payload.code).toBe("INVALID_ARGUMENT");
     expect(payload.retryable).toBe(false);
     expect(payload.error).toBe(
-      "pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: vcpkg.",
+      "pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, and pub. Got: vcpkg.",
     );
   });
 
