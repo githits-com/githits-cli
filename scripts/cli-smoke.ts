@@ -1174,6 +1174,18 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "stable unauthenticated targetless research",
       "AUTH_REQUIRED",
     );
+
+    const pubHelp = await runCliWithEnv(["pkg", "info", "--help"], env);
+    assert(
+      pubHelp.exitCode === 0 && /\bpub\b/.test(pubHelp.stdout),
+      "package help should advertise the Pub registry",
+    );
+    const pubAuth = await runCliWithEnv(
+      ["pkg", "info", "pub:path", "--json"],
+      env,
+    );
+    assertJsonErrorCode(pubAuth, "Pub package auth probe", "AUTH_REQUIRED");
+
     const resolveHelp = await runCliWithEnv(["resolve", "--help"], env);
     assert(
       resolveHelp.exitCode === 0 &&

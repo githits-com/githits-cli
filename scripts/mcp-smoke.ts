@@ -293,6 +293,26 @@ async function runRegistrationSmoke(target: CliLaunchTarget): Promise<void> {
       await assertSkillUpdateProbe(isolated.root);
       await assertStableMcpSession(client, "stable registration");
       await assertStableAuthProbe(client, "registration");
+      const tools = await client.listTools();
+      const infoSchema = tools.tools.find(
+        (tool) => tool.name === "pkg_info",
+      )?.inputSchema;
+      const targetSchema = infoSchema?.properties?.target as
+        | { description?: string }
+        | undefined;
+      assert(
+        /\bpub\b/.test(targetSchema?.description ?? ""),
+        "pkg_info schema must advertise Pub",
+      );
+      const pubResult = (await client.callTool({
+        name: "pkg_info",
+        arguments: { target: "pub:path", format: "json" },
+      })) as McpSmokeToolResult;
+      assert(
+        assertCleanErrorEnvelope(pubResult, "Pub registration").code ===
+          "AUTH_REQUIRED",
+        "Pub must pass MCP parsing and reach authentication",
+      );
       const diffResult = (await client.callTool({
         name: "code_diff",
         arguments: {

@@ -238,6 +238,215 @@ describe("package_dependencies parity", () => {
     expect(cli).toEqual(json);
   });
 
+  it("PARITY-JSON-KEYS: Pub leaf path@1.9.0 preserves zero counts CLI === MCP", async () => {
+    const pubLeafReport: DependencyReport = {
+      package: { name: "path", registry: "PUB", version: "1.9.0" },
+      dependencies: {
+        direct: [],
+        transitive: {
+          totalEdges: 0,
+          uniquePackagesCount: 0,
+          uniqueDependencies: [],
+        },
+      },
+    };
+    const packageDependencies = mock(
+      (
+        _params?: Parameters<
+          PackageIntelligenceService["packageDependencies"]
+        >[0],
+      ) => Promise.resolve(pubLeafReport),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageDependencies: packageDependencies as never,
+    });
+    const cli = await cliJson(
+      "pub:path@1.9.0",
+      { depth: "2" },
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const { json, isError } = await mcpJson(
+      { target: "pub:path@1.9.0", max_depth: 2 },
+      packageDependencies,
+    );
+
+    expect(isError).toBeUndefined();
+    expect(packageDependencies).toHaveBeenCalledTimes(2);
+    expect(packageDependencies.mock.calls).toEqual([
+      [
+        {
+          registry: "PUB",
+          packageName: "path",
+          version: "1.9.0",
+          includeTransitive: true,
+          includeTransitiveDetails: true,
+          includeGroups: false,
+          includeDependencyIssues: undefined,
+          maxDepth: 2,
+          lifecycle: undefined,
+        },
+      ],
+      [
+        {
+          registry: "PUB",
+          packageName: "path",
+          version: "1.9.0",
+          includeTransitive: true,
+          includeTransitiveDetails: true,
+          includeGroups: false,
+          includeDependencyIssues: undefined,
+          maxDepth: 2,
+          lifecycle: undefined,
+        },
+      ],
+    ]);
+    expect(cli).toEqual(json);
+    expect(cli).toMatchObject({
+      registry: "pub",
+      name: "path",
+      version: "1.9.0",
+      runtime: { count: 0, items: [] },
+      transitive: { edges: 0, uniquePackages: 0 },
+    });
+    expect(
+      (cli as { transitive?: { packages?: unknown[] } }).transitive?.packages,
+    ).toBeUndefined();
+  });
+
+  it("PARITY-JSON-KEYS: Pub graph preserves native identity and versions CLI === MCP", async () => {
+    const pubGraphReport: DependencyReport = {
+      package: {
+        registry: "PUB",
+        name: "Synthetic_Pub",
+        version: "1.2.3+build.7",
+      },
+      dependencies: {
+        direct: [
+          {
+            name: "collection",
+            versionConstraint: "^1.18.0",
+            type: "runtime",
+          },
+        ],
+        transitive: {
+          totalEdges: 2,
+          uniquePackagesCount: 2,
+          uniqueDependencies: ["collection@1.18.0", "meta@1.10.0"],
+          dependencyGraph: {
+            formatVersion: 4,
+            nodes: [
+              {
+                registry: "PUB",
+                name: "Synthetic_Pub",
+                version: "1.2.3+build.7",
+              },
+              { registry: "PUB", name: "collection", version: "1.18.0" },
+              { registry: "PUB", name: "meta", version: "1.10.0" },
+            ],
+            edges: [
+              {
+                fromIndex: 0,
+                toIndex: 1,
+                constraint: "^1.18.0",
+                dependencyType: "runtime",
+              },
+              {
+                fromIndex: 1,
+                toIndex: 2,
+                constraint: "^1.10.0",
+                dependencyType: "runtime",
+              },
+            ],
+          },
+        },
+      },
+    };
+    const packageDependencies = mock(
+      (
+        _params?: Parameters<
+          PackageIntelligenceService["packageDependencies"]
+        >[0],
+      ) => Promise.resolve(pubGraphReport),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageDependencies: packageDependencies as never,
+    });
+    const cli = await cliJson(
+      "pub:Synthetic_Pub@1.2.3+build.7",
+      { depth: "2" },
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const { json, isError } = await mcpJson(
+      { target: "pub:Synthetic_Pub@1.2.3+build.7", max_depth: 2 },
+      packageDependencies,
+    );
+
+    expect(isError).toBeUndefined();
+    expect(packageDependencies).toHaveBeenCalledTimes(2);
+    expect(packageDependencies.mock.calls).toEqual([
+      [
+        {
+          registry: "PUB",
+          packageName: "Synthetic_Pub",
+          version: "1.2.3+build.7",
+          includeTransitive: true,
+          includeTransitiveDetails: true,
+          includeGroups: false,
+          includeDependencyIssues: undefined,
+          maxDepth: 2,
+          lifecycle: undefined,
+        },
+      ],
+      [
+        {
+          registry: "PUB",
+          packageName: "Synthetic_Pub",
+          version: "1.2.3+build.7",
+          includeTransitive: true,
+          includeTransitiveDetails: true,
+          includeGroups: false,
+          includeDependencyIssues: undefined,
+          maxDepth: 2,
+          lifecycle: undefined,
+        },
+      ],
+    ]);
+    expect(cli).toEqual(json);
+    expect(cli).toMatchObject({
+      registry: "pub",
+      name: "Synthetic_Pub",
+      version: "1.2.3+build.7",
+      runtime: {
+        count: 1,
+        items: [
+          {
+            name: "collection",
+            constraint: "^1.18.0",
+            version: "1.18.0",
+          },
+        ],
+      },
+      transitive: {
+        edges: 2,
+        uniquePackages: 2,
+        packages: [
+          { name: "collection", version: "1.18.0" },
+          { name: "meta", version: "1.10.0" },
+        ],
+      },
+    });
+    expect(
+      (
+        cli as {
+          transitive?: { dependencyGraph?: unknown; dag?: unknown };
+        }
+      ).transitive?.dependencyGraph,
+    ).toBeUndefined();
+    expect(
+      (cli as { transitive?: { dag?: unknown } }).transitive?.dag,
+    ).toBeUndefined();
+  });
+
   it("PARITY-JSON-KEYS: Go pinned target CLI === MCP", async () => {
     const packageDependencies = mock(
       (
@@ -793,6 +1002,40 @@ describe("package_dependencies parity", () => {
     } finally {
       process.argv = previousArgv;
     }
+  });
+
+  it("Pub unsupported target context preserves the typed backend outcome", async () => {
+    const message =
+      "This dependency graph requires an unsupported target context.";
+    const error = new PackageIntelligenceBackendError(
+      message,
+      undefined,
+      "DEPENDENCY_RESOLUTION_UNAVAILABLE",
+      false,
+    );
+    const fn = mock(() => Promise.reject(error));
+    const cli = await cliJson(
+      "pub:Synthetic_Pub@1.2.3",
+      {},
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageDependencies: fn,
+        }),
+      }),
+    );
+    const { json, isError } = await mcpJson(
+      { target: "pub:Synthetic_Pub@1.2.3" },
+      fn,
+    );
+    expect(isError).toBe(true);
+    expect(cli).toEqual(json);
+    expect(json).toEqual({
+      code: "BACKEND_ERROR",
+      error: message,
+      retryable: false,
+      details: { graphqlCode: "DEPENDENCY_RESOLUTION_UNAVAILABLE" },
+    });
+    expect(fn).toHaveBeenCalledTimes(2);
   });
 
   it("PARITY-ERROR-ENVELOPE: BACKEND_ERROR (TIMEOUT) CLI === MCP", async () => {

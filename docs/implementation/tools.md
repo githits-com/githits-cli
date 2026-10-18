@@ -248,11 +248,31 @@ performs one sequential dependency query with the resolved root version and
 fails closed on malformed identity/count/fix evidence instead of returning
 partial direct-only results.
 
+## Pub package addresses
+
+Pub uses the shared `pub` surface registry and `PUB` backend enum for package
+analysis, target resolution, and source/documentation addressing. The core registry
+taxonomy owns this conversion; the separate MCP capability matrix includes Pub for
+vulnerability queries. Neither surface fetches pub.dev or selects dependency versions.
+
+Package names retain native case and exact version strings retain build metadata.
+`pkg info pub:path` remains latest-only. Download counts are package-wide observations:
+zero is known zero and absent counts remain unknown. Dependency graphs, advisory facts,
+release evidence, unsupported-context errors, and preparation outcomes remain backend
+facts. Public package queries do not establish an uploaded Dart project's graph or a
+Flutter SDK model. Source/docs addressing uses existing repository preparation and
+returned locators; it does not create a generated Dartdoc corpus.
+
+The public package Agent Skill tracks the published CLI. During release preparation,
+add Pub to its dependency registry list and the info/vulnerability/dependency lists
+in `skills/githits-package/references/package.md`, including a native-case/build
+metadata example. This keeps skills.sh guidance aligned with the released artifact.
+
 ## Ecosystem Audit
 
 Use `bun run audit:pkg-ecosystems` to run a live CLI audit across representative packages from every package registry supported by package metadata tools. The script checks `pkg_info`, `pkg_changelog`, `pkg_vulns`, and `pkg_deps` with JSON output so ecosystem regressions are visible without hand-running dozens of commands.
 
-The fixture matrix lives in `scripts/pkg-ecosystem-audit.ts` and covers npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift. Each registry has three representative packages. `pkg_vulns` failures for vcpkg and Zig are expected and are reported as `expected-unsupported`; all 12 registries are expected to work for `pkg_deps`. Any other failure exits non-zero, including backend data anomalies that should be fixed and rechecked later.
+The fixture matrix lives in `scripts/pkg-ecosystem-audit.ts` and covers npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, Swift, and Pub. Each registry has three representative packages. `pkg_vulns` failures for vcpkg and Zig are expected and are reported as `expected-unsupported`; all 13 registries are expected to work for `pkg_deps`. Any other failure exits non-zero, including backend data anomalies that should be fixed and rechecked later.
 
 Useful invocations:
 
@@ -466,7 +486,7 @@ graph), and each transitive occurrence always retains the required
 `[]`). `modifiedAt` is included only when it differs from `publishedAt`, and
 `isMalicious` is included only when `true`.
 
-**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift have vulnerability data. vcpkg and Zig are rejected client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.`) — the tool-specific vulnerability predicate lives in `packages/mcp/src/shared/pkgseer-capabilities.ts`.
+**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, and Pub have vulnerability data. vcpkg and Zig are rejected client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, and pub. Got: ${registry}.`) — the tool-specific vulnerability predicate lives in `packages/mcp/src/shared/pkgseer-capabilities.ts`.
 
 `pkg_vulns` shares its envelope builder and text formatter with the CLI `githits pkg vulns` command via `packages/mcp/src/shared/package-vulnerabilities-request.ts` and `packages/mcp/src/shared/package-vulnerabilities-response.ts`. MCP defaults to compact text and uses `format: "json"` for structured output. The shared text formatter is surface-aware so MCP hints never mention CLI flags. The parity test (`src/tools/package-vulnerabilities-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across the service-sourced success/filter/typed-error fixtures, and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` fixtures such as unsupported registries and tag-style `v`-prefixed versions.
 
@@ -532,7 +552,7 @@ JSON retains backend order and multiplicity.
 
 **Typed dependency graph projection.** Backend exposes typed `dependencyGraph`, `dependencyConflicts`, `circularDependencyCycles`, and `environmentMarkers`; `pkg_deps` consumes those typed fields and projects them into a lean agent-facing envelope. Deprecated raw fields (`dag`, `conflicts`, `circularDependencies`, `environmentConstraints`) are intentionally not queried. The raw graph is deliberately not exposed by this tool.
 
-**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, and Swift support the `packageDependencies` query. The shared registry capability module in `packages/mcp/src/shared/pkgseer-capabilities.ts` supplies the canonical dependency list used by request/help text and the ecosystem audit; it follows `PKGSEER_REGISTRY_ARGS` order. There is no known unsupported dependency registry in this set; only an unknown registry is rejected.
+**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, Swift, and Pub support the `packageDependencies` query. The shared registry capability module in `packages/mcp/src/shared/pkgseer-capabilities.ts` supplies the canonical dependency list used by request/help text and the ecosystem audit; it follows `PKGSEER_REGISTRY_ARGS` order. There is no known unsupported dependency registry in this set; only an unknown registry is rejected.
 
 **Version validation.** Same shared rule as `pkg_vulns`: exact Go inputs are accepted with or without `v` and sent with canonical `v`; unsupported tag-style inputs remain client-side `INVALID_ARGUMENT` errors.
 
