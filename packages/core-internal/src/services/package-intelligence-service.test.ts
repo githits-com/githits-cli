@@ -131,6 +131,48 @@ describe("PackageIntelligenceServiceImpl", () => {
     expect(result.latestChangelogs?.[0]?.version).toBe("4.18.2");
   });
 
+  it.each([12345, 0, null])(
+    "preserves Pub monthly count wire value %s without another request",
+    async (count) => {
+      const body = {
+        data: {
+          packageSummary: {
+            package: {
+              registry: "PUB",
+              name: "Synthetic_Pub",
+              latestVersion: "1.2.3",
+              downloadsLastMonth: count,
+            },
+          },
+        },
+      };
+      const fetchFn = mock((_url: unknown, _init?: RequestInit) =>
+        Promise.resolve(jsonResponse(body)),
+      );
+      const service = new PackageIntelligenceServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+      const result = await service.packageSummary({
+        registry: "PUB",
+        packageName: "Synthetic_Pub",
+      });
+      expect(result.package).toMatchObject({
+        registry: "PUB",
+        name: "Synthetic_Pub",
+        latestVersion: "1.2.3",
+      });
+      expect(result.package.downloadsLastMonth).toBe(count ?? undefined);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      const request = JSON.parse(String(fetchFn.mock.calls[0]?.[1]?.body));
+      expect(request.variables).toMatchObject({
+        registry: "PUB",
+        name: "Synthetic_Pub",
+      });
+    },
+  );
+
   it("preserves zero values for summary metadata", async () => {
     const body = {
       data: {

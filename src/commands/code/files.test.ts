@@ -292,7 +292,7 @@ describe("pkgFilesAction", () => {
     exitSpy.mockRestore();
   });
 
-  it.each(["rubygems:rails", "go:golang.org/x/text"])(
+  it.each(["rubygems:rails", "go:golang.org/x/text", "pub:path"])(
     "rejects package spec %s in --repo-url mode",
     async (spec) => {
       const errorSpy = spyOn(console, "error").mockImplementation(() => {});

@@ -120,7 +120,7 @@ relevant, malicious-advisory markers, and complete range/fix evidence without
 changing row completeness. --json emits the complete structured envelope.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
-npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift. vcpkg and zig are not supported.
+npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, pub. vcpkg and zig are not supported.
 Omit @<version> to check the latest release.
 Example: githits pkg vulns npm:lodash@4.17.20 --severity high
 
