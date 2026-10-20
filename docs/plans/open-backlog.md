@@ -139,3 +139,24 @@ backend. Revert the dependency for rollback; roll back forwarding clients before
 removing backend admission. Exact artifact and future deployed state remain
 unknown. No merge, release, publication, deployment or other repository edit is
 authorized by this client handoff.
+
+## Release preparation: remote init onboarding skill
+
+The remote-init CLI change must be included in the release branch before
+updating `skills/githits-onboarding/SKILL.md`, per the public Agent Skill
+lifecycle. This feature branch deliberately leaves its published bytes intact.
+Update the skill during that release preparation to offer the default remote
+profile, retain explicit `--remote`/`--local`, scope and `--no-guidance` in staged
+commands, preserve no-selector transport on reruns, skip local CLI auth for
+hosted-only selections, and use host-owned OAuth/discovery instructions.
+Explain Claude Desktop's directory handoff at
+https://claude.ai/directory/githits, `manual_action_required`/`manualActionIds`,
+and exclusion from automatic install counts. Keep existing CLI skills on remote
+install; retain four-skill uninstall semantics and `--keep-guidance`.
+
+Acceptance: staged detect/install examples match the released CLI envelopes and
+selectors; onboarding never directs hosted-only users to local login or retries
+CLI install for a directory connection. Regenerate/check plugin assets and run
+targeted onboarding validation in an isolated disposable environment; the
+stateful onboarding eval remains manual/dry-run-only until its harness supports
+safe automated execution.

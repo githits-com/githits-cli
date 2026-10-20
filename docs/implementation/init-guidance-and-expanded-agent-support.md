@@ -16,41 +16,86 @@ retargeted. Guidance-only and stale-skill cleanup selections do not mutate MCP
 configuration or authenticate. An empty selection prints `Nothing selected, no
 changes made` and returns before review, authentication, or writes.
 
-The first prompt offers guided MCP, plain MCP, standalone Agent Skills, or an
-exit. Guided MCP is the default. `--no-guidance` selects plain MCP and performs
-no skill migration. A project guidance consent decline recomputes the selected
-actions and exits before review, authentication, or writes when only guidance
-repair remains.
+The first prompt offers:
 
-Staged detection preserves the machine-readable `installableIds` MCP-only
-contract. `guidanceStatus`, `guidanceRequested`, and `actionableIds` expose
-guidance repair without changing the meaning of existing fields. Staged JSON
-is authoritative for the selected IDs and distinguishes success,
-`already_configured`, unsupported, skipped, and failed outcomes.
+1. Remote MCP + skill (simplest, recommended), preselected.
+2. Local CLI + skills (supports experimental features): local where supported,
+   remote otherwise. Experimental tools remain opt-in on local integrations.
+3. Plain MCP (local-first, no guidance).
+4. CLI skills only.
+5. Exit.
+
+`--remote` and `--local` are mutually exclusive profile selectors and bypass
+that profile prompt. `--remote --no-guidance` configures hosted MCP without
+writing guidance. An interactive profile choice requests migration. Fresh
+no-selector staged/`--yes` setup remains local-first; reruns preserve a valid
+canonical local or hosted transport. Preserve mode does not infer installation
+history. Cursor has the same hosted config in both profiles, so no-selector
+setup retains its existing four-skill policy; explicit remote requests the
+MCP-only subset. There is no fallback to another transport after a failure.
+
+A project guidance consent decline recomputes selected actions and exits before
+writes when only guidance repair remains. Staged `installableIds` remains
+MCP-only; `actionableIds` adds guidance repair. The top-level `setupProfile` is
+`remote`, `local`, or `preserve`; per-agent `setupProfile` and `transport` report
+the resolved policy/connection. Follow-up commands retain the exact explicit
+selector, scope, IDs, `--no-guidance`, and JSON mode.
+
+Claude Desktop always reports `manual_action_required` and the exact directory
+page https://claude.ai/directory/githits. The user chooses Connect/Install and
+signs in in Claude, then verifies tools in a new conversation. Init never
+activates the connector, opens its browser flow, writes Desktop MCP/skills, or
+claims it is connected. `manualActionIds` and per-entry `manualAction` describe
+this separately from automatic installation. Desktop-only setup returns without
+write confirmation or CLI auth; mixed setup keeps manual outcomes outside the
+automatic success/failure counts. Unselected Desktop receives no handoff.
+Legacy Desktop local bytes are retained and reported when detected; explicit
+uninstall can remove that local config. Connector disconnection belongs to
+Claude. Desktop remains unsupported at project scope.
 
 ## MCP transport and authentication
 
-Before selection, intent copy is transport-neutral. After selection, review and
-final summaries describe the actual targets:
+Host definitions own native config formats, verified locations/scopes, effective
+transport, guidance profile, and remote auth instructions. Init resolves these
+before scanning and retains them through checks, writes, verification, and
+reporting. Setup reuses the existing command/config-file/composite executors.
+Config-file checks and native command file probes share one pure classifier;
+malformed/unreadable and disabled entries block setup before MCP mutation.
+Canonical remote matching preserves host-owned extras, including Q serialized
+defaults and Cline settings, while rejecting conflicting local commands/URLs.
 
-- all non-Cursor targets use the local stdio command
-  `npx -y githits@latest mcp start`;
-- Cursor-only targets use the hosted remote MCP at
-  `https://mcp.githits.com`;
-- mixed selections name both the local target group and Cursor's remote target.
+Hosted MCP uses https://mcp.githits.com and host-owned OAuth. Entirely hosted
+setup and guidance-only repairs do not construct CLI login dependencies. Local
+CLI auth only applies to selected local integrations. Configuration success is
+not an authenticated tool-discovery result; remote next steps also appear on
+configured/guidance-only paths. Cursor retains its MCP-panel Authenticate action,
+`cursor-agent mcp login GitHits`, and copyable tool-discovery commands. Other
+hosts receive their own auth action and new-session discovery instructions.
+Staged Cursor-only auth keeps `managed_by_cursor`; other hosted-only setup uses
+`managed_by_host`, with additive per-host `remoteAuth` instructions for mixed runs.
 
-Cursor authentication is separate from local GitHits CLI authentication. A
-Cursor setup requires one Authenticate action in Cursor's MCP panel, or
-`cursor-agent mcp login GitHits`, followed by tool discovery in a new Cursor
-Agent chat. Cursor-only setup skips local CLI login. Mixed setup authenticates
-only the non-Cursor integrations locally and labels that status accordingly.
+Claude Code and Gemini retain legacy plugin/extension cleanup before native
+HTTP or stdio add. Gemini file checks accept both current `{type:"http",url}`
+and legacy `httpUrl` user HTTP representations independently of connection
+health. Q remote writes the existing `~/.aws/amazonq/mcp.json` map; local add
+uses `--force` for explicit replacement and uninstall uses `--name githits`.
+Codex remote user/project setup edits native TOML directly: `codex mcp add
+--url` starts browser OAuth and would block unattended setup. Login remains the
+separate `codex mcp login githits` step. User checks/writes honor `CODEX_HOME`
+(default `~/.codex`); relative overrides are resolved before isolated probes.
+Local Codex accepts enabled custom/pinned stdio commands and detects the CLI
+with bounded PATH/version probes.
 
-Pi user setup writes `directTools: true` alongside its eager lifecycle in the
-Pi-owned `~/.pi/agent/mcp.json` entry. Project `.mcp.json` keeps the standard
-shared MCP shape and does not receive Pi's user-only `directTools` setting.
-Codex detection requires both a successful `PATH` lookup and a successful,
-bounded `codex --version` probe; a missing, failing, timed-out, or unlaunchable
-probe means Codex is not detected.
+The shared TOML editor patches only GitHits entries, including case variants
+and descendant tables. It preserves unrelated source, comments, formatting,
+BOM and line endings for user and project setup/removal. The existing parser
+validates the result against intended settings before atomic write. There is
+no whole-file rewrite fallback and no destructive TOML rewrite warning.
+
+Pi keeps its adapter installation and user `lifecycle: eager` / `directTools:
+true`; project `.mcp.json` uses the shared native shape. Claude Code and Pi read
+the same project GitHits entry; review/detection disclose that changing it
+affects both hosts. Other scopes and unrelated server entries are preserved.
 
 ## Supporting MCP guidance
 
@@ -111,12 +156,19 @@ and registers GitHits; that environment differs from a normal workspace.
 
 ## Skill catalog and active roots
 
-Guided setup requires exactly these four packaged skills:
+The local-first profile and plugin packages use these four canonical skills:
 
 - `githits-code`
 - `githits-mcp`
 - `githits-onboarding`
 - `githits-package`
+
+The remote profile requests only `githits-mcp` plus existing managed instruction
+blocks at verified targets, preserving pre-existing extra/CLI skill files.
+Some hosts support skills without an instruction block; Amazon Q has neither
+target and reports `guidanceStatus: "not_supported"` while MCP remains installable.
+Mixed preserve-mode profiles sharing a skill root take the union by target
+file path, independently of selection order.
 
 The runtime catalog is defined in `src/commands/init/guidance-assets.ts` and
 is checked for parity with plugin packaging. Missing files are repaired;
@@ -228,7 +280,7 @@ targets are only the exact CLI-owned files
 `<scope>/.junie/skills/githits-mcp/SKILL.md`; unrelated skills, directories,
 plugin payloads, and managed instruction blocks are preserved.
 
-Guided setup writes and verifies all four active skill files before removing a
+Guided setup writes and verifies its requested skill subset before removing a
 historical file. If active installation or verification fails, the historical
 file remains. If cleanup fails, the active set remains usable and the exact
 failed historical path is reported with a generic reason. Missing historical

@@ -44,9 +44,12 @@ import {
   type SetupChange,
   type UninstallChange,
 } from "./setup-format.js";
+import { editTomlServer } from "./toml-server-edit.js";
 
 /** Shared fields for a read-only command setup check. */
 interface CommandSetupCheckFields {
+  /** Host-owned child environment overrides, never logged by probe tracing. */
+  env?: Record<string, string>;
   /** Command to execute (e.g., "claude") */
   command: string;
   /** Command arguments (e.g., ["plugin", "list"]) */
@@ -651,6 +654,12 @@ function extractInvocation(config: unknown): string[] | null {
   if (isStringArray(command)) {
     return [...command];
   }
+  if (
+    isPlainObject(command) &&
+    typeof command.path === "string" &&
+    isStringArray(command.args)
+  )
+    return [command.path, ...command.args];
 
   return null;
 }
@@ -674,7 +683,11 @@ function hasLegacyRemoteIndicators(
   existing: Record<string, unknown>,
   expected: Record<string, unknown>,
 ): boolean {
-  if ("url" in existing || "serverUrl" in existing) {
+  if (
+    ["url", "serverUrl", "httpUrl"].some(
+      (key) => existing[key] !== undefined && existing[key] !== "",
+    )
+  ) {
     return true;
   }
 
@@ -699,6 +712,37 @@ export function isEquivalentConfiguredValue(
 
   if (!isPlainObject(existing)) {
     return false;
+  }
+
+  const urlKeys = ["url", "serverUrl", "httpUrl"] as const;
+  const remoteKey = urlKeys.find(
+    (key) => typeof expected[key] === "string" && expected[key] !== "",
+  );
+  if (remoteKey) {
+    if (
+      (isPlainObject(existing.command) &&
+        (existing.command.path !== "" ||
+          (Array.isArray(existing.command.args) &&
+            existing.command.args.length > 0))) ||
+      (typeof existing.command === "string" && existing.command !== "") ||
+      (Array.isArray(existing.command) && existing.command.length > 0) ||
+      (Array.isArray(existing.args) && existing.args.length > 0)
+    )
+      return false;
+    if (
+      urlKeys.some(
+        (key) =>
+          existing[key] !== undefined &&
+          existing[key] !== "" &&
+          existing[key] !== expected[remoteKey],
+      )
+    )
+      return false;
+    if (existing.type !== undefined && existing.type !== expected.type)
+      return false;
+    return Object.entries(expected).every(([key, value]) =>
+      deepEqual(existing[key], value),
+    );
   }
 
   const expectedInvocation = extractInvocation(expected);
@@ -829,7 +873,16 @@ export function mergeServerConfig(
 
   return {
     status: hadExisting ? "updated" : "added",
-    content: renderConfigObjectForFormat(config, format),
+    content:
+      format === "toml"
+        ? editTomlServer(
+            existingContent,
+            serversKey,
+            serverName,
+            serverConfig,
+            config,
+          )
+        : renderConfigObjectForFormat(config, format),
   };
 }
 
@@ -883,7 +936,16 @@ export function removeServerConfig(
 
   return {
     status: "removed",
-    content: renderConfigObjectForFormat(config, format),
+    content:
+      format === "toml"
+        ? editTomlServer(
+            existingContent,
+            serversKey,
+            serverName,
+            undefined,
+            config,
+          )
+        : renderConfigObjectForFormat(config, format),
   };
 }
 
@@ -1036,6 +1098,72 @@ export async function isAlreadyConfigured(
   }
 }
 
+/** Classify native configuration without treating read/parse failure as absence. */
+export async function getConfigSetupCheckStatus(
+  config: ConfigFileSetup,
+  fs: FileSystemService,
+): Promise<SetupCheckStatus> {
+  let content: string;
+  try {
+    content = await fs.readFile(config.configPath);
+  } catch (error) {
+    return error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "ENOENT"
+      ? "not_configured"
+      : "probe_failed";
+  }
+  return classifyConfigSetupContent(config, content);
+}
+
+/** Shared pure probe for config-file installs and native CLI configuration checks. */
+export function classifyConfigSetupContent(
+  config: ConfigFileSetup,
+  content: string,
+): SetupCheckStatus {
+  const parsed = parseConfigObjectForFormat(content, config.format);
+  if ("error" in parsed) return "probe_failed";
+  const servers = parsed.value[config.serversKey];
+  if (servers === undefined) return "not_configured";
+  if (!isPlainObject(servers)) return "probe_failed";
+  const keys = getMatchingServerKeys(servers, config.serverName);
+  if (keys.length === 0) return "not_configured";
+  for (const key of keys) {
+    const entry = servers[key];
+    if (!isPlainObject(entry)) return "probe_failed";
+    if (
+      ["enabled", "disabled"].some(
+        (field) =>
+          entry[field] !== undefined && typeof entry[field] !== "boolean",
+      )
+    )
+      return "probe_failed";
+    if (entry.enabled === false || entry.disabled === true) return "disabled";
+    for (const field of ["url", "httpUrl", "serverUrl", "type"])
+      if (entry[field] !== undefined && typeof entry[field] !== "string")
+        return "probe_failed";
+    if (
+      entry.command !== undefined &&
+      typeof entry.command !== "string" &&
+      !isStringArray(entry.command) &&
+      !(
+        isPlainObject(entry.command) &&
+        typeof entry.command.path === "string" &&
+        isStringArray(entry.command.args)
+      )
+    )
+      return "probe_failed";
+    if (entry.args !== undefined && !isStringArray(entry.args))
+      return "probe_failed";
+  }
+  return keys.length === 1 &&
+    keys[0] === config.serverName &&
+    isEquivalentConfiguredValue(servers[config.serverName], config.serverConfig)
+    ? "configured"
+    : "non_canonical";
+}
+
 /**
  * Check if GitHits has any removable config entry in a config file.
  * Read-only — never writes. Returns false on missing or malformed files.
@@ -1125,9 +1253,7 @@ export async function getSetupCheckStatus(
   trace?: { agentId: string; phase: string },
 ): Promise<SetupCheckStatus> {
   if (config.method === "config-file") {
-    return (await isAlreadyConfigured(config, fs))
-      ? "configured"
-      : "not_configured";
+    return getConfigSetupCheckStatus(config, fs);
   }
 
   if (config.method === "skill") {
@@ -1246,6 +1372,7 @@ export async function getCliCheckStatus(
     }
     const result = await execService.exec(check.command, check.args, {
       timeoutMs: check.timeoutMs ?? 5_000,
+      ...(check.env && { env: check.env }),
       ...(isolatedCwd !== undefined && { cwd: isolatedCwd }),
     });
     if (trace) {

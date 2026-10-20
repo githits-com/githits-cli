@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { createPlatformMockFileSystemService } from "../../services/test-helpers.js";
 import {
+  type ClaudeHttpMcpExpectation,
   type ClaudeMcpInvocation,
   parseClaudeUserMcpState,
   resolveClaudeUserConfigPath,
@@ -11,6 +12,10 @@ const CANONICAL_INVOCATION: ClaudeMcpInvocation = {
   args: ["-y", "githits@latest", "mcp", "start"],
 };
 const CANONICAL_ENTRY = { type: "stdio", ...CANONICAL_INVOCATION };
+const CANONICAL_HTTP_EXPECTATION: ClaudeHttpMcpExpectation = {
+  type: "http",
+  url: "https://mcp.example.test/mcp",
+};
 
 describe("resolves Claude user config paths", () => {
   it("uses the home directory by default", () => {
@@ -72,6 +77,22 @@ describe("classifies Claude user MCP state", () => {
     ).toEqual({ status: "configured" });
   });
 
+  it("rejects stdio entries with a non-empty URL", () => {
+    expect(
+      parseClaudeUserMcpState(
+        JSON.stringify({
+          mcpServers: {
+            githits: {
+              ...CANONICAL_ENTRY,
+              url: "https://other.example.test/mcp",
+            },
+          },
+        }),
+        CANONICAL_INVOCATION,
+      ),
+    ).toEqual({ status: "non_canonical" });
+  });
+
   it("honors an alternate injected invocation", () => {
     const alternateInvocation: ClaudeMcpInvocation = {
       command: "bun",
@@ -97,6 +118,158 @@ describe("classifies Claude user MCP state", () => {
         alternateInvocation,
       ),
     ).toEqual({ status: "non_canonical" });
+  });
+
+  it("classifies an HTTP entry with the exact expected type and URL", () => {
+    expect(
+      parseClaudeUserMcpState(
+        JSON.stringify({
+          mcpServers: { githits: CANONICAL_HTTP_EXPECTATION },
+        }),
+        CANONICAL_HTTP_EXPECTATION,
+      ),
+    ).toEqual({ status: "configured" });
+  });
+
+  it("rejects HTTP entries with a non-empty local command", () => {
+    expect(
+      parseClaudeUserMcpState(
+        JSON.stringify({
+          mcpServers: {
+            githits: { ...CANONICAL_HTTP_EXPECTATION, command: "npx" },
+          },
+        }),
+        CANONICAL_HTTP_EXPECTATION,
+      ),
+    ).toEqual({ status: "non_canonical" });
+  });
+
+  it("rejects HTTP entries with non-empty local args", () => {
+    expect(
+      parseClaudeUserMcpState(
+        JSON.stringify({
+          mcpServers: {
+            githits: {
+              ...CANONICAL_HTTP_EXPECTATION,
+              args: ["mcp", "start"],
+            },
+          },
+        }),
+        CANONICAL_HTTP_EXPECTATION,
+      ),
+    ).toEqual({ status: "non_canonical" });
+  });
+
+  it("accepts canonical HTTP entries with empty local command and args", () => {
+    expect(
+      parseClaudeUserMcpState(
+        JSON.stringify({
+          mcpServers: {
+            githits: {
+              ...CANONICAL_HTTP_EXPECTATION,
+              command: "",
+              args: [],
+            },
+          },
+        }),
+        CANONICAL_HTTP_EXPECTATION,
+      ),
+    ).toEqual({ status: "configured" });
+  });
+
+  it("classifies an HTTP entry with a different URL as non-canonical", () => {
+    expect(
+      parseClaudeUserMcpState(
+        JSON.stringify({
+          mcpServers: {
+            githits: {
+              ...CANONICAL_HTTP_EXPECTATION,
+              url: "https://other.example.test/mcp",
+            },
+          },
+        }),
+        CANONICAL_HTTP_EXPECTATION,
+      ),
+    ).toEqual({ status: "non_canonical" });
+  });
+
+  it("classifies SSE as non-canonical when HTTP is expected", () => {
+    expect(
+      parseClaudeUserMcpState(
+        JSON.stringify({
+          mcpServers: {
+            githits: { ...CANONICAL_HTTP_EXPECTATION, type: "sse" },
+          },
+        }),
+        CANONICAL_HTTP_EXPECTATION,
+      ),
+    ).toEqual({ status: "non_canonical" });
+  });
+
+  it("classifies an omitted type as non-canonical when HTTP is expected", () => {
+    expect(
+      parseClaudeUserMcpState(
+        JSON.stringify({
+          mcpServers: { githits: { url: CANONICAL_HTTP_EXPECTATION.url } },
+        }),
+        CANONICAL_HTTP_EXPECTATION,
+      ),
+    ).toEqual({ status: "non_canonical" });
+  });
+
+  it("classifies a local invocation as non-canonical when HTTP is expected", () => {
+    expect(
+      parseClaudeUserMcpState(
+        JSON.stringify({ mcpServers: { githits: CANONICAL_ENTRY } }),
+        CANONICAL_HTTP_EXPECTATION,
+      ),
+    ).toEqual({ status: "non_canonical" });
+  });
+
+  it("classifies HTTP as non-canonical when a local invocation is expected", () => {
+    expect(
+      parseClaudeUserMcpState(
+        JSON.stringify({
+          mcpServers: { githits: CANONICAL_HTTP_EXPECTATION },
+        }),
+        CANONICAL_INVOCATION,
+      ),
+    ).toEqual({ status: "non_canonical" });
+  });
+
+  it("classifies a non-string HTTP URL as a probe failure", () => {
+    expect(
+      parseClaudeUserMcpState(
+        JSON.stringify({
+          mcpServers: { githits: { type: "http", url: 42 } },
+        }),
+        CANONICAL_HTTP_EXPECTATION,
+      ),
+    ).toEqual({ status: "probe_failed" });
+  });
+
+  it("classifies malformed JSON as a probe failure", () => {
+    expect(parseClaudeUserMcpState("{", CANONICAL_HTTP_EXPECTATION)).toEqual({
+      status: "probe_failed",
+    });
+  });
+
+  it("does not expose a fake credential in the classification result", () => {
+    const fakeCredential = "fake-secret-credential-do-not-return";
+    const result = parseClaudeUserMcpState(
+      JSON.stringify({
+        mcpServers: {
+          githits: {
+            ...CANONICAL_HTTP_EXPECTATION,
+            headers: { authorization: `Bearer ${fakeCredential}` },
+          },
+        },
+      }),
+      CANONICAL_HTTP_EXPECTATION,
+    );
+
+    expect(result).toEqual({ status: "configured" });
+    expect(JSON.stringify(result)).not.toContain(fakeCredential);
   });
 
   it("classifies valid but non-canonical entries", () => {
