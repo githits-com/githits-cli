@@ -99,6 +99,94 @@ true`; project `.mcp.json` uses the shared native shape. Claude Code and Pi read
 the same project GitHits entry; review/detection disclose that changing it
 affects both hosts. Other scopes and unrelated server entries are preserved.
 
+## Native remote configuration
+
+Init uses the existing scope/path/server-key/name in each agent definition, replacing
+only the selected GitHits entry with its native remote configuration. `URL`
+below means the canonical `https://mcp.githits.com`.
+
+| Agent | Remote entry or native user command |
+| --- | --- |
+| Claude Code | User: `claude mcp add --transport http --scope user githits URL`, retaining existing migration cleanup; project: `{type:"http",url:URL}` |
+| Cursor | Existing `{url:URL}` |
+| Windsurf | `{serverUrl:URL}` at the existing Windsurf path; no successor product detection/path migration |
+| VS Code / Copilot | `{type:"http",url:URL}` |
+| Cline | `{type:"streamableHttp",url:URL}` at the existing user path |
+| Codex CLI | User/project TOML: `url = "URL"`; user path honors `CODEX_HOME` |
+| Pi | Retain existing adapter composite; user: `{url:URL,lifecycle:"eager",directTools:true}`; shared project `.mcp.json`: `{type:"http",url:URL}` |
+| Gemini CLI | User: `gemini mcp add --transport http --scope user githits URL`, retaining cleanup and honoring `GEMINI_CLI_HOME` for the settings base; accept native `{type:"http",url:URL}` and legacy `{httpUrl:URL}`; project writes `{httpUrl:URL}` |
+| Google Antigravity | `{serverUrl:URL}` |
+| OpenCode and Kilo Code CLI | `{type:"remote",url:URL,enabled:true}` |
+| Hermes Agent | YAML entry `url: URL`, `auth: oauth`; user scope only |
+| Zed and Junie | `{url:URL}` |
+| Qwen Code | `{httpUrl:URL}` |
+| Kiro | `{url:URL}` |
+| Factory Droid | `{type:"http",url:URL}` |
+| Amazon Q CLI | User JSON `~/.aws/amazonq/mcp.json`, `mcpServers.githits = {type:"http",url:URL}`; native uninstall is `q mcp remove --name githits` |
+| Claude Desktop | Directory handoff only; retain legacy local setup descriptor solely for uninstall |
+
+Verified host contracts (2026-10-20):
+
+- Cline `ca7402c5`, `apps/vscode/src/services/mcp/schemas.ts:87-164`
+  explicitly accepts the existing flat format as well as nested transport.
+  Explicit `streamableHttp` is required; URL-only defaults to SSE. Keep the flat
+  supported format rather than migrating the host's whole config.
+- Current public [OpenCode MCP documentation](https://opencode.ai/docs/mcp-servers/)
+  uses the existing direct `mcp.<name>` map with remote type, URL, and enabled
+  state. Another source directory has a newer nesting shape; do not mistake
+  that unrelated/unreleased surface for a requirement to migrate existing setup.
+  Installed OpenCode 1.18.30 exposes native `mcp add --url`; Codex 0.163.0 also
+  exposes `mcp add --url` (help/version probes only, no user config read).
+- Codex `e18a20d6`, `codex-rs/cli/src/mcp_cmd.rs:453-490` writes the
+  entry and immediately awaits browser OAuth from `mcp add --url`. Local
+  Codex 0.163.0 help has no no-login switch. Remote user setup therefore uses
+  the existing TOML executor at `CODEX_HOME/config.toml`, or
+  `~/.codex/config.toml` when the environment value is absent/empty; project
+  setup keeps `.codex/config.toml`. Preserve sibling settings and preserve surrounding comments/formatting through the shared TOML editor
+  described above. Do not run native remote add or manufacture
+  a bearer-token variable to suppress OAuth. Report `codex mcp login githits`
+  separately. `codex-rs/utils/home-dir/src/lib.rs:13-60` confirms the override
+  and default; resolve relative overrides against the working directory, as
+  native filesystem paths do. Existing setup creates the config directory if
+  needed; no independent Codex-home validator/framework is needed. Keep local
+  stdio add and native uninstall unchanged. Regression cases cover default,
+  nonempty/empty override, existing siblings, exact remote match, disabled
+  state, and no native add or login call during hosted configuration.
+- Kilo `5cc65d12`, `packages/sdk/js/src/v2/gen/types.gen.ts:2481` and
+  `packages/kilo-docs/pages/automate/mcp/using-in-kilo-code.md` confirm its CLI
+  direct map and remote entry. Do not use editor-extension formats.
+- Pi adapter `1c7a84d4`, `docs/configuration.md` confirms Pi-owned `mcp.json`
+  and shared `.mcp.json`; `docs/auth.md` confirms URL-only OAuth discovery.
+  No explicit auth property is required in the shared Claude/Pi project entry.
+- Amazon Q `15cc8f3c`, `crates/chat-cli/src/util/paths.rs:59-61` confirms
+  `.aws/amazonq/mcp.json`. Its add command requires a local executable, so remote
+  setup writes that existing global map instead; `mcp remove` handles the same
+  map (`crates/chat-cli/src/cli/mcp.rs:256-260`); its RemoveArgs requires
+  `--name githits` (`:211-214`), correcting the existing positional invocation. This is the same legacy global
+  source existing local init already uses, not a new caller constraint.
+- Gemini `76e4d7c0`, `packages/cli/src/commands/mcp/add.ts:17-153`
+  confirms native add only writes configuration and returns, without starting
+  OAuth. Current native HTTP output is `{type:"http",url:URL}` whereas legacy
+  `httpUrl` remains supported. The user remote file check accepts either native
+  HTTP representation at the canonical URL, rejecting SSE, conflicting values,
+  malformed or disabled entries; project writes its existing `httpUrl` shape.
+  Both supported representations have regression coverage for native add idempotency. User probes follow the native `GEMINI_CLI_HOME` settings base; project paths stay project-relative.
+- Official Junie docs confirm URL entries and the existing scope paths.
+  Official Droid docs confirm HTTP config and OAuth. Existing Windsurf scope
+  stays explicit; the redirected successor docs' path is not adopted.
+
+Remote sign-in instructions belong to each definition: Claude Code `/mcp`,
+Cursor existing panel/login commands, Codex `codex mcp login githits`, Gemini
+`/mcp auth githits`, Pi `/mcp-auth GitHits`, OpenCode/Kilo native MCP auth,
+and the other hosts' documented MCP Authenticate/Authorize action. Every remote
+instruction ends with a new-session/tool-discovery check; none claims CLI auth
+proves remote readiness. Preserve exact host/server-name spelling.
+
+The native settings-home override does not establish exclusive guidance
+discovery. Before changing guidance locations for a custom Gemini home, verify
+whether the native host also reads the standard location; the investigation
+criteria are recorded in [the backlog](../plans/open-backlog.md#verify-gemini-custom-home-guidance-discovery).
+
 ## Supporting MCP guidance
 
 Guided setup writes a managed GitHits block into each selected agent's
