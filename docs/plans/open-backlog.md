@@ -160,3 +160,31 @@ CLI install for a directory connection. Regenerate/check plugin assets and run
 targeted onboarding validation in an isolated disposable environment; the
 stateful onboarding eval remains manual/dry-run-only until its harness supports
 safe automated execution.
+
+## Gemini custom-home guidance discovery
+
+Verified while reviewing remote init: Gemini CLI `76e4d7c0` uses
+`GEMINI_CLI_HOME` for its global `.gemini` directory and `.agents/skills`
+discovery ([home resolver](https://github.com/google-gemini/gemini-cli/blob/76e4d7c0/packages/core/src/utils/paths.ts#L20-L26),
+[storage paths](https://github.com/google-gemini/gemini-cli/blob/76e4d7c0/packages/core/src/config/storage.ts#L50-L75)).
+The new native settings probe follows that override. Existing guidance builders
+still resolve user skills/instructions from the OS home; a custom-home user can
+therefore get a successful guidance write that Gemini does not discover.
+Default-home installs are unaffected and hosted MCP remains usable through its
+own guide.
+
+Correct this at guidance-path ownership rather than patching only the settings
+probe. Scope includes install/check/repair, target labels, shared-root protection
+on uninstall, and the local startup skill updater's discovery. These consumers
+currently assume one OS-home shared root, so this needs a coordinated path-contract
+change and migration/protection tests rather than another probe-only fix. Reuse
+the existing host/guidance declarations; no new framework or persistent setting
+is proposed.
+
+Acceptance: isolated custom-home Gemini setup writes and checks the MCP skill
+and managed instruction at host-discovered paths; reruns stay idempotent;
+project guidance is unchanged; uninstall/updater touch only eligible owned
+files and preserve guidance used by other selected or retained hosts. Verify
+actual native discovery in a disposable host environment and document the
+resolved locations. Do not delete existing OS-home guidance simply because a
+home override is present.

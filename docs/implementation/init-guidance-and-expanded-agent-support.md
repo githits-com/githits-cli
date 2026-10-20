@@ -77,7 +77,9 @@ Staged Cursor-only auth keeps `managed_by_cursor`; other hosted-only setup uses
 Claude Code and Gemini retain legacy plugin/extension cleanup before native
 HTTP or stdio add. Gemini file checks accept both current `{type:"http",url}`
 and legacy `httpUrl` user HTTP representations independently of connection
-health. Q remote writes the existing `~/.aws/amazonq/mcp.json` map; local add
+health. User file probes honor `GEMINI_CLI_HOME` as the base containing
+`.gemini/settings.json`, matching Gemini native add; project settings remain
+relative to the project. Q remote writes the existing `~/.aws/amazonq/mcp.json` map; local add
 uses `--force` for explicit replacement and uninstall uses `--name githits`.
 Codex remote user/project setup edits native TOML directly: `codex mcp add
 --url` starts browser OAuth and would block unattended setup. Login remains the

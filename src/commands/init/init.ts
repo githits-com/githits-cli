@@ -2689,10 +2689,13 @@ async function runInstallAgentsMode(
     console.log(`  ${getAgenticReloadInstruction(scope)}`);
     console.log();
   }
+  const usableAgents = agents.filter((agent) =>
+    hasUsableInstallOutcome(
+      outcomes.filter((outcome) => outcome.id === agent.id),
+    ),
+  );
   if (canAuthenticate && mcpSetupRequested) {
-    if (hostManagedOnly) {
-      printRemoteInstructions(agents);
-    } else if (authStatus === "authenticated") {
+    if (!hostManagedOnly && authStatus === "authenticated") {
       if (scope === "project") {
         console.log(
           "  GitHits MCP is installed for this project and you are already signed in.",
@@ -2702,17 +2705,18 @@ async function runInstallAgentsMode(
           "  GitHits MCP is installed and you are already signed in.",
         );
       }
-    } else if (authStatus === "required") {
+    } else if (!hostManagedOnly && authStatus === "required") {
       printAgenticLoginInstructions(useColors);
-    } else {
+    } else if (!hostManagedOnly) {
       printAgenticAuthNotChecked(useColors);
     }
+    printRemoteInstructions(usableAgents);
     console.log(`  ${getAgenticVerifyInstruction(scope, commandOptions)}`);
   } else {
     if (mcpSetupRequested) {
       console.log("Fix installation errors before starting sign-in.");
     } else {
-      printRemoteInstructions(agents);
+      printRemoteInstructions(usableAgents);
       console.log("No MCP changes were needed; sign-in was not checked.");
       console.log(`  ${getAgenticVerifyInstruction(scope, commandOptions)}`);
     }
@@ -3109,13 +3113,21 @@ function printScopedNextSteps(
 ): void {
   if (remoteAgents.some((agent) => agent.id !== "cursor")) {
     printSection(6, "Next Steps", useColors);
+    if (sharedGuidanceReady) printSharedGuidanceVisibility(scope);
     printRemoteInstructions(remoteAgents);
-    if (localAuthApplicable)
-      printInitProse(
-        shouldPrintReady(authStatus)
-          ? "  Local GitHits CLI authentication is available for the local integrations."
-          : "  Local integrations also need GitHits CLI sign-in.",
-      );
+    if (localAuthApplicable) {
+      if (shouldPrintReady(authStatus))
+        printInitProse(
+          "  Local GitHits CLI authentication is available for the local integrations.",
+        );
+      else if (scope === "project") {
+        if (authStatus === "failed_continue")
+          printProjectAuthRequiredNextSteps(useColors);
+        else printProjectAuthNotCheckedNextSteps(useColors);
+      } else if (authStatus === "failed_continue")
+        printAuthRequiredNextSteps(useColors);
+      else printAuthNotCheckedNextSteps(useColors);
+    }
     return;
   }
   if (scope === "project") {
@@ -5390,7 +5402,11 @@ export async function initAction(
       cursorConfigured,
       localAuthApplicable,
       sharedGuidanceReady,
-      [...summaryMcpAgents, ...selection.guidanceAgents].filter(usesHostedMcp),
+      [
+        ...summaryMcpAgents,
+        ...selection.guidanceAgents,
+        ...(options.yes ? selection.unchangedAgents : []),
+      ].filter(usesHostedMcp),
     );
   }
 

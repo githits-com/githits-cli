@@ -1665,9 +1665,14 @@ function getGeminiConfig(
   fs: FileSystemService,
   remote = false,
 ): ConfigFileSetup {
+  const override = process.env.GEMINI_CLI_HOME;
+  const paths = process.platform === "win32" ? win32 : posix;
+  const home = override
+    ? paths.resolve(fs.getCwd(), override)
+    : fs.getHomeDir();
   return {
     method: "config-file",
-    configPath: fs.joinPath(fs.getHomeDir(), ".gemini", "settings.json"),
+    configPath: fs.joinPath(home, ".gemini", "settings.json"),
     serversKey: "mcpServers",
     serverName: "githits",
     serverConfig: remote

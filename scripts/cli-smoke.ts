@@ -1268,6 +1268,7 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       ...env,
       CODEX_HOME: join(isolated.root, ".codex"),
       CLAUDE_CONFIG_DIR: isolated.root,
+      GEMINI_CLI_HOME: isolated.root,
       HERMES_HOME: join(isolated.root, ".hermes"),
       PI_CODING_AGENT_DIR: join(isolated.root, ".pi", "agent"),
     };

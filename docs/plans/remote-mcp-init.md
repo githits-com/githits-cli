@@ -923,3 +923,60 @@ Latest full command
 0 fail, 26,583 assertions, 252 files. Latest typecheck/build also pass. Targeted
 changed-file lint errors fixed (two assignment expressions); remaining warnings
 are mostly parser-validated source-index non-null assertions, not errors.
+
+
+### External code review round 1 closure (in progress)
+
+Direction sound, three low code findings plus minor release notes. No final
+fresh-context reviewer ran because the round had code findings. All accepted:
+
+- F1 -> hosted-only early return skipped shared-root/local-auth helpers. Reused
+  existing user/project shared-root and auth helpers inside remote next steps.
+  Bounded scan found unchanged remote agents missing from next-step inputs;
+  now include those reporting targets for --yes only. The combined suite caught
+  an over-broad inclusion of unselected configured Cursor; restricted it to
+  --yes while ordinary selection continues excluding unselected auth steps.
+  Remote readiness is not claimed. Three
+  interactive tests (user Cline, project OpenCode, mixed preserve --yes with
+  skipped local login) pass; user/project disclosure and concrete login proved.
+  Initial worker cases mistakenly used staged installAgents; corrected and
+  rerun on the actual interactive path before acceptance.
+- F2 -> staged text printed host instructions only in host-managed-only branch.
+  Print remote instructions alongside local auth for mixed MCP work. Sibling
+  check of JSON/text partial-failure paths also restricts human host instructions
+  to successful/already-configured outcomes. Two staged tests pass: preserved
+  remote Cline + fresh local OpenCode; failed remote Cursor + successful local
+  OpenCode (no failed-host auth instructions, local login retained).
+  The first failure-test brief used an impossible preserve-mode Cline write;
+  worker correctly rejected it and coordinator switched to remote-only Cursor.
+- F3 -> native Gemini add honors GEMINI_CLI_HOME, newly introduced file probe
+  assumed OS home. Match native settings base (empty/unset default, absolute or
+  relative override; correct platform path semantics); projects unchanged.
+  Verified upstream gemini-cli76e4d7c0 utils/paths.ts20–26 and config/storage.ts
+  50–75, matching reviewer evidence. GitHits source read timed out after300s;
+  primary raw GitHub source was used as fallback. Targeted 'Gemini user settings home override' suite:11pass0fail,60assertions
+  across both profiles, POSIX empty/unset/absolute/relative and Win32 relative;
+  every case also checks project path unchanged. Reset the override in isolated
+  descriptor fixtures and constrain it to disposable init smoke home.
+  Sibling guidance-base handling has a broader pre-existing custom-home gap;
+  scope question offered. After an opportunity to reply, keep the current
+  MCP-probe fix bounded unless the user chooses to expand it. Precise evidence,
+  affected consumers and acceptance are now in docs/plans/open-backlog.md.
+  Do not silently add a host-home framework.
+- F4 -> independent user-visible behavior omitted from notes. Added separate
+  patch fragments for respecting disabled config-file entries and the corrected
+  Amazon Q --name uninstall invocation; CLI only, MCPpackage unchanged.
+
+Round2 prerequisites complete: F3 proof, affected/full tests/typecheck/build/
+smokes, internal full-delta closure clean. Coherent fix commit follows. No fourth
+code round permitted.
+
+Affected final suite: `bun test src/commands/init/agent-definitions.test.ts
+src/commands/init/init.test.ts src/commands/init/remote-init.test.ts`436pass0fail,
+1,986assertions. Typecheck passed. Review-fix build and source/built CLI/MCP
+smokes passed (file-auth live-capable runs skip AUTH_REQUIRED). A broader test
+run before the final --yes restriction was6658pass1fail; its one failure was
+the unselected-host regression now passing above. Final full command with Python3.13 on PATH:6659pass0fail,26686assertions,
+252files,27.81s. Final typecheck/build passed (build50ms). Internal full-delta
+closure review clean: all F1–F4 closures verified, no new actionable findings.
+Hosted OAuth/discovery coverage remains the declared integration limitation.
