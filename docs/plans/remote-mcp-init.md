@@ -2,7 +2,8 @@
 
 ## Status and outcome
 
-Status: IMPLEMENTED; draft PR delivery pending. External code review reached
+Status: IMPLEMENTATION COMPLETE; awaiting clean review in draft PR
+https://github.com/githits-com/githits-cli/pull/505. External code review reached
 its three-round limit. The two final Low findings are fixed and verified below;
 the final revised delta has no clean external round. Keep this plan for review
 and retire it in this PR only after review is clean, as repository policy requires.
