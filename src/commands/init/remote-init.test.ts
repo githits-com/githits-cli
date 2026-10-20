@@ -625,6 +625,140 @@ describe("mixed Desktop setup", () => {
   });
 });
 
+describe("remote next-step disclosures", () => {
+  function normalizeOutput(output: string): string {
+    return output.replace(/\s+/g, " ");
+  }
+
+  function expectNoReadyClaim(output: string): void {
+    expect(output).not.toContain("Ready");
+    expect(output).not.toContain("GitHits is ready");
+  }
+
+  it("discloses user shared-root skill discovery after remote Cline setup", async () => {
+    const f = fixture(["cline"]);
+    const output = normalizeOutput(
+      await f.run({ remote: true, guidance: true }),
+    );
+
+    expect(output).toContain(
+      "GitHits skills in ~/.agents/skills/ are discovered by every compatible agent that reads that directory.",
+    );
+    expectNoReadyClaim(output);
+  });
+
+  it("discloses project shared-root skill discovery after remote OpenCode setup", async () => {
+    const f = fixture(["opencode"]);
+    const output = normalizeOutput(
+      await f.run({
+        remote: true,
+        project: true,
+        guidance: true,
+      }),
+    );
+
+    expect(output).toContain(
+      "GitHits skills in .agents/skills/ are discovered by every compatible agent that reads that directory.",
+    );
+    expectNoReadyClaim(output);
+  });
+
+  it("prints host auth instructions and local login guidance in mixed preserve mode when login is skipped", async () => {
+    const f = fixture(["cline", "opencode"], {
+      [CLINE]: JSON.stringify({
+        mcpServers: {
+          GitHits: { type: "streamableHttp", url: MCP_URL },
+        },
+      }),
+    });
+    const output = normalizeOutput(
+      await f.run({ yes: true, skipLogin: true, guidance: false }),
+    );
+
+    expect(output).toContain(
+      "Cline uses https://mcp.githits.com; authentication is managed by the host.",
+    );
+    expect(output).toContain(
+      "Open Cline's MCP settings and use Authenticate/Authorize for GitHits.",
+    );
+    expect(output).toContain(
+      "Open a new agent session and verify that GitHits tools are available.",
+    );
+    expect(output).toContain(
+      "If your agent asks you to sign in, run: npx githits@latest login",
+    );
+    expectNoReadyClaim(output);
+    expect(f.createLoginDeps).not.toHaveBeenCalled();
+  });
+});
+
+describe("staged mixed host auth disclosures", () => {
+  function normalizeOutput(output: string): string {
+    return output.replace(/\s+/g, " ");
+  }
+
+  it("prints host auth and local CLI verification for preserved remote Cline with fresh local OpenCode", async () => {
+    const clineConfig = JSON.stringify({
+      mcpServers: {
+        GitHits: { type: "streamableHttp", url: MCP_URL },
+      },
+    });
+    const f = fixture(["cline", "opencode"], { [CLINE]: clineConfig });
+    const output = normalizeOutput(
+      await f.run({ installAgents: "cline,opencode", guidance: false }),
+    );
+
+    expect(output).toContain(
+      "Cline uses https://mcp.githits.com; authentication is managed by the host.",
+    );
+    expect(output).toContain(
+      "Open Cline's MCP settings and use Authenticate/Authorize for GitHits.",
+    );
+    expect(output).toContain(
+      "Open a new agent session and verify that GitHits tools are available.",
+    );
+    expect(output).toContain(
+      "If the user is not already signed in, ask before running: npx -y githits@latest login",
+    );
+    expect(f.files[CLINE]).toBe(clineConfig);
+    expect(f.files[OPEN]).toBeDefined();
+    expect(f.createLoginDeps).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits failed Cursor auth instructions but keeps local login and failure output", async () => {
+    const cursorConfig = "/home/remote-test/.cursor/mcp.json";
+    const f = fixture(["cursor", "opencode"]);
+    const writeAtomicFile = f.fs.atomicWriteFile;
+    f.fs.atomicWriteFile = mock(async (path: string, contents: string) => {
+      if (path === cursorConfig)
+        throw new Error("Simulated Cursor config write failure");
+      await writeAtomicFile(path, contents);
+    }) as typeof f.fs.atomicWriteFile;
+
+    const output = normalizeOutput(
+      await f.run({ installAgents: "cursor,opencode", guidance: false }),
+    );
+
+    expect(output).toContain(
+      "Cursor: Failed to configure: Simulated Cursor config write failure",
+    );
+    expect(output).toContain(
+      "OpenCode created ~/.config/opencode/opencode.json",
+    );
+    expect(output).toContain(
+      "If the user is not already signed in, ask before running: npx -y githits@latest login",
+    );
+    expect(output).not.toContain("Cursor uses the remote GitHits MCP");
+    expect(output).not.toContain("In Cursor, open the MCP panel");
+    expect(output).not.toContain("cursor-agent mcp login GitHits");
+    expect(output).not.toContain("click Authenticate once for GitHits");
+    expect(f.files[cursorConfig]).toBeUndefined();
+    expect(f.files[OPEN]).toBeDefined();
+    expect(f.createLoginDeps).toHaveBeenCalledTimes(1);
+    expect(process.exitCode).toBe(1);
+  });
+});
+
 describe("native hosted route regressions", () => {
   it("migrates Q in both explicit directions and preserves serialized remote defaults", async () => {
     const path = "/home/remote-test/.aws/amazonq/mcp.json";
