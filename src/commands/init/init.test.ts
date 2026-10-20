@@ -76,8 +76,11 @@ let logSpy: ReturnType<typeof spyOn>;
 let errorSpy: ReturnType<typeof spyOn>;
 let originalExitCode: string | number | null | undefined;
 let originalPlatform: NodeJS.Platform;
+let originalGeminiCliHome: string | undefined;
 
 beforeEach(() => {
+  originalGeminiCliHome = process.env.GEMINI_CLI_HOME;
+  delete process.env.GEMINI_CLI_HOME;
   originalExitCode = process.exitCode;
   process.exitCode = 0;
   originalPlatform = process.platform;
@@ -92,6 +95,11 @@ beforeEach(() => {
 afterEach(() => {
   logSpy.mockRestore();
   errorSpy.mockRestore();
+  if (originalGeminiCliHome === undefined) {
+    delete process.env.GEMINI_CLI_HOME;
+  } else {
+    process.env.GEMINI_CLI_HOME = originalGeminiCliHome;
+  }
   process.exitCode = originalExitCode;
   Object.defineProperty(process, "platform", {
     configurable: true,

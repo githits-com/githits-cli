@@ -5011,11 +5011,7 @@ export async function initAction(
           : await promptService.select(
               "  What do you want to do?",
               INIT_INTENT_CHOICES,
-              options.guidance === false
-                ? "mcp"
-                : options.local
-                  ? "mcp-guided"
-                  : "remote-guided",
+              options.guidance === false ? "mcp" : "remote-guided",
             );
     } catch (err) {
       if (err instanceof ExitPromptError) {

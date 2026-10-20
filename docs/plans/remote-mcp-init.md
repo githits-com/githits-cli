@@ -2,7 +2,11 @@
 
 ## Status and outcome
 
-Status: IN PROGRESS. The user invoked `$orchestrate` after settling the menu,
+Status: IMPLEMENTED; draft PR delivery pending. External code review reached
+its three-round limit. The two final Low findings are fixed and verified below;
+the final revised delta has no clean external round. Keep this plan for review
+and retire it in this PR only after review is clean, as repository policy requires.
+The user invoked `$orchestrate` after settling the menu,
 remote interactive default, guidance sets, and Desktop directory handoff.
 Implementation is authorized; three required external plan rounds completed.
 Final low findings are adjudicated below, with no fourth round.
@@ -958,11 +962,12 @@ fresh-context reviewer ran because the round had code findings. All accepted:
   across both profiles, POSIX empty/unset/absolute/relative and Win32 relative;
   every case also checks project path unchanged. Reset the override in isolated
   descriptor fixtures and constrain it to disposable init smoke home.
-  Sibling guidance-base handling has a broader pre-existing custom-home gap;
-  scope question offered. After an opportunity to reply, keep the current
-  MCP-probe fix bounded unless the user chooses to expand it. Precise evidence,
-  affected consumers and acceptance are now in docs/plans/open-backlog.md.
-  Do not silently add a host-home framework.
+  Sibling guidance-base handling raised a discovery question, not a verified
+  custom-home bug. The user explicitly requested keeping this bounded and
+  verifying whether native Gemini reads the standard location before changing
+  guidance paths. Source helpers alone do not establish exclusive discovery.
+  The verification task is in docs/plans/open-backlog.md. No guidance path or
+  host-home framework change is included.
 - F4 -> independent user-visible behavior omitted from notes. Added separate
   patch fragments for respecting disabled config-file entries and the corrected
   Amazon Q --name uninstall invocation; CLI only, MCPpackage unchanged.
@@ -1016,3 +1021,44 @@ review clean, no actionable findings. Build/pluginscheck/builtCLI+MCPsmokes
 passed after literal correction; source file-auth smokes alreadypassed and
 unchanged by test helper. Typecheck passed. R3 will review this stable state
 and run the one permitted fresh-context final check if otherwise clean.
+
+
+### External code round 3 final closure and delivery
+
+Direction sound. The reviewer raised no issues in the R3 delta, then ran the
+one permitted fresh-context final check on the complete implementation. Two
+Low findings were verified and accepted:
+
+- Ambient Gemini test home -> the native settings probe now correctly honors
+  GEMINI_CLI_HOME, but init.test.ts still assumed fixture home. The reviewer
+  reproduced 212 pass / 3 fail with an exported override. Save, clear and
+  exactly restore that variable in the file's existing before/after hooks.
+  Sibling scan: descriptor fixtures already reset the override; remote-init
+  tests pass under it; CLI smoke assigns a disposable Gemini home. No new
+  production path handling or guidance changes.
+- Menu readability -> the inner options.local condition was unreachable after
+  the preceding options.local branch. Removed the dead inner branch. Checked
+  all options.local references and complete surrounding intent-selection flow;
+  explicit local, remote, no-guidance and unattended modes retain their behavior.
+
+Final verification: CODEX_HOME=/tmp/ambient-codex
+GEMINI_CLI_HOME=/tmp/ambient-gemini bun test src/commands/init/init.test.ts
+src/commands/init/remote-init.test.ts -> 245 pass, 0 fail, 1274 assertions.
+Includes the interactive remote-default assertion and all affected Gemini
+setup/uninstall cases. bun run build -> passed, 85ms. The prior full suite
+remains 6659 pass, 0 fail; it predates these last fixture/readability edits.
+No fourth external round: limit reached. The final fixes are verified locally,
+not externally re-reviewed; do not describe this revised delta as externally
+clean. No major findings remain. Retained reviewer dispatch ctx_7425a54df776,
+terminal term_75d26161-6c34-41aa-9b15-72b6ab4d92af. Keep the plan until review
+is clean; retire it in a final commit of this PR, not a post-merge follow-up.
+Durable native configuration contracts are already in implementation docs;
+release-only onboarding and native Gemini discovery verification are backlogged.
+
+Orchestration delivery count: 14 mechanical slices, 19 implementation
+ dispatches (five corrective dispatches), plus one reporting-only follow-up.
+Three corrections came from coordinator brief/scoping errors; two from worker
+README/test-path mistakes. Coordinator owned transport/auth/TOML decisions,
+startup fixture investigation, final menu simplification and integration;
+worker owned bounded test/documentation/release-fragment edits. No timed
+interrupts or unresolved worker outputs.
