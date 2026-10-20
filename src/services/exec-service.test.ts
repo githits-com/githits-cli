@@ -9,6 +9,16 @@ import {
 } from "./exec-service.js";
 
 describe("ExecServiceImpl", () => {
+  it("passes child-only environment overrides without changing the parent", async () => {
+    const previous = process.env.GITHITS_EXEC_TEST_VALUE;
+    const result = await new ExecServiceImpl().exec(
+      "node",
+      ["-e", "process.stdout.write(process.env.GITHITS_EXEC_TEST_VALUE)"],
+      { env: { GITHITS_EXEC_TEST_VALUE: "fixture-child-value" } },
+    );
+    expect(result.stdout).toBe("fixture-child-value");
+    expect(process.env.GITHITS_EXEC_TEST_VALUE === previous).toBe(true);
+  });
   it("executes a command and returns stdout", async () => {
     const service = new ExecServiceImpl();
     const result = await service.exec("node", ["--version"]);

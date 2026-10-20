@@ -33,22 +33,37 @@ already-configured, and failed counts in the Install and verify section. The
 Ready/Next Steps section follows those counts and contains only readiness or
 reload guidance.
 
-After selection, the MCP summary derives its transport from actual configured
-targets: local stdio for non-Cursor targets, hosted remote MCP at
-`https://mcp.githits.com` for Cursor-only setup, and both named target groups
-for mixed setup. Cursor readiness always calls out separate Cursor OAuth and
-the one-time MCP-panel Authenticate action (or `cursor-agent mcp login GitHits`)
-followed by tool discovery. Local CLI authentication is labeled as applying
-only to non-Cursor integrations in mixed runs.
+After selection, the MCP summary groups the actual local and hosted targets.
+Hosted connections use https://mcp.githits.com; each host owns OAuth and the
+new-session tool-discovery step. CLI login only applies to local integrations.
+Configuration is never presented as proof of hosted readiness. Cursor retains
+its copyable login/list/list-tools commands and separate OAuth instructions.
+
+Claude Desktop directory actions are shown in a separate external-action group,
+with https://claude.ai/directory/githits. They are not automatic installation
+successes/failures. Staged output reports `manual_action_required`,
+`manualAction`, and `manualActionIds`; manual targets are excluded from
+`installableIds` and `actionableIds`. Explicit staged Desktop requests return
+the same handoff. Existing local Desktop config is retained during init.
+
+Staged output reports top-level setupProfile (`remote`, `local`, `preserve`)
+and per-agent effective profile/transport. Explicit selectors survive every
+suggested install/verification command. Cursor-only staged auth keeps its
+existing `managed_by_cursor` shape; other hosted-only targets report
+`managed_by_host`, and mixed runs include per-host `remoteAuth` steps. When MCP
+setup is needed, the top-level `auth` describes those setup targets. An unchanged
+local target selected alongside remote setup does not trigger local sign-in;
+guidance-only repair retains the same no-auth behavior.
 
 ## Guidance reporting
 
-Guided setup converges the four packaged skill files
-(`githits-code`, `githits-mcp`, `githits-onboarding`, and `githits-package`) at
-each selected agent's verified active root. Shared roots are deduplicated, and
-their Ready/Next Steps output explains that compatible agents reading the root
-can discover the skills. Agent-specific managed instruction files remain
-separate and are changed only for selected agents.
+Remote guided setup converges only `githits-mcp`; local-first converges all
+four canonical skills (`githits-code`, `githits-mcp`, `githits-onboarding`,
+`githits-package`). Existing extra skills survive installation. Shared roots
+are deduplicated by target path, so mixed preserve profiles request the union.
+Agent-specific managed blocks are written only at verified selected targets.
+Hosts without a guidance target report that limitation rather than claiming
+an instruction write.
 
 Guidance outcomes enumerate created, updated, unchanged, removed, and failed
 skill files. Guidance-only repairs do not mutate MCP or authenticate. During
@@ -73,14 +88,14 @@ project uninstall, and user uninstall with no configured MCP targets continue
 to clean every verified guidance target in their chosen scope. Cleanup removes
 all four active skill files plus only the historical CLI-owned files
 `<scope>/.cline/skills/githits-mcp/SKILL.md` and
-`<scope>/.junie/skills/githits-mcp/SKILL.md`; it preserves unrelated skills,
+`<scope>/.junie/skills/githits-mcp/SKILL.md`; including CLI skills present before remote setup; it preserves unrelated skills,
 directories, plugin payloads, and credentials. `--keep-guidance` preserves both
 active and historical guidance. When cleanup removes a shared skill
 root, the output warns that every compatible agent reading that root is
 affected.
 
 Missing files are successful no-ops. A historical Cline or Junie file is
-removed only after a complete active shared skill set has been written and
+removed only after the requested active shared skill subset has been written and
 verified; if active setup fails, the old file remains. A cleanup failure keeps
 the active set and reports the exact old path with a generic reason. Later
 targets continue after an individual failure.
@@ -92,3 +107,7 @@ targets continue after an individual failure.
 - `src/commands/init/setup-handlers.ts` — setup and uninstall executors.
 - `src/commands/init/setup-format.ts` — structured changes, rows, and prose
   wrapping.
+
+Claude connector disconnection belongs to Claude's UI. CLI uninstall removes
+only legacy Desktop local config and the normal verified guidance targets; it
+does not claim to disconnect that account-level connector.
