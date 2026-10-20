@@ -8,7 +8,8 @@ import {
   spyOn,
 } from "bun:test";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { posix, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parse as parseToml } from "smol-toml";
 import {
   createMockExecService,
@@ -30,7 +31,13 @@ const OPEN = "/home/remote-test/.config/opencode/opencode.json";
 let log: ReturnType<typeof spyOn>;
 let error: ReturnType<typeof spyOn>;
 let oldExit: typeof process.exitCode;
+let oldPlatform: NodeJS.Platform;
 beforeEach(() => {
+  oldPlatform = process.platform;
+  Object.defineProperty(process, "platform", {
+    configurable: true,
+    value: "linux",
+  });
   oldExit = process.exitCode;
   process.exitCode = 0;
   log = spyOn(console, "log").mockImplementation(() => {});
@@ -40,6 +47,10 @@ afterEach(() => {
   process.exitCode = oldExit;
   log.mockRestore();
   error.mockRestore();
+  Object.defineProperty(process, "platform", {
+    configurable: true,
+    value: oldPlatform,
+  });
 });
 
 function fixture(ids: string[], seed: Record<string, string> = {}) {
@@ -48,20 +59,21 @@ function fixture(ids: string[], seed: Record<string, string> = {}) {
   const fs = createMockFileSystemService({
     getHomeDir: () => "/home/remote-test",
     getCwd: () => "/repo",
-    joinPath: join,
+    joinPath: posix.join,
   });
   for (const agent of agentDefinitions.filter((agent) =>
     ids.includes(agent.id),
   ))
     for (const path of agent.detectPaths?.(fs) ?? []) directories.add(path);
   const skills = new Map<string, string>(
-    GITHITS_SKILL_CATALOG.map((skill) => [
-      skill.name,
-      readFileSync(
-        new URL(`../../../skills/${skill.name}/SKILL.md`, import.meta.url),
-        "utf8",
-      ),
-    ]),
+    GITHITS_SKILL_CATALOG.map((skill) => {
+      const sourcePath = resolve(
+        fileURLToPath(
+          new URL(`../../../skills/${skill.name}/SKILL.md`, import.meta.url),
+        ),
+      );
+      return [sourcePath, readFileSync(sourcePath, "utf8")];
+    }),
   );
   fs.isDirectory = mock(
     async (path: string) => directories.has(path) || path === "/repo",
@@ -71,12 +83,9 @@ function fixture(ids: string[], seed: Record<string, string> = {}) {
   );
   fs.readFile = mock(async (path: string) => {
     if (path in files) return files[path]!;
-    // Read only packaged source fixtures; installed destination files must exist in the map.
-    const name = path.match(/\/skills\/(githits-[^/]+)\/SKILL\.md$/)?.[1];
-    if (name && !path.startsWith("/home/") && !path.startsWith("/repo/")) {
-      const source = skills.get(name);
-      if (source !== undefined) return source;
-    }
+    // Only exact packaged source paths bypass the mock file map.
+    const source = skills.get(resolve(path));
+    if (source !== undefined) return source;
     throw Object.assign(new Error("Not found"), { code: "ENOENT" });
   });
   fs.atomicWriteFile = mock(async (path: string, content: string) => {

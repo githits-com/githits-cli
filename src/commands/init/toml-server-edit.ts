@@ -259,7 +259,14 @@ export function editTomlServer(
     if (!replacement && !(serversKey in parse(content.replace(/^\uFEFF/, ""))))
       append(`[${JSON.stringify(serversKey)}]\n`);
     // A span bug must fail before the atomic write; never fall back to whole-file serialization.
-    if (!isDeepStrictEqual(parse(content.replace(/^\uFEFF/, "")), expected))
+    // Compare parsed TOML values on both sides: parser tables have null prototypes,
+    // whereas replacement tables supplied by callers are ordinary JavaScript objects.
+    if (
+      !isDeepStrictEqual(
+        parse(content.replace(/^\uFEFF/, "")),
+        parse(stringify(expected)),
+      )
+    )
       throw new Error(
         "TOML server edit did not preserve configuration settings",
       );

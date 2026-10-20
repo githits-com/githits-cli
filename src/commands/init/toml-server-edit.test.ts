@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { parse } from "smol-toml";
 import { mergeServerConfig, removeServerConfig } from "./setup-handlers.js";
+import { editTomlServer } from "./toml-server-edit.js";
 
 const fixtures: Record<string, string> = {
   absent: '# Model note\nmodel = "example"\n',
@@ -111,5 +112,13 @@ describe("TOML source preservation", () => {
       removeServerConfig("[mcp_servers\n", "mcp_servers", "githits", "toml")
         .status,
     ).toBe("parse_error");
+  });
+  it("rejects edits whose parsed values differ from the expected document", () => {
+    expect(() =>
+      editTomlServer('model = "example"\n', "mcp_servers", "githits", remote, {
+        model: "changed",
+        mcp_servers: { githits: remote },
+      }),
+    ).toThrow("File left unchanged");
   });
 });
