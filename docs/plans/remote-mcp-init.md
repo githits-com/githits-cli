@@ -1063,3 +1063,39 @@ README/test-path mistakes. Coordinator owned transport/auth/TOML decisions,
 startup fixture investigation, final menu simplification and integration;
 worker owned bounded test/documentation/release-fragment edits. No timed
 interrupts or unresolved worker outputs.
+
+
+### Initial PR CI closure
+
+PR505 first CI run39432204677 failed Linux and Windows test jobs; build and
+all Bun/Node compatibility jobs passed. Coordinator initially misread Linux
+status in the check summary and corrected that report immediately after the
+watch result. Investigated without discarding evidence:
+
+- Packaged skill fixture lookup rejected /home-prefixed paths, including the
+  Linux CI checkout. Replace the prefix heuristic with an exact canonical
+  native source-path map; absent installed destinations still fail.
+- New remote-init fixtures used native join and platform with hardcoded POSIX
+  paths. Simulate Linux plus posix.join for fake filesystem paths, restoring
+  platform after each test; keep real source-path resolution native. The
+  descriptor suite already has genuine Windows path cases. Worker's two
+  separate bounded fixture dispatches each returned30pass0fail218assertions.
+- CI uses Bun1.4.3; local Bun1.3.14's isDeepStrictEqual incorrectly considered
+  null-prototype parser tables equal to ordinary JS caller tables. Isolated
+  two-object diagnostic verified false in1.4.3, true in1.3.14; neither changed
+  values. Existing37 TOML preservation cases reproduced19pass18fail under1.4.3.
+  Normalize the expected document through the same TOML serializer/parser
+  before strict comparison. Comparison still rejects value changes; added a
+  direct expected-value mismatch rejection regression. No source rewrite,
+  prototype mutation or weakened safety fallback. Bounded sibling scan found
+  no other isDeepStrictEqual use. The37existing cases then passed201assertions.
+
+Full CI-runtime local verification: PATH with Python3.13, absolute Bun1.4.3
+executable, bun test ->6660pass0fail26691assertions252files44.71s. This includes
+all CI-failure classes; native Windows execution remains the CI job's proof.
+No fourth external review is authorized; these CI corrections are coordinator
+verified and remain within the declared non-clean final review status.
+Orchestration totals now16mechanical slices,21implementation dispatches
+(five corrective), plus one reporting-only follow-up. The extra fixture defects
+were worker-authored and accepted by coordinator without checking CI checkout
+and Windows semantics; coordinator owns the missed verification.
