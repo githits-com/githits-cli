@@ -2634,6 +2634,12 @@ describe("initAction", () => {
     expect(output).toContain(
       'Configured MCP server "githits": local stdio MCP command `npx -y githits@latest mcp start` for Cline; remote MCP at https://mcp.githits.com for Cursor',
     );
+    expect(output).toContain("Local GitHits CLI authentication is active.");
+    expect(output).not.toContain("you are already signed in");
+    expect(output).toContain(
+      "In Cursor, open the MCP panel and click Authenticate once for GitHits, or run:",
+    );
+    expect(output).toContain("cursor-agent mcp login GitHits");
   });
 
   it("repairs a missing subset of shared skills without MCP or auth", async () => {

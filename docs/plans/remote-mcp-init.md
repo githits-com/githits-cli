@@ -980,3 +980,39 @@ the unselected-host regression now passing above. Final full command with Python
 252files,27.81s. Final typecheck/build passed (build50ms). Internal full-delta
 closure review clean: all F1–F4 closures verified, no new actionable findings.
 Hosted OAuth/discovery coverage remains the declared integration limitation.
+
+
+### External round2 and final validation isolation correction
+
+Round2 direction sound; all R1code findings closed. One Low wording finding
+accepted: replace only authenticated staged user/project literals with explicit
+local CLI auth wording. Existing mixed staged test now asserts local auth and
+separate Cursor OAuth instructions (1pass5assertions). R2counts clean after
+wording correction under repository policy; no final-check subagent ran in R2
+because it reported a finding. Retained ctx_c2b003f48191 /
+term_42359071-0ae5-4a20-a7d0-affdabbfe1f4.
+
+User clarified keep Gemini scope bounded and verify actual standard-home
+discovery before changing paths. Corrected backlog: a helper-derived override
+root does not prove exclusive discovery or a missed-guidance bug. No guidance
+path change included. Durable native-config matrix prepared in implementation
+docs. Plan retirement was prepared after R2clean, then restored for the new
+test-only review below; keep until this final correction is reviewed.
+
+Full final run reproduced a pre-existing startup-test isolation defect:
+6658pass1fail; 'warns on newer different guidance...' saw7warnings not1.
+Narrow rerun reproduced. Direct runtime proof: settingprocess.env.HOME during
+execution changes Nodeos.homedir but not Bun1.3.14 os.homedir here. Existing
+withConfigHome changed HOME/cwd but actualFileSystemServiceImpl.getHomeDir
+still returned the host home; local real-home newer skills leaked into the
+fixture's maintenance scan. Fix only the existing test helper: spy filesystem
+getHomeDir to its explicit temporary home and restore finally. No production
+path/service change. Re-review as R3 since test implementation changed afterR2.
+
+Final isolation correction evidence: `bun test src/commands/mcp.test.ts`51pass
+0fail140assertions; full `PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"
+bun test`6659pass0fail26690assertions252files83.05s. Final internal full-delta
+review clean, no actionable findings. Build/pluginscheck/builtCLI+MCPsmokes
+passed after literal correction; source file-auth smokes alreadypassed and
+unchanged by test helper. Typecheck passed. R3 will review this stable state
+and run the one permitted fresh-context final check if otherwise clean.

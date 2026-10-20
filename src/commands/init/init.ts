@@ -2698,11 +2698,11 @@ async function runInstallAgentsMode(
     if (!hostManagedOnly && authStatus === "authenticated") {
       if (scope === "project") {
         console.log(
-          "  GitHits MCP is installed for this project and you are already signed in.",
+          "  GitHits MCP is installed for this project. Local GitHits CLI authentication is active.",
         );
       } else {
         console.log(
-          "  GitHits MCP is installed and you are already signed in.",
+          "  GitHits MCP is installed. Local GitHits CLI authentication is active.",
         );
       }
     } else if (!hostManagedOnly && authStatus === "required") {
