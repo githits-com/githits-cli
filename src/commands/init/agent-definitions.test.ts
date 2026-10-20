@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
-import { win32 } from "node:path";
+import { posix, win32 } from "node:path";
 import type { ExecResult } from "../../services/exec-service.js";
 import {
   createMockExecService,
@@ -125,6 +125,7 @@ function withRemoteNativeTestEnvironment(run: () => void): void {
       APPDATA: undefined,
       CLAUDE_CONFIG_DIR: undefined,
       CODEX_HOME: undefined,
+      GEMINI_CLI_HOME: undefined,
       HERMES_HOME: undefined,
       PI_CODING_AGENT_DIR: undefined,
       XDG_DATA_HOME: undefined,
@@ -2046,6 +2047,158 @@ describe("remote MCP native configuration", () => {
       expect(agent.projectSetup?.supported).toBe(false);
       expect(getAgentSetupConfig(agent, fs, "project")).toBeNull();
     });
+  });
+});
+
+describe("Gemini user settings home override", () => {
+  const profiles = [
+    {
+      name: "local",
+      mode: "local",
+      userEntry: {
+        command: "npx",
+        args: ["-y", "githits@latest", "mcp", "start"],
+      },
+    },
+    {
+      name: "remote",
+      mode: "remote",
+      userEntry: { type: "http", url: REMOTE_MCP_URL },
+    },
+  ] as const;
+
+  const posixCases = [
+    {
+      name: "unset override falls back to the home directory",
+      envValue: undefined,
+      homeDir: "/home/test",
+      cwd: "/workspace/repo",
+      expectedUserPath: "/home/test/.gemini/settings.json",
+    },
+    {
+      name: "empty override falls back to the home directory",
+      envValue: "",
+      homeDir: "/home/test",
+      cwd: "/workspace/repo",
+      expectedUserPath: "/home/test/.gemini/settings.json",
+    },
+    {
+      name: "default home fallback uses the filesystem home directory",
+      envValue: undefined,
+      homeDir: "/home/default-user",
+      cwd: "/workspace/repo",
+      expectedUserPath: "/home/default-user/.gemini/settings.json",
+    },
+    {
+      name: "absolute override uses its configured directory",
+      envValue: "/custom/gemini-home",
+      homeDir: "/home/test",
+      cwd: "/workspace/repo",
+      expectedUserPath: "/custom/gemini-home/.gemini/settings.json",
+    },
+    {
+      name: "relative override resolves from the working directory",
+      envValue: "gemini-home",
+      homeDir: "/home/test",
+      cwd: "/workspace/repo",
+      expectedUserPath: "/workspace/repo/gemini-home/.gemini/settings.json",
+    },
+  ] as const;
+
+  for (const profile of profiles) {
+    for (const testCase of posixCases) {
+      it(`${profile.name} profile: ${testCase.name}`, () => {
+        withRemoteNativeTestEnvironment(() => {
+          if (testCase.envValue === undefined) {
+            delete process.env.GEMINI_CLI_HOME;
+          } else {
+            process.env.GEMINI_CLI_HOME = testCase.envValue;
+          }
+
+          const fs = createMockFileSystemService({
+            getHomeDir: mock(() => testCase.homeDir),
+            getCwd: mock(() => testCase.cwd),
+            joinPath: mock((...segments: string[]) => posix.join(...segments)),
+          });
+          const agent = getAgentDefinition(
+            getInitAgentDefinitions(profile.mode),
+            "gemini-cli",
+          );
+          const userSetup = getAgentSetupConfig(agent, fs, "user");
+
+          expect(userSetup?.method).toBe("cli");
+          if (userSetup?.method !== "cli" || userSetup.check?.kind !== "file") {
+            throw new Error("Expected Gemini user file probe");
+          }
+          expect(userSetup.check.path).toBe(testCase.expectedUserPath);
+          expect(
+            userSetup.check.evaluateContent(
+              JSON.stringify({ mcpServers: { githits: profile.userEntry } }),
+            ),
+          ).toBe("configured");
+
+          const projectSetup = getAgentSetupConfig(agent, fs, "project");
+          expect(projectSetup?.method).toBe("config-file");
+          if (projectSetup?.method !== "config-file") {
+            throw new Error("Expected Gemini project config-file setup");
+          }
+          expect(projectSetup.configPath).toBe(
+            posix.join(testCase.cwd, ".gemini", "settings.json"),
+          );
+        });
+      });
+    }
+  }
+
+  it("local and remote profiles use win32 resolution for relative overrides", async () => {
+    const previousGeminiHome = process.env.GEMINI_CLI_HOME;
+    process.env.GEMINI_CLI_HOME = "gemini-home";
+
+    try {
+      await withTestPlatform("win32", () => {
+        const cwd = "C:\\workspace\\repo";
+        const fs = createWindowsFileSystemService({
+          getHomeDir: mock(() => "C:\\Users\\test"),
+          getCwd: mock(() => cwd),
+        });
+
+        for (const profile of profiles) {
+          const agent = getAgentDefinition(
+            getInitAgentDefinitions(profile.mode),
+            "gemini-cli",
+          );
+          const userSetup = getAgentSetupConfig(agent, fs, "user");
+
+          expect(userSetup?.method).toBe("cli");
+          if (userSetup?.method !== "cli" || userSetup.check?.kind !== "file") {
+            throw new Error("Expected Gemini user file probe");
+          }
+          expect(userSetup.check.path).toBe(
+            win32.join(cwd, "gemini-home", ".gemini", "settings.json"),
+          );
+          expect(
+            userSetup.check.evaluateContent(
+              JSON.stringify({ mcpServers: { githits: profile.userEntry } }),
+            ),
+          ).toBe("configured");
+
+          const projectSetup = getAgentSetupConfig(agent, fs, "project");
+          expect(projectSetup?.method).toBe("config-file");
+          if (projectSetup?.method !== "config-file") {
+            throw new Error("Expected Gemini project config-file setup");
+          }
+          expect(projectSetup.configPath).toBe(
+            win32.join(cwd, ".gemini", "settings.json"),
+          );
+        }
+      });
+    } finally {
+      if (previousGeminiHome === undefined) {
+        delete process.env.GEMINI_CLI_HOME;
+      } else {
+        process.env.GEMINI_CLI_HOME = previousGeminiHome;
+      }
+    }
   });
 });
 
