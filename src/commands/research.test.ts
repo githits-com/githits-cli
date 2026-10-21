@@ -88,9 +88,7 @@ describe("Ask target clarification", () => {
       createDeps(ask),
     );
     expect(ask).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
-      display_markdown: clarification().display_markdown,
-    });
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(clarification());
     expect(exit).not.toHaveBeenCalled();
   });
 });

@@ -15,12 +15,15 @@
     "thread_id": "01900000-0000-7000-8000-000000000031"
   },
   "clarification": {
-    "display_markdown": "GitHits could not determine a target for the question with high enough confidence. Did you mean any of these? Follow up with a specific target.\n\nTargets:\n  1. github:openai/codex [medium] | repository | 122k stars | indexed repository snapshot (7.2k files)\n     Lightweight coding agent that runs in your terminal\n     Related targets:\n       npm:@openai/codex [medium] | package | 76M downloads/mo | license Apache-2.0 | indexed package snapshot\n         Codex CLI is a coding agent from OpenAI.\n  2. npm:codex [medium] | package | protected exact-name match | 46k downloads/mo\n     Static site and code documentation generator.\n\nNote: Additional related targets were omitted; direct matches are complete.\n"
+    "display_markdown": "GitHits could not determine a target for the question with high enough confidence. Did you mean any of these? Follow up with a specific target.\n\nTargets:\n  1. github:openai/codex [medium] | repository | 122k stars | indexed repository snapshot (7.2k files)\n     Lightweight coding agent that runs in your terminal\n     Related targets:\n       npm:@openai/codex [medium] | package | 76M downloads/mo | license Apache-2.0 | indexed package snapshot\n         Codex CLI is a coding agent from OpenAI.\n  2. npm:codex [medium] | package | protected exact-name match | 46k downloads/mo\n     Static site and code documentation generator.\n\nNote: Additional related targets were omitted; direct matches are complete.\n",
+    "tool_call_id": "01900000-0000-7000-8000-000000000030"
   },
   "empty_clarification": {
-    "display_markdown": "GitHits could not determine a target for the question with high enough confidence. Specify a public package or repository target to continue.\n"
+    "display_markdown": "GitHits could not determine a target for the question with high enough confidence. Specify a public package or repository target to continue.\n",
+    "tool_call_id": "01900000-0000-7000-8000-000000000030"
   },
   "warning_clarification": {
-    "display_markdown": "GitHits could not determine a target for the question with high enough confidence. Did you mean any of these? Follow up with a specific target.\n\nTargets:\n  1. npm:codex [medium] | package | protected exact-name match | 46k downloads/mo\n     Provider text: café\n     Warning: Malicious-content status is uncertain - MAL-1/a (affected range invalid): https://osv.dev/vulnerability/MAL-1%2Fa; +2 more. Verify the advisory details before using this version.\n\nNote: Additional related targets were omitted; direct matches are complete.\n"
+    "display_markdown": "GitHits could not determine a target for the question with high enough confidence. Did you mean any of these? Follow up with a specific target.\n\nTargets:\n  1. npm:codex [medium] | package | protected exact-name match | 46k downloads/mo\n     Provider text: café\n     Warning: Malicious-content status is uncertain - MAL-1/a (affected range invalid): https://osv.dev/vulnerability/MAL-1%2Fa; +2 more. Verify the advisory details before using this version.\n\nNote: Additional related targets were omitted; direct matches are complete.\n",
+    "tool_call_id": "01900000-0000-7000-8000-000000000030"
   }
 }
