@@ -16,13 +16,13 @@ retargeted. Guidance-only and stale-skill cleanup selections do not mutate MCP
 configuration or authenticate. An empty selection prints `Nothing selected, no
 changes made` and returns before review, authentication, or writes.
 
-The first prompt offers:
+The first prompt asks `How would you like to set up GitHits?` and offers:
 
-1. Remote MCP + skill (simplest, recommended), preselected.
-2. Local CLI + skills (supports experimental features): local where supported,
+1. Connect via remote MCP (recommended), preselected.
+2. Use the local CLI (supports experimental features): local where supported,
    remote otherwise. Experimental tools remain opt-in on local integrations.
-3. Plain MCP (local-first, no guidance).
-4. CLI skills only.
+3. Configure MCP only (local first): no skills or agent instructions.
+4. View CLI skill setup instructions (shows installation commands).
 5. Exit.
 
 `--remote` and `--local` are mutually exclusive profile selectors and bypass

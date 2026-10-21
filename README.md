@@ -52,14 +52,15 @@ npx githits@latest init
 
 `init` detects supported coding tools and lets you choose how to connect them.
 Interactive setup defaults to hosted remote MCP with only the `githits-mcp`
-skill. The menu also offers local CLI + skills, plain MCP, and CLI skills only.
+skill. You can also use the local CLI, configure MCP without agent guidance,
+or view CLI skill setup instructions.
 
 | Init choice | MCP setup | Guidance and sign-in |
 |---|---|---|
-| Remote MCP + skill (default) | Hosted MCP; Claude Desktop uses a directory handoff | Verified guidance targets get `githits-mcp` and host guidance blocks; sign in through the host |
-| Local CLI + skills | Local stdio where supported; hosted MCP for remote-only hosts | Four canonical skills; local MCP sign-in uses the GitHits CLI |
-| Plain MCP | Local-first; hosted MCP for remote-only hosts | No skills or guidance; local MCP sign-in uses the GitHits CLI |
-| CLI skills only | No MCP server | Four canonical skills |
+| Connect via remote MCP (recommended) | Hosted MCP; Claude Desktop uses a directory handoff | Verified guidance targets get `githits-mcp` and host guidance blocks; sign in through the host |
+| Use the local CLI (supports experimental features) | Local stdio where supported; hosted MCP for remote-only hosts | Four canonical skills; local MCP sign-in uses the GitHits CLI |
+| Configure MCP only (local first) | Local-first; hosted MCP for remote-only hosts | No skills or guidance; local MCP sign-in uses the GitHits CLI |
+| View CLI skill setup instructions | Shows commands; does not configure MCP | Instructions for installing the four canonical skills and signing in through the CLI |
 
 Local integrations support opt-in experimental features; selecting `--local`
 does not enable them.
