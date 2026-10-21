@@ -160,17 +160,17 @@ the wrong boundary once multiple hosts can use either connection.
 
 First menu:
 
-1. `Remote MCP + skill (simplest, recommended)` — preselected interactive
+1. `Connect via remote MCP (recommended)` — preselected interactive
    default. Hosted GitHits; authenticate in each agent; no local GitHits MCP
    process or local experimental tools.
-2. `Local CLI + skills (supports experimental features)` — use the local CLI
+2. `Use the local CLI (supports experimental features)` — use the local CLI
    where supported and remote MCP otherwise. Local integrations support opt-in
    experimental features. Cursor uses hosted MCP; Claude Desktop points to the
    directory instead of installing a local
    server. The option describes the supported local runtime, not a new global
    CLI installation: existing integrations launch it through `npx` on demand.
-3. `Plain MCP (local-first, no guidance)` — preserve the existing unguided route.
-4. `CLI skills only` — preserve the existing standalone-skills route.
+3. `Configure MCP only (local first)` — preserve the existing unguided route.
+4. `View CLI skill setup instructions` — show installation commands; this choice does not install skills itself.
 5. `Exit`.
 
 Then select scope and agents as today. Agent rows and the review show the actual
@@ -1099,3 +1099,38 @@ Orchestration totals now16mechanical slices,21implementation dispatches
 (five corrective), plus one reporting-only follow-up. The extra fixture defects
 were worker-authored and accepted by coordinator without checking CI checkout
 and Windows semantics; coordinator owns the missed verification.
+
+
+### Human setup copy refinement (2026-10-21)
+
+User rejected the initial menu's generic "do" prompt, fragment labels and weak
+product copy. This pass is human terminal copy only; setup intent values,
+transport defaults, agent selection and authentication behavior are unchanged.
+Prompt: "How would you like to set up GitHits?" All choices now name actions;
+remote remains the one recommendation. The local CLI choice retains explicit
+experimental-feature support; MCP-only retains visible local-first behavior.
+Descriptions explain guidance, remote fallback and opt-in experimental features.
+The fourth choice explicitly offers instructions because its branch only prints
+commands. Removed that branch's stale warning against combining skills and
+local MCP, which contradicted the supported guided MCP setup. Help and durable
+setup docs use the same choices. No public skill content or generated metadata
+changes; no new abstraction or ownership boundary.
+
+
+Copy-pass verification: full Bun1.4.3 suite6659pass1fail; the sole failure
+expected the superseded help phrase "packaged GitHits skills". Updated that
+existing expectation to the accurate remote skill/instructions wording;
+`bun test src/commands/init/init.test.ts src/commands/init/remote-init.test.ts`
+then245pass0fail1274assertions. Plugin generation/check passed10assets with no
+generated changes; build passed. CLI and MCP smoke unauthenticated paths
+passed, live checks skipped AUTH_REQUIRED with file auth. No agent e2e rerun:
+only human terminal/menu/help copy changed, no tool or skill behavior.
+
+Built Node CLI exercised through an actual80-column PTY with a disposable
+home: verified remote remains selected, all five action labels render, selected
+descriptions are readable, and navigating to CLI instructions prints the install
+and sign-in commands then exits successfully without writing files. The first
+preview exposed descriptions breaking words at column80; shortened remote
+copy and added deliberate line breaks for the longer descriptions. Saved local
+preview evidence at /tmp/githits-init-copy-terminal.txt. Copy judgment kept
+inline; no new implementation delegation or external review round.

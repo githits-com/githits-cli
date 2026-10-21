@@ -724,31 +724,32 @@ function colorizeLogo(logo: string, useColors: boolean): string {
 
 const INIT_INTENT_CHOICES: SelectChoice<InitIntent>[] = [
   {
-    name: "Remote MCP + skill (simplest, recommended)",
+    name: "Connect via remote MCP (recommended)",
     value: "remote-guided",
     description:
-      "Hosted GitHits with host-managed sign-in; no local experimental tools.",
+      "Includes the GitHits skill and instructions. Sign in through your agent.",
   },
   {
-    name: "Local CLI + skills (supports experimental features)",
+    name: "Use the local CLI (supports experimental features)",
     value: "mcp-guided",
     description:
-      "Local CLI where supported, remote otherwise. Local integrations support opt-in experimental features.",
+      "Run MCP locally with CLI skills, or use remote MCP where required.\nExperimental features are opt-in.",
   },
   {
-    name: "Plain MCP (local-first, no guidance)",
+    name: "Configure MCP only (local first)",
     value: "mcp",
-    description: "Install only GitHits MCP for your selected coding agents.",
+    description:
+      "Use local MCP where supported and remote MCP otherwise.\nNo skills or instructions are installed.",
   },
   {
-    name: "CLI skills only",
+    name: "View CLI skill setup instructions",
     value: "skills",
-    description: "Use GitHits Agent Skills instead of MCP.",
+    description: "For agents that use the GitHits CLI directly.",
   },
   {
     name: "Exit",
     value: "later",
-    description: "Leave setup without making changes.",
+    description: "Close setup.",
   },
 ];
 
@@ -952,12 +953,7 @@ function printSkillsInstructions(useColors: boolean): void {
     `    ${formatCommand("npx skills add githits-com/githits-cli", useColors)}`,
   );
   console.log();
-  console.log("  During setup, choose where you want to enable GitHits.");
-  console.log();
-  console.log(
-    "  IMPORTANT: Use either Agent Skills or the local MCP server in the same",
-  );
-  console.log("  coding tool, not both.");
+  console.log("  Choose the agents that should receive these skills.");
   console.log();
   console.log("  Then sign in so your agent can use GitHits:");
   console.log();
@@ -5009,7 +5005,7 @@ export async function initAction(
             ? "mcp"
             : "mcp-guided"
           : await promptService.select(
-              "  What do you want to do?",
+              "  How would you like to set up GitHits?",
               INIT_INTENT_CHOICES,
               options.guidance === false ? "mcp" : "remote-guided",
             );
@@ -5475,12 +5471,11 @@ function printAuthRecoveryHint(useColors: boolean): void {
 
 const INIT_DESCRIPTION = `Connect GitHits to your coding agents.
 
-Remote MCP is the interactive default. Choose local CLI where supported, remote
-otherwise for opt-in experimental features, plain MCP, or CLI skills only.
-Claude Desktop connects through the GitHits Claude directory page. Guided MCP setup also installs the packaged GitHits skills and a managed
-instruction block so agents use GitHits for OSS stack context. Detects supported
-coding tools on this machine, shows the authentication steps for the selected
-tools, and configures the tools you select.`;
+Interactive setup recommends remote MCP with the GitHits skill and instructions.
+Choose the local CLI for opt-in experimental features, or configure MCP only.
+You can also view CLI skill setup instructions. Select your agents, review the
+changes, and follow their sign-in steps.
+Claude Desktop connects through the GitHits directory.`;
 
 const INIT_UNINSTALL_DESCRIPTION = `Remove GitHits MCP server configuration from your coding agents.
 
