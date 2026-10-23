@@ -11,18 +11,22 @@ export const GITHITS_SKILL_CATALOG = [
   {
     name: "githits-code",
     relativePath: ["skills", "githits-code", "SKILL.md"],
+    referenceFiles: ["references/code-and-docs.md"],
   },
   {
     name: GITHITS_MCP_SKILL_NAME,
     relativePath: ["skills", "githits-mcp", "SKILL.md"],
+    referenceFiles: [],
   },
   {
     name: "githits-onboarding",
     relativePath: ["skills", "githits-onboarding", "SKILL.md"],
+    referenceFiles: ["references/troubleshooting.md"],
   },
   {
     name: "githits-package",
     relativePath: ["skills", "githits-package", "SKILL.md"],
+    referenceFiles: ["references/package.md"],
   },
 ] as const;
 
@@ -31,30 +35,48 @@ export const GITHITS_GUIDANCE_BLOCK =
 
 type GithitsSkillName = (typeof GITHITS_SKILL_CATALOG)[number]["name"];
 
+interface SkillSource {
+  sourcePath: string;
+  sourcePathCandidates: string[];
+}
+interface SkillFileSource extends SkillSource {
+  relativePath: string;
+}
+interface SkillSources extends SkillSource {
+  files: SkillFileSource[];
+}
+
+function getSkillSource(packagePath: string): SkillSource {
+  return {
+    sourcePath: fileURLToPath(
+      new URL(`../../../${packagePath}`, import.meta.url),
+    ),
+    sourcePathCandidates: [
+      fileURLToPath(new URL(`../${packagePath}`, import.meta.url)),
+      fileURLToPath(new URL(`../../${packagePath}`, import.meta.url)),
+    ],
+  };
+}
+
 /** Canonical and bundled-runtime candidate paths for each packaged skill. */
 export const GITHITS_SKILL_SOURCE_PATHS: Record<
   GithitsSkillName,
-  { sourcePath: string; sourcePathCandidates: string[] }
+  SkillSources
 > = Object.fromEntries(
   GITHITS_SKILL_CATALOG.map((skill) => {
-    const packagePath = skill.relativePath.join("/");
     return [
       skill.name,
       {
-        sourcePath: fileURLToPath(
-          new URL(`../../../${packagePath}`, import.meta.url),
-        ),
-        sourcePathCandidates: [
-          fileURLToPath(new URL(`../${packagePath}`, import.meta.url)),
-          fileURLToPath(new URL(`../../${packagePath}`, import.meta.url)),
-        ],
+        ...getSkillSource(skill.relativePath.join("/")),
+        // Remove references first so uninstall can remove their empty directory.
+        files: [...skill.referenceFiles, "SKILL.md"].map((relativePath) => ({
+          relativePath,
+          ...getSkillSource(`skills/${skill.name}/${relativePath}`),
+        })),
       },
     ];
   }),
-) as Record<
-  GithitsSkillName,
-  { sourcePath: string; sourcePathCandidates: string[] }
->;
+) as Record<GithitsSkillName, SkillSources>;
 
 /** Shared root used by agents that follow the Agent Skills convention. */
 export const SHARED_AGENTS_SKILL_ROOT = [".agents", "skills"] as const;

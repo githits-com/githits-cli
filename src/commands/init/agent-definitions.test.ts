@@ -12,6 +12,7 @@ import {
   agentDefinitions,
   buildCheckboxChoices,
   type ConfigFileSetup,
+  detectAgentAvailability,
   detectAgents,
   getAgentSetupConfig,
   getInitAgentDefinitions,
@@ -4176,5 +4177,56 @@ describe("buildCheckboxChoices", () => {
   it("returns one choice per agent definition", () => {
     const choices = buildCheckboxChoices(agentDefinitions, []);
     expect(choices).toHaveLength(agentDefinitions.length);
+  });
+});
+
+describe("agent availability without MCP probes", () => {
+  for (const detectionMethod of ["binary", "path", "hybrid"] as const) {
+    it(`detects ${detectionMethod} availability without resolving setup`, async () => {
+      const fs = createMockFileSystemService({
+        isDirectory: mock(async () => true),
+      });
+      const setup = mock(() => {
+        throw new Error("MCP setup must not be resolved");
+      });
+      const agent: AgentDefinition = {
+        id: "test",
+        name: "Test",
+        detectionMethod,
+        detectBinary: mock(async () => detectionMethod !== "hybrid"),
+        detectPaths: () => ["/agent"],
+        setupMethod: "config-file",
+        getSetupConfig: setup,
+      };
+      expect(
+        await detectAgentAvailability(agent, fs, createMockExecService()),
+      ).toEqual({ detected: true, setupContext: undefined });
+      expect(setup).not.toHaveBeenCalled();
+      expect(fs.readFile).not.toHaveBeenCalled();
+      if (detectionMethod === "hybrid")
+        expect(fs.isDirectory).toHaveBeenCalledWith("/agent");
+    });
+  }
+  it("retains a resolved executable as setup context without probing MCP", async () => {
+    const fs = createMockFileSystemService();
+    const setup = mock(() => {
+      throw new Error("MCP setup must not be resolved");
+    });
+    const agent: AgentDefinition = {
+      id: "test",
+      name: "Test",
+      detectionMethod: "binary",
+      detectCommand: async () => ({ command: "/custom/bin/agent" }),
+      setupMethod: "cli",
+      getSetupConfig: setup,
+    };
+    expect(
+      await detectAgentAvailability(agent, fs, createMockExecService()),
+    ).toEqual({
+      detected: true,
+      setupContext: { command: "/custom/bin/agent" },
+    });
+    expect(setup).not.toHaveBeenCalled();
+    expect(fs.readFile).not.toHaveBeenCalled();
   });
 });

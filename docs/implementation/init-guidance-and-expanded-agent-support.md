@@ -1,9 +1,10 @@
-# GitHits Init Guided MCP Setup
+# GitHits Init Setup
 
 ## Purpose
 
-`githits init` configures MCP and, by default, the supporting GitHits Agent
-Skills for the agents selected by the user. This document records the shipped
+`githits init` connects coding agents through MCP or installs direct CLI
+skills. MCP setup recommends supporting skills and instructions in a separate
+selector. This document records the shipped
 selection model, skill placement, migration behavior, and human-readable
 output contract.
 
@@ -19,11 +20,48 @@ changes made` and returns before review, authentication, or writes.
 The first prompt asks `How would you like to set up GitHits?` and offers:
 
 1. Connect via remote MCP (recommended), preselected.
-2. Use the local CLI (supports experimental features): local where supported,
+2. Run MCP locally (supports experimental features): local where supported,
    remote otherwise. Experimental tools remain opt-in on local integrations.
-3. Configure MCP only (local first): no skills or agent instructions.
-4. View CLI skill setup instructions (shows installation commands).
-5. Exit.
+3. Use the CLI with supporting skills.
+4. Exit.
+
+Both MCP routes choose scope and agents before the selector
+`Install supporting skills and instructions?`:
+
+- `Install skills and instructions (recommended)`, selected by default, explains
+  when/how guidance helps and that it adds files for the selected agents.
+- `Configure MCP only` configures the connection without adding guidance files.
+
+Project descriptions say files enter this repository and may be committed.
+Declining recomputes the selection and exits before auth/writes when only
+repair remains. Interrupting the selector writes nothing. Explicit guidance
+flags and `--yes` bypass this step, as do empty, verified no-op, manual-only
+and unsupported-guidance selections. Agent rows do not promise guidance before
+consent. `--no-guidance` retains the interactive remote default.
+
+### Direct CLI setup
+
+The CLI route chooses scope and agents using the catalog's availability stage,
+without resolving/probing MCP configuration. It offers only verified skill roots;
+project skill support is independent of MCP project support. It reviews exact,
+deduplicated paths, authenticates with existing CLI login/recovery, then writes
+and verifies `githits-code` and `githits-package` plus their reference files.
+Existing MCP settings, other skills and instruction files are retained. No
+MCP/onboarding skill or MCP-first instruction block is added. The skills use a
+CLI binary or `npx`; init does not install a global binary.
+
+Skills are integral to this route, so there is no second guidance selector.
+Combining it with `--no-guidance` fails immediately, before scope selection or
+agent detection. Empty selection needs no auth or writes. No detected supported
+host prints manual `npx skills add githits-com/githits-cli` instructions to choose
+the two CLI skills and then sign in.
+
+An unchanged skills install skips review/writes but still checks CLI auth.
+Authentication cancellation precedes writes; skipping or continuing without
+sign-in installs skills and prints login next steps without claiming readiness.
+Missing auth dependencies warn. Write/verification failures return nonzero.
+Ready requires both verified files and authenticated CLI. Shared-root visibility
+is disclosed, and a new agent session loads the installed skills.
 
 `--remote` and `--local` are mutually exclusive profile selectors and bypass
 that profile prompt. `--remote --no-guidance` configures hosted MCP without
@@ -34,8 +72,7 @@ history. Cursor has the same hosted config in both profiles, so no-selector
 setup retains its existing four-skill policy; explicit remote requests the
 MCP-only subset. There is no fallback to another transport after a failure.
 
-A project guidance consent decline recomputes selected actions and exits before
-writes when only guidance repair remains. Staged `installableIds` remains
+Staged `installableIds` remains
 MCP-only; `actionableIds` adds guidance repair. The top-level `setupProfile` is
 `remote`, `local`, or `preserve`; per-agent `setupProfile` and `transport` report
 the resolved policy/connection. Follow-up commands retain the exact explicit
@@ -260,6 +297,14 @@ target and reports `guidanceStatus: "not_supported"` while MCP remains installab
 Mixed preserve-mode profiles sharing a skill root take the union by target
 file path, independently of selection order.
 
+Each declared skill includes every packaged file: code uses
+`references/code-and-docs.md`, package uses `references/package.md`, and
+onboarding uses `references/troubleshooting.md`. These are ordinary per-file
+setup entries, installed and verified with `SKILL.md`. A missing reference is
+repairable guidance. References are removed before `SKILL.md`, allowing the
+existing empty-directory cleanup to remove the skill folder. A package-tree
+contract test catches undeclared files; there is no recursive copy/delete path.
+
 The runtime catalog is defined in `src/commands/init/guidance-assets.ts` and
 is checked for parity with plugin packaging. Missing files are repaired;
 only installed `githits-mcp` receives local metadata outside its canonical
@@ -387,9 +432,14 @@ tools. It retains a shared skill or managed-block target when any unselected
 detected tool could use it, and retains a selected tool's guidance when its MCP
 removal fails. Non-interactive `--yes`, project uninstall, and user uninstall
 with no configured MCP targets clean every verified guidance target in the
-chosen scope. Cleanup removes all four active skill files and the exact
+chosen scope. Cleanup removes all four active skill directories' declared files and the exact
 historical Cline/Junie files while preserving unrelated files and directories.
 The `--keep-guidance` option preserves active and historical guidance.
+CLI-only installs are cleaned when no MCP configuration remains. In mixed
+installs, existing selection/shared-root protection still applies: guidance for
+unselected or non-MCP-configured agents can be retained while another agent's
+MCP configuration is removed. This uses the existing protection rules and no
+separate CLI ownership state.
 When cleanup removes a shared root, the result warns that every compatible
 agent reading that root is affected.
 
