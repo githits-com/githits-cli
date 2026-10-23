@@ -60,7 +60,8 @@ public-package validation checks the packed tarball contains it.
 ## Skill Contract
 
 Every plugin and local-first guided CLI setup uses the same four canonical
-skill directories (remote init requests only `githits-mcp`):
+skill directories (guided remote init requests only `githits-mcp`; direct CLI
+setup requests code/package, including their reference files):
 
 - `githits-code`
 - `githits-mcp`

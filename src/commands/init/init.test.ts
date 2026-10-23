@@ -37,7 +37,9 @@ import type { LoginDependencies } from "../login.js";
 import {
   GITHITS_GUIDANCE_BLOCK,
   GITHITS_GUIDANCE_MARKER,
+  GITHITS_MCP_SKILL_NAME,
   GITHITS_SKILL_CATALOG,
+  GITHITS_SKILL_SOURCE_PATHS,
 } from "./guidance-assets.js";
 import {
   createInitLoginDependencies,
@@ -145,15 +147,18 @@ function createUnauthLoginDeps(): () => Promise<
 
 function readCanonicalSkillFiles(skillRoot: string): Record<string, string> {
   return Object.fromEntries(
-    GITHITS_SKILL_CATALOG.map((skill) => [
-      `${skillRoot}/${skill.name}/SKILL.md`,
-      skill.name === "githits-mcp"
-        ? renderManagedSkillContent(
-            readFileSync(join(process.cwd(), ...skill.relativePath), "utf8"),
-            version,
-          )
-        : readFileSync(join(process.cwd(), ...skill.relativePath), "utf8"),
-    ]),
+    GITHITS_SKILL_CATALOG.flatMap((skill) =>
+      GITHITS_SKILL_SOURCE_PATHS[skill.name].files.map((file) => {
+        const content = readFileSync(file.sourcePath, "utf8");
+        return [
+          `${skillRoot}/${skill.name}/${file.relativePath}`,
+          skill.name === GITHITS_MCP_SKILL_NAME &&
+          file.relativePath === "SKILL.md"
+            ? renderManagedSkillContent(content, version)
+            : content,
+        ] as const;
+      }),
+    ),
   );
 }
 
@@ -179,15 +184,17 @@ function createFsWithDetection(
   detectedDirs: string[],
   configFiles: Record<string, string> = {},
 ) {
-  const skillSourceContents = new Map(
-    GITHITS_SKILL_CATALOG.map((skill) => {
-      const sourcePath = join(process.cwd(), ...skill.relativePath).replaceAll(
-        "\\",
-        "/",
+  const normalizeMockPath = (path: string): string =>
+    path.replaceAll("\\", "/");
+  const skillSourceContents = new Map<string, string>();
+  for (const skill of GITHITS_SKILL_CATALOG) {
+    for (const file of GITHITS_SKILL_SOURCE_PATHS[skill.name].files) {
+      skillSourceContents.set(
+        normalizeMockPath(file.sourcePath),
+        readFileSync(file.sourcePath, "utf8"),
       );
-      return [sourcePath, readFileSync(sourcePath, "utf8")];
-    }),
-  );
+    }
+  }
   return createMockFileSystemService({
     getHomeDir: mock(() => "/home/test"),
     joinPath: mock((...segments: string[]) => segments.join("/")),
@@ -197,7 +204,7 @@ function createFsWithDetection(
     ),
     ensureDir: mock(() => Promise.resolve()),
     readFile: mock(async (path: string) => {
-      const normalizedPath = path.replaceAll("\\", "/");
+      const normalizedPath = normalizeMockPath(path);
       const skillSource = skillSourceContents.get(normalizedPath);
       if (skillSource !== undefined) {
         return skillSource;
@@ -644,7 +651,7 @@ describe("initAction", () => {
     );
     const localWorkspaceIndex = payload.instructions.findIndex(
       (instruction: string) =>
-        instruction.includes("does not itself upload the local workspace"),
+        instruction.includes("does not upload your local workspace"),
     );
     const newSessionIndex = payload.instructions.findIndex(
       (instruction: string) =>
@@ -788,8 +795,8 @@ describe("initAction", () => {
     expect(payload.instructions).toEqual(
       expect.arrayContaining([
         "GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.",
-        "Installing GitHits MCP does not itself upload the local workspace.",
-        "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions. You do not need to restart the terminal or machine.",
+        "Setup does not upload your local workspace.",
+        "After setup, open a new coding agent session to load any changes. You do not need to restart the terminal or machine.",
       ]),
     );
     expect(payload.instructions).toContain(
@@ -1129,8 +1136,8 @@ describe("initAction", () => {
     expect(payload.instructions).toEqual(
       expect.arrayContaining([
         "GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.",
-        "Installing GitHits MCP does not itself upload the local workspace.",
-        "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions. You do not need to restart the terminal or machine.",
+        "Setup does not upload your local workspace.",
+        "After setup, open a new coding agent session to load any changes. You do not need to restart the terminal or machine.",
       ]),
     );
     expect(payload.instructions).toContain(
@@ -1188,7 +1195,7 @@ describe("initAction", () => {
       "Feedback submission is an outbound write",
     );
     expect(normalizedOutput).toContain(
-      "Installing GitHits MCP does not itself upload the local workspace",
+      "Setup does not upload your local workspace",
     );
     expect(normalizedOutput).toContain("terminal or machine");
     expect(normalizedOutput).toContain(
@@ -3396,37 +3403,6 @@ describe("initAction", () => {
     expect(getErrorOutput().some((msg) => msg.includes("--yes"))).toBe(true);
   });
 
-  it("prints Agent Skills instructions without changing MCP config", async () => {
-    const fs = createFsWithDetection(["/home/test/.cursor"]);
-    const execService = createMockExecService();
-    const createLoginDeps = mock(() =>
-      Promise.resolve({} as LoginDependencies),
-    );
-    const promptService = createMockPromptService({
-      select: mock(() => Promise.resolve("skills")) as PromptService["select"],
-    });
-
-    await initAction(
-      { guidance: false },
-      {
-        fileSystemService: fs,
-        promptService,
-        execService,
-        createLoginDeps,
-      },
-    );
-
-    const logCalls = getLogOutput();
-    expect(
-      logCalls.some((msg) =>
-        msg.includes("npx skills add githits-com/githits-cli"),
-      ),
-    ).toBe(true);
-    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
-    expect(execService.exec).not.toHaveBeenCalled();
-    expect(createLoginDeps).not.toHaveBeenCalled();
-  });
-
   it("exits cleanly when user chooses Later", async () => {
     const fs = createFsWithDetection(["/home/test/.cursor"]);
     const execService = createMockExecService();
@@ -3640,7 +3616,7 @@ describe("initAction", () => {
       ).toBe(true);
       expect(normalizedOutput.includes("is an outbound write")).toBe(false);
       expect(
-        normalizedOutput.includes("does not itself upload the local workspace"),
+        normalizedOutput.includes("does not upload your local workspace"),
       ).toBe(true);
       expect(normalizedOutput.includes("open a new coding agent session")).toBe(
         true,
@@ -3696,7 +3672,7 @@ describe("initAction", () => {
     }) as PromptService["confirm"];
 
     await initAction(
-      { guidance: false },
+      { local: true, guidance: false },
       {
         fileSystemService: fs,
         promptService: createMockPromptService({ checkbox, confirm }),
@@ -4203,12 +4179,10 @@ describe("initAction", () => {
           defaultValue?: T,
         ) => {
           if (message.includes("Where should")) return "project" as T;
+          if (message.includes("Install supporting")) return "mcp-only" as T;
           return (defaultValue ?? choices[0]!.value) as T;
         },
       ) as PromptService["select"],
-      confirm: mock(
-        async (message: string) => !message.includes("Add project-level"),
-      ),
     });
 
     await initAction(
@@ -4355,7 +4329,7 @@ describe("initAction", () => {
     });
 
     await initAction(
-      { guidance: false },
+      { local: true, guidance: false },
       {
         fileSystemService: fs,
         promptService,
@@ -4559,7 +4533,7 @@ describe("initAction", () => {
     const promptService = createMockPromptService();
 
     await initAction(
-      { guidance: false },
+      { local: true, guidance: false },
       {
         fileSystemService: fs,
         promptService,
@@ -7756,7 +7730,7 @@ describe("initUninstallAction", () => {
       expect(configFiles[path]).toBe(content);
     }
     expect(normalizeHumanOutput()).toContain(
-      "GitHits guidance unchanged 4 guidance targets skipped because tools may still use them",
+      "GitHits guidance unchanged 7 guidance targets skipped because tools may still use them",
     );
   });
 
@@ -7806,7 +7780,7 @@ describe("initUninstallAction", () => {
       expect(configFiles[path]).toBe(content);
     }
     expect(normalizeHumanOutput()).toContain(
-      "GitHits guidance unchanged 4 guidance targets skipped because tools may still use them",
+      "GitHits guidance unchanged 7 guidance targets skipped because tools may still use them",
     );
   });
 
@@ -9526,9 +9500,7 @@ describe("registerInitCommand", () => {
     );
     expect(initCommand).toBeDefined();
     expect(rootUninstallCommand).toBeDefined();
-    expect(initCommand?.description()).toContain(
-      "GitHits skill and instructions",
-    );
+    expect(initCommand?.description()).toContain("skills and instructions");
     expect(initCommand?.description()).not.toContain("a small GitHits skill");
     expect(initCommand?.description()).not.toContain("signs you in");
     expect(

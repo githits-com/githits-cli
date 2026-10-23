@@ -1,4 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
+import { readdirSync } from "node:fs";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createMockFileSystemService } from "../../services/test-helpers.js";
 import type { SkillSetup } from "./agent-definitions.js";
@@ -22,6 +24,17 @@ function uniqueRoots(
       ),
     ),
   ].sort();
+}
+
+function listFilesRecursively(root: string): string[] {
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(root, entry.name);
+    return entry.isDirectory() ? listFilesRecursively(path) : [path];
+  });
+}
+
+function normalizePathSeparators(path: string): string {
+  return path.replaceAll("\\", "/");
 }
 
 describe("guidance assets", () => {
@@ -76,7 +89,56 @@ describe("guidance assets", () => {
           new URL("../../skills/githits-mcp/SKILL.md", import.meta.url),
         ),
       ],
+      files: [
+        {
+          relativePath: "SKILL.md",
+          sourcePath: fileURLToPath(
+            new URL("../../../skills/githits-mcp/SKILL.md", import.meta.url),
+          ),
+          sourcePathCandidates: [
+            fileURLToPath(
+              new URL("../skills/githits-mcp/SKILL.md", import.meta.url),
+            ),
+            fileURLToPath(
+              new URL("../../skills/githits-mcp/SKILL.md", import.meta.url),
+            ),
+          ],
+        },
+      ],
     });
+  });
+
+  it("declares every packaged skill file and its canonical source candidates", () => {
+    const skillsRoot = fileURLToPath(
+      new URL("../../../skills/", import.meta.url),
+    );
+
+    for (const skill of GITHITS_SKILL_CATALOG) {
+      const skillRoot = join(skillsRoot, skill.name);
+      const files = GITHITS_SKILL_SOURCE_PATHS[skill.name].files;
+      const actualFiles = listFilesRecursively(skillRoot)
+        .map((path) => normalizePathSeparators(relative(skillRoot, path)))
+        .sort();
+
+      expect(files.map((file) => file.relativePath)).toEqual([
+        ...skill.referenceFiles,
+        "SKILL.md",
+      ]);
+      expect(files.map((file) => file.relativePath).sort()).toEqual(
+        actualFiles,
+      );
+
+      for (const file of files) {
+        const source = `skills/${skill.name}/${file.relativePath}`;
+        expect(file.sourcePath).toBe(
+          fileURLToPath(new URL(`../../../${source}`, import.meta.url)),
+        );
+        expect(file.sourcePathCandidates).toEqual([
+          fileURLToPath(new URL(`../${source}`, import.meta.url)),
+          fileURLToPath(new URL(`../../${source}`, import.meta.url)),
+        ]);
+      }
+    }
   });
 
   it("falls through unique source candidates and preserves exact bytes", async () => {

@@ -153,6 +153,13 @@ Explain Claude Desktop's directory handoff at
 https://claude.ai/directory/githits, `manual_action_required`/`manualActionIds`,
 and exclusion from automatic install counts. Keep existing CLI skills on remote
 install; retain four-skill uninstall semantics and `--keep-guidance`.
+Match the final four-choice menu: remote MCP (default), local MCP with opt-in
+experimental features, CLI with supporting skills, Exit. Explain the separate
+MCP selector for recommended skills/instructions versus MCP-only; explicit
+flags and `--yes` bypass it. The CLI route now installs only code/package skills
+with references and offers sign-in, preserving existing MCP and other guidance.
+It checks auth even on an unchanged repeat and never claims readiness without
+both verified skills and sign-in.
 
 Acceptance: staged detect/install examples match the released CLI envelopes and
 selectors; onboarding never directs hosted-only users to local login or retries

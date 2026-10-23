@@ -50,17 +50,32 @@ our [public API documentation](https://docs.githits.com/api/overview).
 npx githits@latest init
 ```
 
-`init` detects supported coding tools and lets you choose how to connect them.
-Interactive setup defaults to hosted remote MCP with only the `githits-mcp`
-skill. You can also use the local CLI, configure MCP without agent guidance,
-or view CLI skill setup instructions.
+`init` detects your coding agents and lets you choose how they use GitHits.
+Remote MCP is selected by default.
 
-| Init choice | MCP setup | Guidance and sign-in |
+| Setup choice | Connection | Sign-in |
 |---|---|---|
-| Connect via remote MCP (recommended) | Hosted MCP; Claude Desktop uses a directory handoff | Verified guidance targets get `githits-mcp` and host guidance blocks; sign in through the host |
-| Use the local CLI (supports experimental features) | Local stdio where supported; hosted MCP for remote-only hosts | Four canonical skills; local MCP sign-in uses the GitHits CLI |
-| Configure MCP only (local first) | Local-first; hosted MCP for remote-only hosts | No skills or guidance; local MCP sign-in uses the GitHits CLI |
-| View CLI skill setup instructions | Shows commands; does not configure MCP | Instructions for installing the four canonical skills and signing in through the CLI |
+| Connect via remote MCP (recommended) | Hosted GitHits MCP; Claude Desktop uses its directory connector | Through your agent |
+| Run MCP locally (supports experimental features) | Local stdio where supported; hosted MCP for remote-only agents | Through the GitHits CLI for local MCP |
+| Use the CLI with supporting skills | Installs the code and package skills, including their reference files | Through the GitHits CLI |
+
+After selecting agents for either MCP route, choose whether to install
+supporting guidance:
+
+- **Install skills and instructions (recommended)** helps your agent know when
+  and how to use GitHits. Remote setup adds `githits-mcp` and verified agent
+  instruction blocks; local setup adds all four canonical skills and blocks.
+- **Configure MCP only** adds the connection without skill or instruction files.
+
+The guidance step is a selector with descriptions. Project setup explains that
+its files are written into the repository and may be committed. Explicit
+`--guidance` / `--no-guidance` and `--yes` skip that selector.
+
+The CLI route installs `githits-code` and `githits-package` into the selected
+agents' skill folders and offers sign-in. It keeps existing MCP settings and
+other skills. The skills can use an installed CLI or `npx`; a global CLI install
+is not required. Installation and sign-in must both verify before setup reports
+that the CLI is ready.
 
 Local integrations support opt-in experimental features; selecting `--local`
 does not enable them.
@@ -75,7 +90,8 @@ profile uses hosted MCP for remote-only tools such as Cursor.
 
 Remote setup leaves authentication to the coding host. Local OAuth flags such
 as `--no-browser` and `--port` apply only when setting up the local CLI MCP.
-Remote setup installs `githits-mcp` and verified host guidance blocks; it
+With supporting guidance selected, remote setup installs `githits-mcp` and
+verified host guidance blocks; it
 preserves any additional CLI skills already installed.
 
 Claude Desktop requires a manual directory handoff in either MCP profile:
@@ -361,7 +377,7 @@ npx githits@latest uninstall
 ```
 
 Unless `--keep-guidance` is supplied, uninstall removes GitHits MCP
-configuration and all four canonical skill files, including pre-existing CLI
+configuration and all four canonical skills with their reference files, including pre-existing CLI
 skills after a remote install, subject to existing selected-agent shared-skill
 protection. It preserves stored credentials. It does not disconnect a hosted
 Claude connector; disconnect that in Claude. Run `npx githits@latest logout`
@@ -421,10 +437,12 @@ The root skill tree is shared by all supported hosts. Every plugin and extension
 install uses the hosted remote MCP and the four canonical skills, including
 Claude, Codex, Cursor, Gemini CLI, Google Antigravity, and VS Code/GitHub
 Copilot OpenPlugin. Direct `githits init` offers separate remote and local
-profiles: remote setup installs `githits-mcp` with verified host guidance,
+profiles with a separate guidance selector: guided remote setup installs
+`githits-mcp` with verified host guidance,
 while local-guided setup installs the four canonical skills and configures
 local stdio where supported. Remote-only tools such as Cursor use hosted MCP
-even in the local profile. The repository root is a native Antigravity plugin
+even in the local profile. Direct CLI setup installs the code/package skills
+and retains existing MCP settings. The repository root is a native Antigravity plugin
 through `plugin.json`, `mcp_config.json`, and the shared `skills/` tree.
 Generated manifests are refreshed with `bun run plugins:generate` and
 validated with `bun run plugins:check`.

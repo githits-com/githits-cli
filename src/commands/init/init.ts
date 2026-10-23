@@ -39,6 +39,7 @@ import {
   agentDefinitions,
   type CompositeSetup,
   type ConfigFileSetup,
+  detectAgentAvailability,
   GITHITS_MCP_INVOCATION,
   getAgentSetupConfig,
   getInitAgentDefinitions,
@@ -107,7 +108,7 @@ export interface InitOptions extends OAuthCallbackOptions {
   installAgents?: string;
   /** Emit machine-readable output for staged non-interactive modes */
   json?: boolean;
-  /** Configure project-level MCP for the current directory */
+  /** Configure GitHits for the current project */
   project?: boolean;
   /** Install supporting GitHits skill and instruction guidance */
   guidance?: boolean;
@@ -290,7 +291,7 @@ const PROJECT_UNINSTALL_LABEL_WIDTH = Math.max(
   LEGACY_PROJECT_MARKER_ROW_LABEL.length,
 );
 
-type InitIntent = "remote-guided" | "mcp-guided" | "mcp" | "skills" | "later";
+type InitIntent = "remote-guided" | "mcp-guided" | "skills" | "later";
 
 type InitScopeChoice = InitSetupScope;
 
@@ -309,8 +310,8 @@ type StagedInstallAuthStatus = "authenticated" | "required" | "not_checked";
 
 const INSTALL_REVIEW_ITEMS = [
   "GitHits queries and public package, repository, and documentation targets are sent to GitHits services for processing.",
-  "Installing GitHits MCP does not itself upload the local workspace.",
-  "After installation, open a new coding agent session so it loads the MCP configuration and any supporting instructions. You do not need to restart the terminal or machine.",
+  "Setup does not upload your local workspace.",
+  "After setup, open a new coding agent session to load any changes. You do not need to restart the terminal or machine.",
 ] as const;
 
 const CURSOR_REMOTE_MCP_URL = "https://mcp.githits.com";
@@ -726,30 +727,38 @@ const INIT_INTENT_CHOICES: SelectChoice<InitIntent>[] = [
   {
     name: "Connect via remote MCP (recommended)",
     value: "remote-guided",
-    description:
-      "Includes the GitHits skill and instructions. Sign in through your agent.",
+    description: "Use the hosted GitHits server. Sign in through your agent.",
   },
   {
-    name: "Use the local CLI (supports experimental features)",
+    name: "Run MCP locally (supports experimental features)",
     value: "mcp-guided",
     description:
-      "Run MCP locally with CLI skills, or use remote MCP where required.\nExperimental features are opt-in.",
+      "Use local MCP where supported and remote MCP otherwise.\nExperimental features are opt-in.",
   },
   {
-    name: "Configure MCP only (local first)",
-    value: "mcp",
-    description:
-      "Use local MCP where supported and remote MCP otherwise.\nNo skills or instructions are installed.",
-  },
-  {
-    name: "View CLI skill setup instructions",
+    name: "Use the CLI with supporting skills",
     value: "skills",
-    description: "For agents that use the GitHits CLI directly.",
+    description: "Install CLI skills for your agents and sign in to GitHits.",
   },
   {
     name: "Exit",
     value: "later",
     description: "Close setup.",
+  },
+];
+
+const GUIDANCE_CHOICES: SelectChoice<"install" | "mcp-only">[] = [
+  {
+    name: "Install skills and instructions (recommended)",
+    value: "install",
+    description:
+      "Help your agent know when and how to use GitHits.\nAdds GitHits skills and instructions for the selected agents.",
+  },
+  {
+    name: "Configure MCP only",
+    value: "mcp-only",
+    description:
+      "Set up the MCP connection without adding skills or instruction files.",
   },
 ];
 
@@ -762,8 +771,7 @@ const INIT_SCOPE_CHOICES: SelectChoice<InitScopeChoice>[] = [
   {
     name: "Project-level config",
     value: "project",
-    description:
-      "Configure project-local MCP files for tools that support workspace config.",
+    description: "Configure GitHits for coding agents in this project.",
   },
 ];
 
@@ -783,9 +791,9 @@ const INIT_UNINSTALL_SCOPE_CHOICES: SelectChoice<InitSetupScope>[] = [
 const AUTH_RECOVERY_CHOICES: SelectChoice<InitAuthRecoveryChoice>[] = [
   { name: "Retry sign in", value: "retry" },
   {
-    name: "Configure MCP without signing in",
+    name: "Continue setup without signing in",
     value: "continue_without_auth",
-    description: "Your agent will ask you to sign in before using GitHits.",
+    description: `Sign in later with \`${INTERACTIVE_LOGIN_COMMAND}\`.`,
   },
   { name: "Cancel setup", value: "cancel" },
 ];
@@ -799,7 +807,7 @@ const AUTH_START_CHOICES: SelectChoice<InitAuthStartChoice>[] = [
   {
     name: "Skip for now",
     value: "skip",
-    description: `Finish MCP setup and sign in later with \`${INTERACTIVE_LOGIN_COMMAND}\`.`,
+    description: `Finish setup and sign in later with \`${INTERACTIVE_LOGIN_COMMAND}\`.`,
   },
   { name: "Cancel setup", value: "cancel" },
 ];
@@ -946,21 +954,6 @@ function printInstallReview(
   console.log();
 }
 
-function printSkillsInstructions(useColors: boolean): void {
-  console.log("\n  Install GitHits Agent Skills:");
-  console.log();
-  console.log(
-    `    ${formatCommand("npx skills add githits-com/githits-cli", useColors)}`,
-  );
-  console.log();
-  console.log("  Choose the agents that should receive these skills.");
-  console.log();
-  console.log("  Then sign in so your agent can use GitHits:");
-  console.log();
-  console.log(`    ${formatCommand(INTERACTIVE_LOGIN_COMMAND, useColors)}`);
-  console.log();
-}
-
 const GITHITS_VSCODE_INSTRUCTIONS_HEADER = `---
 name: GitHits
 description: Prefer GitHits MCP and the installed githits-mcp skill for OSS and package context.
@@ -971,6 +964,7 @@ function getGuidanceSkillSetups(
   agents: AgentDefinition[],
   fileSystemService: FileSystemService,
   scope: InitSetupScope,
+  skillNames?: readonly string[],
 ): SkillSetup[] {
   const basePath =
     scope === "project"
@@ -982,27 +976,29 @@ function getGuidanceSkillSetups(
   for (const agent of agents) {
     const relativeTargets = GUIDANCE_SKILL_TARGETS[agent.id]?.[scope] ?? [];
     for (const relativeTarget of relativeTargets) {
-      for (const skill of GITHITS_SKILL_CATALOG.filter(
-        (skill) =>
-          agent.setupProfile !== "remote" ||
-          skill.name === GITHITS_MCP_SKILL_NAME,
+      for (const skill of GITHITS_SKILL_CATALOG.filter((skill) =>
+        skillNames
+          ? skillNames.includes(skill.name)
+          : agent.setupProfile !== "remote" ||
+            skill.name === GITHITS_MCP_SKILL_NAME,
       )) {
-        const targetPath = fileSystemService.joinPath(
-          basePath,
-          ...relativeTarget,
-          skill.name,
-          "SKILL.md",
-        );
-        if (seen.has(targetPath)) continue;
-        seen.add(targetPath);
-        const source = GITHITS_SKILL_SOURCE_PATHS[skill.name];
-        setups.push({
-          method: "skill",
-          skillName: skill.name,
-          sourcePath: source.sourcePath,
-          sourcePathCandidates: source.sourcePathCandidates,
-          targetPath,
-        });
+        for (const source of GITHITS_SKILL_SOURCE_PATHS[skill.name].files) {
+          const targetPath = fileSystemService.joinPath(
+            basePath,
+            ...relativeTarget,
+            skill.name,
+            ...source.relativePath.split("/"),
+          );
+          if (seen.has(targetPath)) continue;
+          seen.add(targetPath);
+          setups.push({
+            method: "skill",
+            skillName: skill.name,
+            sourcePath: source.sourcePath,
+            sourcePathCandidates: source.sourcePathCandidates,
+            targetPath,
+          });
+        }
       }
     }
   }
@@ -1295,10 +1291,6 @@ function shouldInstallGuidanceForYes(options: InitOptions): boolean {
   return options.guidance !== false;
 }
 
-function isGuidedIntent(intent: InitIntent): boolean {
-  return intent === "mcp-guided" || intent === "remote-guided";
-}
-
 function startSafeInitScan(
   fileSystemService: FileSystemService,
   execService: ExecService,
@@ -1433,12 +1425,8 @@ function buildInitAgentChoices(
           checked: true,
         };
       if (entry.status === "needs_setup") {
-        const action =
-          entry.guidanceStatus === "needs_setup"
-            ? "MCP + supporting instructions"
-            : "MCP only";
         return {
-          name: `${entry.name} (${action}; ${entry.transport === "http" ? "remote" : "local CLI"})`,
+          name: `${entry.name} (MCP setup; ${entry.transport === "http" ? "remote" : "local CLI"})`,
           value: entry.id,
           checked: true,
         };
@@ -2732,9 +2720,9 @@ function printAuthExplanation(options: InitOptions): void {
       "    We'll open your browser to connect your account and print the sign-in URL in case the browser does not open.",
     );
   }
-  console.log("    Credentials are stored securely in your OS keychain.");
+  console.log("    Credentials are stored on this machine.");
   console.log();
-  console.log("    No API keys or secrets are written into your MCP config.");
+  console.log("    Credentials are not added to your agent's configuration.");
   console.log();
 }
 
@@ -2800,7 +2788,7 @@ async function runInitAuthentication(
           printTask(
             "warning",
             "Sign-in skipped",
-            "your agent will ask you to sign in later",
+            `sign in later with \`${INTERACTIVE_LOGIN_COMMAND}\``,
             useColors,
           );
           return "skipped";
@@ -4185,17 +4173,19 @@ function buildGuidanceTargetLabels(
           agent.setupProfile !== "remote" ||
           skill.name === GITHITS_MCP_SKILL_NAME,
       )) {
-        addGuidanceTargetLabel(
-          labelsByTarget,
-          "skill",
-          fileSystemService.joinPath(
-            basePath,
-            ...relativeTarget,
-            skill.name,
-            "SKILL.md",
-          ),
-          agent,
-        );
+        for (const source of GITHITS_SKILL_SOURCE_PATHS[skill.name].files) {
+          addGuidanceTargetLabel(
+            labelsByTarget,
+            "skill",
+            fileSystemService.joinPath(
+              basePath,
+              ...relativeTarget,
+              skill.name,
+              ...source.relativePath.split("/"),
+            ),
+            agent,
+          );
+        }
       }
     }
 
@@ -4937,6 +4927,145 @@ async function scanAgentsForUninstall(
   return result;
 }
 
+/** Install direct-CLI skills without probing or changing MCP configuration. */
+async function runCliSkillsSetup(
+  options: InitOptions,
+  scope: InitSetupScope,
+  fs: FileSystemService,
+  prompts: PromptService,
+  exec: ExecService,
+  createLoginDeps: InitDependencies["createLoginDeps"],
+  useColors: boolean,
+): Promise<void> {
+  if (scope === "project" && !(await resolveProjectSetupScope({}, fs))) return;
+  printSection(1, "Choose agents", useColors);
+  const available = await Promise.all(
+    agentDefinitions
+      .filter((agent) => GUIDANCE_SKILL_TARGETS[agent.id]?.[scope]?.length)
+      .map(async (agent) =>
+        (await detectAgentAvailability(agent, fs, exec)).detected
+          ? agent
+          : null,
+      ),
+  );
+  const agents = available.filter(
+    (agent): agent is AgentDefinition => agent !== null,
+  );
+  if (agents.length === 0) {
+    console.log(
+      "  No coding agents with supported skill folders were detected.",
+    );
+    console.log("  To install skills manually, run:");
+    console.log(
+      `    ${formatCommand("npx skills add githits-com/githits-cli", useColors)}`,
+    );
+    console.log("  Choose githits-code and githits-package, then sign in:");
+    console.log(`    ${formatCommand(INTERACTIVE_LOGIN_COMMAND, useColors)}`);
+    return;
+  }
+  const ids = await prompts.checkbox(
+    "  Select which agents should use the CLI skills:",
+    agents.map((agent) => ({
+      name: agent.name,
+      value: agent.id,
+      checked: true,
+    })),
+  );
+  const selected = agents.filter((agent) => ids.includes(agent.id));
+  if (selected.length === 0) {
+    console.log("  Nothing selected, no changes made.");
+    return;
+  }
+  const steps = getGuidanceSkillSetups(selected, fs, scope, [
+    "githits-code",
+    "githits-package",
+  ]);
+  const config: CompositeSetup = { method: "composite", steps };
+  const alreadyInstalled = await isSetupAlreadyConfigured(config, fs, exec);
+  if (!alreadyInstalled) {
+    printSection(2, "Review and confirm", useColors);
+    console.log(`    Scope: ${scope === "project" ? "Project" : "User"}`);
+    printInitProse(
+      `    Agents: ${selected.map((agent) => agent.name).join(", ")}`,
+    );
+    console.log(
+      "    Install githits-code and githits-package, including their reference files:",
+    );
+    for (const step of steps)
+      printInitProse(`      ${formatConfigPath(step.targetPath, fs)}`);
+    printInitProse(
+      "    These skills use the GitHits CLI or npx; a global CLI install is not required.",
+    );
+    printInitProse("    Existing MCP settings and other skills are kept.");
+    if (scope === "project")
+      printInitProse(
+        "    Skills are written into this project and may be committed.",
+      );
+    for (const item of INSTALL_REVIEW_ITEMS) printInitProse(`    • ${item}`);
+    if (
+      !(await prompts.confirm("Install CLI skills for these agents?", true))
+    ) {
+      console.log("\n  Setup cancelled. No changes made.\n");
+      return;
+    }
+  }
+  printSection(3, "Sign in", useColors);
+  const auth = await runInitAuthentication(
+    options,
+    prompts,
+    createLoginDeps,
+    useColors,
+    false,
+  );
+  if (auth === "cancelled") return;
+  printSection(4, "Install and verify", useColors);
+  const result: SetupResult = alreadyInstalled
+    ? {
+        status: "already_configured",
+        message: "CLI skills already installed",
+        changes: steps.map((step) => ({
+          kind: "skill",
+          path: step.targetPath,
+          change: "unchanged",
+        })),
+      }
+    : await executeCompositeSetup(config, fs, exec);
+  const verified =
+    result.status !== "failed" &&
+    (await isSetupAlreadyConfigured(config, fs, exec));
+  const guidance: GuidanceOutcome = {
+    status: verified
+      ? result.status === "already_configured"
+        ? "already_configured"
+        : "success"
+      : "failed",
+    message:
+      verified || result.status === "failed"
+        ? result.message
+        : "CLI skill verification failed.",
+    changes: result.changes,
+  };
+  printInstallOutcomeSections([], [], guidance, fs, useColors, scope, selected);
+  if (!verified) {
+    process.exitCode = 1;
+    return;
+  }
+  if (hasSharedGuidanceOutcome(guidance, fs, scope))
+    printSharedGuidanceVisibility(scope);
+  if (auth === "authenticated")
+    printTask("success", "GitHits CLI is ready", undefined, useColors);
+  else {
+    printTask(
+      "warning",
+      "CLI skills installed; sign-in is still required",
+      undefined,
+      useColors,
+    );
+    console.log(`    ${formatCommand(INTERACTIVE_LOGIN_COMMAND, useColors)}`);
+  }
+  console.log("  Open a new coding agent session to load the CLI skills.\n");
+}
+
 /**
  * Core init logic, separated from CLI registration for testability.
  * Scans for available agents, prompts for selection, configures each sequentially.
@@ -5001,13 +5130,11 @@ export async function initAction(
       intent = options.remote
         ? "remote-guided"
         : options.local
-          ? options.guidance === false
-            ? "mcp"
-            : "mcp-guided"
+          ? "mcp-guided"
           : await promptService.select(
               "  How would you like to set up GitHits?",
               INIT_INTENT_CHOICES,
-              options.guidance === false ? "mcp" : "remote-guided",
+              "remote-guided",
             );
     } catch (err) {
       if (err instanceof ExitPromptError) {
@@ -5017,8 +5144,11 @@ export async function initAction(
       throw err;
     }
 
-    if (intent === "skills") {
-      printSkillsInstructions(useColors);
+    if (intent === "skills" && options.guidance === false) {
+      failInitArgument(
+        "CLI setup requires supporting skills. Run init without --no-guidance.",
+        options.json,
+      );
       return;
     }
     if (intent === "later") {
@@ -5027,8 +5157,7 @@ export async function initAction(
       );
       return;
     }
-    installSupportingGuidance =
-      isGuidedIntent(intent) && options.guidance !== false;
+    installSupportingGuidance = options.guidance !== false;
     setupProfile = intent === "remote-guided" ? "remote" : "local";
 
     if (!options.project) {
@@ -5045,6 +5174,23 @@ export async function initAction(
         }
         throw err;
       }
+    }
+    if (intent === "skills") {
+      try {
+        await runCliSkillsSetup(
+          options,
+          setupScope,
+          fileSystemService,
+          promptService,
+          execService,
+          createLoginDeps,
+          useColors,
+        );
+      } catch (err) {
+        if (!(err instanceof ExitPromptError)) throw err;
+        console.log("\n  Setup cancelled. No changes made.\n");
+      }
+      return;
     }
   }
 
@@ -5172,12 +5318,25 @@ export async function initAction(
     return;
   }
 
-  if (installSupportingGuidance && setupScope === "project" && !options.yes) {
+  if (
+    selection.guidanceAgents.length > 0 &&
+    options.guidance === undefined &&
+    !options.yes
+  ) {
     try {
-      installSupportingGuidance = await promptService.confirm(
-        "Add project-level GitHits skill and instruction files?",
-        true,
-      );
+      installSupportingGuidance =
+        (await promptService.select(
+          "  Install supporting skills and instructions?",
+          GUIDANCE_CHOICES.map((choice) =>
+            setupScope === "project" && choice.value === "install"
+              ? {
+                  ...choice,
+                  description: `${choice.description}\nWrites files into this project; they may be committed.`,
+                }
+              : choice,
+          ),
+          "install",
+        )) === "install";
     } catch (err) {
       if (err instanceof ExitPromptError) {
         console.log("\n  Setup cancelled. No changes made.\n");
@@ -5471,10 +5630,10 @@ function printAuthRecoveryHint(useColors: boolean): void {
 
 const INIT_DESCRIPTION = `Connect GitHits to your coding agents.
 
-Interactive setup recommends remote MCP with the GitHits skill and instructions.
-Choose the local CLI for opt-in experimental features, or configure MCP only.
-You can also view CLI skill setup instructions. Select your agents, review the
-changes, and follow their sign-in steps.
+Choose remote MCP, local MCP with opt-in experimental features, or direct CLI
+use with supporting skills. MCP setup then asks whether to install supporting
+skills and instructions. Select your agents, review the changes, and follow
+their sign-in steps.
 Claude Desktop connects through the GitHits directory.`;
 
 const INIT_UNINSTALL_DESCRIPTION = `Remove GitHits MCP server configuration from your coding agents.
@@ -5544,7 +5703,7 @@ export function registerInitCommand(program: Command): void {
     .option("--skip-login", "Skip authentication step");
 
   addOAuthCallbackOptions(initCommand)
-    .option("--project", "Configure project-level MCP in the current directory")
+    .option("--project", "Set up GitHits for the current project")
     .option("--remote", "Use hosted MCP and MCP skill guidance")
     .option("--local", "Use local CLI where supported, remote otherwise")
     .option("--guidance", "Install supporting GitHits skill and instructions")
