@@ -1,1 +1,7 @@
+if command -v betterleaks >/dev/null 2>&1; then
+  betterleaks git . --staged --no-banner
+else
+  echo "warning: betterleaks not installed, skipping secret scan"
+fi
+
 lint-staged
