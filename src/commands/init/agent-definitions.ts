@@ -1390,14 +1390,17 @@ type AgentScanOutcome =
   | { status: "not_detected"; agent: AgentDefinition }
   | { status: "unsupported"; agent: AgentDefinition; reason: string };
 
-async function scanSingleAgent(
+export interface AgentAvailability {
+  detected: boolean;
+  setupContext?: AgentSetupContext;
+}
+
+/** Detect an agent without reading or probing its MCP configuration. */
+export async function detectAgentAvailability(
   agent: AgentDefinition,
   fs: FileSystemService,
   execService: ExecService,
-  scope: InitSetupScope,
-): Promise<AgentScanOutcome> {
-  const scanStartedAt = Date.now();
-  traceInit(`agent:start agent=${agent.id} scope=${scope}`);
+): Promise<AgentAvailability> {
   // Check if available using the agent's declared detection contract.
   let detected = false;
   let setupContext: AgentSetupContext | undefined;
@@ -1493,6 +1496,22 @@ async function scanSingleAgent(
     detected = binaryDetected || pathDetected;
   }
 
+  return { detected, setupContext };
+}
+
+async function scanSingleAgent(
+  agent: AgentDefinition,
+  fs: FileSystemService,
+  execService: ExecService,
+  scope: InitSetupScope,
+): Promise<AgentScanOutcome> {
+  const scanStartedAt = Date.now();
+  traceInit(`agent:start agent=${agent.id} scope=${scope}`);
+  const { detected, setupContext } = await detectAgentAvailability(
+    agent,
+    fs,
+    execService,
+  );
   if (!detected) {
     traceInit(
       `agent:end agent=${agent.id} status=not_detected elapsedMs=${Date.now() - scanStartedAt}`,
