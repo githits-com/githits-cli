@@ -10,6 +10,8 @@ import {
 import { readFileSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import { parse as parseToml } from "smol-toml";
+import { version } from "../../../package.json";
+import { renderManagedSkillContent } from "../../services/mcp-skill-content.js";
 import {
   createMockExecService,
   createMockFileSystemService,
@@ -464,6 +466,218 @@ describe("remote init profile", () => {
   });
 });
 
+const GUIDANCE_PROMPT = "  Install supporting skills and instructions?";
+
+type PromptCall = unknown[];
+
+function selectCalls(f: ReturnType<typeof fixture>): PromptCall[] {
+  return (
+    f.deps.promptService.select as unknown as {
+      mock: { calls: PromptCall[] };
+    }
+  ).mock.calls;
+}
+
+function expectGuidancePromptNotAsked(f: ReturnType<typeof fixture>): void {
+  expect(selectCalls(f).some(([message]) => message === GUIDANCE_PROMPT)).toBe(
+    false,
+  );
+}
+
+function expectGuidancePrompt(
+  f: ReturnType<typeof fixture>,
+  scope: "user" | "project",
+): void {
+  const call = selectCalls(f).find(([message]) => message === GUIDANCE_PROMPT);
+  const installDescription =
+    "Help your agent know when and how to use GitHits.\n" +
+    "Adds GitHits skills and instructions for the selected agents." +
+    (scope === "project"
+      ? "\nWrites files into this project; they may be committed."
+      : "");
+
+  expect(call).toBeDefined();
+  expect(call?.[1]).toEqual([
+    {
+      name: "Install skills and instructions (recommended)",
+      value: "install",
+      description: installDescription,
+    },
+    {
+      name: "Configure MCP only",
+      value: "mcp-only",
+      description:
+        "Set up the MCP connection without adding skills or instruction files.",
+    },
+  ]);
+  expect(call?.[2]).toBe("install");
+}
+
+function chooseGuidance(
+  f: ReturnType<typeof fixture>,
+  choose: () => Promise<string>,
+): void {
+  const originalSelect = f.deps.promptService.select;
+  f.deps.promptService.select = mock(
+    async (
+      message: string,
+      choices: Array<{ name: string; value: string; description?: string }>,
+      defaultValue?: string,
+    ) => {
+      if (message === GUIDANCE_PROMPT) return choose();
+      return originalSelect(message, choices, defaultValue);
+    },
+  ) as typeof f.deps.promptService.select;
+}
+
+const guidanceScopes = [
+  {
+    name: "user",
+    ids: ["cline"],
+    options: { remote: true },
+    configPath: CLINE,
+    skillPath: "/home/remote-test/.agents/skills/githits-mcp/SKILL.md",
+    instructionPath: undefined,
+    expectedMcp: { type: "streamableHttp", url: MCP_URL },
+  },
+  {
+    name: "project",
+    ids: ["claude-code"],
+    options: { remote: true, project: true },
+    configPath: "/repo/.mcp.json",
+    skillPath: "/repo/.claude/skills/githits-mcp/SKILL.md",
+    instructionPath: "/repo/CLAUDE.md",
+    expectedMcp: { type: "http", url: MCP_URL },
+  },
+] as const;
+
+describe("MCP guidance consent", () => {
+  it("keeps the interactive remote default with --no-guidance", async () => {
+    const f = fixture(["cline"]);
+    await f.run({ guidance: false });
+    expect(JSON.parse(f.files[CLINE]!).mcpServers.GitHits.url).toBe(MCP_URL);
+    expectGuidancePromptNotAsked(f);
+    expect(Object.keys(f.files)).toEqual([CLINE]);
+    expect(f.createLoginDeps).not.toHaveBeenCalled();
+  });
+
+  for (const scope of guidanceScopes) {
+    it(`selects guidance by default at ${scope.name} scope and explains both choices`, async () => {
+      const f = fixture([...scope.ids]);
+      await f.run(scope.options);
+
+      expectGuidancePrompt(f, scope.name);
+      const checkboxCall = (
+        f.deps.promptService.checkbox as unknown as {
+          mock: { calls: PromptCall[] };
+        }
+      ).mock.calls.find(
+        ([message]) => message === "  Select which tools should use GitHits:",
+      );
+      expect(checkboxCall).toBeDefined();
+      if (!checkboxCall) throw new Error("Tool-selection prompt was not shown");
+      const labels = (checkboxCall[1] as Array<{ name: string }>).map(
+        (choice) => choice.name,
+      );
+
+      expect(labels).toEqual([
+        scope.name === "user"
+          ? "Cline (MCP setup; remote)"
+          : "Claude Code (MCP setup; remote)",
+      ]);
+      expect(JSON.parse(f.files[scope.configPath]!).mcpServers.GitHits).toEqual(
+        scope.expectedMcp,
+      );
+      expect(f.files[scope.skillPath]).toBeDefined();
+      if (scope.instructionPath)
+        expect(f.files[scope.instructionPath]).toBeDefined();
+      expect(f.createLoginDeps).not.toHaveBeenCalled();
+    });
+
+    it(`configures MCP only when guidance is declined at ${scope.name} scope`, async () => {
+      const f = fixture([...scope.ids]);
+      chooseGuidance(f, async () => "mcp-only");
+      await f.run(scope.options);
+
+      expectGuidancePrompt(f, scope.name);
+      expect(JSON.parse(f.files[scope.configPath]!).mcpServers.GitHits).toEqual(
+        scope.expectedMcp,
+      );
+      expect(Object.keys(f.files).sort()).toEqual([scope.configPath]);
+      expect(f.fs.atomicWriteFile).toHaveBeenCalledTimes(1);
+      expect(f.fs.writeFile).not.toHaveBeenCalled();
+      expect(f.createLoginDeps).not.toHaveBeenCalled();
+    });
+  }
+
+  it("cancels without writes or auth when the consent selector is closed", async () => {
+    const f = fixture(["cline"]);
+    chooseGuidance(f, async () => {
+      throw new ExitPromptError();
+    });
+    const output = await f.run({ remote: true });
+
+    expect(
+      selectCalls(f).some(([message]) => message === GUIDANCE_PROMPT),
+    ).toBe(true);
+    expect(output).toContain("Setup cancelled. No changes made.");
+    expect(f.files).toEqual({});
+    expect(f.fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(f.fs.writeFile).not.toHaveBeenCalled();
+    expect(f.createLoginDeps).not.toHaveBeenCalled();
+  });
+
+  for (const guidance of [true, false]) {
+    it(`uses explicit guidance=${guidance} without asking for consent again`, async () => {
+      const f = fixture(["cline"]);
+      await f.run({ remote: true, guidance });
+
+      expectGuidancePromptNotAsked(f);
+      expect(f.files[CLINE]).toBeDefined();
+      expect(
+        "/home/remote-test/.agents/skills/githits-mcp/SKILL.md" in f.files,
+      ).toBe(guidance);
+      expect(f.createLoginDeps).not.toHaveBeenCalled();
+    });
+  }
+
+  it("uses --yes without opening the guidance consent selector", async () => {
+    const f = fixture(["cline"]);
+    await f.run({ remote: true, yes: true });
+
+    expectGuidancePromptNotAsked(f);
+    expect(f.files[CLINE]).toBeDefined();
+    expect(
+      f.files["/home/remote-test/.agents/skills/githits-mcp/SKILL.md"],
+    ).toBeDefined();
+    expect(f.createLoginDeps).not.toHaveBeenCalled();
+  });
+
+  it("skips consent for an already configured interactive no-op", async () => {
+    const skillPath = "/home/remote-test/.agents/skills/githits-mcp/SKILL.md";
+    const skillSource = GITHITS_SKILL_SOURCE_PATHS["githits-mcp"];
+    if (!skillSource) throw new Error("GitHits MCP skill source is missing");
+    const config = JSON.stringify({
+      mcpServers: { GitHits: { type: "streamableHttp", url: MCP_URL } },
+    });
+    const f = fixture(["cline"], {
+      [CLINE]: config,
+      [skillPath]: renderManagedSkillContent(
+        readFileSync(skillSource.sourcePath, "utf8"),
+        version,
+      ),
+    });
+    await f.run({ remote: true });
+
+    expectGuidancePromptNotAsked(f);
+    expect(f.files[CLINE]).toBe(config);
+    expect(f.files[skillPath]).toBeDefined();
+    expect(f.fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(f.fs.writeFile).not.toHaveBeenCalled();
+    expect(f.createLoginDeps).not.toHaveBeenCalled();
+  });
+});
+
 describe("Desktop directory handoff", () => {
   function expectDesktopDetectHandoff(
     f: ReturnType<typeof fixture>,
@@ -572,6 +786,7 @@ describe("Desktop directory handoff", () => {
     expect(f.fs.writeFile).not.toHaveBeenCalled();
     expect(f.deps.promptService.confirm).not.toHaveBeenCalled();
     expect(f.deps.promptService.confirm3).not.toHaveBeenCalled();
+    expectGuidancePromptNotAsked(f);
     expect(f.createLoginDeps).not.toHaveBeenCalled();
   });
 });
