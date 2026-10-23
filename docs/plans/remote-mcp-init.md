@@ -155,7 +155,7 @@ route/auth decisions, CLI integration tests, existing expectation updates and
 durable documentation. No A3/A4 dispatch is needed after that work was done
 inline.
 
-### Phase B — review and deliver this revision (IN PROGRESS)
+### Phase B — review and deliver this revision (COMPLETE)
 
 Dependencies: Phase A. Outcome: verified revision committed/pushed to a second stacked draft PR,
 CI green and all review findings adjudicated. Assumptions: no merge/release is
@@ -257,3 +257,36 @@ implementation docs. Corrected README uninstall wording for reference files.
 No production/test change. No second Luna pass (one bounded pass per increment).
 Coordinator also added a default --no-guidance regression after full suite:
 remote-init.test.ts40pass0fail280assertions. Test-only lint closure passed Biome.
+
+
+External implementation round1 (fa38383), Opus5.5: direction sound; no
+correctness/security/simplicity findings. Accepted both minor wording notes:
+--remote help must not promise automatic guidance; --local help and local
+agent rows must distinguish local MCP from direct CLI. Changed the three
+strings, bounded sibling scan covered both selectors/help/agent rows and their
+related tests/docs; retained auth's valid local-CLI references. This is a clean
+round after those wording fixes per repository review policy; no new external
+round required and no final reviewer subagent was run because the reviewer
+reported wording findings. Reviewer retained ctx_01b6b54f8855, terminal
+term_2ee0f871-ddc4-41ab-a76b-af88edefd4ed. The parent PR reviewer is retained
+separately; neither reviewer is released before merge approval.
+
+Delivery: draft PR514, base jlitola/feat-remote-mcp-init, parent PR505.
+Existing PR workflow filters base main, so stacked PR has no hosted CI run;
+CI must run after parent merge and retargeting to main. No workflow/infrastructure
+change was introduced. Local format:check and lint passed (50 existing warnings),
+MCP package build and validate:packages:mcp-publish passed; publish dry-run
+skipped because MCP0.34.0 is already published. No publication occurred.
+Worker: four dispatches (A1 fixtures, A2 compaction checkpoint without edits,
+resumed A2 consent tests, test-lint closure). Three returned edits. Coordinator
+kept production, CLI/availability tests, doc updates and integration. The
+minor test-lint closure took one corrective dispatch; the original evidence
+brief omitted Biome. No conceptual failure or scope expansion.
+
+
+Final wording verification: Bun1.4.3 init suite738pass0fail2934assertions;
+build and all three actual Node PTY scenarios passed again. No code behavior
+changed after full suite, smokes or package validation. Review is clean under
+the wording-only rule. Implementation contracts are in durable init, CLI,
+onboarding and plugin docs; release-prep and Gemini questions remain in the
+existing backlog. Retire this working plan in the final commit of PR514.

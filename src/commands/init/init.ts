@@ -1426,7 +1426,7 @@ function buildInitAgentChoices(
         };
       if (entry.status === "needs_setup") {
         return {
-          name: `${entry.name} (MCP setup; ${entry.transport === "http" ? "remote" : "local CLI"})`,
+          name: `${entry.name} (MCP setup; ${entry.transport === "http" ? "remote" : "local MCP"})`,
           value: entry.id,
           checked: true,
         };
@@ -5704,8 +5704,8 @@ export function registerInitCommand(program: Command): void {
 
   addOAuthCallbackOptions(initCommand)
     .option("--project", "Set up GitHits for the current project")
-    .option("--remote", "Use hosted MCP and MCP skill guidance")
-    .option("--local", "Use local CLI where supported, remote otherwise")
+    .option("--remote", "Use hosted MCP")
+    .option("--local", "Use local MCP where supported, remote otherwise")
     .option("--guidance", "Install supporting GitHits skill and instructions")
     .option("--no-guidance", "Install plain MCP without supporting guidance")
     .option("--detect-agents", "Scan supported agents without installing")
