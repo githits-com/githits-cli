@@ -112,7 +112,9 @@ describe("unified grep CLI", () => {
         includeDetailedFields: true,
         waitTimeoutMs: 30000,
       });
-      expect(log.mock.calls[0]?.[0]).toBe(JSON.stringify(defaultGrepResult));
+      expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(
+        defaultGrepResult,
+      );
     } finally {
       log.mockRestore();
     }

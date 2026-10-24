@@ -68,6 +68,7 @@ function page(
 ): GrepResult {
   return {
     indexingEstimates: [],
+    pathWarnings: [],
     hits,
     targets: [scope()],
     totalMatches: hits.length,

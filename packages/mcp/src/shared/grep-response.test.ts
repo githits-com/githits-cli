@@ -56,6 +56,7 @@ const hit: GrepHit = {
 function result(overrides: Partial<GrepResult> = {}): GrepResult {
   return {
     indexingEstimates: [],
+    pathWarnings: [],
     hits: [hit],
     targets: [target],
     unavailableTargets: [],
@@ -70,7 +71,10 @@ describe("unified grep result and text", () => {
   it("accepts a pre-metadata injected provider while preserving absent metadata", () => {
     const provider = result();
     delete provider.indexingEstimates;
-    expect(projectGrepResult(provider)).toEqual(provider);
+    expect(projectGrepResult(provider)).toEqual({
+      ...provider,
+      pathWarnings: [],
+    });
     expect(projectGrepResult(provider)).not.toHaveProperty("indexingEstimates");
   });
   it("retains an unvisited selected site and explains its continuation", () => {
@@ -91,7 +95,7 @@ describe("unified grep result and text", () => {
       traversal: "RESUMABLE_LIMIT",
       nextCursor: "opaque",
     });
-    expect(projectGrepResult(page)).toEqual(page);
+    expect(projectGrepResult(page)).toEqual({ ...page, pathWarnings: [] });
     const output = formatGrepText(page);
     expect(output).toContain("  - site:docs.test (not reached on this page)");
     expect(output).not.toContain("not visited in this page");
@@ -182,7 +186,7 @@ describe("unified grep result and text", () => {
       ...data,
       unknown: "drop",
     } as GrepResult);
-    expect(projected).toEqual(data);
+    expect(projected).toEqual({ ...data, pathWarnings: [] });
     expect(projected.targets[0]?.publicMessage).toBeNull();
     expect(projected.hits[0]?.sourceMatchStartByte).toBe(10);
     projected.hits.pop();

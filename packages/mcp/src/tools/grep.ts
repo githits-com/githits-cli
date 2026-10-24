@@ -168,13 +168,15 @@ export function createGrepTool(
           waitTimeoutMs: args.wait_timeout_ms,
           includeDetailedFields: args.format === "json",
         });
-        const projected = projectGrepResult(
-          await service.grep(params, ...serviceRequestArgs(context?.signal)),
+        const result = await service.grep(
+          params,
+          ...serviceRequestArgs(context?.signal),
         );
+        const projected = projectGrepResult(result);
         return textResult(
           args.format === "json"
             ? JSON.stringify(projected)
-            : formatGrepText(projected, {
+            : formatGrepText(result, {
                 syntax: "mcp",
                 useColors: false,
                 requestedTargets: params.targets.map((target) => target.target),

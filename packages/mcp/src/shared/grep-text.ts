@@ -6,6 +6,7 @@ import type {
 } from "@githits/core-internal";
 import { colors, highlightMatch } from "./colors.js";
 import { grepPreparationReason } from "./grep-preparation-text.js";
+import { summarizeGrepPathWarnings } from "./grep-response.js";
 import { formatPreparationRow } from "./indexing-estimates-text.js";
 import { indexingWaitMs } from "./indexing-wait.js";
 import {
@@ -198,6 +199,9 @@ export function formatGrepText(
         ? `${result.hits.length ? "Some requested content could not be searched; the" : "The"} service did not explain why or whether retrying would help.`
         : "The search did not finish, and no continuation cursor was returned. The service did not explain why the full search stopped or whether retrying would help.",
     );
+  if (result.pathWarnings.length) lines.push("");
+  for (const warning of summarizeGrepPathWarnings(result.pathWarnings))
+    lines.push(`Warning: ${escapeControls(warning)}`);
   for (const [index, group] of groups.entries()) {
     const first = group.first;
     const target = first.read.target;

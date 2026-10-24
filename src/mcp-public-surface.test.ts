@@ -521,6 +521,7 @@ describe("public MCP package surface", () => {
   it("routes unified grep through the remote server API", async () => {
     const grep = mock(() =>
       Promise.resolve({
+        pathWarnings: [],
         hits: [],
         targets: [],
         unavailableTargets: [],

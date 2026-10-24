@@ -36,6 +36,8 @@ export type {
   GrepLineSlice,
   GrepParams,
   GrepPathSelector,
+  GrepPathSuggestion,
+  GrepPathWarning,
   GrepReadAction,
   GrepReadiness,
   GrepRepositoryHit,

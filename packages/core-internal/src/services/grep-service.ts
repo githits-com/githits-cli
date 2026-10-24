@@ -160,7 +160,22 @@ export interface GrepUnavailableTarget {
   progressRef: string | null;
   suggestedSiteTargets: string[] | null;
 }
+/** An unverified backend-authored alternative; never applied by the client. */
+export interface GrepPathSuggestion {
+  target: string;
+  path: string;
+}
+/** Snapshot-backed path diagnosis, independent of matches and coverage failures. */
+export interface GrepPathWarning {
+  requestedInputIndices: number[];
+  target: string;
+  path: string;
+  repositorySubpath: string;
+  message: string;
+  suggestions: GrepPathSuggestion[];
+}
 export interface GrepResult {
+  pathWarnings: GrepPathWarning[];
   indexingEstimates?: DiscoveryIndexingEstimate[];
   hits: GrepHit[];
   targets: GrepTargetStatus[];
@@ -276,6 +291,18 @@ function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
     sourceMatchEndByte: selected(nonnegativeInt),
   };
   return z.object({
+    pathWarnings: z.array(
+      z.object({
+        requestedInputIndices: z.array(nonnegativeInt),
+        target: z.string(),
+        path: z.string(),
+        repositorySubpath: z.string(),
+        message: z.string(),
+        suggestions: z.array(
+          z.object({ target: z.string(), path: z.string() }),
+        ),
+      }),
+    ),
     indexingEstimates: indexingEstimatesSchema,
     hits: z.array(
       z.discriminatedUnion("__typename", [
@@ -398,6 +425,10 @@ const GRAPHQL_QUERY = `query Grep(
     contextLinesAfter: $contextLinesAfter, maxMatches: $maxMatches,
     cursor: $cursor, waitTimeoutMs: $waitTimeoutMs) {
     traversal nextCursor totalMatches
+    pathWarnings {
+      requestedInputIndices target path repositorySubpath message
+      suggestions { target path }
+    }
     ${INDEXING_ESTIMATES_SELECTION}
     hits {
       __typename

@@ -9,6 +9,7 @@ import {
   GrepGraphQLError,
   GrepNetworkError,
   type GrepParams,
+  type GrepPathWarning,
   type GrepResult,
   GrepServiceImpl,
   MalformedGrepResponseError,
@@ -28,6 +29,7 @@ const params: GrepParams = {
 function result(): GrepResult {
   return {
     indexingEstimates: [],
+    pathWarnings: [],
     hits: [],
     targets: [],
     unavailableTargets: [],
@@ -580,4 +582,75 @@ describe("unified grep service", () => {
     const s = new GrepServiceImpl("invalid", createMockTokenProvider());
     await expect(s.grep(params)).rejects.toThrow();
   });
+});
+
+const pathWarning: GrepPathWarning = {
+  requestedInputIndices: [1, 0],
+  target: "npm:x",
+  path: "packages/x/src",
+  repositorySubpath: "packages/x",
+  message:
+    'Package paths are relative to the package root. Did you mean target "npm:x" with path "src"?',
+  suggestions: [
+    { target: "npm:x", path: "src" },
+    { target: `github:o/r@${"a".repeat(40)}`, path: "packages/x/src" },
+  ],
+};
+
+describe("backend package-path advisories", () => {
+  for (const detailed of [false, true]) {
+    it(`selects and preserves every advisory field in ${detailed ? "detailed" : "compact"} mode without changing controls`, async () => {
+      const page = detailed ? detailedMixed() : mixed();
+      page.pathWarnings = [
+        pathWarning,
+        { ...pathWarning, path: "packages/x/test", requestedInputIndices: [2] },
+      ];
+      const requested = {
+        ...params,
+        includeDetailedFields: detailed,
+        waitTimeoutMs: 0,
+      };
+      const fetcher = mock(
+        async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+          const body = JSON.parse(String(init?.body));
+          expect(body.variables).toEqual(requested);
+          expect(body.query).toMatch(
+            /pathWarnings\s*\{\s*requestedInputIndices target path repositorySubpath message\s*suggestions\s*\{ target path \}\s*\}/,
+          );
+          return response({ data: { grep: page } });
+        },
+      );
+      expect(await service(fetcher).grep(requested)).toEqual(page);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+
+    it(`requires and validates the complete advisory contract in ${detailed ? "detailed" : "compact"} mode`, () => {
+      const page = detailed ? detailedMixed() : mixed();
+      expect(parseGrepResult(page, detailed).pathWarnings).toEqual([]);
+      for (const value of [
+        undefined,
+        null,
+        {},
+        [null],
+        [{ ...pathWarning, requestedInputIndices: [-1] }],
+        [{ ...pathWarning, requestedInputIndices: [0.5] }],
+        [{ ...pathWarning, suggestions: [{ target: "npm:x", path: null }] }],
+      ]) {
+        expect(() =>
+          parseGrepResult({ ...page, pathWarnings: value }, detailed),
+        ).toThrow(MalformedGrepResponseError);
+      }
+      for (const field of Object.keys(pathWarning)) {
+        const warning = { ...pathWarning };
+        Reflect.deleteProperty(warning, field);
+        expect(() =>
+          parseGrepResult({ ...page, pathWarnings: [warning] }, detailed),
+        ).toThrow(MalformedGrepResponseError);
+      }
+      const warning = { ...pathWarning, suggestions: [{ path: "src" }] };
+      expect(() =>
+        parseGrepResult({ ...page, pathWarnings: [warning] }, detailed),
+      ).toThrow(MalformedGrepResponseError);
+    });
+  }
 });
