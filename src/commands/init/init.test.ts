@@ -22,6 +22,7 @@ import { renderManagedSkillContent } from "../../services/mcp-skill-content.js";
 import type {
   ConfirmChoice,
   PromptService,
+  SelectChoice,
 } from "../../services/prompt-service.js";
 import {
   createMockExecService as createBaseMockExecService,
@@ -76,8 +77,11 @@ let logSpy: ReturnType<typeof spyOn>;
 let errorSpy: ReturnType<typeof spyOn>;
 let originalExitCode: string | number | null | undefined;
 let originalPlatform: NodeJS.Platform;
+let originalGeminiCliHome: string | undefined;
 
 beforeEach(() => {
+  originalGeminiCliHome = process.env.GEMINI_CLI_HOME;
+  delete process.env.GEMINI_CLI_HOME;
   originalExitCode = process.exitCode;
   process.exitCode = 0;
   originalPlatform = process.platform;
@@ -92,6 +96,11 @@ beforeEach(() => {
 afterEach(() => {
   logSpy.mockRestore();
   errorSpy.mockRestore();
+  if (originalGeminiCliHome === undefined) {
+    delete process.env.GEMINI_CLI_HOME;
+  } else {
+    process.env.GEMINI_CLI_HOME = originalGeminiCliHome;
+  }
   process.exitCode = originalExitCode;
   Object.defineProperty(process, "platform", {
     configurable: true,
@@ -233,6 +242,31 @@ function createAgentSelectionPromptService(agentId: string): PromptService {
       ),
     ) as PromptService["checkbox"],
   });
+}
+
+function createLocalFirstPromptService(
+  impl: Partial<PromptService> = {},
+): PromptService {
+  const promptService = createMockPromptService(impl);
+  const select = promptService.select;
+
+  return {
+    ...promptService,
+    select: mock(
+      <T>(message: string, choices: SelectChoice<T>[], defaultValue?: T) => {
+        const hasRemoteGuided = choices.some(
+          (choice) => choice.value === ("remote-guided" as T),
+        );
+        const hasMcpGuided = choices.some(
+          (choice) => choice.value === ("mcp-guided" as T),
+        );
+        if (hasRemoteGuided && hasMcpGuided) {
+          return Promise.resolve("mcp-guided" as T);
+        }
+        return select(message, choices, defaultValue);
+      },
+    ) as PromptService["select"],
+  };
 }
 
 /** Helper to extract log output as string array */
@@ -900,31 +934,37 @@ describe("initAction", () => {
   });
 
   it("reports detected tools without guidance targets as not supported", async () => {
-    const fs = createFsWithDetection(["/home/test/.config/Claude"]);
+    const fs = createFsWithDetection([]);
 
     await initAction(
       { detectAgents: true, json: true },
       {
         fileSystemService: fs,
         promptService: createMockPromptService(),
-        execService: createMockExecService(),
+        execService: createMockExecService({
+          exec: mock(async (command: string, args: string[]) => ({
+            exitCode: command === lookupCommandFor() && args[0] === "q" ? 0 : 1,
+            stdout: "",
+            stderr: "",
+          })),
+        }),
       },
     );
 
     const payload = JSON.parse(getLogOutput()[0] ?? "{}");
-    const claudeDesktop = payload.agents.find(
-      (agent: { id: string }) => agent.id === "claude-desktop",
+    const amazonQ = payload.agents.find(
+      (agent: { id: string }) => agent.id === "amazon-q-cli",
     );
-    expect(claudeDesktop.status).toBe("needs_setup");
-    expect(claudeDesktop.guidanceStatus).toBe("not_supported");
-    expect(payload.actionableIds).toContain("claude-desktop");
+    expect(amazonQ.status).toBe("needs_setup");
+    expect(amazonQ.guidanceStatus).toBe("not_supported");
+    expect(payload.actionableIds).toContain("amazon-q-cli");
   });
 
   it("does not claim unsupported guidance is configured in no-action detection", async () => {
-    const fs = createFsWithDetection(["/home/test/.config/Claude"], {
-      "/home/test/.config/Claude/claude_desktop_config.json": JSON.stringify({
+    const fs = createFsWithDetection([], {
+      "/home/test/.aws/amazonq/mcp.json": JSON.stringify({
         mcpServers: {
-          GitHits: {
+          githits: {
             command: "npx",
             args: ["-y", "githits@latest", "mcp", "start"],
           },
@@ -937,7 +977,13 @@ describe("initAction", () => {
       {
         fileSystemService: fs,
         promptService: createMockPromptService(),
-        execService: createMockExecService(),
+        execService: createMockExecService({
+          exec: mock(async (command: string, args: string[]) => ({
+            exitCode: command === lookupCommandFor() && args[0] === "q" ? 0 : 1,
+            stdout: "",
+            stderr: "",
+          })),
+        }),
       },
     );
 
@@ -1586,7 +1632,7 @@ describe("initAction", () => {
         return { stdout: "", stderr: "", exitCode: 1 };
       }),
     });
-    const promptService = createMockPromptService({
+    const promptService = createLocalFirstPromptService({
       select: createProjectScopeSelectMock(),
       checkbox: createSelectAllCheckboxMock(),
     });
@@ -1610,7 +1656,7 @@ describe("initAction", () => {
     );
   });
 
-  it("warns before rewriting existing Codex TOML project config", async () => {
+  it("preserves existing Codex TOML project comments without a destructive rewrite warning", async () => {
     const configFiles: Record<string, string> = {
       "/repo/.codex/config.toml": "# keep me\n[other]\nvalue = true\n",
     };
@@ -1646,19 +1692,13 @@ describe("initAction", () => {
     const warningIndex = logCalls.findIndex((msg) =>
       msg.includes("existing TOML comments/formatting will not be preserved"),
     );
-    const signInIndex = logCalls.findIndex((msg) => msg.includes("4. Sign in"));
-    const installIndex = logCalls.findIndex((msg) =>
-      msg.includes("5. Install and verify"),
+    expect(warningIndex).toBe(-1);
+    expect(configFiles["/repo/.codex/config.toml"]).toStartWith(
+      "# keep me\n[other]\nvalue = true\n",
     );
-    const mcpSectionIndex = logCalls.findIndex((msg) => msg.trim() === "MCP");
-    const codexRowIndex = logCalls.findIndex(
-      (msg) => msg.includes("Codex CLI") && msg.includes(".codex/config.toml"),
+    expect(configFiles["/repo/.codex/config.toml"]).toContain(
+      'url = "https://mcp.githits.com"',
     );
-    expect(warningIndex).toBeGreaterThanOrEqual(0);
-    expect(warningIndex).toBeLessThan(signInIndex);
-    expect(warningIndex).toBeLessThan(installIndex);
-    expect(installIndex).toBeLessThan(mcpSectionIndex);
-    expect(mcpSectionIndex).toBeLessThan(codexRowIndex);
   });
 
   it("sets up Pi project config through adapter and shared .mcp.json", async () => {
@@ -1689,7 +1729,7 @@ describe("initAction", () => {
         return { stdout: "", stderr: "", exitCode: 1 };
       }),
     });
-    const promptService = createMockPromptService({
+    const promptService = createLocalFirstPromptService({
       select: createProjectScopeSelectMock(),
       checkbox: createSelectAllCheckboxMock(),
     });
@@ -1809,7 +1849,7 @@ describe("initAction", () => {
         return { stdout: "", stderr: "", exitCode: 1 };
       }),
     });
-    const promptService = createMockPromptService({
+    const promptService = createLocalFirstPromptService({
       select: createProjectScopeSelectMock(),
       checkbox: createSelectAllCheckboxMock(),
     });
@@ -2649,6 +2689,12 @@ describe("initAction", () => {
     expect(output).toContain(
       'Configured MCP server "githits": local stdio MCP command `npx -y githits@latest mcp start` for Cline; remote MCP at https://mcp.githits.com for Cursor',
     );
+    expect(output).toContain("Local GitHits CLI authentication is active.");
+    expect(output).not.toContain("you are already signed in");
+    expect(output).toContain(
+      "In Cursor, open the MCP panel and click Authenticate once for GitHits, or run:",
+    );
+    expect(output).toContain("cursor-agent mcp login GitHits");
   });
 
   it("repairs a missing subset of shared skills without MCP or auth", async () => {
@@ -3463,7 +3509,7 @@ describe("initAction", () => {
     fs.atomicWriteFile = mock(async (path: string, content: string) => {
       configFiles[path] = content;
     }) as typeof fs.atomicWriteFile;
-    const promptService = createMockPromptService();
+    const promptService = createLocalFirstPromptService();
 
     await initAction(
       { guidance: false },
@@ -3823,7 +3869,7 @@ describe("initAction", () => {
         },
       }),
     });
-    const promptService = createMockPromptService();
+    const promptService = createLocalFirstPromptService();
 
     await initAction(
       { guidance: false },
@@ -4038,7 +4084,7 @@ describe("initAction", () => {
       {},
       {
         fileSystemService: fs,
-        promptService: createMockPromptService(),
+        promptService: createLocalFirstPromptService(),
         execService: createMockExecService(),
         createLoginDeps,
       },
@@ -4079,7 +4125,7 @@ describe("initAction", () => {
       configFiles[path] = content;
     }) as typeof fs.atomicWriteFile;
     const createLoginDeps = createAlreadyAuthLoginDeps();
-    const promptService = createMockPromptService({
+    const promptService = createLocalFirstPromptService({
       select: mock(
         async <T>(
           message: string,
@@ -4612,7 +4658,7 @@ describe("initAction", () => {
         return Promise.resolve({ exitCode: 1, stdout: "", stderr: "" });
       }),
     });
-    const promptService = createMockPromptService();
+    const promptService = createLocalFirstPromptService();
 
     await initAction(
       {},
@@ -5462,8 +5508,9 @@ describe("initAction", () => {
 
   it("accepts Gemini already-exists output when the stdio MCP verifies", async () => {
     const lookupCmd = lookupCommandFor();
-    const fs = createFsWithDetection([]);
-    const promptService = createMockPromptService();
+    const configFiles: Record<string, string> = {};
+    const fs = createFsWithDetection([], configFiles);
+    const promptService = createLocalFirstPromptService();
     let listCalls = 0;
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
@@ -5504,6 +5551,7 @@ describe("initAction", () => {
           key ===
           "gemini mcp add --transport stdio --scope user githits npx -- -y githits@latest mcp start"
         ) {
+          configFiles["/home/test/.gemini/settings.json"] = CLAUDE_USER_CONFIG;
           return Promise.resolve({
             exitCode: 1,
             stdout: "",
@@ -5539,7 +5587,7 @@ describe("initAction", () => {
       "mcp",
       "start",
     ]);
-    expect(listCalls).toBe(2);
+    expect(listCalls).toBe(0);
     const output = [...getLogOutput(), ...getErrorOutput()];
     expect(output.some((msg) => msg.includes("failed to configure"))).toBe(
       false,
@@ -5549,7 +5597,7 @@ describe("initAction", () => {
   it("marks Gemini setup as failed when the stdio MCP is not present after setup", async () => {
     const lookupCmd = lookupCommandFor();
     const fs = createFsWithDetection([]);
-    const promptService = createMockPromptService({
+    const promptService = createLocalFirstPromptService({
       confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
     });
     const execService = createMockExecService({
@@ -5715,7 +5763,7 @@ describe("initAction", () => {
         "/home/test/.cursor",
         "/home/test/.codeium/windsurf",
       ]);
-      const promptService = createMockPromptService({
+      const promptService = createLocalFirstPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
 
@@ -5746,7 +5794,7 @@ describe("initAction", () => {
         "/home/test/.cursor",
         "/home/test/.codeium/windsurf",
       ]);
-      const promptService = createMockPromptService({
+      const promptService = createLocalFirstPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
       const discoverEndpoints = mock(() =>
@@ -5797,7 +5845,7 @@ describe("initAction", () => {
         "/home/test/.cursor",
         "/home/test/.codeium/windsurf",
       ]);
-      const promptService = createMockPromptService({
+      const promptService = createLocalFirstPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
       const authStorage = createMockAuthStorage({
@@ -5839,7 +5887,7 @@ describe("initAction", () => {
         "/home/test/.cursor",
         "/home/test/.codeium/windsurf",
       ]);
-      const promptService = createMockPromptService({
+      const promptService = createLocalFirstPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
       const createLoginDeps = mock(() =>
@@ -5873,7 +5921,7 @@ describe("initAction", () => {
         "/home/test/.cursor",
         "/home/test/.codeium/windsurf",
       ]);
-      const promptService = createMockPromptService({
+      const promptService = createLocalFirstPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
       const expiredToken = createValidTokenData({
@@ -5920,7 +5968,7 @@ describe("initAction", () => {
         "/home/test/.codeium/windsurf",
       ]);
       let recoveryPrompts = 0;
-      const promptService = createMockPromptService({
+      const promptService = createLocalFirstPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
         select: mock((message, choices, defaultValue) => {
           if (String(message).includes("Authentication failed")) {
@@ -5991,7 +6039,7 @@ describe("initAction", () => {
       ]);
       const browserService = createMockBrowserService();
       const authService = createMockAuthService();
-      const promptService = createMockPromptService({
+      const promptService = createLocalFirstPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
       const createLoginDeps = mock(() =>
@@ -6043,7 +6091,7 @@ describe("initAction", () => {
         "/home/test/.cursor",
         "/home/test/.codeium/windsurf",
       ]);
-      const promptService = createMockPromptService({
+      const promptService = createLocalFirstPromptService({
         select: mock((message, choices, defaultValue) => {
           if (String(message).includes("Authentication failed")) {
             return Promise.resolve("continue_without_auth");
@@ -6108,7 +6156,7 @@ describe("initAction", () => {
         configFiles[path] = content;
         return Promise.resolve();
       });
-      const promptService = createMockPromptService({
+      const promptService = createLocalFirstPromptService({
         select: mock((message, choices, defaultValue) => {
           if (String(message).includes("Authentication failed")) {
             return Promise.resolve("continue_without_auth");
@@ -6153,7 +6201,7 @@ describe("initAction", () => {
         "/home/test/.cursor",
         "/home/test/.codeium/windsurf",
       ]);
-      const promptService = createMockPromptService({
+      const promptService = createLocalFirstPromptService({
         select: mock((message, choices, defaultValue) => {
           if (String(message).includes("Authentication failed")) {
             return Promise.resolve("cancel");
@@ -6201,7 +6249,7 @@ describe("initAction", () => {
         "/home/test/.cursor",
         "/home/test/.codeium/windsurf",
       ]);
-      const promptService = createMockPromptService({
+      const promptService = createLocalFirstPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
       const createLoginDeps = mock(() =>
@@ -6227,7 +6275,7 @@ describe("initAction", () => {
         "/home/test/.cursor",
         "/home/test/.codeium/windsurf",
       ]);
-      const promptService = createMockPromptService();
+      const promptService = createLocalFirstPromptService();
       const createLoginDeps = mock(() =>
         Promise.resolve({
           authService: createMockAuthService({
@@ -6273,7 +6321,7 @@ describe("initAction", () => {
         configFiles[path] = content;
         return Promise.resolve();
       });
-      const promptService = createMockPromptService({
+      const promptService = createLocalFirstPromptService({
         confirm3: mock(() => Promise.resolve("yes" as ConfirmChoice)),
       });
 
@@ -8750,7 +8798,9 @@ describe("initUninstallAction", () => {
 
   it("does not use the legacy Gemini extension as an uninstall fallback", async () => {
     const lookupCmd = lookupCommandFor();
-    const fs = createFsWithDetection([]);
+    const fs = createFsWithDetection([], {
+      "/home/test/.gemini/settings.json": "{",
+    });
     (fs.exists as ReturnType<typeof mock>).mockImplementation(
       async (path: string) =>
         path === "/home/test/.gemini/extensions/githits/gemini-extension.json",
@@ -8801,7 +8851,9 @@ describe("initUninstallAction", () => {
 
   it("reports Gemini probe failure as inspection failure without fallback", async () => {
     const lookupCmd = lookupCommandFor();
-    const fs = createFsWithDetection([]);
+    const fs = createFsWithDetection([], {
+      "/home/test/.gemini/settings.json": "{",
+    });
     const execService = createMockExecService({
       exec: mock((cmd: string, args: string[]) => {
         const key = `${cmd} ${args.join(" ")}`;
@@ -9546,7 +9598,9 @@ describe("registerInitCommand", () => {
     );
     expect(initCommand).toBeDefined();
     expect(rootUninstallCommand).toBeDefined();
-    expect(initCommand?.description()).toContain("packaged GitHits skills");
+    expect(initCommand?.description()).toContain(
+      "GitHits skill and instructions",
+    );
     expect(initCommand?.description()).not.toContain("a small GitHits skill");
     expect(initCommand?.description()).not.toContain("signs you in");
     expect(

@@ -165,3 +165,51 @@ backend. Revert the dependency for rollback; roll back forwarding clients before
 removing backend admission. Exact artifact and future deployed state remain
 unknown. No merge, release, publication, deployment or other repository edit is
 authorized by this client handoff.
+
+## Release preparation: remote init onboarding skill
+
+The remote-init CLI change must be included in the release branch before
+updating `skills/githits-onboarding/SKILL.md`, per the public Agent Skill
+lifecycle. This feature branch deliberately leaves its published bytes intact.
+Update the skill during that release preparation to offer the default remote
+profile, retain explicit `--remote`/`--local`, scope and `--no-guidance` in staged
+commands, preserve no-selector transport on reruns, skip local CLI auth for
+hosted-only selections, and use host-owned OAuth/discovery instructions.
+Explain Claude Desktop's directory handoff at
+https://claude.ai/directory/githits, `manual_action_required`/`manualActionIds`,
+and exclusion from automatic install counts. Keep existing CLI skills on remote
+install; retain four-skill uninstall semantics and `--keep-guidance`.
+
+Acceptance: staged detect/install examples match the released CLI envelopes and
+selectors; onboarding never directs hosted-only users to local login or retries
+CLI install for a directory connection. Regenerate/check plugin assets and run
+targeted onboarding validation in an isolated disposable environment; the
+stateful onboarding eval remains manual/dry-run-only until its harness supports
+safe automated execution.
+
+## Verify Gemini custom-home guidance discovery
+
+Observed while reviewing remote init: Gemini CLI `76e4d7c0` computes global
+`.gemini` and `.agents/skills` roots from `GEMINI_CLI_HOME`
+([home resolver](https://github.com/google-gemini/gemini-cli/blob/76e4d7c0/packages/core/src/utils/paths.ts#L20-L26),
+[storage paths](https://github.com/google-gemini/gemini-cli/blob/76e4d7c0/packages/core/src/config/storage.ts#L50-L75)).
+The native settings probe follows that override. Existing guidance builders use
+the OS home. This source evidence does **not** establish that Gemini excludes
+the standard OS-home guidance location: other discovery paths may include it.
+No missed-guidance behavior has been reproduced.
+
+User direction on 2026-10-20: keep remote init bounded and verify whether Gemini
+actually reads the standard location before changing guidance paths. First use
+a disposable native Gemini environment with distinct standard/custom-home
+fixtures and inspect actual skill/instruction discovery; do not change paths
+from the helper's return value alone. If standard discovery still works, close
+this item without a path change.
+
+Only if a missed-guidance case is reproduced, propose the smallest consistent
+correction across install/check/repair, target labels, shared-root uninstall
+protection, and local startup skill updater discovery. Reuse existing host and
+guidance declarations; no new framework or persistent setting is proposed.
+Acceptance for any verified correction: native discovery works, reruns are
+idempotent, project guidance stays unchanged, updater/uninstall touch only
+eligible owned files, and retained hosts' shared guidance is preserved. Do not
+delete existing OS-home guidance merely because an override is present.

@@ -50,14 +50,46 @@ our [public API documentation](https://docs.githits.com/api/overview).
 npx githits@latest init
 ```
 
-`init` signs you in, detects supported coding tools, and configures GitHits for
-the tools you select. It uses the local stdio MCP except for Cursor, whose
-direct setup uses the hosted remote MCP.
+`init` detects supported coding tools and lets you choose how to connect them.
+Interactive setup defaults to hosted remote MCP with only the `githits-mcp`
+skill. You can also use the local CLI, configure MCP without agent guidance,
+or view CLI skill setup instructions.
 
-Automatic setup currently supports Claude Code, Cursor, Windsurf,
-VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI,
-Google Antigravity, OpenCode, Hermes Agent, Zed, Junie, Qwen Code,
-Kiro, Kilo Code, Factory Droid, and Amazon Q CLI.
+| Init choice | MCP setup | Guidance and sign-in |
+|---|---|---|
+| Connect via remote MCP (recommended) | Hosted MCP; Claude Desktop uses a directory handoff | Verified guidance targets get `githits-mcp` and host guidance blocks; sign in through the host |
+| Use the local CLI (supports experimental features) | Local stdio where supported; hosted MCP for remote-only hosts | Four canonical skills; local MCP sign-in uses the GitHits CLI |
+| Configure MCP only (local first) | Local-first; hosted MCP for remote-only hosts | No skills or guidance; local MCP sign-in uses the GitHits CLI |
+| View CLI skill setup instructions | Shows commands; does not configure MCP | Instructions for installing the four canonical skills and signing in through the CLI |
+
+Local integrations support opt-in experimental features; selecting `--local`
+does not enable them.
+
+Fresh staged installs without a profile selector default to local CLI/stdio
+where supported. On reruns, omitting a profile selector preserves the existing
+canonical MCP transport. Use `--remote` or
+`--local` to choose a profile explicitly; the flags are mutually exclusive and
+an explicit staged install can migrate the selected canonical configuration.
+Init does not switch profiles automatically when setup fails. The `--local`
+profile uses hosted MCP for remote-only tools such as Cursor.
+
+Remote setup leaves authentication to the coding host. Local OAuth flags such
+as `--no-browser` and `--port` apply only when setting up the local CLI MCP.
+Remote setup installs `githits-mcp` and verified host guidance blocks; it
+preserves any additional CLI skills already installed.
+
+Claude Desktop requires a manual directory handoff in either MCP profile:
+open [the GitHits connector in Claude](https://claude.ai/directory/githits)
+and choose **Connect** or **Install**. Init does not write Claude Desktop MCP
+configuration, install a skill for Desktop, open a browser, or report the
+connector as ready. Existing local Desktop configuration remains untouched
+until you choose to remove it with `githits uninstall`; disconnect the hosted
+connector in Claude.
+
+Init can configure or direct you to manual setup for Claude Code, Cursor,
+Windsurf, VS Code / Copilot, Cline, Claude Desktop, Codex CLI, Pi, Gemini CLI,
+Google Antigravity, OpenCode, Hermes Agent, Zed, Junie, Qwen Code, Kiro,
+Kilo Code, Factory Droid, and Amazon Q CLI.
 
 After setup, open your coding agent and work normally. Many agents call GitHits
 when they need source-backed context. If your agent starts guessing, prompt it
@@ -206,10 +238,10 @@ npx githits@latest example "async file reading" --lang python --license strict
 
 ## Authentication
 
-Normal local setup is handled by:
+For local CLI setup, use:
 
 ```sh
-npx githits@latest init
+npx githits@latest init --local
 ```
 
 For manual login:
@@ -218,11 +250,13 @@ For manual login:
 npx githits@latest login
 ```
 
-Browser OAuth is recommended for local development. Credentials are stored in
-the system keychain by default and refreshed automatically. Useful flags:
+Browser OAuth is recommended for local CLI use. Credentials are stored in the
+system keychain by default and refreshed automatically. The `init` flags below
+apply only to local CLI setup; remote MCP sign-in is handled by the coding host.
+Useful flags:
 
-- `init --no-browser` or `login --no-browser` prints the login URL instead of launching a browser
-- `init --port <port>` or `login --port <port>` fixes the loopback callback port
+- `init --local --no-browser` or `login --no-browser` prints the login URL instead of launching a browser
+- `init --local --port <port>` or `login --port <port>` fixes the loopback callback port
 - `login --force` re-authenticates even if you are already logged in
 
 The OAuth callback always listens on the machine where GitHits is running.
@@ -236,7 +270,7 @@ ssh -N -L 8765:127.0.0.1:8765 user@remote-host
 With that tunnel open, run GitHits on the remote machine using the same port:
 
 ```sh
-npx githits@latest init --no-browser --port 8765
+npx githits@latest init --local --no-browser --port 8765
 ```
 
 Open the URL printed by GitHits in the local browser. Replace
@@ -303,8 +337,8 @@ keychain behavior, file storage mode, CI setup, and troubleshooting.
 
 ## Manual MCP Setup
 
-If your coding tool is not auto-configured by `init`, add GitHits to its MCP
-configuration manually:
+As an alternative to `init`, configure a local stdio server manually, or use
+this setup for a host without a supported automatic adapter:
 
 ```json
 {
@@ -326,9 +360,13 @@ To remove configuration written by `init`:
 npx githits@latest uninstall
 ```
 
-This removes GitHits MCP configuration and guidance written by `init`, while
-preserving stored credentials. Run `npx githits@latest logout` separately to
-remove credentials. The compatibility form `npx githits@latest init uninstall`
+Unless `--keep-guidance` is supplied, uninstall removes GitHits MCP
+configuration and all four canonical skill files, including pre-existing CLI
+skills after a remote install, subject to existing selected-agent shared-skill
+protection. It preserves stored credentials. It does not disconnect a hosted
+Claude connector; disconnect that in Claude. Run `npx githits@latest logout`
+separately to remove local credentials. The compatibility form
+`npx githits@latest init uninstall`
 accepts the same `--yes`, `--project`, and `--keep-guidance` options.
 
 ## Project Setup
@@ -340,9 +378,11 @@ npx githits@latest init --project
 ```
 
 Project setup is available only for tools with verified project-local MCP
-support. Project config contains no secrets, but it may be committed like other
-tooling configuration, so review generated files before adding them to source
-control.
+support. The selected local or remote profile controls the generated MCP
+transport. Fresh staged setup without a profile selector is local-first; on
+reruns, omitting the selector preserves the existing canonical transport.
+Project config contains no secrets, but it may be committed like other tooling
+configuration, so review generated files before adding them to source control.
 
 Agent-safe non-interactive setup uses staged discovery and explicit install:
 
@@ -350,6 +390,12 @@ Agent-safe non-interactive setup uses staged discovery and explicit install:
 npx githits@latest init --detect-agents --json
 npx githits@latest init --install-agents cursor,codex-cli
 ```
+
+Add `--remote` or `--local` to the install command to select a profile
+explicitly; they cannot be used together. An install without either selector
+uses the fresh local-first default. On reruns, omitting the selector preserves
+the existing canonical transport. Setup errors do not trigger automatic
+fallback to the other profile.
 
 ## Plugin and Extension Packaging
 
@@ -372,21 +418,27 @@ symlinks (`CLAUDE.md` and `GEMINI.md`) to the canonical `AGENTS.md`:
 - `skills/`
 
 The root skill tree is shared by all supported hosts. Every plugin and extension
-install uses the hosted remote MCP, including Claude, Codex, Cursor, Gemini CLI,
-Google Antigravity, and VS Code/GitHub Copilot OpenPlugin. Direct `githits init`
-setup is a separate path: it installs local stdio configurations for supported
-tools except Cursor, which remains remote-only. The repository root is a native
-Antigravity plugin through `plugin.json`, `mcp_config.json`, and the shared
-`skills/` tree. Generated manifests are refreshed with `bun run plugins:generate`
-and validated with `bun run plugins:check`.
+install uses the hosted remote MCP and the four canonical skills, including
+Claude, Codex, Cursor, Gemini CLI, Google Antigravity, and VS Code/GitHub
+Copilot OpenPlugin. Direct `githits init` offers separate remote and local
+profiles: remote setup installs `githits-mcp` with verified host guidance,
+while local-guided setup installs the four canonical skills and configures
+local stdio where supported. Remote-only tools such as Cursor use hosted MCP
+even in the local profile. The repository root is a native Antigravity plugin
+through `plugin.json`, `mcp_config.json`, and the shared `skills/` tree.
+Generated manifests are refreshed with `bun run plugins:generate` and
+validated with `bun run plugins:check`.
 
-Guided `init` installs the four canonical skills (`githits-code`, `githits-mcp`,
-`githits-onboarding`, and `githits-package`) only for selected agents. Shared
-skill-capable agents use `~/.agents/skills/` at user scope or `.agents/skills/`
-at project scope; native-only agents use their verified native skill directory.
+The four canonical skills are `githits-code`, `githits-mcp`,
+`githits-onboarding`, and `githits-package`. Local-guided and plugin installs
+use that set; remote-guided `init` installs only `githits-mcp` and verified host
+guidance blocks, preserving any additional CLI skills. Shared skill-capable
+agents use `~/.agents/skills/` at user scope or `.agents/skills/` at project
+scope; native-only agents use their verified native skill directory.
 Compatible agents reading a shared root can discover those skills. A later
 guided run repairs missing skills, and migration removes only the historical
-Cline or Junie `githits-mcp/SKILL.md` after the complete shared set is verified.
+Cline or Junie `githits-mcp/SKILL.md` after the requested shared skill subset is
+verified.
 
 For Claude Code marketplace installs:
 

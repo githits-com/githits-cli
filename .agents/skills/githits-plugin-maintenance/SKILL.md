@@ -62,9 +62,13 @@ host MCP files as reviewable build artifacts, not authoring locations.
   reimplement package-owned MCP behavior there. Hosted descriptor changes take
   effect only after the package release is adopted and deployed by
   `remote-mcp`.
-- Direct `githits init` configuration retains stdio except for Cursor, which is
-  remote-only. Claude and Gemini CLI setup remove legacy plugin or extension
-  state before installing the user-scoped stdio server.
+- Interactive `githits init` defaults to hosted MCP and the MCP skill. The
+  local-first profile uses stdio where supported and hosted MCP for Cursor.
+  No-selector unattended reruns preserve canonical transport; explicit
+  `--remote`/`--local` requests migration. Claude Desktop links to the directory
+  and retains legacy local config for optional uninstall cleanup. Claude Code
+  and Gemini setup retain legacy plugin/extension cleanup before adding the
+  selected transport.
 - `server.json` advertises both remote and version-pinned npm stdio transports.
 
 Do not change another host's transport without an explicit product decision.

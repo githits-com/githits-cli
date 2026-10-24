@@ -59,8 +59,8 @@ public-package validation checks the packed tarball contains it.
 
 ## Skill Contract
 
-Every plugin and guided CLI setup uses the same four canonical skill
-directories:
+Every plugin and local-first guided CLI setup uses the same four canonical
+skill directories (remote init requests only `githits-mcp`):
 
 - `githits-code`
 - `githits-mcp`
@@ -161,10 +161,11 @@ native adapters until their consumers have migrated to the portable format.
 
 All plugin and extension packages use the hosted remote MCP through each host's
 native remote field. Direct `githits init` configuration remains a separate
-path: it installs stdio for Claude Code, Codex CLI, Gemini CLI, and the other
-local hosts, while Cursor remains remote-only. Claude and Gemini CLI setup
-remove obsolete plugin or extension state before installing the user-scoped
-stdio server so the remote package and local server are not registered together.
+path: interactive setup defaults to hosted MCP plus its one-skill guidance
+subset. The explicit local-first profile uses stdio where supported and hosted
+MCP for Cursor. Claude Desktop links to the GitHits Claude directory. Claude
+Code and Gemini retain obsolete plugin/extension cleanup before adding the
+selected user transport. Plugin payloads retain their four-skill contract.
 
 The hosted server lives in the separate `remote-mcp` repository. It consumes a
 released `@githits/mcp` version for tool registration, descriptors,
@@ -179,8 +180,8 @@ Antigravity plugin directory. `plugin.json` is the shared Agent Plugins manifest
 and Antigravity marker. Portable clients load the hosted remote MCP from
 `mcp.json`; Antigravity retains `mcp_config.json` with its native `serverUrl`
 field. Both formats discover the same four canonical root skills. Direct CLI
-setup remains local stdio and writes the current global
-`~/.gemini/config/mcp_config.json` or workspace `.agents/mcp_config.json` path.
+setup writes the current global `~/.gemini/config/mcp_config.json` or workspace
+`.agents/mcp_config.json` path using the selected local/remote entry.
 
 Generated plugin manifests use the publisher-provided `keywords` from
 `server.json`. `package.json` retains the same ordered list so npm and every
