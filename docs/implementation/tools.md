@@ -496,7 +496,17 @@ graph), and each transitive occurrence always retains the required
 
 - `runtime` block: emitted whenever the service returned `dependencies.direct` (including `{count: 0, items: []}` for zero-dep packages). `runtime.count` is computed client-side from `runtime.items.length`. The source `direct[]` is always runtime-only: dev / peer / build / optional deps live in the groups block instead.
 - `groups` block: emitted when the caller requested a lifecycle view and the service returned `dependencyGroups` — including when a lifecycle filter matched nothing (`{items: []}`). Omitted when the service returned `dependencyGroups: null` (e.g. on zero-dep packages), or when the caller used the default runtime view. Each group carries its members under `items`, matching `runtime.items` so dependency lists share one key throughout the envelope. Duplicate `{name, constraint}` entries inside a group are preserved verbatim; the terminal formatter dedups for scannability but JSON is lossless.
-- `transitive` block: emitted only when the caller set `max_depth` or requested importer provenance. Carries aggregates (`edges`, `uniquePackages`, `depth?`) plus preprocessed arrays: `packages[]` (each `{name, version, importers[]}` with importer name / version / constraint pulled from the service graph), `conflicts[]` (typed `{name, requiredVersions, requirements}`), and `circularDependencies[]` (typed `{cycle: string[]}`). Each conflict requirement preserves one backend edge in its original multiplicity/order as `{constraint, dependencyType, importer, target}`. Importer and target identities carry registry/name/version; a synthetic root importer is the inspected package with `root: true`. Graph indices never cross this boundary. The raw graph is not exposed — preprocessing happens in the envelope builder so agents consume the same signal the terminal `--verbose` renderer reads without re-implementing the decoder.
+- `transitive` block: emitted only when the caller set `max_depth` or requested importer provenance. Carries aggregates (`edges`, `uniquePackages`, `depth?`) plus preprocessed arrays: `packages[]` (each `{registry?, name, version?, importers?}` with importer registry / name / version / constraint pulled from the service graph), `conflicts[]` (typed `{name, requiredVersions, requirements}`), and `circularDependencies[]` (typed `{cycle: string[]}`). Each conflict requirement preserves one backend edge in its original multiplicity/order as `{constraint, dependencyType, importer, target}`. Importer and target identities carry registry/name/version; a synthetic root importer is the inspected package with `root: true`. Graph indices never cross this boundary. The raw graph is not exposed — preprocessing happens in the envelope builder so agents consume the same signal the terminal `--verbose` renderer reads without re-implementing the decoder.
+
+Transitive rows retain the lowercase graph-node `registry` whenever their exact
+name/version identifies one node unambiguously, independently of importer output.
+Absent graphs, mismatched versions, or ambiguous names across namespaces leave
+`registry` and importer provenance omitted rather than inferred. Importer identities
+also retain their registry, including SDK namespaces such as `flutter_sdk`; these
+namespaces describe graph sources and are not accepted package-target registries.
+Text qualifies a package or importer with a parenthesized registry when it differs
+from the report header. MCP `include_importers: true` displays provenance in text
+as well as JSON; CLI `--verbose` displays the same provenance.
 
 **Dependency issue analysis.** `include_issues: true` requests the backend's lazy
 `dependencyIssues` summary and the companion graph needed to resolve conflict

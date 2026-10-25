@@ -717,10 +717,16 @@ describe("package_dependencies parity", () => {
     ).transitive;
     expect(transitiveEnvelope?.packages).toEqual([
       {
+        registry: "npm",
         name: "accepts",
         version: "2.0.0",
         importers: [
-          { name: "express", version: "5.2.1", constraint: "^2.0.0" },
+          {
+            registry: "npm",
+            name: "express",
+            version: "5.2.1",
+            constraint: "^2.0.0",
+          },
         ],
       },
     ]);
@@ -781,7 +787,9 @@ describe("package_dependencies parity", () => {
     const pkgs = (
       cli as { transitive?: { packages?: Array<Record<string, unknown>> } }
     ).transitive?.packages;
-    expect(pkgs).toEqual([{ name: "accepts", version: "2.0.0" }]);
+    expect(pkgs).toEqual([
+      { registry: "npm", name: "accepts", version: "2.0.0" },
+    ]);
     // Importers absent — lean default.
     expect(pkgs?.[0]?.importers).toBeUndefined();
   });

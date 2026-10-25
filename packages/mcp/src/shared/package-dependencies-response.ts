@@ -112,6 +112,8 @@ export interface LeanGroupsBlock {
 }
 
 export interface LeanTransitiveImporter {
+  /** Backend graph namespace, including non-registry SDK identities. */
+  registry?: string;
   name: string;
   /** Importer's own resolved version, when the DAG node carries one. */
   version?: string;
@@ -120,6 +122,8 @@ export interface LeanTransitiveImporter {
 }
 
 export interface LeanTransitivePackage {
+  /** Present only when the graph identifies this name/version unambiguously. */
+  registry?: string;
   name: string;
   version?: string;
   /**
@@ -647,13 +651,15 @@ function buildTransitivePackages(
     if (!name) continue;
     const record: LeanTransitivePackage = { name };
     if (version) record.version = version;
-
-    if (includeImporters && graph && incoming) {
-      const nodeIdx = findNodeIdx(graph, name, version);
-      if (nodeIdx !== null) {
-        const edges = incoming.get(nodeIdx) ?? [];
-        const importers = buildImportersFromEdges(graph, edges);
-        if (importers.length > 0) record.importers = importers;
+    if (graph) {
+      const match = findNodeMatch(graph, name, version);
+      if (match !== null) {
+        record.registry = lowerRegistry(match.registry);
+        if (incoming) {
+          const edges = incoming.get(match.index) ?? [];
+          const importers = buildImportersFromEdges(graph, edges);
+          if (importers.length > 0) record.importers = importers;
+        }
       }
     }
     out.push(record);
@@ -682,23 +688,27 @@ function buildIncomingEdgeMap(
   return map;
 }
 
-function findNodeIdx(
+interface DependencyNodeMatch {
+  index: number;
+  registry: string;
+}
+
+function findNodeMatch(
   graph: DependencyGraph,
   name: string,
   version: string | undefined,
-): number | null {
-  // Prefer exact name+version match. Fall back to name-only when
-  // version is absent or the graph's node carries no version.
-  let fallback: number | null = null;
+): DependencyNodeMatch | null {
+  // The legacy list omits namespace. Join only a unique exact identity;
+  // never choose a source or importer chain from a name-only fallback.
+  let match: DependencyNodeMatch | null = null;
   for (let i = 0; i < graph.nodes.length; i++) {
     const n = graph.nodes[i];
     if (!n) continue;
-    if (n.name !== name) continue;
-    if (version && n.version === version) return i;
-    if (!version && !n.version) return i;
-    if (fallback === null) fallback = i;
+    if (n.name !== name || n.version !== version) continue;
+    if (match !== null) return null;
+    match = { index: i, registry: n.registry };
   }
-  return fallback;
+  return match;
 }
 
 function buildImportersFromEdges(
@@ -714,16 +724,20 @@ function buildImportersFromEdges(
     if (edge.fromIndex === undefined || edge.fromIndex === null) continue;
     const from = graph.nodes[edge.fromIndex];
     if (!from) continue;
-    const key = `${from.name}\u0000${from.version ?? ""}\u0000${edge.constraint ?? ""}`;
+    const registry = lowerRegistry(from.registry);
+    const key = `${from.name}\u0000${registry}\u0000${from.version ?? ""}\u0000${edge.constraint ?? ""}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const importer: LeanTransitiveImporter = { name: from.name };
+    const importer: LeanTransitiveImporter = { registry, name: from.name };
     if (from.version) importer.version = from.version;
     if (edge.constraint) importer.constraint = edge.constraint;
     out.push(importer);
   }
   out.sort((a, b) => {
     if (a.name !== b.name) return a.name < b.name ? -1 : 1;
+    const ar = a.registry ?? "";
+    const br = b.registry ?? "";
+    if (ar !== br) return ar < br ? -1 : 1;
     const av = a.version ?? "";
     const bv = b.version ?? "";
     if (av !== bv) return av < bv ? -1 : 1;
@@ -831,6 +845,8 @@ function lowerRegistry(value: string | undefined): string {
 
 export interface FormatDependenciesTerminalOptions {
   verbose?: boolean;
+  /** Render transitive importer provenance without expanding other sections. */
+  includeImporters?: boolean;
   useColors?: boolean;
   requestedVersion?: string;
   canonicalLifecycles?: DependencyLifecycleInput[];
@@ -853,16 +869,14 @@ export function formatPackageDependenciesTerminal(
   options: FormatDependenciesTerminalOptions = {},
 ): string {
   const verbose = options.verbose ?? false;
-  // Terminal verbose output renders importers, so the envelope
-  // must carry them. Non-verbose terminals don't need importers;
-  // skipping them keeps the intermediate payload the formatter
-  // walks small.
+  const includeImporters = verbose || options.includeImporters === true;
+  // Only build importer provenance when this text view renders it.
   const payload = buildPackageDependenciesSuccessPayload(report, {
     requestedVersion: options.requestedVersion,
     canonicalLifecycles: options.canonicalLifecycles ?? ["all"],
     includeTransitive: options.includeTransitive,
     maxDepth: options.maxDepth,
-    includeImporters: verbose,
+    includeImporters,
     includeIssues: options.includeIssues,
   });
   const useColors = options.useColors ?? false;
@@ -875,7 +889,7 @@ export function formatPackageDependenciesTerminal(
   blocks.push(formatHeaderBlock(payload, useColors, showGroups, options));
 
   if (includeTransitive) {
-    blocks.push(formatTransitiveDepsList(payload, verbose, useColors));
+    blocks.push(formatTransitiveDepsList(payload, includeImporters, useColors));
     const issues = formatConflictsAndCycles(
       payload,
       verbose,
@@ -892,7 +906,7 @@ export function formatPackageDependenciesTerminal(
   }
 
   const dependencyIssues = formatDependencyIssues(
-    payload.issues,
+    payload,
     verbose,
     useColors,
     options.issuesDetailHint,
@@ -1061,24 +1075,36 @@ function formatTransitiveDepsList(
 
   const lines = ["Transitive packages:", ""];
   if (!verbose) {
-    lines.push(...sorted.map((pkg) => `  ${formatPackageLabel(pkg)}`));
+    lines.push(
+      ...sorted.map((pkg) => `  ${formatPackageLabel(pkg, payload.registry)}`),
+    );
     return lines.join("\n");
   }
 
   lines.push(
     ...sorted.map((pkg) => {
-      const head = `  ${formatPackageLabel(pkg)}`;
+      const head = `  ${formatPackageLabel(pkg, payload.registry)}`;
       const importers = pkg.importers ?? [];
       if (importers.length === 0) return head;
-      const bullets = formatImporterBullets(importers, useColors);
+      const bullets = formatImporterBullets(
+        importers,
+        useColors,
+        payload.registry,
+      );
       return `${head}\n${bullets}`;
     }),
   );
   return lines.join("\n");
 }
 
-function formatPackageLabel(pkg: LeanTransitivePackage): string {
-  return pkg.version ? `${pkg.name}@${pkg.version}` : pkg.name;
+function formatPackageLabel(
+  pkg: LeanTransitivePackage,
+  headerRegistry: string,
+): string {
+  const label = pkg.version ? `${pkg.name}@${pkg.version}` : pkg.name;
+  return pkg.registry && pkg.registry !== headerRegistry
+    ? `${label} (${pkg.registry})`
+    : label;
 }
 
 /**
@@ -1090,11 +1116,12 @@ function formatPackageLabel(pkg: LeanTransitivePackage): string {
 function formatImporterBullets(
   importers: LeanTransitiveImporter[],
   useColors: boolean,
+  headerRegistry: string,
 ): string {
   const byConstraint = new Map<string, string[]>();
   for (const i of importers) {
     const key = i.constraint ?? "*";
-    const label = i.version ? `${i.name}@${i.version}` : i.name;
+    const label = formatPackageLabel(i, headerRegistry);
     const list = byConstraint.get(key);
     if (list) {
       if (!list.includes(label)) list.push(label);
@@ -1123,12 +1150,13 @@ function formatImporterBullets(
 // --------------------------------------------------------------------
 
 function formatDependencyIssues(
-  issues: LeanDependencyIssues | undefined,
+  payload: LeanDependencyReport,
   verbose: boolean,
   useColors: boolean,
   detailHint: string | undefined,
   terminalWidth: number,
 ): string {
+  const issues = payload.issues;
   if (!issues) return "";
 
   const scope =
@@ -1151,7 +1179,12 @@ function formatDependencyIssues(
 
   if (verbose) {
     lines.push(
-      ...formatVerboseIssueCategories(issues, useColors, terminalWidth),
+      ...formatVerboseIssueCategories(
+        issues,
+        useColors,
+        terminalWidth,
+        payload.registry,
+      ),
     );
     return lines.join("\n");
   }
@@ -1160,6 +1193,7 @@ function formatDependencyIssues(
     issues,
     useColors,
     terminalWidth,
+    payload.registry,
   );
   compact.truncated ||= count.truncated;
   lines.push(...compact.lines);
@@ -1191,6 +1225,7 @@ function formatCompactIssueCategories(
   issues: LeanDependencyIssues,
   useColors: boolean,
   terminalWidth: number,
+  headerRegistry: string,
 ): FormattedIssueCategories {
   const lines: string[] = [];
   let truncated = false;
@@ -1247,7 +1282,11 @@ function formatCompactIssueCategories(
   if (conflicts.length > 0) {
     lines.push(colorize("Conflicts:", "yellow", useColors));
     for (const conflict of conflicts.slice(0, 3)) {
-      const formatted = formatCompactIssueConflict(conflict, terminalWidth);
+      const formatted = formatCompactIssueConflict(
+        conflict,
+        terminalWidth,
+        headerRegistry,
+      );
       lines.push(...formatted.lines);
       truncated ||= formatted.truncated;
     }
@@ -1344,6 +1383,7 @@ function formatVerboseIssueCategories(
   issues: LeanDependencyIssues,
   useColors: boolean,
   terminalWidth: number,
+  headerRegistry: string,
 ): string[] {
   const lines: string[] = [];
   const deprecated = sortIssueItems(issues.deprecated.items);
@@ -1389,8 +1429,9 @@ function formatVerboseIssueCategories(
           terminalWidth,
         ),
       );
-      for (const line of formatConflictRequirements(conflict.requirements)
-        .lines) {
+      for (const line of formatConflictRequirements(conflict.requirements, {
+        headerRegistry,
+      }).lines) {
         lines.push(...wrapIssueEvidence(line, terminalWidth));
       }
     }
@@ -1444,8 +1485,10 @@ function formatIssueConflict(conflict: LeanDependencyConflictIssue): string {
 function formatCompactIssueConflict(
   conflict: LeanDependencyConflictIssue,
   terminalWidth: number,
+  headerRegistry: string,
 ): FormattedConflictRequirements {
   const requirements = formatConflictRequirements(conflict.requirements, {
+    headerRegistry,
     maxGroups: 3,
     maxImporters: 3,
   });
@@ -1472,7 +1515,7 @@ function sortIssueItems<T extends { name: string; registry?: string }>(
 
 function formatConflictRequirements(
   requirements: LeanConflictRequirement[],
-  limits: { maxGroups?: number; maxImporters?: number } = {},
+  limits: { headerRegistry: string; maxGroups?: number; maxImporters?: number },
 ): FormattedConflictRequirements {
   const byConstraint = new Map<string, LeanConflictRequirement[]>();
   for (const requirement of requirements) {
@@ -1496,9 +1539,7 @@ function formatConflictRequirements(
     const importers: Array<{ label: string; dependencyType: string }> = [];
     for (const entry of entries) {
       const importer = entry.importer;
-      const label = importer.version
-        ? `${importer.name}@${importer.version}`
-        : importer.name;
+      const label = formatPackageLabel(importer, limits.headerRegistry);
       const key = `${label}\u0000${entry.dependencyType}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -1567,7 +1608,9 @@ function formatConflictsAndCycles(
             terminalWidth,
           ),
         );
-        for (const line of formatConflictRequirements(c.requirements).lines) {
+        for (const line of formatConflictRequirements(c.requirements, {
+          headerRegistry: payload.registry,
+        }).lines) {
           lines.push(...wrapIssueEvidence(line, terminalWidth));
         }
         continue;
