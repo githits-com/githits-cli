@@ -22,11 +22,17 @@ Backend M1/M2a is merged/dev verified per handoff (a0e996e, containing dev revis
 9ba7ab2). New backend contract implementation is committed at ab1ca8fb6 on
 jlitola/grep-diff-package-provenance, schema hash 21c66e6fb268, per user. It reports
 187 focused tests, additive schema check and navigation/package traces passing,
-internal code review clean; external implementation R1 was running at handoff.
+internal code review clean; external implementation review is now clean (R1 plus fixture/docs-only R2), per user.
 Backend plan's three-round external limit ended without a claimed clean external
 round; all accepted findings were closed internally. Do not confuse that with
 the separate local client plan review, which was clean in R3 after wording fixes.
-New grep/diff deployment, including production support, is not verified.
+Backend PR https://github.com/githits-com/pkgseer-backend/pull/3648 now has head
+e2350f691, rebased onto main6217934d1 with runtime contract unchanged. User reports
+210 focused tests, native GraphQL pagination, traces and additive schema check
+passing; user reports CI40189938508 and all PR checks now GREEN, including
+full suite, native integration, distributed rate-limit smokes, image and navigation.
+External review is clean. Backend awaits user merge approval and is not merged/deployed. New grep/diff
+deployment, including production support, is not verified.
 
 ## Ownership and implemented architecture
 
@@ -94,7 +100,7 @@ TargetResolution or client Maven default. Backend supplies Maven unverified when
 needed; ordinary non-Maven/raw nil remains nil. CLI notices use stderr in every
 view without changing patch/path stdout; MCP uses the same wrapped notes; JSON
 retains independent side values. Public types are additive/optional for injected
-providers; changes fragment records pending patch impact for both artifacts.
+providers; changes fragment records pending minor impact for both artifacts.
 
 ## Acceptance and verification evidence
 
@@ -175,3 +181,26 @@ Hosted MCP additionally requires approved @githits/mcp publication, remote-mcp
 adoption and deployment. No merge, tag, release, publish or deploy authorization.
 No new product/architecture decisions are open. Rollback removes additive client
 projections/notices; coordinated schema removal is required after publication.
+
+
+## External client implementation R1 closure
+
+Direction sound; three low findings accepted. F1 -> unused requested.version in
+compact grep -> inspected every compact notice consumer, requested name fallback,
+all requested-identity fields and other source identity selections -> requested
+version is now detailed-only; wire tests assert its directive and model compact
+absence. Canonical input label/index remain required record identity; served and
+resolved versions remain consumed by notes. Other grep JSON-only metadata already
+has directives; list/read/search use their requested version in existing context.
+F2 -> weak no-notice assertion only matched one Maven wording -> scanned new
+no-notice tests across search/status, shared note helpers, grep and diff -> search
+adapter negative assertion now covers all correspondence notice classes for npm
+null and Maven matched across four adapters; grep sibling assertion strengthened.
+F3 -> additive public API understated as patch -> checked actual optional exported
+DTO/type additions and merged package-path-advisories precedent -> independent
+fragment renamed .added.md with minor/minor. Highest pending release was already
+minor, so this corrects the independent record without adding a second release.
+No package versions or generated plugin manifests are changed in this feature PR.
+
+Backend prerequisite #3648 will be explicit in client PR body. Publication stays
+held for backend production deployment and verification. No other approval implied.

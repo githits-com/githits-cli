@@ -1281,7 +1281,9 @@ describe("package correspondence through search and waited status adapters", () 
       ]) {
         const flat = text.replace(/\s+/g, " ");
         if (state === null || state === "manifest_matched")
-          expect(flat).not.toContain("Source for maven:");
+          expect(flat).not.toMatch(
+            /correspondence|inferred from version tag|declared revision/,
+          );
         else {
           const phrase =
             state === "tag_inferred"

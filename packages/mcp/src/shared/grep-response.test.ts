@@ -604,7 +604,9 @@ it("preserves ordered per-input assessments for a shared physical scan", () => {
   expect(text).toContain(
     "served=github:example/library@v1.2.3 (commit aaaaaaa)",
   );
-  expect(text).not.toContain("binary");
+  expect(text).not.toMatch(
+    /binary|inferred from version tag|declared revision/,
+  );
 });
 
 it.each(["CURRENT", "UNSPECIFIED", "INCOMPLETE"] as const)(

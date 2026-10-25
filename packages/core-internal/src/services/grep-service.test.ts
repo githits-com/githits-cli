@@ -663,8 +663,7 @@ for (const detailed of [false, true]) {
       requested: {
         registry: "MAVEN",
         packageName: "example:library",
-        version: "1.2.3",
-        releaseCorrespondence: null,
+        ...(detailed ? { version: "1.2.3", releaseCorrespondence: null } : {}),
       },
       resolvedRequested: {
         registry: "MAVEN",
@@ -716,6 +715,12 @@ for (const detailed of [false, true]) {
         const body = JSON.parse(String(init?.body));
         expect(body.variables.includeDetailedFields).toBe(detailed);
         expect(body.query).toContain("targetResolutions {");
+        const requestedSelection = body.query.match(
+          /requested\s*\{([^}]+)\}/,
+        )?.[1];
+        expect(requestedSelection).toContain(
+          "version @include(if: $includeDetailedFields)",
+        );
         expect(body.query.match(/targetResolution\s*\{/g)).toHaveLength(1);
         expect(body.query.match(/releaseCorrespondence/g)).toHaveLength(3);
         expect(body.query).toContain(

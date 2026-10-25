@@ -452,7 +452,8 @@ const GRAPHQL_QUERY = `query Grep(
       inputIndex target
       targetResolution {
         requested {
-          registry packageName version
+          registry packageName
+          version @include(if: $includeDetailedFields)
           releaseCorrespondence @include(if: $includeDetailedFields)
           kind @include(if: $includeDetailedFields)
           repoUrl @include(if: $includeDetailedFields)
