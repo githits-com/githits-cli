@@ -13,9 +13,10 @@
  *   lifecycle view (`lifecycle=<phase>` or `lifecycle=all`).
  * - **Preprocessed transitive.** When the caller sets
  *   `includeTransitive`, the envelope's `transitive.packages[]` lists
- *   every unique install with its resolved version. Adding
+ *   every unique install with its resolved version and unambiguous graph
+ *   registry namespace. Adding
  *   `includeImporters` populates per-package `importers[]` with the
- *   upstream node name, its own version, and the constraint it
+ *   upstream node registry/name, its own version, and the constraint it
  *   declared — the same signal the terminal `--verbose` view
  *   renders, derived client-side from the typed dependency graph
  *   so agents never see the graph directly.
@@ -629,8 +630,10 @@ function findRootNodeIdx(graph: DependencyGraph): number | null {
 /**
  * Build the preprocessed `transitive.packages[]` array. Each entry
  * carries the name + resolved version (from the backend's
- * `uniqueDependencies` list) plus importer provenance when the graph
- * was fetched. Agents consume this directly rather than the raw
+ * `uniqueDependencies` list), plus registry when the graph identifies
+ * exactly one matching node. Requested importer provenance retains
+ * each parent node's registry, version, and edge constraint. Agents consume
+ * this directly rather than the raw
  * dependency graph.
  */
 function buildTransitivePackages(
