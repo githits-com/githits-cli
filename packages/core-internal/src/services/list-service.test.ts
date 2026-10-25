@@ -309,18 +309,24 @@ describe("ListServiceImpl", () => {
         jsonResponse(
           successBody({
             targetResolution: {
-              requested: { kind: "git_branch", gitRef: null },
+              requested: {
+                kind: "git_branch",
+                gitRef: null,
+                releaseCorrespondence: null,
+              },
               resolvedRequested: {
                 repoUrl: null,
                 gitRef: "main",
                 commitSha: "requested-full-sha",
                 committedAt: null,
+                releaseCorrespondence: "manifest_matched",
               },
               served: {
                 repoUrl: "https://github.com/acme/project",
                 gitRef: "main",
                 commitSha: "served-full-sha",
                 committedAt: "2025-04-03T02:01:00.123+05:30",
+                releaseCorrespondence: "future_state",
               },
               freshness: "stale",
               freshnessReason: "ref_moved",
@@ -351,18 +357,24 @@ describe("ListServiceImpl", () => {
     });
     expect(parseListSelection(request.query)).toEqual(expectedListSelection());
     expect(result.targetResolution).toEqual({
-      requested: { kind: "git_branch", gitRef: null },
+      requested: {
+        kind: "git_branch",
+        gitRef: null,
+        releaseCorrespondence: null,
+      },
       resolvedRequested: {
         repoUrl: null,
         gitRef: "main",
         commitSha: "requested-full-sha",
         committedAt: null,
+        releaseCorrespondence: "manifest_matched",
       },
       served: {
         repoUrl: "https://github.com/acme/project",
         gitRef: "main",
         commitSha: "served-full-sha",
         committedAt: "2025-04-03T02:01:00.123+05:30",
+        releaseCorrespondence: "future_state",
       },
       freshness: "stale",
       freshnessReason: "ref_moved",
@@ -1360,16 +1372,18 @@ function expectedListSelection(): SelectionTree {
     version: null,
     repoUrl: null,
     commitSha: detailed(),
+    releaseCorrespondence: null,
   };
   const servedIdentity = {
     repoUrl: null,
     gitRef: null,
     commitSha: null,
     committedAt: null,
+    releaseCorrespondence: null,
     kind: detailed(),
-    registry: detailed(),
-    packageName: detailed(),
-    version: detailed(),
+    registry: null,
+    packageName: null,
+    version: null,
   };
   return {
     indexingEstimates: {

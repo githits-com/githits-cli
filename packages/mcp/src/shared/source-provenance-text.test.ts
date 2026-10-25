@@ -262,3 +262,35 @@ describe("unresolved requested indexing coverage", () => {
     ]);
   });
 });
+
+it("keeps correspondence separate from CURRENT freshness suppression and wraps prose", () => {
+  const details = renderResolutionDetails(
+    {
+      ...resolution,
+      requested: {
+        registry: "MAVEN",
+        packageName: "example:library",
+        version: "1.2.3",
+      },
+      resolvedRequested: {
+        ...resolution.resolvedRequested,
+        releaseCorrespondence: "manifest_matched",
+      },
+      served: {
+        ...resolution.served,
+        version: "1.2.3",
+        releaseCorrespondence: "tag_inferred",
+      },
+      freshness: "current",
+    },
+    [],
+    { width: 65 },
+  );
+  expect(details.join(" ").replace(/\s+/g, " ")).toContain(
+    "Source for maven:example:library@1.2.3 inferred from version tag; manifest correspondence unconfirmed",
+  );
+  expect(details.join(" ")).not.toMatch(
+    /queryable|suggested|Requested ref|Resolution state/,
+  );
+  expect(details.every((line) => line.length <= 65)).toBe(true);
+});

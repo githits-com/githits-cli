@@ -2,6 +2,7 @@ import type { DiscoveryIndexingEstimate } from "@githits/core-internal";
 import { formatRepositoryTarget } from "./repository-target.js";
 import {
   buildRetryCandidateLine,
+  buildSourceCorrespondenceNotes,
   buildSuggestedRefsLine,
 } from "./target-resolution.js";
 import { sanitizeTerminalText, wrapTerminalProse } from "./terminal-text.js";
@@ -16,6 +17,7 @@ export interface SourceProvenanceIdentity {
   gitRef?: string | null;
   commitSha?: string | null;
   committedAt?: string | null;
+  releaseCorrespondence?: string | null;
   site?: string | null;
 }
 
@@ -218,6 +220,19 @@ export function formatRequestedIndexingExplanation(
 
 /** Retain recovery and requested facts while replacing internal identity serialization. */
 export function renderResolutionDetails(
+  resolution: SourceProvenanceResolution | null | undefined,
+  preparation: readonly DiscoveryIndexingEstimate[] | undefined,
+  options: SourceTextOptions = {},
+): string[] {
+  return [
+    ...renderFreshnessDetails(resolution, preparation, options),
+    ...buildSourceCorrespondenceNotes(resolution).flatMap((line) =>
+      wrapTerminalProse(sanitizeTerminalText(line), options.width, "  "),
+    ),
+  ];
+}
+
+function renderFreshnessDetails(
   resolution: SourceProvenanceResolution | null | undefined,
   preparation: readonly DiscoveryIndexingEstimate[] | undefined,
   options: SourceTextOptions = {},

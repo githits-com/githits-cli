@@ -522,7 +522,12 @@ describe("mapCodeNavigationError", () => {
               packageName: "jason",
               version: "1.4.4",
             },
-            served: { registry: "HEX", packageName: "jason", version: "1.4.4" },
+            served: {
+              registry: "HEX",
+              packageName: "jason",
+              version: "1.4.4",
+              releaseCorrespondence: "declared_revision_unavailable",
+            },
             freshness: "current",
             freshnessReason: "exact_current",
             availableVersions: [],
@@ -531,6 +536,9 @@ describe("mapCodeNavigationError", () => {
         },
       );
 
+      expect(JSON.stringify(mapCodeNavigationError(err))).toContain(
+        '"releaseCorrespondence":"declared_revision_unavailable"',
+      );
       expect(mapCodeNavigationError(err)).toEqual({
         code,
         message: "Exact path is not queryable.",
@@ -544,7 +552,12 @@ describe("mapCodeNavigationError", () => {
               packageName: "jason",
               version: "1.4.4",
             },
-            served: { registry: "HEX", packageName: "jason", version: "1.4.4" },
+            served: {
+              registry: "HEX",
+              packageName: "jason",
+              version: "1.4.4",
+              releaseCorrespondence: "declared_revision_unavailable",
+            },
             freshness: "current",
             freshnessReason: "exact_current",
             availableVersions: [],

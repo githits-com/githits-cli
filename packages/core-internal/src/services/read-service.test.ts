@@ -89,6 +89,7 @@ const CODE_READ_SELECTION: SelectionTree = {
       repoUrl: null,
       gitRef: null,
       commitSha: null,
+      releaseCorrespondence: null,
     },
     resolvedRequested: {
       kind: null,
@@ -98,6 +99,7 @@ const CODE_READ_SELECTION: SelectionTree = {
       repoUrl: null,
       gitRef: null,
       commitSha: null,
+      releaseCorrespondence: null,
       committedAt: null,
     },
     served: {
@@ -108,6 +110,7 @@ const CODE_READ_SELECTION: SelectionTree = {
       repoUrl: null,
       gitRef: null,
       commitSha: null,
+      releaseCorrespondence: null,
       committedAt: null,
     },
     freshness: null,
@@ -517,14 +520,16 @@ describe("ReadServiceImpl", () => {
 
   it("preserves exact commit dates through the shared code read identity", async () => {
     const targetResolution = {
-      requested: { kind: "repo_commit" },
+      requested: { kind: "repo_commit", releaseCorrespondence: null },
       resolvedRequested: {
         commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         committedAt: "2026-09-01T23:59:59Z",
+        releaseCorrespondence: "future_state",
       },
       served: {
         commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         committedAt: "2026-09-01T23:59:59Z",
+        releaseCorrespondence: "future_state",
       },
       freshness: "current",
       availableVersions: [],

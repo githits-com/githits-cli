@@ -131,6 +131,9 @@ function projectTargetIdentity(
       : {}),
     ...(identity.version !== undefined ? { version: identity.version } : {}),
     ...(identity.repoUrl !== undefined ? { repoUrl: identity.repoUrl } : {}),
+    ...(identity.releaseCorrespondence !== undefined
+      ? { releaseCorrespondence: identity.releaseCorrespondence }
+      : {}),
     gitRef: identity.gitRef,
     ...(identity.commitSha !== undefined
       ? { commitSha: identity.commitSha }

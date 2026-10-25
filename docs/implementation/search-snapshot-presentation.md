@@ -587,3 +587,75 @@ source/built CLI/MCP smoke checks pass after the production correction.
 Internal review and fresh Claude Opus 5.5 review, including its final
 fresh-context check, are clean for implementation commit 384e9c2. No major
 deferred item or new infrastructure was introduced.
+
+## Package source correspondence
+
+The backend owns correspondence assessment; index freshness does not establish
+that repository source corresponds to a published package version. Core service
+clients select the nullable extensible `releaseCorrespondence` string and preserve
+it through validation, normalization and shared JSON projection. Requested,
+resolved-requested and served identities retain their independent assessments.
+A matched resolved identity never supplies confidence for a different served
+source. Unknown future strings remain available to machine consumers.
+
+`target-resolution.ts` owns shared correspondence notes. Source-provenance details,
+actual search/status text, and compact CLI read stderr consume the same policy:
+
+| Backend state | Shared disclosure |
+| --- | --- |
+| `manifest_matched` | No correspondence warning; does not claim published binary equivalence. |
+| `tag_inferred` | Source inferred from a version tag; manifest correspondence unconfirmed. |
+| `unverified` | Source correspondence to the package/version is unverified. |
+| `declared_revision_unavailable` | A qualified release ref replaced an unavailable declared revision. Applies across ecosystems. |
+| Ordinary null/omitted or unknown future state | No invented notice semantics. |
+
+The state and existing ref/SHA locator come from served when present, otherwise
+from resolved-requested, labeled `resolved=` while pending. Registry/name come
+from the first backend identity among served, resolved-requested and requested
+that carries both. The version belongs to the identity owning the assessment;
+never borrow a different resolved version or infer confidence from labels. Missing
+version omits the suffix; missing package context uses generic requested-package
+wording and retains known source coordinates. In particular, Guava served source
+can be a repository identity with null registry/name and a known package version.
+
+Correspondence survives CURRENT and completed-search freshness suppression.
+Obsolete indexing/retry notes stay suppressed. Search text deduplicates identical
+notices across source lanes. Compact search JSON retains all identities when any
+has a non-null correspondence value, including `manifest_matched`; ordinary null
+values do not defeat existing healthy-contributor omission. When an identity is
+emitted, its explicit scalar null and omission remain distinct.
+
+Unified list uses its own nullable identity projection. Its minimal provenance
+selection includes registry/name/version and correspondence for accurate compact
+text. Detailed-only fields remain conditional. Explicit silent list remains
+path-only. Compact CLI read stdout remains byte-exact source content; all three
+read boundaries (unified file, unified selector, legacy code read) write shared,
+wrapped correspondence notices to stderr. Verbose CLI and MCP reads render notes
+with their existing source details; JSON emits structured provenance only.
+
+The independent shared implementation covers read, list, search/status and the
+legacy navigation/files/grep consumers of the common identity contract. Full M2b
+client delivery additionally requires the backend lane's reviewed additive unified
+grep and CodeDiff provenance contracts. Their field names and per-side semantics
+are pending; no guessed query, second resolution, or confidence inference is
+introduced. The local implementation plan retains that acceptance gate.
+
+Before a coordinated release, verify production accepts the additive identity
+field and the reviewed grep/diff contracts through normal authenticated operations.
+Dev evidence alone is insufficient. Existing code-navigation compatibility queries
+remain unchanged and are not a rollout strategy; strict unified read/list have no
+scalar fallback. Hosted clients additionally need the approved `@githits/mcp`
+publication, `remote-mcp` dependency adoption and deployment.
+
+
+Shared-path verification used 715 focused tests plus typecheck, build, lint and
+format checks. CLI unauthenticated and MCP registration smokes passed. Dev CLI
+Codec and Guava search JSON retained the known CURRENT/matched and
+CURRENT/unverified SHAs respectively. Targeted local MCP verified Codec
+search/list text and JSON, exact emitted repository read with ordinary null,
+and Guava search JSON plus the wrapped unverified notice. Guava list returned
+`SOURCE_INVENTORY_SCOPE_UNAVAILABLE`; source inventory scope belongs to the
+separate backend Maven work. This is a live list-coverage limitation, not proof
+that the client lost the assessment. Mocked unverified list parity is covered.
+Full coordinated grep/diff verification, agent eval and final review remain
+required before delivery.

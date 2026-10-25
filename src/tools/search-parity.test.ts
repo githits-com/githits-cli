@@ -4,6 +4,7 @@ import type {
   UnifiedSearchOutcome,
   UnifiedSearchParams,
   UnifiedSearchRepositoryEvidence,
+  UnifiedSearchSourceStatus,
 } from "@githits/core-internal";
 import { Command } from "commander";
 import { resolveAction } from "../commands/resolve.js";
@@ -1144,6 +1145,197 @@ describe("partial search default across adapters", () => {
         ...(flag ? [flag] : []),
       ]);
       expect(search.opts().allowPartial).toBe(flag !== "--no-allow-partial");
+    },
+  );
+});
+
+describe("package correspondence through search and waited status adapters", () => {
+  it.each([
+    ["manifest_matched", "current", false],
+    ["tag_inferred", "current", false],
+    ["unverified", "current", false],
+    ["declared_revision_unavailable", "current", false],
+    ["unverified", "indexing", false],
+    ["manifest_matched", "current", true],
+    [null, "current", true],
+    ["unverified", "fallback_recent", false],
+  ] as const)(
+    "keeps %s/%s (contributors=%s) in initial/status text and compact JSON",
+    async (state, freshness, contributors) => {
+      if (defaultUnifiedSearchOutcome.state !== "completed")
+        throw new Error("expected completed fixture");
+      const original = defaultUnifiedSearchOutcome.result;
+      const identity = {
+        registry: state === null ? "NPM" : "MAVEN",
+        packageName: "example:library",
+        version: "1.2.3",
+        repoUrl: "https://github.com/example/library",
+        gitRef: "v1.2.3",
+        commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      };
+      const targetResolution = {
+        requested: { ...identity, releaseCorrespondence: null },
+        resolvedRequested: {
+          ...identity,
+          commitSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          releaseCorrespondence: state === null ? null : "manifest_matched",
+        },
+        served: { ...identity, releaseCorrespondence: state },
+        freshness,
+        freshnessReason: "requested_ref_indexing",
+        availableVersions: [],
+        availableRefs:
+          state === null || state === "manifest_matched"
+            ? []
+            : [{ ref: "old-ref" }],
+        suggestedRefs:
+          state === null || state === "manifest_matched"
+            ? []
+            : [{ ref: "obsolete-suggestion" }],
+      };
+      const source: UnifiedSearchSourceStatus = {
+        ...original.sourceStatus[0]!,
+        source: "CODE",
+        targetLabel: "maven:example:library@1.2.3",
+        resultCount: 1,
+        codeIndexState: freshness === "fallback_recent" ? "STALE" : "CURRENT",
+        ...(freshness === "fallback_recent"
+          ? {
+              requestedTargetLabel: "maven:example:library@1.2.3",
+              freshTargetLabel: "github:example/library@bbbbbbbb",
+              servedTargetLabel: "github:example/library@aaaaaaaa",
+            }
+          : {}),
+        indexingStatus: "INDEXED",
+        targetResolution,
+      };
+      if (contributors) {
+        Object.assign(source, {
+          source: "DOCS",
+          contributors: [
+            {
+              kind: "REPOSITORY_DOCS",
+              state: "SEARCHED",
+              resultCount: 1,
+              repositoryUrl: identity.repoUrl,
+              commitSha: identity.commitSha,
+              freshness: "CURRENT",
+            },
+          ],
+        });
+      }
+      const outcome: UnifiedSearchOutcome = {
+        state: "completed",
+        completed: true,
+        searchRef: "waited-package-search",
+        result: {
+          ...original,
+          partialResults: false,
+          sourceStatus: [source, { ...source, source: "SYMBOL" }],
+          results: [
+            {
+              ...original.results[0]!,
+              targetLabel: source.targetLabel,
+              locator: {
+                ...original.results[0]!.locator,
+                repoUrl: identity.repoUrl,
+                commitSha: identity.commitSha,
+              },
+            },
+          ],
+        },
+      };
+      const service = createMockCodeNavigationService({
+        search: mock(async () => outcome),
+        searchStatus: mock(async () => outcome),
+      });
+      const status = createParityMcpTool("search_status", {
+        codeNavigationService: service,
+      });
+      const mcpStatus = await status.handler(
+        { search_ref: "waited-package-search", wait_timeout_ms: 0 },
+        {},
+      );
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      let cliStatus: string;
+      try {
+        await searchStatusAction(
+          "waited-package-search",
+          { wait: "0" },
+          {
+            codeNavigationService: service,
+            codeNavigationUrl: "https://pkgseer.dev",
+            hasValidToken: true,
+            mcpUrl: "https://mcp.example.com",
+          },
+        );
+        cliStatus = String(log.mock.calls[0]?.[0]);
+      } finally {
+        log.mockRestore();
+      }
+      for (const text of [
+        await cliTextForOutcome(outcome),
+        await mcpTextForOutcome(outcome),
+        cliStatus,
+        mcpStatus.content[0]?.text ?? "",
+      ]) {
+        const flat = text.replace(/\s+/g, " ");
+        if (state === null || state === "manifest_matched")
+          expect(flat).not.toContain("Source for maven:");
+        else {
+          const phrase =
+            state === "tag_inferred"
+              ? "manifest correspondence unconfirmed"
+              : state === "unverified"
+                ? "is unverified"
+                : "declared revision is unavailable";
+          expect(flat.split(phrase)).toHaveLength(2); // CODE/SYMBOL must not duplicate a target notice.
+          expect(flat).toContain(
+            "served=github:example/library@v1.2.3 (commit aaaaaaa)",
+          );
+        }
+        expect(flat).not.toMatch(
+          /queryable now|is being indexed|still indexing|binary equivalence/,
+        );
+      }
+      const json = await cliJsonForOutcome(outcome);
+      expect(json).toEqual(await mcpJsonForOutcome(outcome));
+      if (state === null) {
+        expect(json).toMatchObject({
+          sourceStatus: [
+            { contributors: expect.any(Array) },
+            { contributors: expect.any(Array) },
+          ],
+        });
+        expect(JSON.stringify(json)).not.toContain("releaseCorrespondence");
+      } else
+        expect(json).toMatchObject({
+          sourceStatus: [{ targetResolution }, { targetResolution }],
+        });
+      if (freshness === "fallback_recent")
+        expect(JSON.stringify(json)).toContain(
+          "Source correspondence to maven:example:library@1.2.3 is unverified",
+        );
+      const statusJson = JSON.parse(
+        (
+          await status.handler(
+            {
+              search_ref: "waited-package-search",
+              wait_timeout_ms: 0,
+              format: "json",
+            },
+            {},
+          )
+        ).content[0]?.text ?? "{}",
+      );
+      if (state === null)
+        expect(statusJson.result.sourceStatus[0]).not.toHaveProperty(
+          "targetResolution",
+        );
+      else
+        expect(statusJson.result.sourceStatus[0].targetResolution).toEqual(
+          targetResolution,
+        );
     },
   );
 });

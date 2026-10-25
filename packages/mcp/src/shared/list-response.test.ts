@@ -60,6 +60,7 @@ function repositoryRootFixture(): ListResult {
         registry: null,
         packageName: null,
         version: null,
+        releaseCorrespondence: "declared_revision_unavailable",
         repoUrl: "https://github.com/expressjs/express",
         gitRef: "v5.2.1",
         commitSha: "0123456789abcdef",

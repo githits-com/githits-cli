@@ -909,3 +909,59 @@ describe("top-level read", () => {
     ).rejects.toBeInstanceOf(AuthRequiredError);
   });
 });
+
+it.each([undefined, "symbol"])(
+  "discloses compact read correspondence on stderr for selector %s",
+  async (selector) => {
+    const content = "export const value = 1;\n";
+    const services = deps();
+    services.readService = createMockReadService({
+      read: mock(async () => ({
+        source: "code" as const,
+        result: {
+          ...defaultReadFileResult,
+          content,
+          targetResolution: {
+            requested: {
+              registry: "MAVEN",
+              packageName: "example:library",
+              version: "1.2.3",
+            },
+            served: {
+              version: "1.2.3",
+              repoUrl: "https://github.com/example/library",
+              gitRef: "v1.2.3",
+              commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              releaseCorrespondence: "unverified",
+            },
+            freshness: "current",
+            availableVersions: [],
+            availableRefs: [],
+          },
+        },
+      })),
+    });
+    const out = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+    const err = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await readAction(
+        "maven:example:library@1.2.3",
+        "src/index.ts",
+        { selector },
+        services,
+      );
+      expect(out.mock.calls.map(([value]) => String(value)).join("")).toBe(
+        content,
+      );
+      expect(err).toHaveBeenCalledTimes(1);
+      expect(String(err.mock.calls[0]?.[0]).replace(/\s+/g, " ")).toContain(
+        "Source correspondence to maven:example:library@1.2.3 is unverified",
+      );
+    } finally {
+      out.mockRestore();
+      err.mockRestore();
+    }
+  },
+);

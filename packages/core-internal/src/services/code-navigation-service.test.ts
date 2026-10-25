@@ -1872,16 +1872,21 @@ describe("CodeNavigationServiceImpl", () => {
         `selects and preserves independent dates in ${operation} result and progress (%s / %s)`,
         async (servedDate, requestedDate) => {
           const targetResolution = {
-            requested: { kind: "repo_default_branch" },
+            requested: {
+              kind: "repo_default_branch",
+              releaseCorrespondence: null,
+            },
             resolvedRequested: {
               repoUrl: "https://github.com/owner/repo",
               commitSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
               committedAt: requestedDate,
+              releaseCorrespondence: "manifest_matched",
             },
             served: {
               repoUrl: "https://github.com/owner/repo",
               commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
               committedAt: servedDate,
+              releaseCorrespondence: "unverified",
             },
             freshness: "fallback_recent",
             availableVersions: [],
@@ -1968,6 +1973,13 @@ describe("CodeNavigationServiceImpl", () => {
               requestedDate ?? undefined,
             );
             expect(resolution?.requested).not.toHaveProperty("committedAt");
+            expect(resolution?.requested?.releaseCorrespondence).toBeNull();
+            expect(resolution?.resolvedRequested?.releaseCorrespondence).toBe(
+              "manifest_matched",
+            );
+            expect(resolution?.served?.releaseCorrespondence).toBe(
+              "unverified",
+            );
           }
           expect<unknown>(
             outcome.result?.results.map(({ readTarget }) => readTarget),
@@ -1986,6 +1998,9 @@ describe("CodeNavigationServiceImpl", () => {
           expect(selections).toHaveLength(2); // Source status and progress use the same identity selection.
           for (const [, requested, resolved, served] of selections) {
             expect(requested).not.toContain("committedAt");
+            expect(requested).toContain("releaseCorrespondence");
+            expect(resolved).toContain("releaseCorrespondence");
+            expect(served).toContain("releaseCorrespondence");
             expect(resolved).toContain("committedAt");
             expect(served).toContain("committedAt");
           }
