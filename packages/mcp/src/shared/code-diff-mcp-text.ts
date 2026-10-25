@@ -4,7 +4,8 @@ import type {
   LeanCodeDiffPatchFile,
   LeanCodeDiffStatFile,
 } from "./code-diff-response.js";
-import { sanitizeTerminalText } from "./terminal-text.js";
+import { buildCodeDiffCorrespondenceNotes } from "./code-diff-response.js";
+import { sanitizeTerminalText, wrapTerminalProse } from "./terminal-text.js";
 
 const MAX_FILE_ROWS = 20;
 const MAX_PATCH_PREVIEW_BYTES = 320;
@@ -21,6 +22,8 @@ export function formatCodeDiffMcpText(envelope: LeanCodeDiffEnvelope): string {
     `Content: ${safe(envelope.contentCoverage)}`,
   ];
 
+  for (const note of buildCodeDiffCorrespondenceNotes(envelope))
+    lines.push(...wrapTerminalProse(note));
   appendWarnings(lines, envelope);
   const displayTruncatedPreviews = appendFiles(lines, envelope);
   lines.push(nextAction(envelope, displayTruncatedPreviews));

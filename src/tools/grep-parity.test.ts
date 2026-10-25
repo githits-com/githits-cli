@@ -367,3 +367,130 @@ describe("package-path advisory CLI/MCP parity", () => {
     });
   }
 });
+
+it.each(["ready", "pending"] as const)(
+  "preserves canonical %s input provenance in CLI/MCP grep",
+  async (mode) => {
+    const target = "maven:example:library@1.2.3";
+    const identity = {
+      registry: "MAVEN",
+      packageName: "example:library",
+      version: "1.2.3",
+      repoUrl: "https://github.com/example/library",
+      gitRef: "v1.2.3",
+      commitSha: "a".repeat(40),
+      releaseCorrespondence: "unverified",
+    };
+    const resolution = {
+      requested: {
+        registry: "MAVEN",
+        packageName: "example:library",
+        version: "1.2.3",
+        releaseCorrespondence: null,
+      },
+      resolvedRequested: identity,
+      ...(mode === "ready" ? { served: identity } : {}),
+      freshness: mode === "ready" ? "current" : "indexing",
+      availableVersions: [],
+      availableRefs: [],
+      suggestedRefs: [],
+    };
+    const result: GrepResult = {
+      ...defaultGrepResult,
+      targetResolutions: [
+        { inputIndex: 0, target, targetResolution: resolution },
+      ],
+      ...(mode === "pending"
+        ? {
+            traversal: "NON_RESUMABLE_PARTIAL",
+            unavailableTargets: [
+              {
+                inputIndex: 0,
+                target,
+                reason: "repository_indexing",
+                retryable: true,
+                progressRef: null,
+                suggestedSiteTargets: null,
+              },
+            ],
+          }
+        : {
+            targets: [
+              {
+                targetIndex: 7,
+                requestedInputIndices: [0],
+                kind: "REPOSITORY",
+                target,
+                traversal: "COMPLETE",
+                readiness: "CURRENT",
+                errorCode: null,
+                retryable: false,
+                publicMessage: null,
+                requestedRef: "v1.2.3",
+                commitSha: identity.commitSha,
+                corpus: "SOURCE",
+                filesScanned: 1,
+                filesInScope: 1,
+                binaryFilesSkipped: 0,
+                filesTooLargeSkipped: 0,
+                fileIssues: [],
+                fileIssuesOmitted: 0,
+                repoUrl: identity.repoUrl,
+                canonicalSite: null,
+              },
+            ],
+          }),
+    };
+    const grep = mock(async () => result);
+    const grepService = createMockGrepService({ grep });
+    const program = new Command("githits");
+    registerGrepCommand(program, async () => ({
+      grepService,
+      hasValidToken: true,
+      mcpUrl: "https://example.test",
+      createSpinner: () => ({ stop: () => {} }),
+    }));
+    const tool = createParityMcpTool("grep", { grepService });
+    const out = spyOn(process.stdout, "write").mockImplementation(() => true);
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await program.parseAsync(["grep", "router", target, "--wait", "0"], {
+        from: "user",
+      });
+      const cliText = out.mock.calls.map(([v]) => String(v)).join("");
+      const args = {
+        targets: [{ target }],
+        pattern: "router",
+        wait_timeout_ms: 0,
+      };
+      const mcpText = (await tool.handler(args, {})).content[0]?.text ?? "";
+      for (const text of [cliText, mcpText]) {
+        const flat = text.replace(/\s+/g, " ");
+        expect(flat).toContain(
+          `Source correspondence to ${target} is unverified`,
+        );
+        expect(flat).toContain(
+          `${mode === "ready" ? "served" : "resolved"}=github:example/library@v1.2.3`,
+        );
+      }
+      await program.parseAsync(
+        ["grep", "router", target, "--wait", "0", "--json"],
+        { from: "user" },
+      );
+      const cliJson = JSON.parse(String(log.mock.calls[0]?.[0]));
+      const mcpJson = JSON.parse(
+        (await tool.handler({ ...args, format: "json" }, {})).content[0]
+          ?.text ?? "{}",
+      );
+      expect(cliJson).toEqual(mcpJson);
+      expect(cliJson.targetResolutions).toEqual(
+        JSON.parse(JSON.stringify(result.targetResolutions)),
+      );
+      expect(cliJson.unavailableTargets).toEqual(result.unavailableTargets);
+      expect(grep).toHaveBeenCalledTimes(4);
+    } finally {
+      out.mockRestore();
+      log.mockRestore();
+    }
+  },
+);

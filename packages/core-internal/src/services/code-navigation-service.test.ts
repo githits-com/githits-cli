@@ -4620,6 +4620,7 @@ describe("CodeNavigationServiceImpl", () => {
                   repoUrl: "https://github.com/expressjs/express",
                 },
                 fromResolution: {
+                  releaseCorrespondence: "declared_revision_unavailable",
                   requested: "4.18.1",
                   resolvedVersion: "4.18.1",
                   ref: "v4.18.1",
@@ -4628,6 +4629,7 @@ describe("CodeNavigationServiceImpl", () => {
                   versionSource: "REGISTRY",
                 },
                 toResolution: {
+                  releaseCorrespondence: null,
                   requested: "4.18.2",
                   ref: "v4.18.2",
                   commitSha: "to-sha",
@@ -4693,6 +4695,10 @@ describe("CodeNavigationServiceImpl", () => {
       expect(typed.partial?.fromResolution.commitSha).toBe("from-sha");
       expect(typed.partial?.toResolution.commitSha).toBe("to-sha");
       expect(typed.partial?.raw).toBeUndefined();
+      expect(typed.partial?.fromResolution.releaseCorrespondence).toBe(
+        "declared_revision_unavailable",
+      );
+      expect(typed.partial?.toResolution.releaseCorrespondence).toBeNull();
       expect(JSON.stringify(typed)).not.toContain("must-not-survive");
     }
   });
@@ -5088,3 +5094,50 @@ describe("CodeNavigationServiceImpl", () => {
     expect(unknownEnumFetch).toHaveBeenCalledTimes(1);
   });
 });
+
+it.each(["inventory", "stats", "patches"] as const)(
+  "preserves both CodeDiff correspondence scalars in %s mode",
+  async (mode) => {
+    const fromResolution = {
+      requested: "1.2.2",
+      resolvedVersion: "1.2.2",
+      ref: "v1.2.2",
+      commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      refKind: "TAG",
+      releaseCorrespondence: "tag_inferred",
+    };
+    const toResolution = {
+      requested: "1.2.3",
+      resolvedVersion: "1.2.3",
+      ref: "v1.2.3",
+      commitSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      refKind: "TAG",
+      releaseCorrespondence: "manifest_matched",
+    };
+    const fetcher = mock(
+      async (_url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        expect(body.query.match(/releaseCorrespondence/g)).toHaveLength(2);
+        return new Response(
+          JSON.stringify(codeDiffPayload({}, { fromResolution, toResolution })),
+          { status: 200 },
+        );
+      },
+    );
+    const service = new CodeNavigationServiceImpl(
+      "https://example.test",
+      createMockTokenProvider(),
+      fetcher as unknown as typeof fetch,
+    );
+    const parsed = await service.codeDiff({
+      target: { registry: "MAVEN", packageName: "example:library" },
+      from: "1.2.2",
+      to: "1.2.3",
+      mode,
+      options: {},
+    });
+    expect(parsed.fromResolution.releaseCorrespondence).toBe("tag_inferred");
+    expect(parsed.toResolution.releaseCorrespondence).toBe("manifest_matched");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  },
+);

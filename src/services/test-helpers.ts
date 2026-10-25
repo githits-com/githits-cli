@@ -1110,6 +1110,7 @@ export function createMockListService(
 }
 
 export const defaultGrepResult: GrepResult = {
+  targetResolutions: [],
   indexingEstimates: [],
   pathWarnings: [],
   hits: [],

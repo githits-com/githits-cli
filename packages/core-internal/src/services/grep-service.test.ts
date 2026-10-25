@@ -30,6 +30,7 @@ function result(): GrepResult {
   return {
     indexingEstimates: [],
     pathWarnings: [],
+    targetResolutions: [],
     hits: [],
     targets: [],
     unavailableTargets: [],
@@ -652,5 +653,109 @@ describe("backend package-path advisories", () => {
         parseGrepResult({ ...page, pathWarnings: [warning] }, detailed),
       ).toThrow(MalformedGrepResponseError);
     });
+  }
+});
+
+for (const detailed of [false, true]) {
+  it(`selects and preserves canonical input correspondence in ${detailed ? "JSON" : "text"} mode`, async () => {
+    const data = detailed ? detailedMixed() : mixed();
+    const makeResolution = (state: string | null, served: boolean) => ({
+      requested: {
+        registry: "MAVEN",
+        packageName: "example:library",
+        version: "1.2.3",
+        releaseCorrespondence: null,
+      },
+      resolvedRequested: {
+        registry: "MAVEN",
+        packageName: "example:library",
+        version: "1.2.3",
+        releaseCorrespondence: "manifest_matched",
+      },
+      ...(served
+        ? {
+            served: {
+              version: "1.2.2",
+              repoUrl: "https://github.com/example/library",
+              gitRef: "v1.2.2",
+              commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              releaseCorrespondence: state,
+            },
+          }
+        : {}),
+      freshness: served ? "current" : "indexing",
+      availableVersions: [],
+      availableRefs: [],
+      suggestedRefs: [],
+    });
+    const records = [
+      {
+        inputIndex: 0,
+        target: "maven:example:library@1.2.3",
+        targetResolution: makeResolution("unverified", true),
+      },
+      {
+        inputIndex: 2,
+        target: "maven:example:library",
+        targetResolution: makeResolution(null, false),
+      },
+    ];
+    data.unavailableTargets = [
+      {
+        inputIndex: 2,
+        target: records[1]!.target,
+        reason: "repository_indexing",
+        retryable: true,
+        progressRef: "pending",
+        suggestedSiteTargets: null,
+      },
+    ];
+    data.traversal = "NON_RESUMABLE_PARTIAL";
+    const fetcher = mock(
+      async (_url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        expect(body.variables.includeDetailedFields).toBe(detailed);
+        expect(body.query).toContain("targetResolutions {");
+        expect(body.query.match(/targetResolution\s*\{/g)).toHaveLength(1);
+        expect(body.query.match(/releaseCorrespondence/g)).toHaveLength(3);
+        expect(body.query).toContain(
+          "committedAt @include(if: $includeDetailedFields)",
+        );
+        expect(body.query).toContain(
+          "availableRefs @include(if: $includeDetailedFields)",
+        );
+        return response({
+          data: { grep: { ...data, targetResolutions: records } },
+        });
+      },
+    );
+    const parsed = await service(fetcher).grep({
+      ...params,
+      targets: [
+        { target: records[0]!.target },
+        { target: "site:docs.test" },
+        { target: records[1]!.target },
+      ],
+      includeDetailedFields: detailed,
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(JSON.stringify(parsed.targetResolutions))).toEqual(
+      records,
+    );
+    expect(parsed.targets).toEqual(data.targets);
+    expect(parsed.unavailableTargets).toEqual(data.unavailableTargets);
+  });
+}
+
+it("requires the canonical wire array and a non-null input resolution", () => {
+  for (const value of [
+    undefined,
+    null,
+    [null],
+    [{ inputIndex: 0, target: "npm:x", targetResolution: null }],
+  ]) {
+    expect(() =>
+      parseGrepResult({ ...result(), targetResolutions: value }),
+    ).toThrow(MalformedGrepResponseError);
   }
 });

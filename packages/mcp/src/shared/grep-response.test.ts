@@ -3,6 +3,7 @@ import type {
   GrepHit,
   GrepResult,
   GrepTargetStatus,
+  TargetResolution,
 } from "@githits/core-internal";
 import { projectGrepResult } from "./grep-response.js";
 import { formatGrepText } from "./grep-text.js";
@@ -543,4 +544,177 @@ describe("overall grep traversal limitations", () => {
       }
     },
   );
+});
+
+function correspondenceResolution(
+  state: string | null,
+  served = true,
+): TargetResolution {
+  const identity = {
+    registry: "MAVEN",
+    packageName: "example:library",
+    version: "1.2.3",
+    repoUrl: "https://github.com/example/library",
+    gitRef: "v1.2.3",
+    commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  };
+  return {
+    requested: {
+      registry: "MAVEN",
+      packageName: "example:library",
+      version: "1.2.3",
+      releaseCorrespondence: null,
+    },
+    resolvedRequested: {
+      ...identity,
+      releaseCorrespondence: served ? "manifest_matched" : state,
+    },
+    ...(served
+      ? { served: { ...identity, releaseCorrespondence: state } }
+      : {}),
+    freshness: served ? "current" : "indexing",
+    availableVersions: [],
+    availableRefs: [],
+    suggestedRefs: [],
+  };
+}
+
+it("preserves ordered per-input assessments for a shared physical scan", () => {
+  const page = result({
+    targetResolutions: [
+      {
+        inputIndex: 0,
+        target: "maven:example:library@1.2.3",
+        targetResolution: correspondenceResolution("manifest_matched"),
+      },
+      {
+        inputIndex: 1,
+        target: "maven:example:library",
+        targetResolution: correspondenceResolution("unverified"),
+      },
+    ],
+  });
+  const before = structuredClone(page);
+  const projected = projectGrepResult(page);
+  expect(projected.targetResolutions).toEqual(page.targetResolutions);
+  expect(projected.targetResolutions).not.toBe(page.targetResolutions);
+  expect(page).toEqual(before);
+  const text = formatGrepText(page).replace(/\s+/g, " ");
+  expect(text.split("is unverified")).toHaveLength(2);
+  expect(text).toContain(
+    "served=github:example/library@v1.2.3 (commit aaaaaaa)",
+  );
+  expect(text).not.toContain("binary");
+});
+
+it.each(["CURRENT", "UNSPECIFIED", "INCOMPLETE"] as const)(
+  "discloses %s provenance without confusing selection and page execution",
+  (readiness) => {
+    const page = result({
+      hits: readiness === "INCOMPLETE" ? [hit] : [],
+      totalMatches: readiness === "INCOMPLETE" ? 1 : 0,
+      targets: [
+        {
+          ...target,
+          readiness,
+          filesScanned: readiness === "UNSPECIFIED" ? 0 : 1,
+          traversal:
+            readiness === "UNSPECIFIED" ? "RESUMABLE_LIMIT" : "COMPLETE",
+        },
+      ],
+      traversal: readiness === "UNSPECIFIED" ? "RESUMABLE_LIMIT" : "COMPLETE",
+      nextCursor: readiness === "UNSPECIFIED" ? "next" : null,
+      targetResolutions: [
+        {
+          inputIndex: 0,
+          target: "maven:example:library",
+          targetResolution: correspondenceResolution("tag_inferred"),
+        },
+      ],
+    });
+    const text = formatGrepText(page).replace(/\s+/g, " ");
+    expect(text).toContain("manifest correspondence unconfirmed");
+    expect(text).toContain(
+      `${readiness === "UNSPECIFIED" ? "selected" : "served"}=github:example/library@v1.2.3`,
+    );
+    if (readiness === "UNSPECIFIED") {
+      expect(text).not.toContain("served=");
+      expect(text).toContain("not reached on this page");
+    }
+  },
+);
+
+it("keeps pending-only and failed inputs resolved-only without changing omission recovery", () => {
+  const page = result({
+    hits: [],
+    targets: [],
+    totalMatches: 0,
+    traversal: "NON_RESUMABLE_PARTIAL",
+    targetResolutions: [
+      {
+        inputIndex: 0,
+        target: "maven:example:library",
+        targetResolution: correspondenceResolution("unverified", false),
+      },
+    ],
+    unavailableTargets: [
+      {
+        inputIndex: 0,
+        target: "maven:example:library",
+        reason: "repository_indexing",
+        retryable: true,
+        progressRef: "pending",
+        suggestedSiteTargets: null,
+      },
+    ],
+  });
+  const before = structuredClone(page.unavailableTargets);
+  const projected = projectGrepResult(page);
+  const text = formatGrepText(page).replace(/\s+/g, " ");
+  expect(text).toContain("resolved=github:example/library@v1.2.3");
+  expect(text).not.toContain("served=");
+  expect(text).toContain("still being prepared");
+  expect(projected.unavailableTargets).toEqual(before);
+  page.targetResolutions![0]!.targetResolution.freshness = "unavailable";
+  page.unavailableTargets[0]!.reason = "package_scope_unavailable";
+  page.unavailableTargets[0]!.retryable = false;
+  expect(formatGrepText(page).replace(/\s+/g, " ")).toContain(
+    "is unverified; resolved=",
+  );
+});
+
+it("does not use a hosted outcome as evidence that the repository was searched", () => {
+  const page = result({
+    hits: [],
+    totalMatches: 0,
+    traversal: "RESUMABLE_LIMIT",
+    nextCursor: "next",
+    targets: [
+      {
+        ...target,
+        kind: "SITE",
+        target: "site:docs.test",
+        requestedInputIndices: [0],
+        corpus: null,
+      },
+      {
+        ...target,
+        targetIndex: 8,
+        requestedInputIndices: [0],
+        readiness: "UNSPECIFIED",
+        filesScanned: 0,
+        traversal: "RESUMABLE_LIMIT",
+      },
+    ],
+    targetResolutions: [
+      {
+        inputIndex: 0,
+        target: "maven:example:library",
+        targetResolution: correspondenceResolution("unverified"),
+      },
+    ],
+  });
+  const text = formatGrepText(page).replace(/\s+/g, " ");
+  expect(text).toContain("is unverified; selected=");
+  expect(text).not.toContain("served=");
 });

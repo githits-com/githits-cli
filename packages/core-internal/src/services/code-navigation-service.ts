@@ -745,6 +745,8 @@ export interface CodeDiffRefResolution {
   commitSha: string;
   refKind: CodeDiffRefKind;
   versionSource?: CodeDiffVersionSource;
+  /** Backend assessment for this exact comparison side, independent of execution. */
+  releaseCorrespondence?: string | null;
 }
 
 export interface RawCodeDiffSummary {
@@ -1698,7 +1700,7 @@ const targetResolutionIdentitySchema = z
   .nullable()
   .optional();
 
-const targetResolutionSchema = z
+export const targetResolutionSchema = z
   .object({
     requested: targetResolutionIdentitySchema,
     resolvedRequested: targetResolutionIdentitySchema,
@@ -2071,6 +2073,7 @@ const codeDiffPackageInfoSchema = z.object({
 });
 
 const codeDiffRefResolutionSchema = z.object({
+  releaseCorrespondence: z.string().nullable().optional(),
   requested: z.string(),
   resolvedVersion: z.string().nullable().optional(),
   ref: z.string(),
@@ -2176,6 +2179,7 @@ const CODE_DIFF_COMMON_SELECTION = `    package {
       commitSha
       refKind
       versionSource
+      releaseCorrespondence
     }
     toResolution {
       requested
@@ -2184,6 +2188,7 @@ const CODE_DIFF_COMMON_SELECTION = `    package {
       commitSha
       refKind
       versionSource
+      releaseCorrespondence
     }
     raw {
       summary {
@@ -3867,6 +3872,9 @@ function normaliseCodeDiffResolution(
   value: z.infer<typeof codeDiffRefResolutionSchema>,
 ): CodeDiffRefResolution {
   return {
+    ...(value.releaseCorrespondence !== undefined
+      ? { releaseCorrespondence: value.releaseCorrespondence }
+      : {}),
     requested: value.requested,
     resolvedVersion: value.resolvedVersion ?? undefined,
     ref: value.ref,
@@ -4491,7 +4499,14 @@ function normaliseAvailableVersions(
   }));
 }
 
-function normaliseTargetResolution(
+/** Normalize a known identity envelope for other transport-neutral service clients. */
+export function normaliseTargetResolution(
+  resolution: NonNullable<z.infer<typeof targetResolutionSchema>>,
+): TargetResolution;
+export function normaliseTargetResolution(
+  resolution: z.infer<typeof targetResolutionSchema>,
+): TargetResolution | undefined;
+export function normaliseTargetResolution(
   resolution: z.infer<typeof targetResolutionSchema>,
 ): TargetResolution | undefined {
   if (!resolution) return undefined;

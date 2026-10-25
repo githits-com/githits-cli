@@ -1,4 +1,33 @@
 {
+  "targetResolutions": [
+    {
+      "inputIndex": 0,
+      "target": "https://github.com/expressjs/express@dbac741a49a5a64336b70c06e85c2e2706e36336",
+      "targetResolution": {
+        "requested": {
+          "repoUrl": "https://github.com/expressjs/express",
+          "gitRef": "dbac741a49a5a64336b70c06e85c2e2706e36336",
+          "releaseCorrespondence": null
+        },
+        "resolvedRequested": {
+          "repoUrl": "https://github.com/expressjs/express",
+          "gitRef": "dbac741a49a5a64336b70c06e85c2e2706e36336",
+          "commitSha": "dbac741a49a5a64336b70c06e85c2e2706e36336",
+          "releaseCorrespondence": null
+        },
+        "served": {
+          "repoUrl": "https://github.com/expressjs/express",
+          "gitRef": "dbac741a49a5a64336b70c06e85c2e2706e36336",
+          "commitSha": "dbac741a49a5a64336b70c06e85c2e2706e36336",
+          "releaseCorrespondence": null
+        },
+        "freshness": "current",
+        "availableVersions": [],
+        "availableRefs": [],
+        "suggestedRefs": []
+      }
+    }
+  ],
   "pathWarnings": [],
   "traversal": "RESUMABLE_LIMIT",
   "nextCursor": "TUdSUAKW_xQN7o9Xb708KubQPUzUWIQwl9Drl5Y-eCSTrQjkPgABAABAAAEBZAAAAAAABAAAAAAAAAAAAAEgfKalBjGIr_089cv89Ti326x0GkmlpkM2twwG6FwuJwbjYzYAAAAQAD8egBfC0rKREwAAAE8AAAAAAA",

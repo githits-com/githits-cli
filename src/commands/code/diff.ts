@@ -126,6 +126,7 @@ export async function codeDiffAction(
 
     const formatted = formatCodeDiffTerminal(payload, {
       useColors: shouldUseColors(),
+      width: process.stderr.columns,
       verbose: options.verbose ?? false,
       explicitMaxFiles: options.maxFiles !== undefined,
       explicitMaxPatchBytes: options.maxPatchBytes !== undefined,

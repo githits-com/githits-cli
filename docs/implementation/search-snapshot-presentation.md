@@ -633,12 +633,23 @@ read boundaries (unified file, unified selector, legacy code read) write shared,
 wrapped correspondence notices to stderr. Verbose CLI and MCP reads render notes
 with their existing source details; JSON emits structured provenance only.
 
-The independent shared implementation covers read, list, search/status and the
-legacy navigation/files/grep consumers of the common identity contract. Full M2b
-client delivery additionally requires the backend lane's reviewed additive unified
-grep and CodeDiff provenance contracts. Their field names and per-side semantics
-are pending; no guessed query, second resolution, or confidence inference is
-introduced. The local implementation plan retains that acceptance gate.
+Read, list, search/status and legacy navigation/files/grep use the same identity
+projection and notice policy. Unified grep additionally preserves canonical
+`targetResolutions` records per original known input, independent of physical
+scope rows and omissions. Source correspondence is not proof that the current
+page visited a scope: unvisited prepared identities use `selected=`, searched
+repository identities use `served=`, and pending resolved-only identities use
+`resolved=`. CURRENT/STALE readiness or a validated repository hit linked through
+input indices supplies page-execution evidence; a hosted-site outcome does not.
+Producer failure clears serving rather than letting clients reconstruct it.
+
+CodeDiff preserves `releaseCorrespondence` independently on `from` and `to`.
+Shared composition passes each side's exact version/ref/SHA to the same notice
+policy, labeled `from=` and `to=`. CLI notices go to stderr in every view while
+patch/path stdout remains unchanged; MCP text uses the same wrapped notices.
+No freshness lifecycle is manufactured for a raw diff. Ordinary non-Maven/raw
+null, `manifest_matched`, and unknown future states add no invented warning.
+See [unified grep](unified-grep.md) and [CodeDiff](code-diff.md) for their contracts.
 
 Before a coordinated release, verify production accepts the additive identity
 field and the reviewed grep/diff contracts through normal authenticated operations.
@@ -657,5 +668,10 @@ and Guava search JSON plus the wrapped unverified notice. Guava list returned
 `SOURCE_INVENTORY_SCOPE_UNAVAILABLE`; source inventory scope belongs to the
 separate backend Maven work. This is a live list-coverage limitation, not proof
 that the client lost the assessment. Mocked unverified list parity is covered.
-Full coordinated grep/diff verification, agent eval and final review remain
-required before delivery.
+Full local validation passed: 6,740 tests / 27,381 assertions across 259 files,
+plus build and typecheck. The targeted Codex descriptor/intent probe used five
+MCP calls (quick start, two searches, two reads), retained Guava uncertainty and
+avoided binary-equivalence claims, with medium final confidence and no isolation
+violations. This is a neutral trace, not a graded quality result. It did not call
+grep or diff. Live success of the new fields remains unverified until backend
+deployment; final implementation review and CI are recorded at PR delivery.

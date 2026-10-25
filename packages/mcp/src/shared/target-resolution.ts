@@ -1,6 +1,9 @@
 import type { TargetResolution } from "@githits/core-internal";
 import { formatRepositoryTarget } from "./repository-target.js";
-import type { SourceProvenanceResolution } from "./source-provenance-text.js";
+import type {
+  SourceProvenanceIdentity,
+  SourceProvenanceResolution,
+} from "./source-provenance-text.js";
 import { sanitizeTerminalText } from "./terminal-text.js";
 
 export interface LeanTargetResolutionIdentity {
@@ -317,6 +320,7 @@ function shortSha(value: string): string {
 /** Disclose the served assessment, or explicitly resolved source while pending. */
 export function buildSourceCorrespondenceNotes(
   resolution: SourceProvenanceResolution | null | undefined,
+  servedRole: "served" | "selected" = "served",
 ): string[] {
   const identity = resolution?.served ?? resolution?.resolvedRequested;
   if (!identity) return [];
@@ -325,6 +329,27 @@ export function buildSourceCorrespondenceNotes(
     resolution?.resolvedRequested,
     resolution?.requested,
   ].find((candidate) => candidate?.registry && candidate.packageName);
+  const note = buildSourceCorrespondenceNote(identity, {
+    packageIdentity,
+    sourceRole: resolution?.served ? servedRole : "resolved",
+  });
+  return note ? [note] : [];
+}
+
+export interface SourceCorrespondenceContext {
+  packageIdentity?: SourceProvenanceIdentity | null;
+  sourceRole: "served" | "resolved" | "selected" | "from" | "to";
+}
+
+/** Render one assessed identity without inventing a source-selection lifecycle. */
+export function buildSourceCorrespondenceNote(
+  identity: SourceProvenanceIdentity,
+  context: SourceCorrespondenceContext,
+): string | undefined {
+  const packageIdentity =
+    identity.registry && identity.packageName
+      ? identity
+      : context.packageIdentity;
   const target =
     packageIdentity?.registry && packageIdentity.packageName
       ? `${packageIdentity.registry.toLowerCase()}:${packageIdentity.packageName}${identity.version ? `@${identity.version}` : ""}`
@@ -341,18 +366,14 @@ export function buildSourceCorrespondenceNotes(
       notice = `Source for ${target} uses a qualified release ref because the declared revision is unavailable`;
       break;
     default:
-      return [];
+      return undefined;
   }
   const locator = formatTargetResolutionIdentity({
     repoUrl: identity.repoUrl ?? undefined,
     gitRef: identity.gitRef ?? undefined,
     commitSha: identity.commitSha ?? undefined,
   });
-  return [
-    sanitizeTerminalText(
-      locator
-        ? `${notice}; ${resolution?.served ? "served" : "resolved"}=${locator}.`
-        : `${notice}.`,
-    ),
-  ];
+  return sanitizeTerminalText(
+    locator ? `${notice}; ${context.sourceRole}=${locator}.` : `${notice}.`,
+  );
 }
