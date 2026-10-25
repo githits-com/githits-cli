@@ -90,7 +90,7 @@ export async function grepAction(
     if (options.json) console.log(JSON.stringify(projected));
     else
       process.stdout.write(
-        `${formatGrepText(projected, { useColors: shouldUseColors(), width: process.stdout.columns || 80, syntax: "cli", requestedTargets: params.targets.map((target) => target.target) })}\n`,
+        `${formatGrepText(result, { useColors: shouldUseColors(), width: process.stdout.columns || 80, syntax: "cli", requestedTargets: params.targets.map((target) => target.target) })}\n`,
       );
   } catch (error) {
     const mapped = mapGrepError(error);
@@ -204,7 +204,7 @@ export function registerGrepCommand(
       "--wait <ms>",
       "Wait for target preparation (0-300000 ms, default 30000)",
     )
-    .option("--json", "Emit the detailed lossless JSON page")
+    .option("--json", "Emit the detailed JSON page")
     .action(
       async (
         pattern: string,

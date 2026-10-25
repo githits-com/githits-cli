@@ -161,3 +161,209 @@ describe("unified grep CLI/MCP parity", () => {
     }
   });
 });
+
+describe("package-path advisory CLI/MCP parity", () => {
+  for (const shape of ["zero-hit", "mixed-pending", "pending-only"] as const) {
+    it(`preserves ${shape} short-wait pages in text and JSON without rewriting requests`, async () => {
+      const path = "packages/x/src 'quoted';$HOME";
+      const warning = {
+        requestedInputIndices: [0, 2],
+        target: "npm:x",
+        path,
+        repositorySubpath: "packages/x",
+        message:
+          'Package paths are relative to the package root. Did you mean target "npm:x" with path "src"?',
+        suggestions: [
+          { target: "npm:x", path: "src 'quoted';$HOME" },
+          { target: `github:o/r@${"c".repeat(40)}`, path },
+        ],
+      };
+      const result: GrepResult = {
+        ...defaultGrepResult,
+        pathWarnings:
+          shape === "pending-only"
+            ? []
+            : [
+                warning,
+                {
+                  ...warning,
+                  requestedInputIndices: [1],
+                  path: "packages/x/test",
+                },
+              ],
+        traversal: shape === "zero-hit" ? "COMPLETE" : "NON_RESUMABLE_PARTIAL",
+        unavailableTargets:
+          shape === "zero-hit"
+            ? []
+            : [
+                {
+                  inputIndex: 1,
+                  target: "npm:pending",
+                  reason: "repository_indexing",
+                  retryable: true,
+                  progressRef: "opaque-progress",
+                  suggestedSiteTargets: null,
+                },
+              ],
+      };
+      if (shape !== "pending-only") {
+        result.targets = [
+          {
+            targetIndex: 0,
+            requestedInputIndices: [0, 2],
+            kind: "REPOSITORY",
+            target: "npm:x",
+            traversal: "COMPLETE",
+            readiness: "CURRENT",
+            errorCode: null,
+            retryable: false,
+            publicMessage: null,
+            requestedRef: "v1",
+            commitSha: "c".repeat(40),
+            corpus: "ALL",
+            filesScanned: 0,
+            filesInScope: 0,
+            binaryFilesSkipped: 0,
+            filesTooLargeSkipped: 0,
+            fileIssues: [],
+            fileIssuesOmitted: 0,
+            repoUrl: "https://github.com/o/r",
+            canonicalSite: null,
+          },
+        ];
+      }
+      if (shape === "mixed-pending") {
+        result.totalMatches = 1;
+        result.hits = [
+          {
+            __typename: "GrepRepositoryHit",
+            targetIndex: 0,
+            filePath: "src/a.ts",
+            line: 1,
+            lineSlice: {
+              content: "router",
+              startByte: 0,
+              endByte: 6,
+              originalLineBytes: 6,
+            },
+            contextBeforeSlices: [],
+            contextAfterSlices: [],
+            matchStartByte: 0,
+            matchEndByte: 6,
+            contentSafety: { filtered: false },
+            read: {
+              target: `github:o/r@${"c".repeat(40)}`,
+              path: "packages/x/src/a.ts",
+              startLine: 1,
+              endLine: 1,
+            },
+          },
+        ];
+      }
+      const before = structuredClone(result);
+      const grep = mock((_params: GrepParams) => Promise.resolve(result));
+      const grepService = createMockGrepService({ grep });
+      const write = spyOn(process.stdout, "write").mockImplementation(
+        () => true,
+      );
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        const runCli = async (json: boolean): Promise<void> => {
+          const program = new Command("githits");
+          registerGrepCommand(program, async () => ({
+            grepService,
+            hasValidToken: true,
+            mcpUrl: "https://example.test",
+            createSpinner: () => ({ stop: () => {} }),
+          }));
+          await program.parseAsync(
+            [
+              "grep",
+              "router",
+              "npm:x",
+              "npm:pending",
+              "npm:x",
+              "--path-prefix",
+              path,
+              "--wait",
+              "0",
+              ...(json ? ["--json"] : []),
+            ],
+            { from: "user" },
+          );
+        };
+        const tool = createParityMcpTool("grep", { grepService });
+        const args = {
+          targets: ["npm:x", "npm:pending", "npm:x"].map((target) => ({
+            target,
+            path_selectors: [{ kind: "prefix", value: path }],
+          })),
+          pattern: "router",
+          wait_timeout_ms: 0,
+        };
+        await runCli(false);
+        const cli = write.mock.calls.map(([chunk]) => String(chunk)).join("");
+        const mcp = await tool.handler(args);
+        expect(mcp.isError).toBeUndefined();
+        const text = String(mcp.content[0]?.text);
+        if (shape === "pending-only") {
+          expect(cli).toContain("No matches available yet");
+          expect(text).toContain("No matches available yet");
+          expect(text).not.toContain("Path advisories:");
+          expect(cli).not.toContain("Path advisories:");
+        } else {
+          for (const output of [cli, text]) {
+            expect(
+              output.split("\n").filter((line) => line.startsWith("Warning:")),
+            ).toEqual([
+              'Warning: Path is prefixed with package path "packages/x". Did you mean "src \'quoted\';$HOME"?',
+            ]);
+            expect(output).not.toContain(warning.message);
+            expect(output).not.toContain("Unverified alternatives");
+            if (shape === "mixed-pending") {
+              expect(output).toContain("1: router");
+              expect(output).toContain("Preparing:");
+              expect(output).toContain("npm:pending");
+            } else expect(output).toStartWith("No matches found.");
+          }
+          expect(text).not.toContain(JSON.stringify(warning.suggestions[1]));
+          expect(cli).not.toContain(
+            `target='${warning.suggestions[1]!.target}' path=`,
+          );
+        }
+        expect(grep.mock.calls[0]?.[0]).toEqual(grep.mock.calls[1]?.[0]);
+        await runCli(true);
+        const json = await tool.handler({ ...args, format: "json" });
+        expect(json.isError).toBeUndefined();
+        const expected = {
+          ...before,
+          pathWarnings: [
+            ...new Set(
+              before.pathWarnings.map(
+                () =>
+                  'Path is prefixed with package path "packages/x". Did you mean "src \'quoted\';$HOME"?',
+              ),
+            ),
+          ],
+        };
+        expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(expected);
+        expect(JSON.parse(String(json.content[0]?.text))).toEqual(expected);
+        expect(grep).toHaveBeenCalledTimes(4);
+        expect(grep.mock.calls[2]?.[0]).toEqual(grep.mock.calls[3]?.[0]);
+        expect(grep.mock.calls[3]?.[0]).toMatchObject({
+          waitTimeoutMs: 0,
+          targets: args.targets.map(({ target }) => ({
+            target,
+            corpus: "ALL",
+            pathSelectors: [{ kind: "PREFIX", value: path }],
+            allowUnscoped: true,
+          })),
+        });
+        expect(result).toEqual(before);
+      } finally {
+        write.mockRestore();
+        log.mockRestore();
+      }
+    });
+  }
+});

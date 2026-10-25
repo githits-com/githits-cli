@@ -1,5 +1,23 @@
 # Open backlog
 
+## Authenticated smoke recovery fixture — 2026-10-24
+
+During [PR #516](https://github.com/githits-com/githits-cli/pull/516), both full
+authenticated smoke suites stopped before grep: the recovery probe expects
+`go:github.com/docker/docker@v20.10.0` to fail, but dev now resolves it as
+`v20.10.0+incompatible`. A nonexistent version returned `VERSION_NOT_FOUND`
+without alternatives, so it cannot simply replace the existing probe, which
+also checks backend-supplied recovery guidance. Unauthenticated smoke and the
+affected built CLI/MCP grep qualification passed independently.
+
+Ownership: the CLI/MCP smoke cohorts own the fixture and assertions; backend
+recovery metadata owns the supplied alternatives. Investigate that boundary
+before choosing a replacement fixture or correcting a verified producer issue.
+Keep the assertions for error code, alternatives and native CLI/MCP recovery
+syntax; do not turn the probe into a successful lookup or weaken coverage.
+Acceptance: both authenticated dev smoke suites pass with a verified failing
+version/ref and supplied alternatives, and continue through their live cohorts.
+
 ## Literal path round-trips — 2026-10-22
 
 The path audit reproduced two accepted-input inconsistencies beyond ordinary

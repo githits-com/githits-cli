@@ -16,6 +16,7 @@ import { CODE_GREP_GUARDRAIL } from "./guardrails.js";
 
 const emptyPage: GrepResult = {
   indexingEstimates: [],
+  pathWarnings: [],
   hits: [],
   targets: [],
   unavailableTargets: [],

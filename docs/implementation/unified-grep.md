@@ -388,3 +388,105 @@ different package, repository or site target; unknown reasons are not given an
 invented remedy. Native public messages and error codes have their own reason
 line. Terminal preparation reasons receive no preparation retry. Auth, requests
 and JSON are unchanged. The shared helper owns only footer layout; grep owns these semantics.
+
+## Package-path advisories
+
+The backend owns path diagnosis using the selected snapshot's canonical package
+repository subpath and native path observations. Clients do not infer package
+roots from names, probe alternatives, rewrite selectors or retry automatically.
+`GrepResult.pathWarnings` is a required array, selected and validated in both
+compact and detailed modes. Each warning preserves `requestedInputIndices`,
+`target`, `path`, `repositorySubpath`, `message`, and `suggestions { target path }`.
+An empty list means no supported diagnosis was returned; zero matches alone are
+not path evidence. Missing or malformed fields are protocol errors.
+
+The shared projection validates and deep-copies the page, retaining hits, native
+statuses/public messages, omissions, preparation estimates, traversal and cursors.
+It replaces advisory objects with `pathWarnings: string[]` for CLI `--json` and
+MCP `format: "json"`. Text uses the same compact sentences, one physical line
+per distinct warning, after coverage/preparation and before matches:
+
+```text
+Warning: Path is prefixed with package path "packages/example". Did you mean "src"?
+```
+
+The package root and correction come directly from backend fields: the correction
+is the suggestion whose target equals the warning's target. There is no local
+prefix-stripping heuristic. When no same-target suggestion exists, the sentence
+stops after the package path. The shared summary JSON-quotes values and escapes
+DEL/C1 controls for both text and JSON. Text keeps each warning on one physical
+line. Identical sentences are emitted once.
+Neither output format dumps the verbose backend message or alternative pairs.
+A question suggests a possible correction; it does not assert that a path exists.
+
+The core `GrepService` contract retains complete backend metadata, including the
+public `GrepPathWarning`/`GrepPathSuggestion` types exported by
+`@githits/mcp/client`. Injected providers must supply the required array. Short
+waits use the same parser: pending-only pages without evidence have no warning,
+and mixed pages keep proven warnings beside pending targets. No warning changes
+native failures, real results or search behavior.
+
+### Deployment and release prerequisite
+
+Backend PR [#3550](https://github.com/githits-com/pkgseer-backend/pull/3550)
+merged at `b26172c5fc97287256e55d22bc64aa384297184c`. On 2026-10-24,
+read-only GraphQL validation of a skipped `grep` selection accepted every
+warning field at `https://oss-dev.githits.dev/api/graphql`. Production at
+`https://oss.githits.dev/api/graphql` rejected `GrepResult.pathWarnings`.
+A recheck at **2026-10-24 10:25 UTC** accepted every field on production. The
+original package/prefix request returned one advisory with zero hits and
+`COMPLETE`; the backend deployment prerequisite is now satisfied.
+Introspection is disabled at both endpoints; the validation query uses
+`@skip(if: true)` to check selections without executing grep.
+
+Before releasing a client that selects this field, verify the configured
+backend accepts the full selection below; merging its PR is not proof of
+deployment. No schema fallback or downgraded query is provided: an older
+endpoint rejects the entire grep query. Native advisory generation additionally requires the backend's released
+aigrep 0.27.3/API56 path-evidence integration. Schema support alone does not
+prove native advisory behavior; qualify an applicable request on that endpoint.
+
+```graphql
+query {
+  grep(targets: [{target: "npm:express"}], pattern: "router") @skip(if: true) {
+    pathWarnings {
+      requestedInputIndices target path repositorySubpath message
+      suggestions { target path }
+    }
+  }
+}
+```
+
+Ship both the root `githits` CLI and public `@githits/mcp` package for their
+respective consumers. Hosted MCP clients receive this behavior only after
+`remote-mcp` upgrades that published package and deploys it through its own
+approved workflow. This client PR authorizes no merge, release, publication or
+deployment. The backend backlog's client-adoption entry remains for its owner
+to close after this client work ships; it is not edited across worktrees.
+
+### Client qualification (2026-10-24)
+
+The compact implementation at `8e5ab06` was verified through built Node CLI and
+local stdio MCP against dev. Prefix and exact selectors returned the same compact
+warning string in text and JSON. Prefix returned zero hits with `COMPLETE`;
+exact returned zero hits with `NON_RESUMABLE_PARTIAL` and the original
+`GREP_PATH_NOT_INDEXED` failure. Hits, statuses, traversal and cursors matched.
+
+The targeted `eval/agentic/probes/package-path-advisories.md` local MCP/dev run
+used Codex (`gpt-6-luna`, high). Its trace contained one `quick_start` and two
+grep calls with the same requested prefix (text, then JSON); no alternative
+query was executed. The final answer recognized the correction and reported
+`status: inconclusive` / `confidence: high`. No isolation violations were
+recorded. This is observed behavior, not a graded usefulness/quality result.
+
+Validation at that revision: 6,681 unit tests and 184 focused grep tests passed;
+CI passed Linux/Windows tests, build checks, MCP package validation and Bun/Node
+20/22/24/26 compatibility. Regression coverage includes projection, deduplication,
+no same-target suggestion, one-line warnings, unusual values and DEL/C1 parity,
+zero hits, native failures/cursors and mixed/pending-only short-wait results.
+
+Source and built unauthenticated smoke modes passed. Full authenticated smoke
+stops before grep at an existing recovery fixture; see the
+[backlog entry](../plans/open-backlog.md#authenticated-smoke-recovery-fixture--2026-10-24).
+The affected grep qualification above passed independently; no failure assertion
+was weakened to bypass that broader-suite gap.

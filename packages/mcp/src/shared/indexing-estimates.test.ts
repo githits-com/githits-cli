@@ -32,6 +32,7 @@ const documentation: DiscoveryIndexingEstimate = {
 };
 function pending(overrides: Partial<GrepResult> = {}): GrepResult {
   return {
+    pathWarnings: [],
     hits: [],
     targets: [],
     totalMatches: 0,
