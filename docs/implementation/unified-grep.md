@@ -505,7 +505,8 @@ success retains resolved-only/indexing records even without a physical scope.
 
 Core reuses the existing target-resolution schema and normalizer. The primary
 query selects notice identity fields in all modes; JSON-only request metadata,
-committer dates, lifecycle/recovery fields use the existing detailed directive.
+including requested version, committer dates and lifecycle/recovery fields use
+the existing detailed directive.
 JSON retains the independent requested, resolved-requested and served state,
 including null/unknown scalars, without confidence inference. Injected providers
 may omit the new DTO property; the concrete wire parser still requires the root

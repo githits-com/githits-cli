@@ -675,3 +675,30 @@ avoided binary-equivalence claims, with medium final confidence and no isolation
 violations. This is a neutral trace, not a graded quality result. It did not call
 grep or diff. Live success of the new fields remains unverified until backend
 deployment; final implementation review and CI are recorded at PR delivery.
+
+Client implementation review completed on 2026-10-25: full internal preflight
+clean, Claude Opus5.5 R2 clean including the single fresh-context final check.
+The three accepted low R1 findings were closed: requested version became
+JSON-only in compact grep selection, no-notice adapter assertions cover every
+notice class, and the additive public API fragment records minor impact for
+both packages. The post-fix 95 focused tests, build and typecheck passed; the
+prior full 6,740-test run and package/smoke checks remain applicable. No client
+implementation finding is deferred. The temporary local plan was retired after
+clean review; the backend's larger governing plan remains in its own repository.
+
+Backend prerequisite [PR #3648](https://github.com/githits-com/pkgseer-backend/pull/3648)
+was reported fully green and externally reviewed at `e2350f691`, with the runtime
+contract unchanged from `ab1ca8fb6` and additive schema hash `21c66e6fb268`. At
+client review completion it was **not merged or deployed**. This is not a
+production-compatibility receipt: publication remains held for actual production
+field deployment and normal authenticated verification. Green client/backend CI
+or a merge approval does not establish deployment. Hosted MCP needs its separate
+approved package adoption and deployment.
+
+The neutral agent trace is reproducible with the existing agentic-eval workflow
+and `eval/agentic/probes/package-source-correspondence.md` against dev. Its local
+artifacts are under `.agent-eval/package-source-correspondence/`: Codex Luna high,
+28,996 uncached and 85,888 cached input tokens, 942 output tokens, 21.024 seconds,
+harness base-rate cost estimate $0.00423. Those are observed trace metrics, not a
+quality grade, model-price guarantee or performance comparison. It did not
+exercise the undeployed grep/diff fields.
