@@ -1700,7 +1700,7 @@ const targetResolutionIdentitySchema = z
   .nullable()
   .optional();
 
-export const targetResolutionSchema = z
+const targetResolutionSchema = z
   .object({
     requested: targetResolutionIdentitySchema,
     resolvedRequested: targetResolutionIdentitySchema,
@@ -1714,6 +1714,13 @@ export const targetResolutionSchema = z
   })
   .nullable()
   .optional();
+
+/** Required identity envelope shared by transport-neutral service clients. */
+export const requiredTargetResolutionSchema: z.ZodType<TargetResolution> =
+  targetResolutionSchema
+    .unwrap()
+    .unwrap()
+    .transform((value) => normaliseTargetResolution(value));
 
 const unifiedSearchSourceSchema = z.enum(["AUTO", "DOCS", "CODE", "SYMBOL"]);
 
@@ -4499,14 +4506,13 @@ function normaliseAvailableVersions(
   }));
 }
 
-/** Normalize a known identity envelope for other transport-neutral service clients. */
-export function normaliseTargetResolution(
+function normaliseTargetResolution(
   resolution: NonNullable<z.infer<typeof targetResolutionSchema>>,
 ): TargetResolution;
-export function normaliseTargetResolution(
+function normaliseTargetResolution(
   resolution: z.infer<typeof targetResolutionSchema>,
 ): TargetResolution | undefined;
-export function normaliseTargetResolution(
+function normaliseTargetResolution(
   resolution: z.infer<typeof targetResolutionSchema>,
 ): TargetResolution | undefined {
   if (!resolution) return undefined;

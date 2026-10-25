@@ -686,6 +686,13 @@ prior full 6,740-test run and package/smoke checks remain applicable. No client
 implementation finding is deferred. The temporary local plan was retired after
 clean review; the backend's larger governing plan remains in its own repository.
 
+The first PR build exposed a Bun declaration-generation difference: CI's Bun
+1.4.4 rejected the inferred exported raw schema, while local Bun 1.3.14 built it.
+The navigation client now exports an explicitly typed required, normalized
+schema for grep; its optional raw schema and normalizer remain private. The same
+strict parsing behavior is retained. The MCP package build passed under Bun
+1.4.4, and 137 focused navigation/grep tests plus typecheck passed after the fix.
+
 Backend prerequisite [PR #3648](https://github.com/githits-com/pkgseer-backend/pull/3648)
 was reported fully green and externally reviewed at `e2350f691`, with the runtime
 contract unchanged from `ab1ca8fb6` and additive schema hash `21c66e6fb268`. At

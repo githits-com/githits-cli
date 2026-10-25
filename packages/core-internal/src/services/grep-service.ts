@@ -18,9 +18,8 @@ import {
 } from "./client-update-required-error.js";
 import {
   type ContentModification,
-  normaliseTargetResolution,
+  requiredTargetResolutionSchema,
   type TargetResolution,
-  targetResolutionSchema,
 } from "./code-navigation-service.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import {
@@ -320,10 +319,7 @@ function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
       z.object({
         inputIndex: nonnegativeInt,
         target: z.string(),
-        targetResolution: targetResolutionSchema
-          .unwrap()
-          .unwrap()
-          .transform((value) => normaliseTargetResolution(value)),
+        targetResolution: requiredTargetResolutionSchema,
       }),
     ),
     indexingEstimates: indexingEstimatesSchema,
