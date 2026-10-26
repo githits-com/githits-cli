@@ -785,13 +785,13 @@ it.each(["name-only", "patch"] as const)(
     for (const text of [compact.stderr, verbose.stderr]) {
       const flat = text?.replace(/\s+/g, " ");
       expect(flat).toContain(
-        "Source for maven:example:library@1.0.0 inferred from version tag",
+        "This source was chosen using a version tag for maven:example:library@1.0.0",
       );
-      expect(flat).toContain("from=github:example/library@v1.0.0");
+      expect(flat).toContain("From source: github:example/library@v1.0.0");
       expect(flat).toContain(
-        "Source correspondence to maven:example:library@2.0.0 is unverified",
+        "We couldn't confirm that this source matches maven:example:library@2.0.0",
       );
-      expect(flat).toContain("to=github:example/library@v2.0.0");
+      expect(flat).toContain("To source: github:example/library@v2.0.0");
     }
   },
 );

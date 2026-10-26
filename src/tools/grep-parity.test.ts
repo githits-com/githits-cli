@@ -467,10 +467,10 @@ it.each(["ready", "pending"] as const)(
       for (const text of [cliText, mcpText]) {
         const flat = text.replace(/\s+/g, " ");
         expect(flat).toContain(
-          `Source correspondence to ${target} is unverified`,
+          `We couldn't confirm that this source matches ${target}`,
         );
         expect(flat).toContain(
-          `${mode === "ready" ? "served" : "resolved"}=github:example/library@v1.2.3`,
+          `${mode === "ready" ? "Source" : "Selected source"}: github:example/library@v1.2.3`,
         );
       }
       await program.parseAsync(

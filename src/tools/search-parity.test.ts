@@ -1282,18 +1282,18 @@ describe("package correspondence through search and waited status adapters", () 
         const flat = text.replace(/\s+/g, " ");
         if (state === null || state === "manifest_matched")
           expect(flat).not.toMatch(
-            /correspondence|inferred from version tag|declared revision/,
+            /couldn't confirm|chosen using a version tag|source revision listed/,
           );
         else {
           const phrase =
             state === "tag_inferred"
-              ? "manifest correspondence unconfirmed"
+              ? "We haven't confirmed an exact match"
               : state === "unverified"
-                ? "is unverified"
-                : "declared revision is unavailable";
+                ? "We couldn't confirm that this source matches"
+                : "wasn't available";
           expect(flat.split(phrase)).toHaveLength(2); // CODE/SYMBOL must not duplicate a target notice.
           expect(flat).toContain(
-            "served=github:example/library@v1.2.3 (commit aaaaaaa)",
+            "Source: github:example/library@v1.2.3 (commit aaaaaaa)",
           );
         }
         expect(flat).not.toMatch(
@@ -1316,7 +1316,7 @@ describe("package correspondence through search and waited status adapters", () 
         });
       if (freshness === "fallback_recent")
         expect(JSON.stringify(json)).toContain(
-          "Source correspondence to maven:example:library@1.2.3 is unverified",
+          "We couldn't confirm that this source matches maven:example:library@1.2.3",
         );
       const statusJson = JSON.parse(
         (

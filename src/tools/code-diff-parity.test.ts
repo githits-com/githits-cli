@@ -639,14 +639,14 @@ it.each(["tag_inferred", "unverified", "declared_revision_unavailable"])(
       for (const text of [cliText, mcpText]) {
         const flat = text.replace(/\s+/g, " ");
         expect(flat).toContain(`${target}@4.18.1`);
-        expect(flat).toContain("from=github:example/library@v4.18.1");
-        expect(flat).not.toContain("to=github:"); // Matched side carries no uncertainty notice.
+        expect(flat).toContain("From source: github:example/library@v4.18.1");
+        expect(flat).not.toContain("To source: github:"); // Matched side carries no uncertainty notice.
         expect(flat).toContain(
           state === "tag_inferred"
-            ? "manifest correspondence unconfirmed"
+            ? "We haven't confirmed an exact match"
             : state === "unverified"
-              ? "is unverified"
-              : "declared revision is unavailable",
+              ? "We couldn't confirm that this source matches"
+              : "wasn't available",
         );
       }
       expect(codeDiff).toHaveBeenCalledTimes(4);

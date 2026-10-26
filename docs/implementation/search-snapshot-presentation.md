@@ -604,13 +604,19 @@ actual search/status text, and compact CLI read stderr consume the same policy:
 | Backend state | Shared disclosure |
 | --- | --- |
 | `manifest_matched` | No correspondence warning; does not claim published binary equivalence. |
-| `tag_inferred` | Source inferred from a version tag; manifest correspondence unconfirmed. |
-| `unverified` | Source correspondence to the package/version is unverified. |
-| `declared_revision_unavailable` | A qualified release ref replaced an unavailable declared revision. Applies across ecosystems. |
+| `tag_inferred` | Explains that source was chosen using a version tag and an exact match is unconfirmed. |
+| `unverified` | Explains that a match between the source and package/version could not be confirmed. |
+| `declared_revision_unavailable` | Explains that the listed source revision was unavailable and GitHits selected another source revision instead. Applies across ecosystems. |
 | Ordinary null/omitted or unknown future state | No invented notice semantics. |
 
+Each uncertainty notice offers the same conditional action: "If the exact version
+matters, check the published package." This preserves usefulness for general code
+reading without implying an exact release match or inventing a verification command.
+Text uses plain language; JSON keeps the backend assessment and identity fields.
+
 The state and existing ref/SHA locator come from served when present, otherwise
-from resolved-requested, labeled `resolved=` while pending. Registry/name come
+from resolved-requested. The exact locator is labeled `Source:` when used, or
+`Selected source:` for a pending/unvisited choice. Registry/name come
 from the first backend identity among served, resolved-requested and requested
 that carries both. The version belongs to the identity owning the assessment;
 never borrow a different resolved version or infer confidence from labels. Missing
@@ -637,16 +643,17 @@ Read, list, search/status and legacy navigation/files/grep use the same identity
 projection and notice policy. Unified grep additionally preserves canonical
 `targetResolutions` records per original known input, independent of physical
 scope rows and omissions. Source correspondence is not proof that the current
-page visited a scope: unvisited prepared identities use `selected=`, searched
-repository identities use `served=`, and pending resolved-only identities use
-`resolved=`. CURRENT/STALE readiness or a validated repository hit linked through
+page visited a scope: unvisited prepared and pending resolved-only identities
+use `Selected source:`, while searched repository identities use `Source:`.
+CURRENT/STALE readiness or a validated repository hit linked through
 input indices supplies page-execution evidence; a hosted-site outcome does not.
 Producer failure clears serving rather than letting clients reconstruct it.
 
 CodeDiff preserves `releaseCorrespondence` independently on `from` and `to`.
 Shared composition passes each side's exact version/ref/SHA to the same notice
-policy, labeled `from=` and `to=`. CLI notices go to stderr in every view while
-patch/path stdout remains unchanged; MCP text uses the same wrapped notices.
+policy, labeled `From source:` and `To source:`. CLI notices go to stderr in
+every view while patch/path stdout remains unchanged; MCP text uses the same
+wrapped notices.
 No freshness lifecycle is manufactured for a raw diff. Ordinary non-Maven/raw
 null, `manifest_matched`, and unknown future states add no invented warning.
 See [unified grep](unified-grep.md) and [CodeDiff](code-diff.md) for their contracts.

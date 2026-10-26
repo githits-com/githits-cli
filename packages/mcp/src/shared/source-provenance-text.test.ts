@@ -287,7 +287,7 @@ it("keeps correspondence separate from CURRENT freshness suppression and wraps p
     { width: 65 },
   );
   expect(details.join(" ").replace(/\s+/g, " ")).toContain(
-    "Source for maven:example:library@1.2.3 inferred from version tag; manifest correspondence unconfirmed",
+    "This source was chosen using a version tag for maven:example:library@1.2.3. We haven't confirmed an exact match",
   );
   expect(details.join(" ")).not.toMatch(
     /queryable|suggested|Requested ref|Resolution state/,

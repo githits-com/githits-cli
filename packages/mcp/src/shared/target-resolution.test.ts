@@ -445,11 +445,11 @@ describe("package source correspondence", () => {
   it.each([
     [
       "tag_inferred",
-      "inferred from version tag; manifest correspondence unconfirmed",
+      "chosen using a version tag for maven:org.example:library@1.2.3. We haven't confirmed an exact match",
     ],
     [
       "unverified",
-      "Source correspondence to maven:org.example:library@1.2.3 is unverified",
+      "We couldn't confirm that this source matches maven:org.example:library@1.2.3",
     ],
   ])(
     "shows CURRENT %s despite matched resolved state, without obsolete retries",
@@ -461,7 +461,10 @@ describe("package source correspondence", () => {
       expect(notes).toHaveLength(1);
       expect(notes[0]).toContain(expected);
       expect(notes[0]).toContain(
-        "served=github:example/library@v1.2.3 (commit aaaaaaa)",
+        "If the exact version matters, check the published package.",
+      );
+      expect(notes[0]).toContain(
+        "Source: github:example/library@v1.2.3 (commit aaaaaaa)",
       );
       expect(notes.join(" ")).not.toMatch(
         /indexing|old-tag|old-ref|old-suggestion|binary|not checked/,
@@ -483,8 +486,11 @@ describe("package source correspondence", () => {
       });
       expect(notes).toHaveLength(1);
       expect(notes[0]).toContain(`${registry.toLowerCase()}:library@1.2.3`);
-      expect(notes[0]).toContain("qualified release ref");
-      expect(notes[0]).toContain("declared revision is unavailable");
+      expect(notes[0]).toContain("We selected another source revision instead");
+      expect(notes[0]).toContain("wasn't available");
+      expect(notes[0]).toContain(
+        "If the exact version matters, check the published package.",
+      );
     },
   );
 
@@ -495,11 +501,11 @@ describe("package source correspondence", () => {
       served: undefined,
       resolvedRequested: { ...identity, releaseCorrespondence: "unverified" },
     });
-    const notice = notes.find((note) => note.includes("correspondence"));
+    const notice = notes.find((note) => note.includes("couldn't confirm"));
     expect(notice).toContain(
-      "resolved=github:example/library@v1.2.3 (commit aaaaaaa)",
+      "Selected source: github:example/library@v1.2.3 (commit aaaaaaa)",
     );
-    expect(notice).not.toContain("served=");
+    expect(notice).not.toContain("Source: ");
   });
 
   it("does not borrow correspondence from a different resolved SHA", () => {
@@ -553,6 +559,6 @@ it("names an observed repository-form served identity with its own version", () 
     availableRefs: [],
   });
   expect(notes).toEqual([
-    "Source correspondence to maven:com.google.guava:guava-testlib@33.4.0-jre is unverified; served=github:google/guava@v33.4.0 (commit 5c71d2a).",
+    "We couldn't confirm that this source matches maven:com.google.guava:guava-testlib@33.4.0-jre. If the exact version matters, check the published package. Source: github:google/guava@v33.4.0 (commit 5c71d2a).",
   ]);
 });

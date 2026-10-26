@@ -357,13 +357,13 @@ export function buildSourceCorrespondenceNote(
   let notice: string;
   switch (identity.releaseCorrespondence) {
     case "tag_inferred":
-      notice = `Source for ${target} inferred from version tag; manifest correspondence unconfirmed`;
+      notice = `This source was chosen using a version tag for ${target}. We haven't confirmed an exact match`;
       break;
     case "unverified":
-      notice = `Source correspondence to ${target} is unverified`;
+      notice = `We couldn't confirm that this source matches ${target}`;
       break;
     case "declared_revision_unavailable":
-      notice = `Source for ${target} uses a qualified release ref because the declared revision is unavailable`;
+      notice = `The source revision listed by ${target} wasn't available. We selected another source revision instead`;
       break;
     default:
       return undefined;
@@ -373,7 +373,15 @@ export function buildSourceCorrespondenceNote(
     gitRef: identity.gitRef ?? undefined,
     commitSha: identity.commitSha ?? undefined,
   });
+  const sourceLabel =
+    context.sourceRole === "from"
+      ? "From source"
+      : context.sourceRole === "to"
+        ? "To source"
+        : context.sourceRole === "served"
+          ? "Source"
+          : "Selected source";
   return sanitizeTerminalText(
-    locator ? `${notice}; ${context.sourceRole}=${locator}.` : `${notice}.`,
+    `${notice}. If the exact version matters, check the published package.${locator ? ` ${sourceLabel}: ${locator}.` : ""}`,
   );
 }

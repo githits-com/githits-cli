@@ -517,8 +517,8 @@ readiness/traversal. Prepared provenance on an unvisited `UNSPECIFIED` scope is
 selected source, not a claim that this page searched it. CURRENT/STALE repository
 readiness, including searched zero hits, or a validated repository hit supplies
 page-execution evidence through input links. Hosted readiness alone does not.
-Notes use `selected=` for prepared/unvisited sources, `served=` with repository
-execution evidence, and `resolved=` when serving is absent. Backend no-hit failure
+Notes use `Selected source:` for prepared/unvisited or resolved-only sources,
+and `Source:` with repository execution evidence. Backend no-hit failure
 already clears serving; clients never reconstruct it from labels or hit absence.
 
 The shared [correspondence policy](search-snapshot-presentation.md#package-source-correspondence)

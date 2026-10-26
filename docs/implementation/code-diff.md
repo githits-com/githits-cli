@@ -252,8 +252,8 @@ fields remain omitted.
 
 Both text surfaces use the common
 [source-correspondence policy](search-snapshot-presentation.md#package-source-correspondence).
-The notice composer receives a single assessed identity per side, with `from=`
-or `to=` locators and its own resolved version, rather than a synthetic
+The notice composer receives a single assessed identity per side, with `From source:`
+or `To source:` locators and its own resolved version, rather than a synthetic
 TargetResolution. A matched target side never hides an uncertain source side.
 CLI diagnostics carry wrapped notices on stderr for compact and verbose output
 in every view; raw patch/path stdout stays byte-exact. MCP text includes the same

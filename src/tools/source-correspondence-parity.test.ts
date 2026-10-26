@@ -70,7 +70,7 @@ describe("source correspondence adapter parity", () => {
       const mcp = await tool.handler({ target }, {});
       for (const text of [cliText, mcp.content[0]?.text ?? ""])
         expect(text.replace(/\s+/g, " ")).toContain(
-          `Source correspondence to ${target} is unverified`,
+          `We couldn't confirm that this source matches ${target}`,
         );
       await listAction(target, undefined, { json: true }, deps);
       const cliJson = JSON.parse(String(log.mock.calls[0]?.[0]));
@@ -120,7 +120,7 @@ describe("source correspondence adapter parity", () => {
         mcp.content[0]?.text ?? "",
       ])
         expect(text.replace(/\s+/g, " ")).toContain(
-          `Source correspondence to ${target} is unverified`,
+          `We couldn't confirm that this source matches ${target}`,
         );
       expect(err).not.toHaveBeenCalled();
       await readAction(target, "src/index.ts", { json: true }, deps);

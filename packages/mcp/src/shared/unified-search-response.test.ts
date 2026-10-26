@@ -3736,7 +3736,7 @@ it("appends correspondence to terminal lifecycle warnings without restoring retr
   expect(warnings).toHaveLength(1);
   expect(warnings[0]).toContain("Requested source unavailable");
   expect(warnings[0]).toContain(
-    "Source correspondence to maven:example:library@1.2.3 is unverified; resolved=v1.2.3.",
+    "We couldn't confirm that this source matches maven:example:library@1.2.3. If the exact version matters, check the published package. Selected source: v1.2.3.",
   );
   expect(warnings[0]).not.toContain("old-ref");
 });

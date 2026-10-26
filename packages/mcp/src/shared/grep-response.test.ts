@@ -600,12 +600,14 @@ it("preserves ordered per-input assessments for a shared physical scan", () => {
   expect(projected.targetResolutions).not.toBe(page.targetResolutions);
   expect(page).toEqual(before);
   const text = formatGrepText(page).replace(/\s+/g, " ");
-  expect(text.split("is unverified")).toHaveLength(2);
+  expect(
+    text.split("We couldn't confirm that this source matches"),
+  ).toHaveLength(2);
   expect(text).toContain(
-    "served=github:example/library@v1.2.3 (commit aaaaaaa)",
+    "Source: github:example/library@v1.2.3 (commit aaaaaaa)",
   );
   expect(text).not.toMatch(
-    /binary|inferred from version tag|declared revision/,
+    /binary|chosen using a version tag|source revision listed/,
   );
 });
 
@@ -635,12 +637,12 @@ it.each(["CURRENT", "UNSPECIFIED", "INCOMPLETE"] as const)(
       ],
     });
     const text = formatGrepText(page).replace(/\s+/g, " ");
-    expect(text).toContain("manifest correspondence unconfirmed");
+    expect(text).toContain("We haven't confirmed an exact match");
     expect(text).toContain(
-      `${readiness === "UNSPECIFIED" ? "selected" : "served"}=github:example/library@v1.2.3`,
+      `${readiness === "UNSPECIFIED" ? "Selected source" : "Source"}: github:example/library@v1.2.3`,
     );
     if (readiness === "UNSPECIFIED") {
-      expect(text).not.toContain("served=");
+      expect(text).not.toContain("Source: github:");
       expect(text).toContain("not reached on this page");
     }
   },
@@ -673,15 +675,15 @@ it("keeps pending-only and failed inputs resolved-only without changing omission
   const before = structuredClone(page.unavailableTargets);
   const projected = projectGrepResult(page);
   const text = formatGrepText(page).replace(/\s+/g, " ");
-  expect(text).toContain("resolved=github:example/library@v1.2.3");
-  expect(text).not.toContain("served=");
+  expect(text).toContain("Selected source: github:example/library@v1.2.3");
+  expect(text).not.toContain("Source: github:");
   expect(text).toContain("still being prepared");
   expect(projected.unavailableTargets).toEqual(before);
   page.targetResolutions![0]!.targetResolution.freshness = "unavailable";
   page.unavailableTargets[0]!.reason = "package_scope_unavailable";
   page.unavailableTargets[0]!.retryable = false;
   expect(formatGrepText(page).replace(/\s+/g, " ")).toContain(
-    "is unverified; resolved=",
+    "Selected source: ",
   );
 });
 
@@ -717,6 +719,6 @@ it("does not use a hosted outcome as evidence that the repository was searched",
     ],
   });
   const text = formatGrepText(page).replace(/\s+/g, " ");
-  expect(text).toContain("is unverified; selected=");
-  expect(text).not.toContain("served=");
+  expect(text).toContain("Selected source: ");
+  expect(text).not.toContain("Source: github:");
 });
