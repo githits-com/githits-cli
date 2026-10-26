@@ -5,6 +5,62 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.36.0] - 2026-10-26
+
+Minor release adding compact package-path advisories to unified grep and
+package source-match disclosures, with fixes for setup, path recovery,
+preparation errors and progress. Existing commands and configuration keep working. Grep JSON now includes
+`pathWarnings` as an array of compact warning strings.
+
+### Added
+
+- **Disclose package source correspondence** - Preserve backend source assessments in CLI/MCP JSON and show uncertain package-version matches inline beside the exact source revision. Shared notices remain independent of index freshness, including unified grep, both diff sides, and current/completed waited searches. The additive backend fields were verified in production during release preparation; hosted MCP adoption also requires the published package and remote-server deployment.
+- **Package-path advisories** - Unified grep shows one compact warning per distinct package-path correction in CLI/MCP text and JSON, preserving results, failures and pending targets. Requires a backend exposing `GrepResult.pathWarnings`; injected grep providers must supply the warning array.
+
+### Changed
+
+- **Path scope guidance** - Clarify package-relative and repository-relative paths, preserve returned target/path pairs, and retain the original scope during indexing retries. The CLI includes the aligned public MCP skill update.
+- **Public tagline** - The npm package, README, and plugin manifests now use "The infrastructure layer connecting agents to the open-source ecosystem."
+
+### Fixed
+
+- **Complete guidance installation and cleanup** - Guided setup copies and repairs skill reference files; uninstall removes those files and deletes instruction files left empty after removing GitHits guidance, while preserving unrelated content.
+- **Grep preparation failures** - Classify missing, ambiguous, and unrecoverable targets from their per-target reasons instead of reporting them as indexing; preserve backend retryability and structured details while removing raw or redundant reason hints in CLI and MCP output.
+- **Path recovery and symbol scope** - Shell-quote CLI recovery operands, preserve dash-leading paths, and identify the target used by ambiguous symbol candidate paths. Existing package and repository path scopes are unchanged.
+- **No backwards step at the start of progress** - After the opening message (such as "Searching source code and docs..."), CLI and MCP progress no longer briefly switch to the backend's generic "Starting..." stage before the next real step.
+
+### Security
+
+- **Secret scanning** - Pull requests and main pushes scan introduced commits with the gitleaks OSS CLI, and a weekly workflow scans full history. Published package behavior is unchanged.
+- **Patched Node toolchain** - CI and repository development now use Node 24.22.1 with the October 2026 security fixes; installed CLI and STDIO MCP users must update their own Node runtime separately.
+- **Pinned GitHub Actions and Bun** - CI, eval, and release workflows install Bun 1.4.4 and pin third-party actions to full commit SHAs with version comments. Release jobs keep contents and id-token write only for tagging, trusted publishing, and Azure login.
+
+## [@githits/mcp 0.36.0] - 2026-10-26
+
+Minor release adding package-path advisories to unified grep and exporting
+`GrepPathWarning` and `GrepPathSuggestion` from `@githits/mcp/client`. Injected
+grep providers must supply `GrepResult.pathWarnings` (use `[]` when there are
+no warnings). The concrete grep client requires backend support for that
+field; production support was confirmed before release preparation. Tool JSON
+exposes compact warning strings, while service clients retain structured
+metadata. Hosted clients receive these changes after the released package is
+adopted and deployed by `remote-mcp`.
+
+### Added
+
+- **Disclose package source correspondence** - Preserve backend source assessments in CLI/MCP JSON and show uncertain package-version matches inline beside the exact source revision. Shared notices remain independent of index freshness, including unified grep, both diff sides, and current/completed waited searches. The additive backend fields were verified in production during release preparation; hosted MCP adoption also requires the published package and remote-server deployment.
+- **Package-path advisories** - Unified grep shows one compact warning per distinct package-path correction in CLI/MCP text and JSON, preserving results, failures and pending targets. Requires a backend exposing `GrepResult.pathWarnings`; injected grep providers must supply the warning array.
+
+### Changed
+
+- **Path scope guidance** - Clarify package-relative and repository-relative paths, preserve returned target/path pairs, and retain the original scope during indexing retries.
+
+### Fixed
+
+- **Grep preparation failures** - Classify missing, ambiguous, and unrecoverable targets from their per-target reasons instead of reporting them as indexing; preserve backend retryability and structured details while removing raw or redundant reason hints in CLI and MCP output.
+- **Path recovery and symbol scope** - Shell-quote CLI recovery operands, preserve dash-leading paths, and identify the target used by ambiguous symbol candidate paths. Existing package and repository path scopes are unchanged.
+- **No backwards step at the start of progress** - After the opening message (such as "Searching source code and docs..."), CLI and MCP progress no longer briefly switch to the backend's generic "Starting..." stage before the next real step. The package also exports `OPENING_STAGE` for consumers sharing that opening-stage policy.
+
 ## [githits 0.35.0] - 2026-10-20
 
 Pre-1.0 minor release that shows the real GitHits stage in `githits research`
