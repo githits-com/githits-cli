@@ -260,6 +260,19 @@ dev and does not deploy either server.
 
 ## Other evidence and fact-reporting rules
 
+Reviews retain optional `migrationGuides` entries with `url` and `label` in JSON.
+CLI and MCP text show one short link per guide, including informative labels,
+in detailed reports and compact batch triage. Empty or absent lists add no text.
+The backend owns guide selection for major-version crossings; the client never
+fetches guide content. The initial query requests guides in every output mode;
+statement continuation queries omit them.
+
+Guide availability depends on stored migration-guide results on the backend.
+The backend must also admit the full 30-review JSON projection with guides and
+optional security/dependency evidence: dev currently rejects it at complexity
+502 against a limit of 500, while the same request without guides succeeds.
+This backend query-budget prerequisite must be resolved before merge or release.
+
 Direct advisory deltas are backend-provided over logical advisory identity
 (`id` and aliases); introduced/fixed/unchanged aliases remain in JSON while text
 uses added/fixed/still-present wording. Transitive diffs are package/advisory-aware:

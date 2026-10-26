@@ -163,6 +163,70 @@ async function mcpText(
 }
 
 describe("package_upgrade_review parity", () => {
+  for (const migrationGuides of [
+    [
+      { url: "https://example.com/migrate", label: "Version 5 changes" },
+      { url: "https://example.com/upgrade", label: "Migration guide" },
+      { url: "https://example.com/next" },
+    ],
+    [],
+    undefined,
+  ]) {
+    it(`preserves ${migrationGuides === undefined ? "absent" : migrationGuides.length ? "available" : "empty"} migration guides across CLI and MCP text/JSON`, async () => {
+      const service = createMockPackageIntelligenceService({
+        packageUpgradeReview: mock(async () => ({
+          ...defaultPackageUpgradeReviewResponse,
+          reviews: [
+            {
+              ...defaultPackageUpgradeReviewResponse.reviews[0]!,
+              migrationGuides,
+            },
+          ],
+        })),
+      });
+      const args = {
+        registry: "npm",
+        package_name: "express",
+        current_version: "4.18.0",
+        target_version: "5.0.0",
+      };
+      const cli = await cliText(
+        "npm:express@4.18.0",
+        { to: "5.0.0" },
+        cliDeps({ packageIntelligenceService: service }),
+      );
+      const mcp = await mcpText(args, service);
+      expect(cli.trimEnd()).toBe(mcp);
+      expect(mcp.match(/Migration guide available at/g) ?? []).toHaveLength(
+        migrationGuides?.length ?? 0,
+      );
+      if (migrationGuides?.length) {
+        expect(mcp).toContain(
+          "Migration guide available at https://example.com/migrate (Version 5 changes)",
+        );
+        expect(mcp).toContain(
+          "Migration guide available at https://example.com/upgrade\n",
+        );
+        expect(mcp).toContain(
+          "Migration guide available at https://example.com/next\n",
+        );
+        expect(mcp).not.toContain("(Migration guide)");
+      }
+      const cliPayload = await cliJson(
+        "npm:express@4.18.0",
+        { to: "5.0.0" },
+        cliDeps({ packageIntelligenceService: service }),
+      );
+      const { json, isError } = await mcpJson(args, service);
+      expect(isError).toBeUndefined();
+      expect(cliPayload).toEqual(json);
+      expect(
+        (json as { reviews: Array<{ migrationGuides?: unknown }> }).reviews[0]
+          ?.migrationGuides,
+      ).toEqual(migrationGuides);
+    });
+  }
+
   it("PARITY-TEXT-FORMATTER: CLI and MCP use the same no-color formatter", async () => {
     const stdoutColumnsDescriptor = Object.getOwnPropertyDescriptor(
       process.stdout,

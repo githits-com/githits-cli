@@ -173,6 +173,7 @@ export interface UpgradeReview {
   targetVersion: string;
   latestVersion?: string;
   versionDelta: VersionDelta;
+  migrationGuides?: BackendPackageUpgradeReviewResponse["reviews"][number]["migrationGuides"];
   security: UpgradeSecurity;
   changelog: UpgradeChangelog;
   compatibility?: UpgradeCompatibility;
@@ -247,6 +248,7 @@ function normaliseBackendUpgradeReviewResponse(
       targetVersion: review.targetVersion,
       latestVersion: review.latestVersion,
       versionDelta: lowerEnum(review.versionDelta) as VersionDelta,
+      migrationGuides: review.migrationGuides,
       security: normaliseBackendSecurity(review.security),
       changelog: normaliseBackendChangelog(review.changelog, selection),
       compatibility: review.compatibility,
@@ -556,6 +558,7 @@ export function formatPackageUpgradeReviewTerminal(
         useColors,
       ),
     );
+    lines.push(...formatMigrationGuides(review, options));
     appendSection(lines, formatVulnerabilitySection(review, options));
     const deprecation = formatDeprecationLine(review, options);
     if (deprecation) appendSection(lines, deprecation);
@@ -1229,6 +1232,29 @@ function riskCoverageText(changelog: UpgradeChangelog): string {
   return `${c.versionsClassified} classified | ${c.versionsNotAssessed} not assessed | ${c.versionsWithoutNotes} without notes${c.versionsUnparseable > 0 ? ` | ${c.versionsUnparseable} unparseable` : ""}`;
 }
 
+/** Share compact guide links across detailed reports and batch triage rows. */
+function formatMigrationGuides(
+  review: UpgradeReview,
+  options: FormatPackageUpgradeReviewTerminalOptions,
+): string[] {
+  const lines: string[] = [];
+  for (const guide of review.migrationGuides ?? []) {
+    const url = safeRiskText(guide.url);
+    const label = safeRiskText(guide.label ?? "").trim();
+    const informativeLabel =
+      label &&
+      label !== url &&
+      !["migration guide", "upgrade guide"].includes(label.toLowerCase());
+    appendWrappedText(
+      lines,
+      "  ",
+      `Migration guide available at ${url}${informativeLabel ? ` (${label})` : ""}`,
+      normaliseTerminalWidth(options.terminalWidth),
+    );
+  }
+  return lines;
+}
+
 function formatBatchTriage(
   reviews: UpgradeReview[],
   options: FormatPackageUpgradeReviewTerminalOptions,
@@ -1296,6 +1322,7 @@ function formatBatchTriage(
     lines.push(
       `  ${safeRiskText(`${review.registry}:${review.name} ${review.currentVersion} -> ${review.targetVersion} (${review.versionDelta})`)} | ${formatRiskTierCount(c, "must_act", "act")} | ${formatRiskTierCount(c, "should_know", "know")} | ${c.riskCoverage.itemsUnclassified} too long to classify | versions: ${riskCoverageText(c)} | ${c.riskCoverage.unitsNoImpact} labeled no impact | ${deprecation} | ${security} | ${transitiveText} | ${c.totalKeywordEntries} keyword entries | ${review.compatibility?.peerDependencyChanges.length ?? "not checked"} peer dependency changes | ${review.compatibility?.notes.length ?? "not checked"} compatibility notes | ${dependencyCount ?? "not checked"} direct dependency changes | ${issueCount ?? "not checked"} dependency issues | ${review.unknowns.length} unknowns`,
     );
+    if (!options.verbose) lines.push(...formatMigrationGuides(review, options));
     for (const detail of options.verbose ? [] : (review.unknownDetails ?? [])) {
       appendWrappedText(
         lines,

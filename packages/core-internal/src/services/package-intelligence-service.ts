@@ -432,6 +432,11 @@ export interface PackageUpgradeUnknownEvidence {
   retryable?: boolean;
 }
 
+export interface PackageUpgradeMigrationGuide {
+  url: string;
+  label?: string;
+}
+
 export interface PackageUpgradeReview {
   registry: string;
   name: string;
@@ -439,6 +444,7 @@ export interface PackageUpgradeReview {
   targetVersion: string;
   latestVersion?: string;
   versionDelta: string;
+  migrationGuides?: PackageUpgradeMigrationGuide[];
   security: PackageUpgradeSecurity;
   changelog: PackageUpgradeChangelog;
   compatibility?: PackageUpgradeCompatibility;
@@ -2345,6 +2351,12 @@ const packageUpgradeReviewSchema = z.object({
   targetVersion: z.string(),
   latestVersion: z.string().nullable().optional(),
   versionDelta: z.string(),
+  migrationGuides: z
+    .array(
+      z.object({ url: z.string(), label: z.string().nullable().optional() }),
+    )
+    .nullable()
+    .optional(),
   security: packageUpgradeSecuritySchema,
   changelog: packageUpgradeChangelogSchema,
   compatibility: packageUpgradeCompatibilitySchema,
@@ -2433,6 +2445,7 @@ query PackageUpgradeReview(
       targetVersion
       latestVersion
       versionDelta
+      migrationGuides { url label }
       security {
         current {
           version

@@ -325,6 +325,7 @@ describe("complete upgrade statement retrieval", () => {
       "riskCoverage",
       "entries {",
       "dependencyChanges",
+      "migrationGuides",
       "riskItems",
       "itemsOmitted",
     ])
@@ -612,6 +613,7 @@ describe("upgrade statement projections", () => {
         changelogView: view,
       };
       const query = packageUpgradeReviewQuery(params);
+      expect(query).toMatch(/migrationGuides\s*\{\s*url\s+label\s*\}/);
       expect(query).not.toContain("riskItems");
       expect(query).not.toContain("itemsOmitted");
       expect(query.includes("statements(")).toBe(view !== "triage");
@@ -638,6 +640,23 @@ describe("upgrade statement projections", () => {
             ),
           ).not.toContain(field);
     });
+});
+
+describe("upgrade migration guides", () => {
+  for (const changelogView of ["text", "json", "triage"] as const) {
+    for (const migrationGuides of [
+      [{ url: "https://example.com/migrate", label: "Version 2" }],
+      [],
+      undefined,
+    ]) {
+      it(`preserves ${migrationGuides === undefined ? "absent" : migrationGuides.length ? "available" : "empty"} guides in ${changelogView}`, async () => {
+        const row = { ...review(page(1)), migrationGuides };
+        const { run } = setup([initial([row])], { changelogView });
+        const result = await run();
+        expect(result.reviews[0]?.migrationGuides).toEqual(migrationGuides);
+      });
+    }
+  }
 });
 
 describe("upgrade assessment evidence", () => {
