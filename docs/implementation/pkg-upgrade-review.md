@@ -268,10 +268,10 @@ fetches guide content. The initial query requests guides in every output mode;
 statement continuation queries omit them.
 
 Guide availability depends on stored migration-guide results on the backend.
-The backend must also admit the full 30-review JSON projection with guides and
-optional security/dependency evidence: dev currently rejects it at complexity
-502 against a limit of 500, while the same request without guides succeeds.
-This backend query-budget prerequisite must be resolved before merge or release.
+A dev check on 2026-10-26 rejected the full 30-review JSON projection with guides
+and optional security/dependency evidence at complexity 502 against a limit of
+500; the same request without guides succeeded. Backend query-budget support for
+this projection is a prerequisite for rollout.
 
 Direct advisory deltas are backend-provided over logical advisory identity
 (`id` and aliases); introduced/fixed/unchanged aliases remain in JSON while text

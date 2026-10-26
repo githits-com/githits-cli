@@ -1236,6 +1236,7 @@ function riskCoverageText(changelog: UpgradeChangelog): string {
 function formatMigrationGuides(
   review: UpgradeReview,
   options: FormatPackageUpgradeReviewTerminalOptions,
+  prefix = "  ",
 ): string[] {
   const lines: string[] = [];
   for (const guide of review.migrationGuides ?? []) {
@@ -1247,9 +1248,10 @@ function formatMigrationGuides(
       !["migration guide", "upgrade guide"].includes(label.toLowerCase());
     appendWrappedText(
       lines,
-      "  ",
+      prefix,
       `Migration guide available at ${url}${informativeLabel ? ` (${label})` : ""}`,
       normaliseTerminalWidth(options.terminalWidth),
+      `${prefix}  `,
     );
   }
   return lines;
@@ -1322,7 +1324,8 @@ function formatBatchTriage(
     lines.push(
       `  ${safeRiskText(`${review.registry}:${review.name} ${review.currentVersion} -> ${review.targetVersion} (${review.versionDelta})`)} | ${formatRiskTierCount(c, "must_act", "act")} | ${formatRiskTierCount(c, "should_know", "know")} | ${c.riskCoverage.itemsUnclassified} too long to classify | versions: ${riskCoverageText(c)} | ${c.riskCoverage.unitsNoImpact} labeled no impact | ${deprecation} | ${security} | ${transitiveText} | ${c.totalKeywordEntries} keyword entries | ${review.compatibility?.peerDependencyChanges.length ?? "not checked"} peer dependency changes | ${review.compatibility?.notes.length ?? "not checked"} compatibility notes | ${dependencyCount ?? "not checked"} direct dependency changes | ${issueCount ?? "not checked"} dependency issues | ${review.unknowns.length} unknowns`,
     );
-    if (!options.verbose) lines.push(...formatMigrationGuides(review, options));
+    if (!options.verbose)
+      lines.push(...formatMigrationGuides(review, options, "    "));
     for (const detail of options.verbose ? [] : (review.unknownDetails ?? [])) {
       appendWrappedText(
         lines,

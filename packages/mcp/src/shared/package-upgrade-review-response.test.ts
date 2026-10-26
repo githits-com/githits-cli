@@ -266,6 +266,25 @@ function formatterResponse(
 }
 
 describe("package upgrade review response", () => {
+  it("indents compact batch guides and wrapped labels beneath their package row", () => {
+    const row = formatterReview({
+      migrationGuides: [
+        {
+          url: "https://example.com/migrate",
+          label: "Version 5 migration notes",
+        },
+      ],
+    });
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([row, formatterReview({ name: "other" })]),
+      { terminalWidth: 60 },
+    );
+    expect(text).toMatch(
+      /^ {4}Migration guide available at https:\/\/example.com\/migrate$/m,
+    );
+    expect(text).toMatch(/^ {6}\(Version 5 migration notes\)$/m);
+  });
+
   for (const surface of ["cli", "mcp"] as const) {
     for (const batch of [false, true]) {
       for (const verbose of [false, true]) {
