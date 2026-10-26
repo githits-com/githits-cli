@@ -600,15 +600,11 @@ it("preserves ordered per-input assessments for a shared physical scan", () => {
   expect(projected.targetResolutions).not.toBe(page.targetResolutions);
   expect(page).toEqual(before);
   const text = formatGrepText(page).replace(/\s+/g, " ");
-  expect(
-    text.split("We couldn't confirm that this source matches"),
-  ).toHaveLength(2);
+  expect(text.split("match to")).toHaveLength(2);
   expect(text).toContain(
-    "Source: github:example/library@v1.2.3 (commit aaaaaaa)",
+    "Source: github:example/library@v1.2.3 (commit aaaaaaa,",
   );
-  expect(text).not.toMatch(
-    /binary|chosen using a version tag|source revision listed/,
-  );
+  expect(text).not.toMatch(/binary|version tag|listed revision for/);
 });
 
 it.each(["CURRENT", "UNSPECIFIED", "INCOMPLETE"] as const)(
@@ -637,7 +633,7 @@ it.each(["CURRENT", "UNSPECIFIED", "INCOMPLETE"] as const)(
       ],
     });
     const text = formatGrepText(page).replace(/\s+/g, " ");
-    expect(text).toContain("We haven't confirmed an exact match");
+    expect(text).toContain("version tag");
     expect(text).toContain(
       `${readiness === "UNSPECIFIED" ? "Selected source" : "Source"}: github:example/library@v1.2.3`,
     );

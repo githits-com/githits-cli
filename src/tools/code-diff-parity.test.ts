@@ -638,15 +638,15 @@ it.each(["tag_inferred", "unverified", "declared_revision_unavailable"])(
         ).content[0]?.text ?? "";
       for (const text of [cliText, mcpText]) {
         const flat = text.replace(/\s+/g, " ");
-        expect(flat).toContain(`${target}@4.18.1`);
+        expect(flat).toContain("library@4.18.1");
         expect(flat).toContain("From source: github:example/library@v4.18.1");
         expect(flat).not.toContain("To source: github:"); // Matched side carries no uncertainty notice.
         expect(flat).toContain(
           state === "tag_inferred"
-            ? "We haven't confirmed an exact match"
+            ? "version tag"
             : state === "unverified"
-              ? "We couldn't confirm that this source matches"
-              : "wasn't available",
+              ? "match to"
+              : "listed revision for",
         );
       }
       expect(codeDiff).toHaveBeenCalledTimes(4);

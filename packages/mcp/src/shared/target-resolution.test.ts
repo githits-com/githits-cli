@@ -443,14 +443,8 @@ describe("package source correspondence", () => {
   );
 
   it.each([
-    [
-      "tag_inferred",
-      "chosen using a version tag for maven:org.example:library@1.2.3. We haven't confirmed an exact match",
-    ],
-    [
-      "unverified",
-      "We couldn't confirm that this source matches maven:org.example:library@1.2.3",
-    ],
+    ["tag_inferred", "version tag, match to library@1.2.3 unconfirmed"],
+    ["unverified", "match to library@1.2.3 unconfirmed"],
   ])(
     "shows CURRENT %s despite matched resolved state, without obsolete retries",
     (state, expected) => {
@@ -460,11 +454,9 @@ describe("package source correspondence", () => {
       });
       expect(notes).toHaveLength(1);
       expect(notes[0]).toContain(expected);
+      expect(notes[0]).not.toContain("check the published package");
       expect(notes[0]).toContain(
-        "If the exact version matters, check the published package.",
-      );
-      expect(notes[0]).toContain(
-        "Source: github:example/library@v1.2.3 (commit aaaaaaa)",
+        "Source: github:example/library@v1.2.3 (commit aaaaaaa,",
       );
       expect(notes.join(" ")).not.toMatch(
         /indexing|old-tag|old-ref|old-suggestion|binary|not checked/,
@@ -485,12 +477,10 @@ describe("package source correspondence", () => {
         },
       });
       expect(notes).toHaveLength(1);
-      expect(notes[0]).toContain(`${registry.toLowerCase()}:library@1.2.3`);
-      expect(notes[0]).toContain("We selected another source revision instead");
-      expect(notes[0]).toContain("wasn't available");
-      expect(notes[0]).toContain(
-        "If the exact version matters, check the published package.",
-      );
+      expect(notes[0]).toContain("library@1.2.3");
+      expect(notes[0]).toContain("another revision selected");
+      expect(notes[0]).toContain("listed revision for");
+      expect(notes[0]).not.toContain("check the published package");
     },
   );
 
@@ -501,9 +491,9 @@ describe("package source correspondence", () => {
       served: undefined,
       resolvedRequested: { ...identity, releaseCorrespondence: "unverified" },
     });
-    const notice = notes.find((note) => note.includes("couldn't confirm"));
+    const notice = notes.find((note) => note.includes("match to"));
     expect(notice).toContain(
-      "Selected source: github:example/library@v1.2.3 (commit aaaaaaa)",
+      "Selected source: github:example/library@v1.2.3 (commit aaaaaaa,",
     );
     expect(notice).not.toContain("Source: ");
   });
@@ -519,6 +509,64 @@ describe("package source correspondence", () => {
       },
     });
     expect(notes).toEqual([]);
+  });
+
+  it.each([
+    {
+      gitRef: undefined,
+      commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      repoUrl: "https://github.com/example/library",
+      expected:
+        "Source: github:example/library@aaaaaaa (match to library@1.2.3 unconfirmed)",
+    },
+    {
+      gitRef: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      repoUrl: "https://github.com/example/library",
+      expected:
+        "Source: github:example/library@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa (match to library@1.2.3 unconfirmed)",
+    },
+    {
+      gitRef: "v1.2.3",
+      commitSha: undefined,
+      repoUrl: "https://github.com/example/library",
+      expected:
+        "Source: github:example/library@v1.2.3 (match to library@1.2.3 unconfirmed)",
+    },
+    {
+      gitRef: undefined,
+      commitSha: undefined,
+      repoUrl: undefined,
+      expected: "Source: match to library@1.2.3 unconfirmed",
+    },
+  ])("keeps inline source metadata accurate for $expected", (source) => {
+    const { expected, ...locator } = source;
+    expect(
+      buildTargetResolutionNotes({
+        ...resolution,
+        served: {
+          ...identity,
+          ...locator,
+          releaseCorrespondence: "unverified",
+        },
+      }),
+    ).toEqual([expected]);
+  });
+
+  it("keeps an npm scope in the inline package label", () => {
+    expect(
+      buildTargetResolutionNotes({
+        ...resolution,
+        served: {
+          ...identity,
+          registry: "NPM",
+          packageName: "@example/library",
+          releaseCorrespondence: "unverified",
+        },
+      }),
+    ).toEqual([
+      "Source: github:example/library@v1.2.3 (commit aaaaaaa, match to @example/library@1.2.3 unconfirmed)",
+    ]);
   });
 
   it.each(["manifest_matched", "future_state", null, undefined])(
@@ -559,6 +607,6 @@ it("names an observed repository-form served identity with its own version", () 
     availableRefs: [],
   });
   expect(notes).toEqual([
-    "We couldn't confirm that this source matches maven:com.google.guava:guava-testlib@33.4.0-jre. If the exact version matters, check the published package. Source: github:google/guava@v33.4.0 (commit 5c71d2a).",
+    "Source: github:google/guava@v33.4.0 (commit 5c71d2a, match to guava-testlib@33.4.0-jre unconfirmed)",
   ]);
 });

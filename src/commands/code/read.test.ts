@@ -66,7 +66,7 @@ describe("pkgReadAction", () => {
       );
       expect(err).toHaveBeenCalledTimes(1);
       expect(String(err.mock.calls[0]?.[0]).replace(/\s+/g, " ")).toContain(
-        "We couldn't confirm that this source matches maven:example:library@1.2.3",
+        "match to library@1.2.3 unconfirmed",
       );
     } finally {
       out.mockRestore();

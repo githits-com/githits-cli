@@ -609,10 +609,20 @@ actual search/status text, and compact CLI read stderr consume the same policy:
 | `declared_revision_unavailable` | Explains that the listed source revision was unavailable and GitHits selected another source revision instead. Applies across ecosystems. |
 | Ordinary null/omitted or unknown future state | No invented notice semantics. |
 
-Each uncertainty notice offers the same conditional action: "If the exact version
-matters, check the published package." This preserves usefulness for general code
-reading without implying an exact release match or inventing a verification command.
-Text uses plain language; JSON keeps the backend assessment and identity fields.
+Uncertainty is inline source metadata, for example:
+
+```text
+Source: github:google/guava@v33.4.0 (commit 5c71d2a, match to guava-testlib@33.4.0-jre unconfirmed)
+```
+
+The source locator, known commit and assessment share one line, wrapped to the
+caller's width. There is no separate warning paragraph or generic verification
+instruction. Maven text uses the short artifact name; other ecosystems retain
+the package name, including npm scopes. JSON keeps the full canonical identity
+and backend assessment. A tag-based choice adds `version tag`; an unavailable
+listed revision says that another revision was selected, without implying which
+revision shipped. With no known source locator, the role label still carries
+the assessment. A SHA already used as the source ref is not repeated as a commit.
 
 The state and existing ref/SHA locator come from served when present, otherwise
 from resolved-requested. The exact locator is labeled `Source:` when used, or

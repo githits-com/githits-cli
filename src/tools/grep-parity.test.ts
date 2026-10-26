@@ -466,9 +466,7 @@ it.each(["ready", "pending"] as const)(
       const mcpText = (await tool.handler(args, {})).content[0]?.text ?? "";
       for (const text of [cliText, mcpText]) {
         const flat = text.replace(/\s+/g, " ");
-        expect(flat).toContain(
-          `We couldn't confirm that this source matches ${target}`,
-        );
+        expect(flat).toContain(`match to library@1.2.3 unconfirmed`);
         expect(flat).toContain(
           `${mode === "ready" ? "Source" : "Selected source"}: github:example/library@v1.2.3`,
         );

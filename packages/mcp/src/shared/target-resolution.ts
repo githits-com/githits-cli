@@ -350,20 +350,23 @@ export function buildSourceCorrespondenceNote(
     identity.registry && identity.packageName
       ? identity
       : context.packageIdentity;
-  const target =
-    packageIdentity?.registry && packageIdentity.packageName
-      ? `${packageIdentity.registry.toLowerCase()}:${packageIdentity.packageName}${identity.version ? `@${identity.version}` : ""}`
-      : "the requested package";
+  const packageName =
+    packageIdentity?.registry?.toLowerCase() === "maven"
+      ? packageIdentity.packageName?.split(":").at(-1)
+      : packageIdentity?.packageName;
+  const target = packageName
+    ? `${packageName}${identity.version ? `@${identity.version}` : ""}`
+    : "the requested package";
   let notice: string;
   switch (identity.releaseCorrespondence) {
     case "tag_inferred":
-      notice = `This source was chosen using a version tag for ${target}. We haven't confirmed an exact match`;
+      notice = `version tag, match to ${target} unconfirmed`;
       break;
     case "unverified":
-      notice = `We couldn't confirm that this source matches ${target}`;
+      notice = `match to ${target} unconfirmed`;
       break;
     case "declared_revision_unavailable":
-      notice = `The source revision listed by ${target} wasn't available. We selected another source revision instead`;
+      notice = `listed revision for ${target} unavailable; another revision selected`;
       break;
     default:
       return undefined;
@@ -371,7 +374,7 @@ export function buildSourceCorrespondenceNote(
   const locator = formatTargetResolutionIdentity({
     repoUrl: identity.repoUrl ?? undefined,
     gitRef: identity.gitRef ?? undefined,
-    commitSha: identity.commitSha ?? undefined,
+    commitSha: identity.gitRef ? undefined : (identity.commitSha ?? undefined),
   });
   const sourceLabel =
     context.sourceRole === "from"
@@ -381,7 +384,17 @@ export function buildSourceCorrespondenceNote(
         : context.sourceRole === "served"
           ? "Source"
           : "Selected source";
+  const details = [
+    ...(identity.gitRef &&
+    identity.commitSha &&
+    identity.commitSha !== identity.gitRef
+      ? [`commit ${shortSha(identity.commitSha)}`]
+      : []),
+    notice,
+  ];
   return sanitizeTerminalText(
-    `${notice}. If the exact version matters, check the published package.${locator ? ` ${sourceLabel}: ${locator}.` : ""}`,
+    locator
+      ? `${sourceLabel}: ${locator} (${details.join(", ")})`
+      : `${sourceLabel}: ${notice}`,
   );
 }
