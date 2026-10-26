@@ -1236,7 +1236,7 @@ function riskCoverageText(changelog: UpgradeChangelog): string {
 function formatMigrationGuides(
   review: UpgradeReview,
   options: FormatPackageUpgradeReviewTerminalOptions,
-  prefix = "  ",
+  prefix: string = "  ",
 ): string[] {
   const lines: string[] = [];
   for (const guide of review.migrationGuides ?? []) {
