@@ -80,7 +80,7 @@ schema accepts the returned field; the service normalizer and lean projection
 retain known timestamp strings and omit null, matching sibling identity fields.
 That selection also supplies existing `read`, code-context and legacy CLI
 `code files` / `code grep` responses, so their structured provenance gains known
-dates without new calls. Public `list` now selects minimal dated provenance for normal text and full provenance for JSON; public `grep` still has no commit-date or resolved-requested contract. No mode-specific fetch
+dates without new calls. Public `list` now selects minimal dated provenance for normal text and full provenance for JSON; unified `grep` now retains canonical input resolutions, with committer dates selected in detailed JSON mode. No mode-specific fetch
 is needed: both compact text and JSON consume these two timestamps.
 
 The root cause of missing dates was omission at every existing shared boundary:
@@ -726,3 +726,29 @@ artifacts are under `.agent-eval/package-source-correspondence/`: Codex Luna hig
 harness base-rate cost estimate $0.00423. Those are observed trace metrics, not a
 quality grade, model-price guarantee or performance comparison. It did not
 exercise the undeployed grep/diff fields.
+
+
+### Production release qualification (2026-10-26)
+
+Release preparation for CLI/MCP 0.36.0 verified the merged client at `6812ad2`
+against production using normal authenticated local CLI calls, with
+`GITHITS_ENV=prod` and no inherited endpoint overrides (09:56 UTC):
+
+- `grep -F Base64 maven:commons-codec:commons-codec@1.23.0 --limit 1 --json`
+  returned one canonical `targetResolutions` record, with current served and
+  resolved-requested `manifest_matched` assessments at
+  `1147e788058ee67509616903cbe2ddd149e02a04`.
+- `code diff maven:commons-codec:commons-codec 1.23.0..1.23.0 --json`
+  returned `manifest_matched` on both independent sides at that same commit.
+  This equal-version comparison verifies field acceptance and projection;
+  it does not qualify a nonempty patch.
+- Package `list --limit 1 --json` and `read PROPOSAL.html --lines 60-60 --json`
+  retained the same current Commons Codec source assessments.
+- Guava-testlib `33.4.0-jre` search for `collection test generators` completed
+  with `unverified` on resolved-requested and served identities at
+  `5c71d2a15435399fa62508d807d5cc83506f7496`. Text retained the inline
+  `match to guava-testlib@33.4.0-jre unconfirmed` notice.
+
+These successful production operations satisfy the additive-field deployment
+prerequisite above. They do not authorize package publication or establish
+hosted MCP adoption/deployment, agent comprehension, or binary equivalence.

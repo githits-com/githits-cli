@@ -7,13 +7,14 @@ are historical records and change only to correct blatant factual errors.
 
 ## [githits 0.36.0] - 2026-10-26
 
-Minor release adding compact package-path advisories to unified grep, with
-fixes for setup, path recovery, preparation errors and progress. Existing
-commands and configuration keep working. Grep JSON now includes
+Minor release adding compact package-path advisories to unified grep and
+package source-match disclosures, with fixes for setup, path recovery,
+preparation errors and progress. Existing commands and configuration keep working. Grep JSON now includes
 `pathWarnings` as an array of compact warning strings.
 
 ### Added
 
+- **Disclose package source correspondence** - Preserve backend source assessments in CLI/MCP JSON and show uncertain package-version matches inline beside the exact source revision. Shared notices remain independent of index freshness, including unified grep, both diff sides, and current/completed waited searches. The additive backend fields were verified in production during release preparation; hosted MCP adoption also requires the published package and remote-server deployment.
 - **Package-path advisories** - Unified grep shows one compact warning per distinct package-path correction in CLI/MCP text and JSON, preserving results, failures and pending targets. Requires a backend exposing `GrepResult.pathWarnings`; injected grep providers must supply the warning array.
 
 ### Changed
@@ -47,6 +48,7 @@ adopted and deployed by `remote-mcp`.
 
 ### Added
 
+- **Disclose package source correspondence** - Preserve backend source assessments in CLI/MCP JSON and show uncertain package-version matches inline beside the exact source revision. Shared notices remain independent of index freshness, including unified grep, both diff sides, and current/completed waited searches. The additive backend fields were verified in production during release preparation; hosted MCP adoption also requires the published package and remote-server deployment.
 - **Package-path advisories** - Unified grep shows one compact warning per distinct package-path correction in CLI/MCP text and JSON, preserving results, failures and pending targets. Requires a backend exposing `GrepResult.pathWarnings`; injected grep providers must supply the warning array.
 
 ### Changed
