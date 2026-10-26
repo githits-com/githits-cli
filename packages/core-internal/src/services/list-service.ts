@@ -125,6 +125,8 @@ export interface ListTargetIdentity {
   gitRef: string | null;
   commitSha?: string | null;
   committedAt?: string | null;
+  /** Backend package/source assessment, independent of index freshness. */
+  releaseCorrespondence?: string | null;
 }
 
 export interface ListTargetResolution {
@@ -306,6 +308,7 @@ const targetIdentitySchema = z.object({
   gitRef: nullableString,
   commitSha: optionalNullableString,
   committedAt: optionalNullableString,
+  releaseCorrespondence: optionalNullableString,
 });
 
 const targetResolutionSchema = z.object({
@@ -447,6 +450,7 @@ query List(
       requested {
         kind
         gitRef
+        releaseCorrespondence
         registry
         packageName
         version
@@ -456,22 +460,24 @@ query List(
       resolvedRequested {
         repoUrl
         gitRef
+        releaseCorrespondence
         commitSha
         committedAt
         kind @include(if: $includeDetailedFields)
-        registry @include(if: $includeDetailedFields)
-        packageName @include(if: $includeDetailedFields)
-        version @include(if: $includeDetailedFields)
+        registry
+        packageName
+        version
       }
       served {
         repoUrl
         gitRef
+        releaseCorrespondence
         commitSha
         committedAt
         kind @include(if: $includeDetailedFields)
-        registry @include(if: $includeDetailedFields)
-        packageName @include(if: $includeDetailedFields)
-        version @include(if: $includeDetailedFields)
+        registry
+        packageName
+        version
       }
       freshness
       freshnessReason

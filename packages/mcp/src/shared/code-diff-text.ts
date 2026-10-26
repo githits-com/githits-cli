@@ -5,12 +5,14 @@ import type {
   LeanCodeDiffPatchFile,
   LeanCodeDiffStatFile,
 } from "./code-diff-response.js";
+import { buildCodeDiffCorrespondenceNotes } from "./code-diff-response.js";
 import { colorize, warning } from "./colors.js";
-import { sanitizeTerminalText } from "./terminal-text.js";
+import { sanitizeTerminalText, wrapTerminalProse } from "./terminal-text.js";
 import { padTerminalEnd, terminalWidth } from "./terminal-width.js";
 
 export interface FormatCodeDiffTerminalOptions {
   useColors: boolean;
+  width?: number;
   verbose?: boolean;
   explicitMaxFiles?: boolean;
   explicitMaxPatchBytes?: boolean;
@@ -255,6 +257,8 @@ function buildDiagnostics(
 ): string[] {
   const lines: string[] = [];
   if (options.verbose) appendVerboseContext(lines, envelope);
+  for (const note of buildCodeDiffCorrespondenceNotes(envelope))
+    lines.push(...wrapTerminalProse(note, options.width));
 
   if (envelope.scope.status === "unknown") {
     let message =

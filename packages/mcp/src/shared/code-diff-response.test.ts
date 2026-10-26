@@ -461,3 +461,25 @@ describe("buildCodeDiffSuccessPayload", () => {
     expect(payload.files).toEqual([]);
   });
 });
+
+it.each([
+  "manifest_matched",
+  "tag_inferred",
+  "unverified",
+  "declared_revision_unavailable",
+  "future_state",
+  null,
+  undefined,
+])("preserves nullable extensible per-side correspondence %s", (state) => {
+  const data = makeResult();
+  data.fromResolution.releaseCorrespondence = state;
+  data.toResolution.releaseCorrespondence = "manifest_matched";
+  const projected = buildCodeDiffSuccessPayload(data, {
+    target: packageTarget,
+    view: "name-status",
+  });
+  expect(projected.from.releaseCorrespondence).toBe(state);
+  expect(projected.to.releaseCorrespondence).toBe("manifest_matched");
+  if (state === undefined)
+    expect(projected.from).not.toHaveProperty("releaseCorrespondence");
+});

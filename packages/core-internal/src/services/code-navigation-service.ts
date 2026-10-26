@@ -157,6 +157,8 @@ export interface TargetResolutionIdentity {
   commitSha?: string;
   /** Verified UTC committer time for this exact repository commit, not freshness. */
   committedAt?: string;
+  /** Backend package/source assessment, independent of index freshness. */
+  releaseCorrespondence?: string | null;
   site?: string;
 }
 
@@ -743,6 +745,8 @@ export interface CodeDiffRefResolution {
   commitSha: string;
   refKind: CodeDiffRefKind;
   versionSource?: CodeDiffVersionSource;
+  /** Backend assessment for this exact comparison side, independent of execution. */
+  releaseCorrespondence?: string | null;
 }
 
 export interface RawCodeDiffSummary {
@@ -1222,6 +1226,7 @@ targetResolution {
     repoUrl
     gitRef
     commitSha
+    releaseCorrespondence
   }
   resolvedRequested {
     kind
@@ -1231,6 +1236,7 @@ targetResolution {
     repoUrl
     gitRef
     commitSha
+    releaseCorrespondence
     committedAt
   }
   served {
@@ -1241,6 +1247,7 @@ targetResolution {
     repoUrl
     gitRef
     commitSha
+    releaseCorrespondence
     committedAt
   }
   freshness
@@ -1687,6 +1694,7 @@ const targetResolutionIdentitySchema = z
     gitRef: z.string().nullable().optional(),
     commitSha: z.string().nullable().optional(),
     committedAt: z.string().nullable().optional(),
+    releaseCorrespondence: z.string().nullable().optional(),
     site: z.string().nullable().optional(),
   })
   .nullable()
@@ -1706,6 +1714,13 @@ const targetResolutionSchema = z
   })
   .nullable()
   .optional();
+
+/** Required identity envelope shared by transport-neutral service clients. */
+export const requiredTargetResolutionSchema: z.ZodType<TargetResolution> =
+  targetResolutionSchema
+    .unwrap()
+    .unwrap()
+    .transform((value) => normaliseTargetResolution(value));
 
 const unifiedSearchSourceSchema = z.enum(["AUTO", "DOCS", "CODE", "SYMBOL"]);
 
@@ -2065,6 +2080,7 @@ const codeDiffPackageInfoSchema = z.object({
 });
 
 const codeDiffRefResolutionSchema = z.object({
+  releaseCorrespondence: z.string().nullable().optional(),
   requested: z.string(),
   resolvedVersion: z.string().nullable().optional(),
   ref: z.string(),
@@ -2170,6 +2186,7 @@ const CODE_DIFF_COMMON_SELECTION = `    package {
       commitSha
       refKind
       versionSource
+      releaseCorrespondence
     }
     toResolution {
       requested
@@ -2178,6 +2195,7 @@ const CODE_DIFF_COMMON_SELECTION = `    package {
       commitSha
       refKind
       versionSource
+      releaseCorrespondence
     }
     raw {
       summary {
@@ -3861,6 +3879,9 @@ function normaliseCodeDiffResolution(
   value: z.infer<typeof codeDiffRefResolutionSchema>,
 ): CodeDiffRefResolution {
   return {
+    ...(value.releaseCorrespondence !== undefined
+      ? { releaseCorrespondence: value.releaseCorrespondence }
+      : {}),
     requested: value.requested,
     resolvedVersion: value.resolvedVersion ?? undefined,
     ref: value.ref,
@@ -4486,6 +4507,12 @@ function normaliseAvailableVersions(
 }
 
 function normaliseTargetResolution(
+  resolution: NonNullable<z.infer<typeof targetResolutionSchema>>,
+): TargetResolution;
+function normaliseTargetResolution(
+  resolution: z.infer<typeof targetResolutionSchema>,
+): TargetResolution | undefined;
+function normaliseTargetResolution(
   resolution: z.infer<typeof targetResolutionSchema>,
 ): TargetResolution | undefined {
   if (!resolution) return undefined;
@@ -4552,6 +4579,8 @@ function normaliseTargetResolutionIdentity(
   if (identity.gitRef) out.gitRef = identity.gitRef;
   if (identity.commitSha) out.commitSha = identity.commitSha;
   if (identity.committedAt) out.committedAt = identity.committedAt;
+  if (identity.releaseCorrespondence !== undefined)
+    out.releaseCorrespondence = identity.releaseCorrespondence;
   if (identity.site) out.site = identity.site;
   return Object.keys(out).length > 0 ? out : undefined;
 }

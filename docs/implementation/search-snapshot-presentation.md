@@ -587,3 +587,142 @@ source/built CLI/MCP smoke checks pass after the production correction.
 Internal review and fresh Claude Opus 5.5 review, including its final
 fresh-context check, are clean for implementation commit 384e9c2. No major
 deferred item or new infrastructure was introduced.
+
+## Package source correspondence
+
+The backend owns correspondence assessment; index freshness does not establish
+that repository source corresponds to a published package version. Core service
+clients select the nullable extensible `releaseCorrespondence` string and preserve
+it through validation, normalization and shared JSON projection. Requested,
+resolved-requested and served identities retain their independent assessments.
+A matched resolved identity never supplies confidence for a different served
+source. Unknown future strings remain available to machine consumers.
+
+`target-resolution.ts` owns shared correspondence notes. Source-provenance details,
+actual search/status text, and compact CLI read stderr consume the same policy:
+
+| Backend state | Shared disclosure |
+| --- | --- |
+| `manifest_matched` | No correspondence warning; does not claim published binary equivalence. |
+| `tag_inferred` | Explains that source was chosen using a version tag and an exact match is unconfirmed. |
+| `unverified` | Explains that a match between the source and package/version could not be confirmed. |
+| `declared_revision_unavailable` | Explains that the listed source revision was unavailable and GitHits selected another source revision instead. Applies across ecosystems. |
+| Ordinary null/omitted or unknown future state | No invented notice semantics. |
+
+Uncertainty is inline source metadata, for example:
+
+```text
+Source: github:google/guava@v33.4.0 (commit 5c71d2a, match to guava-testlib@33.4.0-jre unconfirmed)
+```
+
+The source locator, known commit and assessment share one line, wrapped to the
+caller's width. There is no separate warning paragraph or generic verification
+instruction. Maven text uses the short artifact name; other ecosystems retain
+the package name, including npm scopes. JSON keeps the full canonical identity
+and backend assessment. A tag-based choice adds `version tag`; an unavailable
+listed revision says that another revision was selected, without implying which
+revision shipped. With no known source locator, the role label still carries
+the assessment. A SHA already used as the source ref is not repeated as a commit.
+
+The state and existing ref/SHA locator come from served when present, otherwise
+from resolved-requested. The exact locator is labeled `Source:` when used, or
+`Selected source:` for a pending/unvisited choice. Registry/name come
+from the first backend identity among served, resolved-requested and requested
+that carries both. The version belongs to the identity owning the assessment;
+never borrow a different resolved version or infer confidence from labels. Missing
+version omits the suffix; missing package context uses generic requested-package
+wording and retains known source coordinates. In particular, Guava served source
+can be a repository identity with null registry/name and a known package version.
+
+Correspondence survives CURRENT and completed-search freshness suppression.
+Obsolete indexing/retry notes stay suppressed. Search text deduplicates identical
+notices across source lanes. Compact search JSON retains all identities when any
+has a non-null correspondence value, including `manifest_matched`; ordinary null
+values do not defeat existing healthy-contributor omission. When an identity is
+emitted, its explicit scalar null and omission remain distinct.
+
+Unified list uses its own nullable identity projection. Its minimal provenance
+selection includes registry/name/version and correspondence for accurate compact
+text. Detailed-only fields remain conditional. Explicit silent list remains
+path-only. Compact CLI read stdout remains byte-exact source content; all three
+read boundaries (unified file, unified selector, legacy code read) write shared,
+wrapped correspondence notices to stderr. Verbose CLI and MCP reads render notes
+with their existing source details; JSON emits structured provenance only.
+
+Read, list, search/status and legacy navigation/files/grep use the same identity
+projection and notice policy. Unified grep additionally preserves canonical
+`targetResolutions` records per original known input, independent of physical
+scope rows and omissions. Source correspondence is not proof that the current
+page visited a scope: unvisited prepared and pending resolved-only identities
+use `Selected source:`, while searched repository identities use `Source:`.
+CURRENT/STALE readiness or a validated repository hit linked through
+input indices supplies page-execution evidence; a hosted-site outcome does not.
+Producer failure clears serving rather than letting clients reconstruct it.
+
+CodeDiff preserves `releaseCorrespondence` independently on `from` and `to`.
+Shared composition passes each side's exact version/ref/SHA to the same notice
+policy, labeled `From source:` and `To source:`. CLI notices go to stderr in
+every view while patch/path stdout remains unchanged; MCP text uses the same
+wrapped notices.
+No freshness lifecycle is manufactured for a raw diff. Ordinary non-Maven/raw
+null, `manifest_matched`, and unknown future states add no invented warning.
+See [unified grep](unified-grep.md) and [CodeDiff](code-diff.md) for their contracts.
+
+Before a coordinated release, verify production accepts the additive identity
+field and the reviewed grep/diff contracts through normal authenticated operations.
+Dev evidence alone is insufficient. Existing code-navigation compatibility queries
+remain unchanged and are not a rollout strategy; strict unified read/list have no
+scalar fallback. Hosted clients additionally need the approved `@githits/mcp`
+publication, `remote-mcp` dependency adoption and deployment.
+
+
+Shared-path verification used 715 focused tests plus typecheck, build, lint and
+format checks. CLI unauthenticated and MCP registration smokes passed. Dev CLI
+Codec and Guava search JSON retained the known CURRENT/matched and
+CURRENT/unverified SHAs respectively. Targeted local MCP verified Codec
+search/list text and JSON, exact emitted repository read with ordinary null,
+and Guava search JSON plus the wrapped unverified notice. Guava list returned
+`SOURCE_INVENTORY_SCOPE_UNAVAILABLE`; source inventory scope belongs to the
+separate backend Maven work. This is a live list-coverage limitation, not proof
+that the client lost the assessment. Mocked unverified list parity is covered.
+Full local validation passed: 6,740 tests / 27,381 assertions across 259 files,
+plus build and typecheck. The targeted Codex descriptor/intent probe used five
+MCP calls (quick start, two searches, two reads), retained Guava uncertainty and
+avoided binary-equivalence claims, with medium final confidence and no isolation
+violations. This is a neutral trace, not a graded quality result. It did not call
+grep or diff. Live success of the new fields remains unverified until backend
+deployment; final implementation review and CI are recorded at PR delivery.
+
+Client implementation review completed on 2026-10-25: full internal preflight
+clean, Claude Opus5.5 R2 clean including the single fresh-context final check.
+The three accepted low R1 findings were closed: requested version became
+JSON-only in compact grep selection, no-notice adapter assertions cover every
+notice class, and the additive public API fragment records minor impact for
+both packages. The post-fix 95 focused tests, build and typecheck passed; the
+prior full 6,740-test run and package/smoke checks remain applicable. No client
+implementation finding is deferred. The temporary local plan was retired after
+clean review; the backend's larger governing plan remains in its own repository.
+
+The first PR build exposed a Bun declaration-generation difference: CI's Bun
+1.4.4 rejected the inferred exported raw schema, while local Bun 1.3.14 built it.
+The navigation client now exports an explicitly typed required, normalized
+schema for grep; its optional raw schema and normalizer remain private. The same
+strict parsing behavior is retained. The MCP package build passed under Bun
+1.4.4, and 137 focused navigation/grep tests plus typecheck passed after the fix.
+
+Backend prerequisite [PR #3648](https://github.com/githits-com/pkgseer-backend/pull/3648)
+was reported fully green and externally reviewed at `e2350f691`, with the runtime
+contract unchanged from `ab1ca8fb6` and additive schema hash `21c66e6fb268`. At
+client review completion it was **not merged or deployed**. This is not a
+production-compatibility receipt: publication remains held for actual production
+field deployment and normal authenticated verification. Green client/backend CI
+or a merge approval does not establish deployment. Hosted MCP needs its separate
+approved package adoption and deployment.
+
+The neutral agent trace is reproducible with the existing agentic-eval workflow
+and `eval/agentic/probes/package-source-correspondence.md` against dev. Its local
+artifacts are under `.agent-eval/package-source-correspondence/`: Codex Luna high,
+28,996 uncached and 85,888 cached input tokens, 942 output tokens, 21.024 seconds,
+harness base-rate cost estimate $0.00423. Those are observed trace metrics, not a
+quality grade, model-price guarantee or performance comparison. It did not
+exercise the undeployed grep/diff fields.

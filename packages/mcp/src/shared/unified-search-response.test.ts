@@ -3705,3 +3705,38 @@ describe("internal action/public JSON boundary", () => {
     },
   );
 });
+
+it("appends correspondence to terminal lifecycle warnings without restoring retry hints", () => {
+  const warnings = buildSourceStatusWarnings(
+    [
+      {
+        source: "code",
+        targetLabel: "maven:example:library@1.2.3",
+        indexingStatus: "UNRESOLVABLE",
+        note: "Requested source unavailable",
+        targetResolution: {
+          requested: {
+            registry: "MAVEN",
+            packageName: "example:library",
+            version: "1.2.3",
+          },
+          resolvedRequested: {
+            version: "1.2.3",
+            gitRef: "v1.2.3",
+            releaseCorrespondence: "unverified",
+          },
+          freshness: "indexing",
+          availableVersions: [],
+          availableRefs: [{ ref: "old-ref" }],
+        },
+      },
+    ],
+    { completed: true },
+  );
+  expect(warnings).toHaveLength(1);
+  expect(warnings[0]).toContain("Requested source unavailable");
+  expect(warnings[0]).toContain(
+    "Selected source: v1.2.3 (match to library@1.2.3 unconfirmed)",
+  );
+  expect(warnings[0]).not.toContain("old-ref");
+});

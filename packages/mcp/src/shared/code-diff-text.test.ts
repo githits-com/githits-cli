@@ -744,3 +744,50 @@ function stripAnsi(value: string): string {
 
 const ESC = String.fromCharCode(0x1b);
 const ANSI_SGR_PATTERN = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
+
+it.each(["name-only", "patch"] as const)(
+  "shares independent side notices without contaminating %s stdout",
+  (view) => {
+    const page = envelope({
+      view,
+      target: {
+        kind: "package",
+        registry: "maven",
+        name: "example:library",
+        repoUrl: "https://github.com/example/library",
+      },
+      files: [
+        {
+          path: "a.ts",
+          pathEncoding: "utf8",
+          status: "modified",
+          modeChanged: false,
+          typeChanged: false,
+          additions: 1,
+          deletions: 1,
+          contentStatus: "patch",
+          patch: "diff --git a/a.ts b/a.ts\n-old\n+new\n",
+          contentSafety: { filtered: false, modifications: [] },
+        },
+      ],
+    });
+    const baseline = formatCodeDiffTerminal(page, options).stdout;
+    page.from.releaseCorrespondence = "tag_inferred";
+    page.to.releaseCorrespondence = "unverified";
+    const compact = formatCodeDiffTerminal(page, { ...options, width: 80 });
+    const verbose = formatCodeDiffTerminal(page, {
+      ...options,
+      verbose: true,
+      width: 80,
+    });
+    expect(compact.stdout).toBe(baseline);
+    expect(verbose.stdout).toBe(baseline);
+    for (const text of [compact.stderr, verbose.stderr]) {
+      const flat = text?.replace(/\s+/g, " ");
+      expect(flat).toContain("version tag, match to library@1.0.0 unconfirmed");
+      expect(flat).toContain("From source: github:example/library@v1.0.0");
+      expect(flat).toContain("match to library@2.0.0 unconfirmed");
+      expect(flat).toContain("To source: github:example/library@v2.0.0");
+    }
+  },
+);

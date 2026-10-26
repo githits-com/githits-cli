@@ -5,6 +5,7 @@ import {
 } from "@githits/core-internal";
 import {
   buildReadFileSuccessPayload,
+  buildSourceCorrespondenceNotes,
   DEFAULT_WAIT_TIMEOUT_MS,
   formatReadFileTerminal,
   formatReadResult,
@@ -20,6 +21,7 @@ import {
   shouldUseColors,
   validateReadRange,
   withIndexingRetryAction,
+  wrapTerminalProse,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
@@ -182,7 +184,14 @@ export async function readAction(
           requestedFilePath,
         });
         if (options.json) console.log(JSON.stringify(payload));
-        else
+        else {
+          if (!options.verbose)
+            for (const note of buildSourceCorrespondenceNotes(
+              payload.targetResolution,
+            ))
+              console.error(
+                wrapTerminalProse(note, process.stderr.columns).join("\n"),
+              );
           process.stdout.write(
             formatReadFileTerminal(payload, {
               width: process.stdout.columns,
@@ -190,6 +199,7 @@ export async function readAction(
               verbose: options.verbose,
             }),
           );
+        }
         return;
       }
       const rendered = formatReadResult(
@@ -206,7 +216,16 @@ export async function readAction(
         options.json ? "cli-json" : "cli-text",
       );
       if (options.json) console.log(rendered);
-      else process.stdout.write(rendered);
+      else {
+        if (!options.verbose && response.source === "code")
+          for (const note of buildSourceCorrespondenceNotes(
+            response.result.targetResolution,
+          ))
+            console.error(
+              wrapTerminalProse(note, process.stderr.columns).join("\n"),
+            );
+        process.stdout.write(rendered);
+      }
       return;
     } catch (error) {
       if (exactFile) {

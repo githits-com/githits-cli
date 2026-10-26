@@ -183,8 +183,8 @@ row range and copy the target/path or page URL from its header. CLI uses
 `--lines` and `--` for both structures; MCP templates use `target`, `path`,
 `start_line` and `end_line`. There is no per-hit executable command or numeric
 source alias. JSON retains original display paths and every
-backend action with its exact bounds. Unversioned package grep does not expose
-the resolved package version, so text uses the supplied pinned repository read
+backend action with its exact bounds. Unversioned package grep can expose the resolved package version in canonical
+input provenance; text continues to use the supplied pinned repository read
 target rather than inventing a version. The stable MCP catalog registers
 `grep`; its handler and the top-level CLI use the same request builder, result
 projection, and formatter.
@@ -490,3 +490,42 @@ stops before grep at an existing recovery fixture; see the
 [backlog entry](../plans/open-backlog.md#authenticated-smoke-recovery-fixture--2026-10-24).
 The affected grep qualification above passed independently; no failure assertion
 was weakened to bypass that broader-suite gap.
+
+
+## Package source correspondence
+
+`GrepResult.targetResolutions` is the canonical source-provenance list on a
+successful wire response: one `{inputIndex, target, targetResolution}` record per
+known original repository/package input, ordered by input index. `target` keeps
+the original label. Physical `targets[].requestedInputIndices` and
+`unavailableTargets[].inputIndex` link outcomes; neither carries another copy of
+resolution. Native scope deduplication never merges input-local assessments.
+Site-only and unresolved-before-result inputs have no record. Pending-only
+success retains resolved-only/indexing records even without a physical scope.
+
+Core reuses the existing target-resolution schema and normalizer. The primary
+query selects notice identity fields in all modes; JSON-only request metadata,
+including requested version, committer dates and lifecycle/recovery fields use
+the existing detailed directive.
+JSON retains the independent requested, resolved-requested and served state,
+including null/unknown scalars, without confidence inference. Injected providers
+may omit the new DTO property; the concrete wire parser still requires the root
+array and every non-null record/resolution. No schema probing or extra query.
+
+Shared text consumes one record at a time, keeping uncertainty independent of
+readiness/traversal. Prepared provenance on an unvisited `UNSPECIFIED` scope is
+selected source, not a claim that this page searched it. CURRENT/STALE repository
+readiness, including searched zero hits, or a validated repository hit supplies
+page-execution evidence through input links. Hosted readiness alone does not.
+Notes use `Selected source:` for prepared/unvisited or resolved-only sources,
+and `Source:` with repository execution evidence. Backend no-hit failure
+already clears serving; clients never reconstruct it from labels or hit absence.
+
+The shared [correspondence policy](search-snapshot-presentation.md#package-source-correspondence)
+handles Maven and cross-ecosystem recovery. Existing source rows, omissions,
+reason/retry classification, cursor behavior and path advisories remain separate.
+The backend's pre-execution fallback message now says `Selected indexed version`
+rather than `Serving indexed version`, with the same version/ref; clients neither
+parse nor rewrite that prose. Root provenance does not authorize broader scope.
+These additive fields must be deployed and verified, including production,
+before the coordinated public CLI/MCP release selects them.

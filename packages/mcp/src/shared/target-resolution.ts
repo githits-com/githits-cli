@@ -1,5 +1,10 @@
 import type { TargetResolution } from "@githits/core-internal";
 import { formatRepositoryTarget } from "./repository-target.js";
+import type {
+  SourceProvenanceIdentity,
+  SourceProvenanceResolution,
+} from "./source-provenance-text.js";
+import { sanitizeTerminalText } from "./terminal-text.js";
 
 export interface LeanTargetResolutionIdentity {
   kind?: string;
@@ -11,6 +16,8 @@ export interface LeanTargetResolutionIdentity {
   commitSha?: string;
   /** Verified UTC committer time; absent when unknown. */
   committedAt?: string;
+  /** Backend package/source assessment, independent of index freshness. */
+  releaseCorrespondence?: string | null;
   site?: string;
 }
 
@@ -118,13 +125,8 @@ export function buildTargetResolutionNotes(
       break;
     }
     case "current": {
-      // `current` is a healthy state. The backend may describe requested,
-      // resolved, and served identities at different abstraction layers
-      // (for example npm:express -> GitHub tag@sha), but the freshness value
-      // is the authoritative user-facing signal: no action is needed. This
-      // also suppresses retry candidates retained from an earlier indexing
-      // snapshot, including after a waited search completes.
-      return lines;
+      // Keep obsolete indexing/retry hints suppressed, including waited completion.
+      return buildSourceCorrespondenceNotes(resolution);
     }
     default: {
       if (resolution.freshness || identitiesDiffer(requested, fresh, served)) {
@@ -145,7 +147,7 @@ export function buildTargetResolutionNotes(
   if (candidates) lines.push(candidates);
   const suggestions = buildSuggestedRefsLine(resolution);
   if (suggestions) lines.push(suggestions);
-  return lines;
+  return [...lines, ...buildSourceCorrespondenceNotes(resolution)];
 }
 
 function formatFreshnessReason(
@@ -235,6 +237,8 @@ function projectIdentity(
   if (identity.gitRef) out.gitRef = identity.gitRef;
   if (identity.commitSha) out.commitSha = identity.commitSha;
   if (identity.committedAt) out.committedAt = identity.committedAt;
+  if (identity.releaseCorrespondence !== undefined)
+    out.releaseCorrespondence = identity.releaseCorrespondence;
   if (identity.site) out.site = identity.site;
   return out;
 }
@@ -311,4 +315,86 @@ function appendCommitIdentity(
 
 function shortSha(value: string): string {
   return /^[0-9a-f]{12,}$/i.test(value) ? value.slice(0, 7) : value;
+}
+
+/** Disclose the served assessment, or explicitly resolved source while pending. */
+export function buildSourceCorrespondenceNotes(
+  resolution: SourceProvenanceResolution | null | undefined,
+  servedRole: "served" | "selected" = "served",
+): string[] {
+  const identity = resolution?.served ?? resolution?.resolvedRequested;
+  if (!identity) return [];
+  const packageIdentity = [
+    resolution?.served,
+    resolution?.resolvedRequested,
+    resolution?.requested,
+  ].find((candidate) => candidate?.registry && candidate.packageName);
+  const note = buildSourceCorrespondenceNote(identity, {
+    packageIdentity,
+    sourceRole: resolution?.served ? servedRole : "resolved",
+  });
+  return note ? [note] : [];
+}
+
+export interface SourceCorrespondenceContext {
+  packageIdentity?: SourceProvenanceIdentity | null;
+  sourceRole: "served" | "resolved" | "selected" | "from" | "to";
+}
+
+/** Render one assessed identity without inventing a source-selection lifecycle. */
+export function buildSourceCorrespondenceNote(
+  identity: SourceProvenanceIdentity,
+  context: SourceCorrespondenceContext,
+): string | undefined {
+  const packageIdentity =
+    identity.registry && identity.packageName
+      ? identity
+      : context.packageIdentity;
+  const packageName =
+    packageIdentity?.registry?.toLowerCase() === "maven"
+      ? packageIdentity.packageName?.split(":").at(-1)
+      : packageIdentity?.packageName;
+  const target = packageName
+    ? `${packageName}${identity.version ? `@${identity.version}` : ""}`
+    : "the requested package";
+  let notice: string;
+  switch (identity.releaseCorrespondence) {
+    case "tag_inferred":
+      notice = `version tag, match to ${target} unconfirmed`;
+      break;
+    case "unverified":
+      notice = `match to ${target} unconfirmed`;
+      break;
+    case "declared_revision_unavailable":
+      notice = `listed revision for ${target} unavailable; another revision selected`;
+      break;
+    default:
+      return undefined;
+  }
+  const locator = formatTargetResolutionIdentity({
+    repoUrl: identity.repoUrl ?? undefined,
+    gitRef: identity.gitRef ?? undefined,
+    commitSha: identity.gitRef ? undefined : (identity.commitSha ?? undefined),
+  });
+  const sourceLabel =
+    context.sourceRole === "from"
+      ? "From source"
+      : context.sourceRole === "to"
+        ? "To source"
+        : context.sourceRole === "served"
+          ? "Source"
+          : "Selected source";
+  const details = [
+    ...(identity.gitRef &&
+    identity.commitSha &&
+    identity.commitSha !== identity.gitRef
+      ? [`commit ${shortSha(identity.commitSha)}`]
+      : []),
+    notice,
+  ];
+  return sanitizeTerminalText(
+    locator
+      ? `${sourceLabel}: ${locator} (${details.join(", ")})`
+      : `${sourceLabel}: ${notice}`,
+  );
 }

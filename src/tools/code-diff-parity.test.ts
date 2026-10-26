@@ -571,3 +571,88 @@ describe("code_diff parity", () => {
     );
   });
 });
+
+it.each(["tag_inferred", "unverified", "declared_revision_unavailable"])(
+  "discloses %s independently in CLI/MCP diff text and JSON",
+  async (state) => {
+    const registry =
+      state === "declared_revision_unavailable" ? "NPM" : "MAVEN";
+    const name = registry === "MAVEN" ? "example:library" : "library";
+    const target = `${registry.toLowerCase()}:${name}`;
+    const result = structuredClone(defaultCodeDiffResult);
+    result.package = {
+      registry,
+      name,
+      repoUrl: "https://github.com/example/library",
+    };
+    result.fromResolution.releaseCorrespondence = state;
+    result.toResolution.releaseCorrespondence = "manifest_matched";
+    const codeDiff = mock(async () => result);
+    const service = createMockCodeNavigationService({ codeDiff });
+    const deps = cliDeps({ codeNavigationService: service });
+    const tool = createParityMcpTool("code_diff", {
+      codeNavigationService: service,
+    });
+    const cli = await cliJson(
+      target,
+      "4.18.1..4.18.2",
+      undefined,
+      { nameStatus: true },
+      deps,
+    );
+    const mcpJson = await tool.handler(
+      {
+        target,
+        from: "4.18.1",
+        to: "4.18.2",
+        view: "name-status",
+        format: "json",
+      },
+      {},
+    );
+    expect(cli).toEqual(JSON.parse(mcpJson.content[0]?.text ?? "{}"));
+    expect(cli).toMatchObject({
+      from: { releaseCorrespondence: state },
+      to: { releaseCorrespondence: "manifest_matched" },
+    });
+    const out = spyOn(process.stdout, "write").mockImplementation(() => true);
+    const err = spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      await codeDiffAction(
+        target,
+        "4.18.1..4.18.2",
+        undefined,
+        { nameStatus: true },
+        deps,
+      );
+      expect(out.mock.calls.map(([v]) => String(v)).join("")).toBe(
+        "M\tlib/express.js\n",
+      );
+      const cliText = err.mock.calls.map(([v]) => String(v)).join("");
+      const mcpText =
+        (
+          await tool.handler(
+            { target, from: "4.18.1", to: "4.18.2", view: "name-status" },
+            {},
+          )
+        ).content[0]?.text ?? "";
+      for (const text of [cliText, mcpText]) {
+        const flat = text.replace(/\s+/g, " ");
+        expect(flat).toContain("library@4.18.1");
+        expect(flat).toContain("From source: github:example/library@v4.18.1");
+        expect(flat).not.toContain("To source: github:"); // Matched side carries no uncertainty notice.
+        expect(flat).toContain(
+          state === "tag_inferred"
+            ? "version tag"
+            : state === "unverified"
+              ? "match to"
+              : "listed revision for",
+        );
+      }
+      expect(codeDiff).toHaveBeenCalledTimes(4);
+    } finally {
+      out.mockRestore();
+      err.mockRestore();
+    }
+  },
+);

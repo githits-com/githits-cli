@@ -24,6 +24,7 @@ import { isHealthySearchLifecycleState } from "./search-lifecycle.js";
 import {
   buildResolutionFromRetryCandidates,
   buildRetryCandidateLine,
+  buildSourceCorrespondenceNotes,
   buildSuggestedRefsLine,
   buildTargetResolutionNotes,
   formatTargetResolutionIdentity,
@@ -1102,10 +1103,11 @@ function warningForEntry(
     freshTarget: entry.freshTarget,
     servedTarget: entry.servedTarget,
   });
-  if (freshness) return freshness;
+  const correspondence = buildSourceCorrespondenceNotes(entry.targetResolution);
+  if (freshness) return [freshness, ...correspondence].join(" ");
   const terminalLifecycleReason = terminalLifecycleWarningReason(entry);
   if (terminalLifecycleReason) {
-    reasons.push(terminalLifecycleReason);
+    reasons.push(terminalLifecycleReason, ...correspondence);
   } else {
     const targetResolutionWarning = targetResolutionWarningForEntry(
       entry,
@@ -1206,17 +1208,10 @@ function targetResolutionWarningForEntry(
   entry: UnifiedSearchSourceStatusPayload,
   options: { completed?: boolean },
 ): string | undefined {
-  if (entry.targetResolution?.freshness === "indexing" && options.completed) {
-    return undefined;
-  }
-  const notes = buildTargetResolutionNotes(entry.targetResolution);
-  if (
-    options.completed === true &&
-    entry.targetResolution?.freshness === "indexing" &&
-    notes.length > 0
-  ) {
-    return `Search completed; fresh target may still be indexing. ${notes.join(" ")}`;
-  }
+  const notes =
+    entry.targetResolution?.freshness === "indexing" && options.completed
+      ? buildSourceCorrespondenceNotes(entry.targetResolution)
+      : buildTargetResolutionNotes(entry.targetResolution);
   return notes.length > 0 ? notes.join(" ") : undefined;
 }
 
@@ -1383,7 +1378,13 @@ function compactSourceStatusEntry(
       buildRetryCandidateLine(targetResolution) ??
         buildSuggestedRefsLine(targetResolution),
     );
+    const hasCorrespondence = [
+      targetResolution.requested,
+      targetResolution.resolvedRequested,
+      targetResolution.served,
+    ].some((identity) => identity?.releaseCorrespondence != null);
     const targetResolutionIsInteresting =
+      hasCorrespondence ||
       (targetResolutionCarriesNotes &&
         !(targetResolution.freshness === "indexing" && options.completed)) ||
       (targetResolution.freshness === "current" && hasRetryCandidates);

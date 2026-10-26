@@ -394,3 +394,219 @@ describe("target-resolution helpers", () => {
     ).toEqual([]);
   });
 });
+
+describe("package source correspondence", () => {
+  const identity = {
+    registry: "MAVEN",
+    packageName: "org.example:library",
+    version: "1.2.3",
+    repoUrl: "https://github.com/example/library",
+    gitRef: "v1.2.3",
+    commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  };
+  const resolution = {
+    requested: { ...identity, releaseCorrespondence: null },
+    resolvedRequested: {
+      ...identity,
+      releaseCorrespondence: "manifest_matched",
+    },
+    served: { ...identity, releaseCorrespondence: "unverified" },
+    freshness: "current",
+    freshnessReason: "requested_ref_indexing",
+    availableVersions: [{ version: "old", ref: "old-tag" }],
+    availableRefs: [{ ref: "old-ref" }],
+    suggestedRefs: [{ ref: "old-suggestion" }],
+  };
+
+  it.each([
+    "manifest_matched",
+    "tag_inferred",
+    "unverified",
+    "future_state",
+    null,
+    undefined,
+  ])(
+    "preserves the extensible scalar %s independently on every identity",
+    (state) => {
+      const projected = projectTargetResolution({
+        ...resolution,
+        served: { ...identity, releaseCorrespondence: state },
+      });
+      expect(projected?.requested?.releaseCorrespondence).toBeNull();
+      expect(projected?.resolvedRequested?.releaseCorrespondence).toBe(
+        "manifest_matched",
+      );
+      expect(projected?.served?.releaseCorrespondence).toBe(state);
+      if (state === undefined)
+        expect(projected?.served).not.toHaveProperty("releaseCorrespondence");
+    },
+  );
+
+  it.each([
+    ["tag_inferred", "version tag, match to library@1.2.3 unconfirmed"],
+    ["unverified", "match to library@1.2.3 unconfirmed"],
+  ])(
+    "shows CURRENT %s despite matched resolved state, without obsolete retries",
+    (state, expected) => {
+      const notes = buildTargetResolutionNotes({
+        ...resolution,
+        served: { ...identity, releaseCorrespondence: state },
+      });
+      expect(notes).toHaveLength(1);
+      expect(notes[0]).toContain(expected);
+      expect(notes[0]).not.toContain("check the published package");
+      expect(notes[0]).toContain(
+        "Source: github:example/library@v1.2.3 (commit aaaaaaa,",
+      );
+      expect(notes.join(" ")).not.toMatch(
+        /indexing|old-tag|old-ref|old-suggestion|binary|not checked/,
+      );
+    },
+  );
+
+  it.each(["NPM", "PYPI"])(
+    "renders shared declared-revision recovery for %s",
+    (registry) => {
+      const notes = buildTargetResolutionNotes({
+        ...resolution,
+        served: {
+          ...identity,
+          registry,
+          packageName: "library",
+          releaseCorrespondence: "declared_revision_unavailable",
+        },
+      });
+      expect(notes).toHaveLength(1);
+      expect(notes[0]).toContain("library@1.2.3");
+      expect(notes[0]).toContain("another revision selected");
+      expect(notes[0]).toContain("listed revision for");
+      expect(notes[0]).not.toContain("check the published package");
+    },
+  );
+
+  it("labels a pending identity resolved, never served", () => {
+    const notes = buildTargetResolutionNotes({
+      ...resolution,
+      freshness: "indexing",
+      served: undefined,
+      resolvedRequested: { ...identity, releaseCorrespondence: "unverified" },
+    });
+    const notice = notes.find((note) => note.includes("match to"));
+    expect(notice).toContain(
+      "Selected source: github:example/library@v1.2.3 (commit aaaaaaa,",
+    );
+    expect(notice).not.toContain("Source: ");
+  });
+
+  it("does not borrow correspondence from a different resolved SHA", () => {
+    const notes = buildTargetResolutionNotes({
+      ...resolution,
+      resolvedRequested: { ...identity, releaseCorrespondence: "unverified" },
+      served: {
+        ...identity,
+        commitSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        releaseCorrespondence: null,
+      },
+    });
+    expect(notes).toEqual([]);
+  });
+
+  it.each([
+    {
+      gitRef: undefined,
+      commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      repoUrl: "https://github.com/example/library",
+      expected:
+        "Source: github:example/library@aaaaaaa (match to library@1.2.3 unconfirmed)",
+    },
+    {
+      gitRef: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      commitSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      repoUrl: "https://github.com/example/library",
+      expected:
+        "Source: github:example/library@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa (match to library@1.2.3 unconfirmed)",
+    },
+    {
+      gitRef: "v1.2.3",
+      commitSha: undefined,
+      repoUrl: "https://github.com/example/library",
+      expected:
+        "Source: github:example/library@v1.2.3 (match to library@1.2.3 unconfirmed)",
+    },
+    {
+      gitRef: undefined,
+      commitSha: undefined,
+      repoUrl: undefined,
+      expected: "Source: match to library@1.2.3 unconfirmed",
+    },
+  ])("keeps inline source metadata accurate for $expected", (source) => {
+    const { expected, ...locator } = source;
+    expect(
+      buildTargetResolutionNotes({
+        ...resolution,
+        served: {
+          ...identity,
+          ...locator,
+          releaseCorrespondence: "unverified",
+        },
+      }),
+    ).toEqual([expected]);
+  });
+
+  it("keeps an npm scope in the inline package label", () => {
+    expect(
+      buildTargetResolutionNotes({
+        ...resolution,
+        served: {
+          ...identity,
+          registry: "NPM",
+          packageName: "@example/library",
+          releaseCorrespondence: "unverified",
+        },
+      }),
+    ).toEqual([
+      "Source: github:example/library@v1.2.3 (commit aaaaaaa, match to @example/library@1.2.3 unconfirmed)",
+    ]);
+  });
+
+  it.each(["manifest_matched", "future_state", null, undefined])(
+    "does not invent notice semantics for %s",
+    (state) => {
+      expect(
+        buildTargetResolutionNotes({
+          ...resolution,
+          served: { ...identity, releaseCorrespondence: state },
+        }),
+      ).toEqual([]);
+    },
+  );
+});
+
+it("names an observed repository-form served identity with its own version", () => {
+  const notes = buildTargetResolutionNotes({
+    requested: {
+      registry: "MAVEN",
+      packageName: "com.google.guava:guava-testlib",
+      version: "34.0",
+    },
+    resolvedRequested: {
+      registry: "MAVEN",
+      packageName: "com.google.guava:guava-testlib",
+      version: "34.0",
+      releaseCorrespondence: "manifest_matched",
+    },
+    served: {
+      version: "33.4.0-jre",
+      repoUrl: "https://github.com/google/guava",
+      gitRef: "v33.4.0",
+      commitSha: "5c71d2a15435399fa62508d807d5cc83506f7496",
+      releaseCorrespondence: "unverified",
+    },
+    freshness: "current",
+    availableVersions: [],
+    availableRefs: [],
+  });
+  expect(notes).toEqual([
+    "Source: github:google/guava@v33.4.0 (commit 5c71d2a, match to guava-testlib@33.4.0-jre unconfirmed)",
+  ]);
+});

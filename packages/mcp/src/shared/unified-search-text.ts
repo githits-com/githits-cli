@@ -32,6 +32,7 @@ import {
   formatRequestedProvenance,
   renderSourceSection,
 } from "./source-provenance-text.js";
+import { buildSourceCorrespondenceNotes } from "./target-resolution.js";
 import { wrapTerminalProse } from "./terminal-text.js";
 import {
   projectUnifiedSearchPresentation,
@@ -268,6 +269,7 @@ function appendPresentationContext(
     ...new Set(
       presentation.provenance.flatMap((record) => {
         return [
+          ...buildSourceCorrespondenceNotes(record.resolution),
           formatRequestedProvenance(
             record.resolution,
             presentation.indexingEstimates,

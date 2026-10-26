@@ -33,6 +33,7 @@ export type {
   GrepCorpus,
   GrepFileIssue,
   GrepHit,
+  GrepInputTargetResolution,
   GrepLineSlice,
   GrepParams,
   GrepPathSelector,

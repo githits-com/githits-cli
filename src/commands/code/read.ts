@@ -3,6 +3,7 @@ import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import {
   buildReadFileParams,
   buildReadFileSuccessPayload,
+  buildSourceCorrespondenceNotes,
   DEFAULT_WAIT_TIMEOUT_MS,
   formatReadFileTerminal,
   InvalidPackageSpecError,
@@ -12,6 +13,7 @@ import {
   type ReadFileRequestInput,
   requireAuth,
   shouldUseColors,
+  wrapTerminalProse,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../../container.js";
@@ -137,6 +139,13 @@ export async function pkgReadAction(
       return;
     }
 
+    if (!options.verbose)
+      for (const note of buildSourceCorrespondenceNotes(
+        payload.targetResolution,
+      ))
+        console.error(
+          wrapTerminalProse(note, process.stderr.columns).join("\n"),
+        );
     process.stdout.write(
       formatReadFileTerminal(payload, {
         width: process.stdout.columns,

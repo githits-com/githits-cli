@@ -20,6 +20,7 @@ import {
   formatSourceRow,
   type SourceRowFacts,
 } from "./source-provenance-text.js";
+import { buildSourceCorrespondenceNotes } from "./target-resolution.js";
 import { terminalWidth } from "./terminal-width.js";
 
 export interface GrepTextOptions {
@@ -122,6 +123,31 @@ export function formatGrepText(
     ))
       prose(`  - ${source}`);
   }
+  const repositoryHits = new Set(
+    result.hits
+      .filter((hit) => hit.__typename === "GrepRepositoryHit")
+      .map((hit) => hit.targetIndex),
+  );
+  const searchedInputs = new Set(
+    result.targets
+      .filter(
+        (scope) =>
+          scope.kind === "REPOSITORY" &&
+          (scope.readiness === "CURRENT" ||
+            scope.readiness === "STALE" ||
+            repositoryHits.has(scope.targetIndex)),
+      )
+      .flatMap((scope) => scope.requestedInputIndices),
+  );
+  const correspondence = new Set(
+    (result.targetResolutions ?? []).flatMap((entry) =>
+      buildSourceCorrespondenceNotes(
+        entry.targetResolution,
+        searchedInputs.has(entry.inputIndex) ? "served" : "selected",
+      ),
+    ),
+  );
+  for (const note of correspondence) prose(note);
   const pending = result.unavailableTargets.filter(
     (entry) => entry.retryable && isPreparing(entry.reason),
   );

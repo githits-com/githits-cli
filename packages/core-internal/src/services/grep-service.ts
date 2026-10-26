@@ -16,7 +16,11 @@ import {
   isClientUpdateRequiredGraphQLError,
   isGraphQLSchemaMismatchError,
 } from "./client-update-required-error.js";
-import type { ContentModification } from "./code-navigation-service.js";
+import {
+  type ContentModification,
+  requiredTargetResolutionSchema,
+  type TargetResolution,
+} from "./code-navigation-service.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import {
   AuthenticationError,
@@ -174,7 +178,15 @@ export interface GrepPathWarning {
   message: string;
   suggestions: GrepPathSuggestion[];
 }
+/** Canonical source provenance for one known original package/repository input. */
+export interface GrepInputTargetResolution {
+  inputIndex: number;
+  target: string;
+  targetResolution: TargetResolution;
+}
 export interface GrepResult {
+  /** Required on wire results; optional for existing injected service providers. */
+  targetResolutions?: GrepInputTargetResolution[];
   pathWarnings: GrepPathWarning[];
   indexingEstimates?: DiscoveryIndexingEstimate[];
   hits: GrepHit[];
@@ -303,6 +315,13 @@ function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
         ),
       }),
     ),
+    targetResolutions: z.array(
+      z.object({
+        inputIndex: nonnegativeInt,
+        target: z.string(),
+        targetResolution: requiredTargetResolutionSchema,
+      }),
+    ),
     indexingEstimates: indexingEstimatesSchema,
     hits: z.array(
       z.discriminatedUnion("__typename", [
@@ -425,6 +444,36 @@ const GRAPHQL_QUERY = `query Grep(
     contextLinesAfter: $contextLinesAfter, maxMatches: $maxMatches,
     cursor: $cursor, waitTimeoutMs: $waitTimeoutMs) {
     traversal nextCursor totalMatches
+    targetResolutions {
+      inputIndex target
+      targetResolution {
+        requested {
+          registry packageName
+          version @include(if: $includeDetailedFields)
+          releaseCorrespondence @include(if: $includeDetailedFields)
+          kind @include(if: $includeDetailedFields)
+          repoUrl @include(if: $includeDetailedFields)
+          gitRef @include(if: $includeDetailedFields)
+          commitSha @include(if: $includeDetailedFields)
+        }
+        resolvedRequested {
+          registry packageName version repoUrl gitRef commitSha releaseCorrespondence
+          kind @include(if: $includeDetailedFields)
+          committedAt @include(if: $includeDetailedFields)
+        }
+        served {
+          registry packageName version repoUrl gitRef commitSha releaseCorrespondence
+          kind @include(if: $includeDetailedFields)
+          committedAt @include(if: $includeDetailedFields)
+        }
+        freshness @include(if: $includeDetailedFields)
+        freshnessReason @include(if: $includeDetailedFields)
+        indexingRef @include(if: $includeDetailedFields)
+        availableVersions @include(if: $includeDetailedFields) { version ref }
+        availableRefs @include(if: $includeDetailedFields) { version ref }
+        suggestedRefs @include(if: $includeDetailedFields) { version ref }
+      }
+    }
     pathWarnings {
       requestedInputIndices target path repositorySubpath message
       suggestions { target path }

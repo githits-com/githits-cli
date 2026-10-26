@@ -237,3 +237,30 @@ repository/latest outcomes and unknown actions must remain unchanged.
 | `packages/mcp/src/tools/code-diff.ts` | Stable MCP schema, handler, and structured error mapping |
 | `scripts/validate-public-packages.ts` | Packed-package runtime and no-network TypeScript consumer checks |
 | `docs/implementation/cli-commands.md` | Stable CLI surface and hosted MCP delivery status |
+
+
+## Package source correspondence
+
+Each backend `CodeDiffRefResolution` exposes nullable extensible
+`releaseCorrespondence`, preserved independently on the JSON envelope's `from`
+and `to` sides. The scalar qualifies that side's exact `resolvedVersion`, `ref`
+and `commitSha`; it does not establish index readiness or successful execution
+of a particular diff branch. The shared backend Maven default is `unverified`
+when no assessment is carried; clients never infer or default a state. Ordinary
+non-Maven and raw-repository sides remain null, and omitted custom-provider
+fields remain omitted.
+
+Both text surfaces use the common
+[source-correspondence policy](search-snapshot-presentation.md#package-source-correspondence).
+The notice composer receives a single assessed identity per side, with `From source:`
+or `To source:` locators and its own resolved version, rather than a synthetic
+TargetResolution. A matched target side never hides an uncertain source side.
+CLI diagnostics carry wrapped notices on stderr for compact and verbose output
+in every view; raw patch/path stdout stays byte-exact. MCP text includes the same
+notices. No published-binary equivalence or upgrade compatibility is claimed.
+
+The common primary selection includes the scalar on both sides in every raw
+mode; shared normalization also preserves it in partial error identity when a
+raw branch fails. Full per-side values remain in JSON, including null and future
+strings. Publication must wait for backend field deployment and verification in
+production; a reviewed draft client PR and green CI do not satisfy that gate.

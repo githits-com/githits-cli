@@ -5,6 +5,7 @@ import type {
 } from "@githits/core-internal";
 import { quoteGitPath } from "./code-diff-path.js";
 import type { CodeDiffView } from "./code-diff-request.js";
+import { buildSourceCorrespondenceNote } from "./target-resolution.js";
 
 export type CodeDiffEnvelopeRefKind =
   | "sha"
@@ -51,6 +52,7 @@ export type LeanCodeDiffTarget =
   | LeanCodeDiffRepositoryTarget;
 
 export interface LeanCodeDiffResolution {
+  releaseCorrespondence?: string | null;
   requested: string;
   resolvedVersion?: string;
   ref: string;
@@ -182,6 +184,9 @@ function projectResolution(
   resolution: CodeDiffResult["fromResolution"],
 ): LeanCodeDiffResolution {
   const projected: LeanCodeDiffResolution = {
+    ...(resolution.releaseCorrespondence !== undefined
+      ? { releaseCorrespondence: resolution.releaseCorrespondence }
+      : {}),
     requested: resolution.requested,
     ref: resolution.ref,
     commitSha: resolution.commitSha,
@@ -306,4 +311,30 @@ function bindPatchHeaders(
 
 function lower<T extends string>(value: T): Lowercase<T> {
   return value.toLowerCase() as Lowercase<T>;
+}
+
+/** Compose each side independently for shared CLI/MCP notice policy. */
+export function buildCodeDiffCorrespondenceNotes(
+  envelope: LeanCodeDiffEnvelope,
+): string[] {
+  return (["from", "to"] as const).flatMap((side) => {
+    const resolution = envelope[side];
+    const note = buildSourceCorrespondenceNote(
+      {
+        ...(envelope.target.kind === "package"
+          ? {
+              registry: envelope.target.registry,
+              packageName: envelope.target.name,
+            }
+          : {}),
+        version: resolution.resolvedVersion,
+        repoUrl: envelope.target.repoUrl,
+        gitRef: resolution.ref,
+        commitSha: resolution.commitSha,
+        releaseCorrespondence: resolution.releaseCorrespondence,
+      },
+      { sourceRole: side },
+    );
+    return note ? [note] : [];
+  });
 }
