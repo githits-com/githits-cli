@@ -86,8 +86,9 @@ The skill classifies staged detection before review or authentication: no detect
 ## Project And User Setup Scope
 
 Recovery preserves the approved setup scope and sign-in authorization. Printed
-OAuth links are checked against the expected authentication origin before being
-relayed. Secure-storage failures stop onboarding rather than switching to
+OAuth links are checked against the authorization endpoint discovered from the
+configured MCP server before being relayed; custom domains and Supabase project
+hostnames are both supported. Secure-storage failures stop onboarding rather than switching to
 plaintext credential files. Returned verification commands are checked against
 the documented detection form before execution, including during recovery.
 
