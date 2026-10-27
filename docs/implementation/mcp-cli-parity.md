@@ -187,7 +187,7 @@ continuation. Package-detail and semantic-search observations were
 outside this client delta and both agents recovered without resolver changes.
 
 Registration smoke checks that feedback is absent and removed invocations fail
-as unknown tools/commands. Remaining MCP tools must advertise read-only.
+as unknown tools/commands. MCP tools must advertise their actual effects: `get_example` and `research` are stateful; retrieval tools remain read-only. See `mcp-tool-annotations.md`.
 
 One deliberate exception: `search_status` does not echo the original
 structured request because the backend follow-up endpoint does not

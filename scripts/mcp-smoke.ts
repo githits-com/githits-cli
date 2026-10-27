@@ -118,9 +118,15 @@ async function assertMcpSession(
     client.listTools(),
   );
   for (const tool of response.tools) {
+    const expectedReadOnlyHint =
+      tool.name !== "get_example" && tool.name !== "research";
     assert(
-      tool.annotations?.readOnlyHint === true,
-      `${context}: ${tool.name} must advertise readOnlyHint: true`,
+      tool.annotations?.readOnlyHint === expectedReadOnlyHint,
+      `${context}: ${tool.name} must advertise readOnlyHint: ${expectedReadOnlyHint}`,
+    );
+    assert(
+      tool.annotations?.idempotentHint === expectedReadOnlyHint,
+      `${context}: ${tool.name} must advertise idempotentHint: ${expectedReadOnlyHint}`,
     );
     const expectedOpenWorldHint = tool.name !== "quick_start";
     assert(

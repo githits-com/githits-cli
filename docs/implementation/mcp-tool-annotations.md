@@ -1,25 +1,28 @@
 # MCP tool annotations
 
-All current GitHits MCP tools advertise `readOnlyHint: true`. The annotation
-classifies their information-retrieval or computation purpose, including internal
-result storage, caching, background preparation, and research-thread state.
-It does not assert that the backend performs no database writes.
+The canonical factories in `@githits/mcp` classify all 15 built-in tools with
+explicit boolean annotations. Credit consumption, persisted example results,
+and saved research threads are user-visible state changes.
 
-The canonical factories in `@githits/mcp` own these annotations. The stable
-catalog contains 15 tools, including `research`. All tools
-remain non-destructive and omit `idempotentHint`.
+| Tools | readOnlyHint | idempotentHint | destructiveHint | openWorldHint |
+| --- | --- | --- | --- | --- |
+| `get_example`, `research` | false | false | false | true |
+| `quick_start` | true | true | false | false |
+| All other built-in evidence tools | true | true | false | true |
 
-`openWorldHint` describes the domain of interaction independently of writes,
-authentication, and evidence quality. The fourteen public-evidence tools,
-including `research`, advertise `openWorldHint: true`. This includes
-`search_status`: retrieving an existing search still returns public evidence.
-Only `quick_start` advertises `openWorldHint: false`, since it returns bundled
-usage guidance.
+Example generation and research are additive stateful operations: another call
+can consume more credits and create another result or research step. They do
+not delete or overwrite user artifacts. Retrieval and internal evidence caching
+remain read-only. `idempotentHint` describes additional state effects, not
+whether the response bytes stay identical as public evidence changes.
 
-The two read-only constants in `tools/types.ts` distinguish these domains;
-factories select the appropriate constant. Catalog tests cover the closed-world exception
-and all evidence tools, and registration smoke verifies the wire annotations.
-These annotation choices do not change request or response behavior.
+The constants in `tools/types.ts` distinguish closed-domain reads, public
+evidence reads, and stateful evidence jobs. Catalog tests and registration
+smoke verify all four annotations, including rejection of stale read-only
+descriptors for either stateful tool. Custom public tool definitions retain
+the optional idempotency field for source compatibility.
+
+These annotation changes do not alter handlers, request schemas, or results.
 
 | Tools | Purpose |
 | --- | --- |
@@ -38,15 +41,10 @@ unknown-tool/command path. The old `experimental.report_tool_issues` config key
 is ignored; it generates no instructions or requests. Existing result and thread
 identifiers remain available. Regular diagnostics and evaluation reports remain.
 
-This is GitHits' product interpretation, not an OpenAI review approval or a
-measured concurrency improvement. Catalog tests and registration smoke enforce
-it. A future user-facing write operation must be classified separately; the
-annotation type continues to support both boolean values.
-
-[OpenAI review guidance](https://developers.openai.com/plugins/deploy/app-review#review-and-approval-faqs)
-classifies public-internet retrieval as open-world even when read-only. Its
-read-only wording is broader about internal state changes than GitHits' chosen
-policy above; changing the open-world hint does not resolve that review ambiguity.
+[OpenAI annotation guidance](https://developers.openai.com/plugins/plugin-guidelines#correct-annotation)
+requires writes to be classified by their actual effects, including persisting
+artifacts and starting stateful workflows. Plugin review approval remains an
+external decision; local contract validation does not establish approval.
 
 Public Codex source inspected at `5b1d656` shows that normal `Auto` approval
 checks return early for read-only tools unless explicitly destructive, before

@@ -277,7 +277,10 @@ describe("MCP tool annotations", () => {
 
     for (const descriptor of descriptors) {
       expect(descriptor.annotations, descriptor.name).toEqual({
-        readOnlyHint: true,
+        readOnlyHint:
+          descriptor.name !== "get_example" && descriptor.name !== "research",
+        idempotentHint:
+          descriptor.name !== "get_example" && descriptor.name !== "research",
         openWorldHint: descriptor.name !== "quick_start",
         destructiveHint: false,
       });

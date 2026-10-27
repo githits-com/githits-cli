@@ -172,7 +172,7 @@ describe("createLocalMcpServer", () => {
   );
 
   it.each([false, true])(
-    "classifies every read-only tool's evidence domain with experimental=%s",
+    "classifies every tool's state changes and evidence domain with experimental=%s",
     (tools) => {
       const server = createLocalMcpServer({
         metadata: { name: "local-githits", version: "0.0.0" },
@@ -182,7 +182,8 @@ describe("createLocalMcpServer", () => {
       expect(registeredToolNames(server)).not.toContain("feedback");
       for (const [name, tool] of Object.entries(registeredTools(server))) {
         expect(tool.annotations, name).toEqual({
-          readOnlyHint: true,
+          readOnlyHint: name !== "get_example" && name !== "research",
+          idempotentHint: name !== "get_example" && name !== "research",
           destructiveHint: false,
           openWorldHint: name !== "quick_start",
         });
@@ -255,6 +256,7 @@ describe("createLocalMcpServer", () => {
         schema: {},
         annotations: {
           readOnlyHint: true,
+          idempotentHint: true,
           destructiveHint: false,
           openWorldHint: true,
         },

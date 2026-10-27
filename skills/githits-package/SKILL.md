@@ -9,13 +9,19 @@ compatibility: Requires shell access, internet access, and either a githits bina
 
 Use GitHits package intelligence before making dependency claims from memory.
 
+Use this CLI skill only when shell access is available and the task calls for
+CLI evidence. In ChatGPT or another hosted environment, use the connected
+GitHits MCP tools through `githits-mcp`; do not install a CLI to replace an
+available connector. Send only public package targets, never credentials,
+private registry URLs, proprietary manifests, or local lockfile contents.
+
 ## CLI Invocation
 
 - Run commands as `githits ...`.
-- If `githits` is not found, retry the same command as `npx -y githits@latest ...`.
+- If `githits` is not found, explain that `npx -y githits@latest ...` downloads and executes the published GitHits CLI. Use it only when that execution is authorized by the user's request or existing permission; otherwise ask before running it.
 - Keep default text for model-read summaries, comparisons, and counts. Use `--json` only when code consumes the raw response or text omits a required field.
-- Do not expose credentials. If auth is required interactively, run `githits login`; use `githits login --no-browser` only when the user can complete the printed URL flow. In noninteractive eval/CI, do not start OAuth; report that `GITHITS_API_TOKEN` or prior login is required.
-- If a command returns `TERMS_ACCEPTANCE_REQUIRED`, run `githits settings terms accept` or use the returned authenticated acceptance URL, then retry once.
+- Do not expose credentials. If auth is required, explain the sign-in requirement and run `githits login` only when the user authorizes sign-in. Use `githits login --no-browser` only when the user can complete the printed URL flow. In noninteractive eval/CI, do not start OAuth; report that `GITHITS_API_TOKEN` or prior login is required.
+- If a command returns `TERMS_ACCEPTANCE_REQUIRED`, explain that the user must review and accept GitHits terms. Never accept terms on the user's behalf without their explicit instruction to do so. After the user accepts them, retry the original query once.
 
 ## Package Spec
 

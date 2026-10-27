@@ -46,7 +46,8 @@ function createCaller(callTool: McpSmokeCaller["callTool"]): McpSmokeCaller {
       tools: EXPECTED_MCP_TOOLS.map((name) => ({
         name,
         annotations: {
-          readOnlyHint: true,
+          readOnlyHint: name !== "get_example" && name !== "research",
+          idempotentHint: name !== "get_example" && name !== "research",
           openWorldHint: name !== "quick_start",
           destructiveHint: false,
         },
@@ -294,6 +295,7 @@ describe("runMcpSmoke", () => {
           name: "code_grep",
           annotations: {
             readOnlyHint: true,
+            idempotentHint: true,
             openWorldHint: true,
             destructiveHint: false,
           },
@@ -308,6 +310,7 @@ describe("runMcpSmoke", () => {
 
   it.each([
     ["get_example", false],
+    ["research", false],
     ["search_status", undefined],
     ["quick_start", true],
     ["unlisted_tool", false],
@@ -321,7 +324,8 @@ describe("runMcpSmoke", () => {
       const changed = {
         name,
         annotations: {
-          readOnlyHint: true,
+          readOnlyHint: name !== "get_example" && name !== "research",
+          idempotentHint: name !== "get_example" && name !== "research",
           openWorldHint,
           destructiveHint: false,
         },
@@ -357,6 +361,57 @@ describe("runMcpSmoke", () => {
     },
   );
 
+  it.each(["get_example", "research"])(
+    "rejects stale read-only classification for %s",
+    async (name) => {
+      const caller = createCaller(async () => {
+        throw new Error("must not execute");
+      });
+      const { tools } = await caller.listTools();
+      caller.listTools = async () => ({
+        tools: tools.map((tool) =>
+          tool.name === name
+            ? {
+                ...tool,
+                annotations: { ...tool.annotations, readOnlyHint: true },
+              }
+            : tool,
+        ),
+      });
+      await expect(
+        runMcpSmoke(caller, { includeLiveTools: false }),
+      ).rejects.toThrow(`${name} must advertise readOnlyHint: false`);
+    },
+  );
+
+  it.each(["get_example", "research", "read", "quick_start"])(
+    "requires an explicit, accurate idempotency annotation for %s",
+    async (name) => {
+      for (const idempotentHint of [
+        undefined,
+        name === "get_example" || name === "research",
+      ]) {
+        const caller = createCaller(async () => {
+          throw new Error("must not execute");
+        });
+        const { tools } = await caller.listTools();
+        caller.listTools = async () => ({
+          tools: tools.map((tool) =>
+            tool.name === name
+              ? {
+                  ...tool,
+                  annotations: { ...tool.annotations, idempotentHint },
+                }
+              : tool,
+          ),
+        });
+        await expect(
+          runMcpSmoke(caller, { includeLiveTools: false }),
+        ).rejects.toThrow(`${name} must advertise idempotentHint:`);
+      }
+    },
+  );
+
   it("rejects a non-read-only tool outside the stable inventory", async () => {
     const caller = createCaller(async () => {
       throw new Error("must not execute");
@@ -366,7 +421,8 @@ describe("runMcpSmoke", () => {
         ...EXPECTED_MCP_TOOLS.map((name) => ({
           name,
           annotations: {
-            readOnlyHint: true,
+            readOnlyHint: name !== "get_example" && name !== "research",
+            idempotentHint: name !== "get_example" && name !== "research",
             openWorldHint: name !== "quick_start",
             destructiveHint: false,
           },
@@ -404,7 +460,8 @@ describe("runMcpSmoke", () => {
       tools: [...EXPECTED_MCP_TOOLS, "feedback"].map((name) => ({
         name,
         annotations: {
-          readOnlyHint: true,
+          readOnlyHint: name !== "get_example" && name !== "research",
+          idempotentHint: name !== "get_example" && name !== "research",
           openWorldHint: name !== "quick_start",
           destructiveHint: false,
         },

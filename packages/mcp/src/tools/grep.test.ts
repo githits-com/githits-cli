@@ -112,6 +112,7 @@ describe("unified MCP grep", () => {
     expect(tool.name).toBe("grep");
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
+      idempotentHint: true,
       openWorldHint: true,
       destructiveHint: false,
     });

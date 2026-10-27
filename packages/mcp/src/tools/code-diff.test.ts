@@ -94,6 +94,7 @@ describe("code_diff MCP adapter", () => {
     expect(tool.description).not.toContain("Experimental");
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
+      idempotentHint: true,
       openWorldHint: true,
       destructiveHint: false,
     });

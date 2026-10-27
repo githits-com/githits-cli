@@ -55,7 +55,12 @@ describe("getExampleTool", () => {
   it("tells agents to report source repository provenance", () => {
     const tool = createGetExampleTool(createMockGitHitsService());
 
-    expect(tool.annotations.readOnlyHint).toBe(true);
+    expect(tool.annotations).toEqual({
+      readOnlyHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+      destructiveHint: false,
+    });
     expect(tool.description).not.toContain("feedback");
     expect(tool.description).toContain("when no single target is the answer");
     expect(tool.description).toContain("source repository provenance");

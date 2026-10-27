@@ -12,6 +12,12 @@ same canonical content; host-specific onboarding forks are not supported.
 
 ## Current Flow
 
+Hosted ChatGPT/plugin setup uses the host's connection and OAuth controls.
+It does not run local detection, install a CLI, or change other agents. The
+local workflow below applies only to requested coding-agent integrations.
+Before invoking `npx`, explain that it downloads and executes the published
+CLI and ensure the user's request or existing permission authorizes it.
+
 GitHits setup is currently split across existing CLI commands:
 
 - `npx -y githits@latest init --detect-agents --json` scans supported coding tools and reports MCP configuration state.
@@ -60,20 +66,22 @@ The agent must not claim that account creation is fully browserless. Current log
 
 ## Simplified New-User Flow
 
-The onboarding skill is intentionally more opinionated than generic setup diagnostics. When the user asks to start using GitHits, the skill assumes they want to create or connect a GitHits account and configure GitHits unless they explicitly say otherwise.
+The onboarding skill follows the user's selected integration and scope.
+Sign-in alone does not authorize installing packages, configuring other agents,
+or adding guidance. Users can skip configuration or defer authentication.
 
 The preferred setup path is:
 
 1. Ask whether setup should be project-level or user-level.
 2. Detect supported tools with the matching staged command.
 3. Show the install review before installation approval or browser authentication, including when no setup IDs are actionable.
-4. Recommend configuring all actionable tools first. `actionableIds` includes MCP setup and requested guidance-only repair, while `installableIds` remains MCP-only.
-5. Offer individual tool selection only as a secondary path for users who want a smaller setup.
+4. Show actionable tools within the requested scope. `actionableIds` includes MCP setup and requested guidance-only repair, while `installableIds` remains MCP-only.
+5. Honor selected tools; offer configure-all only when the user wants setup across their detected tools.
 6. Install the approved IDs with the matching staged install command.
 7. Start local CLI sign-in/signup for selected non-Cursor integrations, skipping login when `auth status` already reports an active session. Cursor-only setup defers authentication to Cursor-managed OAuth.
 8. Verify local auth, MCP configuration, supporting guidance, and Cursor-managed OAuth/tool discovery when Cursor is selected.
 
-The skill classifies staged detection before review or authentication: no detected tools stop with installation guidance, unsupported-only project results offer user-level detection, and already-configured supported tools may continue to review and auth. For configure-all, the emitted `suggestedCommand` is authoritative and always includes `--json`, allowing the skill to read structured `outcomes`, `guidance`, `auth`, and `instructions`; selective setup and verification preserve `guidanceRequested`, including `--no-guidance` for plain MCP. Structured install instructions distinguish intentional guidance opt-out, installed, already configured, unsupported/skipped, and failed outcomes. The selection model keeps MCP targets, guidance-repair targets, and reporting-only configured agents separate, so unselected agents are never retargeted. Guidance-only or historical-skill cleanup changes no MCP configuration and does not authenticate; an empty selection is a no-op. The skill still requires review acknowledgment before writing MCP config or launching browser OAuth. The review states that GitHits queries and public package, repository, and documentation targets are sent to GitHits services, explains local-workspace behavior, and says that only a new coding-agent session is needed after changes; the terminal and machine do not need restarting. Local login is not offered as a Cursor readiness check because Cursor owns the remote MCP OAuth session.
+The skill classifies staged detection before review or authentication: no detected tools stop with installation guidance, unsupported-only project results offer user-level detection, and already-configured supported tools may continue to review and auth. Treat the emitted `suggestedCommand` as a suggestion: validate it against the documented command, detected IDs, and approved scope instead of executing returned shell strings verbatim. Staged commands include `--json` for structured outcomes; setup and verification preserve `guidanceRequested`, including `--no-guidance` for plain MCP. Structured install instructions distinguish intentional guidance opt-out, installed, already configured, unsupported/skipped, and failed outcomes. The selection model keeps MCP targets, guidance-repair targets, and reporting-only configured agents separate, so unselected agents are never retargeted. Guidance-only or historical-skill cleanup changes no MCP configuration and does not authenticate; an empty selection is a no-op. The skill still requires review acknowledgment before writing MCP config or launching browser OAuth. The review states that GitHits queries and public package, repository, and documentation targets are sent to GitHits services, explains local-workspace behavior, and says that only a new coding-agent session is needed after changes; the terminal and machine do not need restarting. Local login is not offered as a Cursor readiness check because Cursor owns the remote MCP OAuth session.
 
 ## Project And User Setup Scope
 
@@ -95,7 +103,7 @@ npx -y githits@latest init --project --install-agents <ids> --json
 
 User-level setup should be offered first and marked recommended for onboarding because it makes GitHits available wherever the user works with the detected agents. Project-level setup remains available for repo-specific or team setup, and the skill must explain that project-local MCP files may be committed. It must not offer tools with `unsupported_project_config` for project-level installation.
 
-Agents should use structured choice UI for both setup scope and tool selection whenever available. The desired scope choices are `My user account (Recommended)` and `This project only`. The desired tool choices are `Configure all detected tools (Recommended)` followed by individual installable tools. Agents should not ask users to type comma-separated tool IDs unless no structured choice mechanism is available.
+Agents should use structured choice UI for both setup scope and tool selection whenever available. The scope choices are `My user account (Recommended)` and `This project only`. Honor existing tool selections; offer individual actionable tools and configure-all only when the user wants broad setup. Agents should not ask users to type comma-separated tool IDs unless no structured choice mechanism is available.
 
 Guided setup writes all four skills to the selected agent's verified root. The
 shared `.agents/skills` root is used at `~/.agents/skills/` for user scope and

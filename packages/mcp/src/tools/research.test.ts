@@ -141,7 +141,8 @@ describe("research MCP adapter", () => {
       format: "text",
     });
     expect(tool.annotations).toEqual({
-      readOnlyHint: true,
+      readOnlyHint: false,
+      idempotentHint: false,
       openWorldHint: true,
       destructiveHint: false,
     });
