@@ -17,7 +17,7 @@ import {
 } from "./shared.js";
 import {
   errorResult,
-  OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
+  OPEN_WORLD_STATEFUL_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
   type ZodRawShape,
@@ -75,7 +75,7 @@ export function createResearchTool(
     name: "research",
     description: DESCRIPTION,
     schema,
-    annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
+    annotations: OPEN_WORLD_STATEFUL_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       const subject = resolveResearchSubject(args);
       if ("error" in subject) {

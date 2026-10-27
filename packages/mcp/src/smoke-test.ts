@@ -9,6 +9,7 @@ export interface McpSmokeCaller {
       name: string;
       annotations?: {
         readOnlyHint?: boolean;
+        idempotentHint?: boolean;
         openWorldHint?: boolean;
         destructiveHint?: boolean;
       };
@@ -2369,9 +2370,15 @@ export async function runMcpSmoke(
     assert(toolNames.has(expected), `listTools missing ${expected}`);
   }
   for (const tool of toolsResponse.tools) {
+    const expectedReadOnlyHint =
+      tool.name !== "get_example" && tool.name !== "research";
     assert(
-      tool.annotations?.readOnlyHint === true,
-      `${tool.name} must advertise readOnlyHint: true`,
+      tool.annotations?.readOnlyHint === expectedReadOnlyHint,
+      `${tool.name} must advertise readOnlyHint: ${expectedReadOnlyHint}`,
+    );
+    assert(
+      tool.annotations?.idempotentHint === expectedReadOnlyHint,
+      `${tool.name} must advertise idempotentHint: ${expectedReadOnlyHint}`,
     );
     const expectedOpenWorldHint = tool.name !== "quick_start";
     assert(

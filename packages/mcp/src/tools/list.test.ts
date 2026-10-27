@@ -57,6 +57,7 @@ describe("createListTool", () => {
     expect(tool.name).toBe("list");
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
+      idempotentHint: true,
       openWorldHint: true,
       destructiveHint: false,
     });

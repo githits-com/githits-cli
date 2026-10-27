@@ -4,7 +4,7 @@ import { extractSolutionId } from "../shared/extract-solution-id.js";
 import { GET_EXAMPLE_GUARDRAIL } from "./guardrails.js";
 import { withErrorHandling } from "./shared.js";
 import {
-  OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
+  OPEN_WORLD_STATEFUL_TOOL_ANNOTATIONS,
   type ToolDefinition,
   textResult,
   type ZodRawShape,
@@ -81,7 +81,7 @@ export function createGetExampleTool(
     name: "get_example",
     description: DESCRIPTION,
     schema,
-    annotations: OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS,
+    annotations: OPEN_WORLD_STATEFUL_TOOL_ANNOTATIONS,
     handler: async (args, context) => {
       return withErrorHandling(
         "get example",

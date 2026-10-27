@@ -155,6 +155,7 @@ describe("unified read contract", () => {
     expect(schema.required).toEqual(["target"]);
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
+      idempotentHint: true,
       openWorldHint: true,
       destructiveHint: false,
     });

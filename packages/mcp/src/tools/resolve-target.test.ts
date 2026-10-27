@@ -124,6 +124,7 @@ describe("resolve_target MCP adapter", () => {
     expect(tool.name).toBe("resolve_target");
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
+      idempotentHint: true,
       openWorldHint: true,
       destructiveHint: false,
     });

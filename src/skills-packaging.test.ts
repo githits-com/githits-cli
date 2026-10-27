@@ -131,8 +131,8 @@ describe("agent skills packaging", () => {
     const content = await read(onboardingSkillPath);
 
     expectContainsAll(content, [
-      "Use `npx -y githits@latest ...` for every normal onboarding command.",
-      "guarantees the latest published GitHits CLI behavior",
+      "Use `npx -y githits@latest ...` for normal local onboarding commands.",
+      "downloads and executes the published GitHits CLI",
       "Do not use a globally installed `githits` binary",
       "local, dev, or pinned CLI build",
       "npx -y githits@latest auth status",
@@ -169,22 +169,20 @@ describe("agent skills packaging", () => {
     ]);
   });
 
-  it("frames onboarding as new-user signup with configure-all as the default", async () => {
+  it("keeps hosted connection and local onboarding within the requested scope", async () => {
     const content = await read(onboardingSkillPath);
 
     expectContainsAll(content, [
-      "new-user onboarding skill",
-      "Configure all actionable tools (Recommended)",
-      "recommended default option",
+      "Hosted Plugin Setup",
+      "use the client's GitHits connection",
+      "A sign-in request does",
+      "Configure all actionable tools",
       "selective setup option",
-      'Do not present "configure none" as a normal onboarding choice',
+      "Allow the user to skip configuration",
       "Start GitHits sign-in/signup during onboarding",
-      "Do not ask whether the user wants to log in",
+      "Allow the user to defer sign-in",
       "Login creates or connects the GitHits account",
     ]);
-    expect(content).not.toContain(
-      "If auth is required, ask before launching browser login",
-    );
   });
 
   it("uses project-vs-user setup scope and structured choices instead of freeform IDs", async () => {
@@ -270,7 +268,8 @@ describe("agent skills packaging", () => {
       "offer user-level detection",
       "continue only with supported agents",
       "at least one supported agent is `already_configured`",
-      "execute `suggestedCommand` exactly",
+      "do not execute",
+      "returned shell strings verbatim",
       "preserve `--no-guidance`",
       "Follow the CLI-emitted verification instruction",
       "acknowledges the install review",
@@ -388,7 +387,6 @@ describe("agent skills packaging", () => {
         "Use `--json` when comparing versions, counting vulnerabilities, or extracting fields.",
         "Use `--json` when you need stable fields to parse or chain into another command.",
       ]);
-      expect(content, name).not.toContain("githits-mcp");
       expect(content, name).toContain("## External Content Posture");
 
       for (const lineEnding of ["\n", "\r\n"] as const) {

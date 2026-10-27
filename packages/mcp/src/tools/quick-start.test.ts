@@ -9,6 +9,7 @@ describe("quickStartTool", () => {
     expect(tool.schema).toEqual({});
     expect(tool.annotations).toEqual({
       readOnlyHint: true,
+      idempotentHint: true,
       openWorldHint: false,
       destructiveHint: false,
     });

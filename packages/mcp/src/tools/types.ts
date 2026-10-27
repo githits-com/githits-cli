@@ -13,6 +13,7 @@ export interface CompleteToolAnnotations {
 /** Read-only operations over a closed domain, such as guidance or a fixed catalog. */
 export const READ_ONLY_TOOL_ANNOTATIONS = {
   readOnlyHint: true,
+  idempotentHint: true,
   openWorldHint: false,
   destructiveHint: false,
 } as const satisfies CompleteToolAnnotations;
@@ -20,6 +21,15 @@ export const READ_ONLY_TOOL_ANNOTATIONS = {
 /** Public evidence retrieval/computation, including internal caching and preparation. */
 export const OPEN_WORLD_READ_ONLY_TOOL_ANNOTATIONS = {
   readOnlyHint: true,
+  idempotentHint: true,
+  openWorldHint: true,
+  destructiveHint: false,
+} as const satisfies CompleteToolAnnotations;
+
+/** Additive public-evidence jobs that consume credits and persist user-visible results. */
+export const OPEN_WORLD_STATEFUL_TOOL_ANNOTATIONS = {
+  readOnlyHint: false,
+  idempotentHint: false,
   openWorldHint: true,
   destructiveHint: false,
 } as const satisfies CompleteToolAnnotations;
