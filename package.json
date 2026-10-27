@@ -1,7 +1,7 @@
 {
   "name": "githits",
   "description": "The infrastructure layer connecting agents to the open-source ecosystem",
-  "version": "0.36.0",
+  "version": "0.36.1",
   "mcpName": "com.githits/githits",
   "type": "module",
   "workspaces": [

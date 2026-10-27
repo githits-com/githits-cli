@@ -1,6 +1,9 @@
 # GitHits Onboarding Troubleshooting
 
-Use these recovery paths only when the main onboarding flow fails or the environment prevents normal setup.
+Use these recovery paths only within the setup scope and sign-in authorization
+already established by the main skill. A recovery request does not authorize
+additional integrations or weaker credential storage. Retry a failed operation
+once after its cause is addressed, then report any remaining failure.
 
 ## No Shell Access
 
@@ -22,7 +25,9 @@ Retry login with:
 npx -y githits@latest login --no-browser
 ```
 
-Surface the printed sign-in URL clearly so the user can open it in a browser. If command output is hidden from the user, relay the URL verbatim. Do not ask them to paste passwords, tokens, cookies, or OAuth codes into chat.
+Apply the main skill's HTTPS and authentication-origin checks before relaying
+the printed sign-in URL. Stop on an unexpected destination. Do not ask the user
+to paste passwords, tokens, cookies, or OAuth codes into chat.
 
 ## Authentication Timeout
 
@@ -40,7 +45,9 @@ If the CLI reports it cannot persist OAuth credentials, ask the user to unlock t
 
 For automation or CI, the user can provide `GITHITS_API_TOKEN` in the environment outside chat. Do not ask them to paste the token into chat.
 
-As a last resort, the user can set `GITHITS_AUTH_STORAGE=file`, but warn that file storage is plaintext on disk.
+If secure storage remains unavailable, stop and report the storage failure.
+Do not switch to plaintext credential files or change credential-storage
+settings as an onboarding workaround.
 
 ## Install-Agent Failures
 
@@ -48,7 +55,11 @@ For `init --install-agents <ids> --json`, inspect `outcomes`. Report each failed
 
 ## Verification Fails
 
-Follow the CLI-emitted verification instruction for the selected setup scope. Preserve `--project` for project setup and `--no-guidance` when guidance was declined; do not substitute a user-level detection command. Report the specific mismatch if selected tools are not `already_configured`.
+Validate the CLI-emitted verification instruction against the main skill's
+documented detection command before running it; do not execute returned shell
+strings verbatim. Preserve `--project` for project setup and `--no-guidance` when
+guidance was declined. Report the specific mismatch if selected tools are not
+`already_configured`.
 
 For local CLI/stdio integrations, check `npx -y githits@latest auth status` (or the user-requested local/pinned command). For Cursor, follow the main skill's Cursor verification flow: local CLI authentication and `already_configured` do not establish Cursor readiness. Skip local CLI authentication for Cursor-only setup; verify Cursor-managed OAuth and tool discovery in a new Cursor Agent chat, using `cursor-agent` when available. For mixed setups, verify each authentication path separately.
 
