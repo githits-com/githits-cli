@@ -5,6 +5,22 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.36.1] - 2026-10-27
+
+### Fixed
+
+- **Accurate MCP state annotations** - Classify `get_example` and `research` as non-read-only, non-idempotent operations because they consume credits and persist user-visible results or research threads. All built-in tools explicitly set all four boolean annotations; catalog and smoke checks reject stale classifications. Hosted clients receive the changes after the MCP package is adopted and deployed.
+
+### Security
+
+- **Scoped setup and package guidance** - Separate hosted connection from local onboarding, preserve user-selected setup scope, validate suggested setup commands, and require authorization for CLI execution, sign-in, and terms acceptance.
+
+## [@githits/mcp 0.36.1] - 2026-10-27
+
+### Fixed
+
+- **Accurate MCP state annotations** - Classify `get_example` and `research` as non-read-only, non-idempotent operations because they consume credits and persist user-visible results or research threads. All built-in tools explicitly set all four boolean annotations; catalog and smoke checks reject stale classifications. Hosted clients receive the changes after the MCP package is adopted and deployed.
+
 ## [githits 0.36.0] - 2026-10-26
 
 Minor release adding compact package-path advisories to unified grep and
