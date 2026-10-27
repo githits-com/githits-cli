@@ -266,6 +266,67 @@ function formatterResponse(
 }
 
 describe("package upgrade review response", () => {
+  it("indents compact batch guides and wrapped labels beneath their package row", () => {
+    const row = formatterReview({
+      migrationGuides: [
+        {
+          url: "https://example.com/migrate",
+          label: "Version 5 migration notes",
+        },
+      ],
+    });
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([row, formatterReview({ name: "other" })]),
+      { terminalWidth: 60 },
+    );
+    expect(text).toMatch(
+      /^ {4}Migration guide available at https:\/\/example.com\/migrate$/m,
+    );
+    expect(text).toMatch(/^ {6}\(Version 5 migration notes\)$/m);
+  });
+
+  for (const surface of ["cli", "mcp"] as const) {
+    for (const batch of [false, true]) {
+      for (const verbose of [false, true]) {
+        it(`renders each migration guide once on ${surface} (batch=${batch}, verbose=${verbose})`, () => {
+          const guides = [
+            { url: "https://example.com/migrate", label: "Version 5 changes" },
+            { url: "https://example.com/upgrade", label: "Upgrade guide" },
+          ];
+          const row = formatterReview({ migrationGuides: guides });
+          const response = formatterResponse(
+            batch ? [row, formatterReview({ name: "other" })] : [row],
+          );
+          const text = formatPackageUpgradeReviewTerminal(response, {
+            surface,
+            verbose,
+          });
+          for (const guide of guides) {
+            expect(text.split(guide.url)).toHaveLength(2);
+          }
+          expect(text).toContain(
+            "Migration guide available at https://example.com/migrate (Version 5 changes)",
+          );
+          expect(text).not.toContain("(Upgrade guide)");
+        });
+      }
+    }
+  }
+
+  for (const migrationGuides of [[], undefined]) {
+    it(`renders no migration-guide placeholder when guides are ${migrationGuides ? "empty" : "absent"}`, () => {
+      const row = formatterReview({ migrationGuides });
+      for (const reviews of [
+        [row],
+        [row, formatterReview({ name: "other" })],
+      ]) {
+        expect(
+          formatPackageUpgradeReviewTerminal(formatterResponse(reviews)),
+        ).not.toContain("Migration guide");
+      }
+    });
+  }
+
   it("uses backend aggregate upgrade reviews and normalizes enum casing", async () => {
     const packageUpgradeReview = mock((_params: unknown) =>
       Promise.resolve(backendResponse),
