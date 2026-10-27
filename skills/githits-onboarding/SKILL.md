@@ -186,7 +186,13 @@ Then run:
 npx -y githits@latest login
 ```
 
-Normal login opens the browser when possible and also prints a fallback sign-in URL. If command output is hidden from the user, relay the URL verbatim.
+Normal login opens the browser when possible and also prints a fallback sign-in URL.
+Before relaying a printed URL, parse it and verify HTTPS and the exact hostname
+`accounts.githits.com`, with no embedded username or password. For explicit
+dev/custom-endpoint testing, use only the authentication origin already supplied
+or approved by the user. Stop on an unexpected origin; do not open it or ask the
+user to enter credentials there. After validation, relay the URL verbatim to
+preserve its OAuth parameters. Do not copy the URL into files or other services.
 
 If the browser cannot open automatically, or the session appears to be SSH/container/headless, use:
 
@@ -194,7 +200,9 @@ If the browser cannot open automatically, or the session appears to be SSH/conta
 npx -y githits@latest login --no-browser
 ```
 
-With `--no-browser`, surface the printed sign-in URL clearly so the user can open it in a browser. If command output is hidden from the user, relay the URL verbatim. Do not ask them to paste passwords, tokens, cookies, or OAuth codes back into chat.
+With `--no-browser`, validate and surface the printed sign-in URL clearly using
+the same checks above. Do not ask the user to paste passwords, tokens, cookies,
+or OAuth codes back into chat.
 
 7. Verify setup after login and installation.
 

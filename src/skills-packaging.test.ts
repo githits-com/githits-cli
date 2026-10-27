@@ -229,7 +229,6 @@ describe("agent skills packaging", () => {
       "keychain",
       "login --no-browser",
       "GITHITS_API_TOKEN",
-      "GITHITS_AUTH_STORAGE=file",
       "plaintext",
       "Do not fall back to a globally installed CLI",
       "user explicitly requested that testing mode",

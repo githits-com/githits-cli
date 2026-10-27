@@ -14,6 +14,7 @@ are historical records and change only to correct blatant factual errors.
 ### Security
 
 - **Scoped setup and package guidance** - Separate hosted connection from local onboarding, preserve user-selected setup scope, validate suggested setup commands, and require authorization for CLI execution, sign-in, and terms acceptance.
+- **Bounded skill recovery and upgrade reviews** - Validate relayed sign-in links, stop onboarding when secure credential storage fails, and preserve setup authorization during recovery. Package upgrade reviews remain evidence-only unless the user requests implementing an upgrade.
 
 ## [@githits/mcp 0.36.1] - 2026-10-27
 
