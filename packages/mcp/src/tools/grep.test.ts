@@ -103,7 +103,7 @@ describe("unified MCP grep", () => {
     expect(content).not.toContain('"code":"AUTH_REQUIRED"');
   });
 
-  it("advertises a standalone selection sentence, migration route, guardrail, and independent controls", () => {
+  it("advertises a standalone selection sentence, navigation routes, guardrail, and independent controls", () => {
     const tool = createGrepTool(service());
     const firstSentence = `${tool.description.split(".")[0]}.`;
     const first80 = tool.description.slice(0, 80);
@@ -121,7 +121,7 @@ describe("unified MCP grep", () => {
     );
     expect(firstSentence.length).toBeLessThanOrEqual(79);
     expect(first80).not.toContain("code_grep");
-    expect(tool.description).toContain("Replaces code_grep.");
+    expect(tool.description).not.toContain("code_grep");
     expect(tool.description).toContain(CODE_GREP_GUARDRAIL);
     expect(Object.keys(tool.schema)).toEqual([
       "targets",

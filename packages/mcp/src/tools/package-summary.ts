@@ -57,7 +57,7 @@ export const DESCRIPTION_BASE: string =
   "Default text returns license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
   "publish age, latest affected count, and separate package-wide advisory " +
-  "history count, shown separately. Historical counts are not current-version risk. " +
+  "history count. Historical counts are not current-version risk. " +
   "Use `verbose: true` for additional health and history details.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_INFO_GUARDRAIL}`;

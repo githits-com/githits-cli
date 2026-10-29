@@ -46,7 +46,7 @@ function errorPayload(result: { content: Array<{ text: string }> }) {
 }
 
 describe("createListTool", () => {
-  it("advertises listing intent and the later legacy-name compatibility sentence", () => {
+  it("advertises listing intent and current navigation routes", () => {
     const tool = createListTool(createService(async () => listResult()));
     const firstSentence = tool.description.slice(
       0,
@@ -66,7 +66,7 @@ describe("createListTool", () => {
     expect(first80).toStartWith(`${FIRST_SENTENCE} Use`);
     expect(first80).not.toContain("code_files");
     expect(first80).not.toContain("docs_list");
-    expect(tool.description).toContain("Replaces code_files and docs_list.");
+    expect(tool.description).not.toMatch(/code_files|docs_list/);
     expect(tool.description).toContain("find an exact path before `read`");
     expect(tool.description).toContain("use `search` for topics");
     expect(tool.description).toContain("one package-owned tree");

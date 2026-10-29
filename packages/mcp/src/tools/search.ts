@@ -134,9 +134,9 @@ const DESCRIPTION =
   'Discover relevant docs, code, and symbols in a known public target. Start here for open-ended "how does", "where is", "find", or "locate" questions. ' +
   "Required: `query` plus either `target` or `targets`; pass `target` or `targets`, not both. " +
   "Target indexed dependencies and repositories, or standalone docs with `site:<host[/path]>`. " +
-  "Put search constraints in `query`; backend validation reports accepted values. Inspect returned warnings and `sourceStatus` when a qualifier is ignored or incompatible with a selected source. `public_only` remains structured and is ignored for docs. " +
+  "Put search constraints in `query`; inspect warnings and `sourceStatus` for ignored or incompatible qualifiers. `public_only` filters code and symbols, not docs. " +
   "A `search` call can return complete results directly. Use visible hits for lookup now. Follow `search_status` only if you need updated results and the response supplies both a `searchRef` and a `search_status` action; never repeat `search` to poll. Terminal or unrecognized statuses are not polled; follow the response's recovery guidance instead. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
-  "Use hit content directly when sufficient; otherwise replay its complete emitted read action or generated `followUp` unchanged, including supplied selector and bounds. A `[docs page]` header is a page locator; its action selects the hit's section. Hosted HTTP(S) page locators address mutable current content. Repository docs remain snapshot-addressed and keep returned ranges. For direct reads, explicit bounds select a caller-chosen range; a docs URL fragment without bounds returns its heading and full subtree through the next equal-or-higher heading." +
+  "Use hit content directly when sufficient; otherwise replay its complete emitted read action or generated `followUp` unchanged, including supplied selector and bounds. A `[docs page]` header is a page locator; its action selects the hit's section. Hosted HTTP(S) pages are mutable; repository docs address snapshots. See `read` for direct range and heading selection." +
   `\n\n${SEARCH_GUARDRAIL}`;
 
 export function createSearchTool(

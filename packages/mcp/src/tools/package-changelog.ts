@@ -95,7 +95,7 @@ export const DESCRIPTION_BASE: string =
   "`limit` applies only to latest and upper-cap targets. " +
   "A selected release without notes succeeds with `hasChangelog: false`. " +
   "Empty latest or range selections succeed with no entries. " +
-  "Default text shows all parsed statements with available agent classifications, including no-impact and unassessed statements, in source order. `changes` filters statements; all matching pages are retrieved. `verbatim:true` shows original full notes instead; `verbose` is its deprecated alias and `body_lines` requests a legacy original-note preview. `omit_bodies:true` shows only the timeline. Original-note and timeline views skip classification and ignore `changes`.";
+  "Default text shows all parsed statements with available agent classifications, including no-impact and unassessed statements, in source order. `changes` filters statements; all matching pages are retrieved. `verbatim:true` shows original full notes; `omit_bodies:true` shows only the timeline. Original-note and timeline views skip classification and ignore `changes`.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_CHANGELOG_GUARDRAIL}`;
 

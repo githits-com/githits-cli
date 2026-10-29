@@ -120,7 +120,7 @@ const DESCRIPTION =
   "List files and documentation paths in a known package, repository, or site. " +
   "Use it to browse structure or find an exact path before `read`; use `search` " +
   "for topics.\n\n" +
-  "Replaces code_files and docs_list. Package targets cover one package-owned " +
+  "Package targets cover one package-owned " +
   "tree; repository targets cover the whole snapshot. Both include source and " +
   "documentation. Hosted docs use an explicit `site:` target supplied by the " +
   "user or a docs search result. `paths` are target-relative literals or globs for every target and " +

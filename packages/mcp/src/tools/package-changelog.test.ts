@@ -21,7 +21,12 @@ describe("createPackageChangelogTool — metadata", () => {
     expect(tool.description).toContain("`registry:name@from..to`");
     expect(tool.description).toContain("from excluded, to included");
     expect(tool.description).not.toContain("closed interval");
-    expect(tool.description).toContain("body_lines");
+    expect(tool.description).toContain(
+      "`verbatim:true` shows original full notes",
+    );
+    expect(tool.schema.body_lines?.description).toContain(
+      "original-note preview",
+    );
     expect(tool.description).not.toContain("markdown body previews");
     expect(tool.description).not.toContain("Supports npm");
     expect(tool.description).not.toContain("repo_url");

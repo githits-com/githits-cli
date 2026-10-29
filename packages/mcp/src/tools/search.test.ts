@@ -34,13 +34,13 @@ describe("searchTool", () => {
       "Discover relevant docs, code, and symbols in a known public target. Start here f",
     );
     expect(descriptor?.description).toContain(
-      "Hosted HTTP(S) page locators address mutable current content",
+      "Hosted HTTP(S) pages are mutable",
     );
     expect(descriptor?.description).toContain(
       "replay its complete emitted read action or generated `followUp` unchanged, including supplied selector and bounds",
     );
     expect(descriptor?.description).toContain(
-      "Repository docs remain snapshot-addressed and keep returned ranges",
+      "repository docs address snapshots",
     );
     expect(descriptor?.description).toContain(
       "A `[docs page]` header is a page locator; its action selects the hit's section",
@@ -138,7 +138,7 @@ describe("searchTool", () => {
         qualifier,
       ).toHaveLength(1);
     }
-    expect(tool.description).toContain("backend validation");
+    expect(tool.description).toContain("Put search constraints in `query`");
     expect(tool.description).toContain("warnings");
     expect(tool.description).toContain("`sourceStatus`");
   });
