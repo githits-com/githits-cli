@@ -26,7 +26,9 @@ describe("createPackageSummaryTool — metadata", () => {
     expect(tool.description).toContain("verbose: true");
     expect(tool.description).toContain("latest affected count");
     expect(tool.description).toContain("package-wide advisory history count");
-    expect(tool.description).toContain("shown separately");
+    expect(tool.description).toContain(
+      "separate package-wide advisory history count",
+    );
     expect(tool.schema.verbose?.description).toContain(
       "published-version count",
     );

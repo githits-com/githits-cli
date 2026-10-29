@@ -178,7 +178,7 @@ function addMcpSessionPrerequisite<TArgs, TSchema extends ZodRawShape>(
 
   return {
     ...tool,
-    description: `${tool.description}\n\n${QUICK_START_PREREQUISITE}`,
+    description: `${tool.description.trimEnd()}\n\n${QUICK_START_PREREQUISITE}`,
   };
 }
 

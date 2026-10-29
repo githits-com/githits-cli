@@ -133,7 +133,7 @@ const schema: ZodRawShape = {
 const DESCRIPTION =
   "Find regex or literal matches across source and documentation. " +
   "Search ordered package, repository, and site targets; packages include selected hosted docs. " +
-  "Replaces code_grep. Defaults: RE2 regex, case-sensitive, zero context. " +
+  "Defaults: RE2 regex, case-sensitive, zero context. " +
   "Use `list` for paths, `search` for topics, and `read` for more context. " +
   "Text groups matches by file/page with read locators. " +
   "Indexed matches may be partial; coverage limits and a continuation cursor remain visible." +

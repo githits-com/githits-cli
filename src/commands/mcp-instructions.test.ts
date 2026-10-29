@@ -116,7 +116,7 @@ describe("buildMcpQuickStart", () => {
       expect(description("resolve_target")).toContain(phrase);
     }
     for (const phrase of [
-      "Package targets still return repository-wide diffs",
+      "Package targets return repository-wide diffs",
       "default `name-status` view",
       "Raw diffs never prove compatibility or upgrade safety",
     ]) {

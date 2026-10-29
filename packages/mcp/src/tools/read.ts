@@ -97,7 +97,6 @@ export const DESCRIPTION_BASE: string =
   "Read an indexed source file, code symbol, or documentation section. " +
   "Pass target and path for a file or site page; use compact target#symbol or selector for a code symbol, and selector for a docs heading. " +
   "Preserve emitted documentation targets; the resolved result determines code or docs. " +
-  "Replaces code_read and docs_read. " +
   "Hosted/crawled HTTP(S) docs targets read mutable current content; repository-doc targets address snapshots. " +
   "A docs URL fragment needs no bounds and returns its heading with the full subtree through the next equal-or-higher heading; either bound replaces it with a page-relative range. " +
   "Use emitted locators to preserve exact revisions. It does not list directories: use list. " +

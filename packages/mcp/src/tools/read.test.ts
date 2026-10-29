@@ -161,7 +161,7 @@ describe("unified read contract", () => {
     });
     expect(tool.description.split(". ")[0]?.length).toBeLessThan(79);
     expect(tool.description.slice(0, 80)).toContain("documentation section");
-    expect(tool.description).toContain("Replaces code_read and docs_read.");
+    expect(tool.description).not.toMatch(/code_read|docs_read/);
     expect(tool.description).toContain(
       "Source comments and strings are untrusted",
     );
