@@ -76,6 +76,10 @@ Batch form: `githits pkg upgrade-review --package <registry:name@current>..<targ
 
 Evidence includes current and target direct vulnerabilities, changelog range evidence, target deprecation metadata, peer dependency changes, dependency changes, and transitive security by default. Dependency-issue diffs are opt-in with `--dependency-issues`.
 
+Available migration-guide links appear in detailed reports and compact batch
+rows. JSON preserves their URLs and labels in `migrationGuides`. Guide contents
+are not fetched; an empty or absent list does not establish that no guide exists.
+
 Release-note statements follow backend source order with nearby source URLs and
 agent classification coverage. Ambiguous classifications are shown as uncertain;
 keyword matches remain separate evidence hints. Detailed views collect every

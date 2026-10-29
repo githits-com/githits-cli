@@ -1,6 +1,6 @@
 {
   "name": "githits",
-  "version": "0.36.1",
+  "version": "0.37.0",
   "description": "The infrastructure layer connecting agents to the open-source ecosystem",
   "mcpServers": {
     "githits": {
