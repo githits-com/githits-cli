@@ -8,12 +8,13 @@ export const colors = {
   bold: "\x1b[1m",
   dim: "\x1b[2m",
   italic: "\x1b[3m",
-  green: "\x1b[32m",
+  green: "\x1b[38;2;87;254;201m", // GitHits brand mint #57FEC9
   yellow: "\x1b[33m",
   blue: "\x1b[34m",
   magenta: "\x1b[35m",
   cyan: "\x1b[36m",
   red: "\x1b[31m",
+  white: "\x1b[37m",
 };
 
 export interface TerminalColor {
