@@ -210,6 +210,67 @@ describe("code_diff parity", () => {
     expect(cli).toEqual(JSON.parse(mcpResult.content[0]?.text ?? "{}"));
   });
 
+  it("Pub comparison preserves backend evidence and request registry on CLI/MCP", async () => {
+    const result = structuredClone(defaultCodeDiffResult);
+    result.package = {
+      registry: "PUB",
+      name: "path",
+      repoUrl: "https://github.com/dart-lang/core",
+    };
+    result.fromResolution = {
+      ...result.fromResolution,
+      requested: "1.9.0",
+      resolvedVersion: "1.9.0",
+    };
+    result.toResolution = {
+      ...result.toResolution,
+      requested: "1.9.1",
+      resolvedVersion: "1.9.1",
+    };
+    result.raw.files[0]!.path = "lib/path.dart";
+    const codeDiff = mock((_params: CodeDiffParams) => Promise.resolve(result));
+    const cli = await cliJson(
+      "pub:path",
+      "1.9.0..1.9.1",
+      undefined,
+      { nameStatus: true },
+      cliDeps({
+        codeNavigationService: createMockCodeNavigationService({
+          codeDiff,
+        }),
+      }),
+    );
+    const mcpTool = createParityMcpTool("code_diff", {
+      codeNavigationService: createMockCodeNavigationService({
+        codeDiff,
+      }),
+    });
+    const mcpResult = await mcpTool.handler(
+      {
+        target: "pub:path",
+        from: "1.9.0",
+        to: "1.9.1",
+        view: "name-status",
+        format: "json",
+      },
+      {},
+    );
+
+    expect(mcpResult.isError).toBeUndefined();
+    expect(codeDiff.mock.calls).toEqual(
+      Array(2).fill([
+        {
+          target: { registry: "PUB", packageName: "path" },
+          from: "1.9.0",
+          to: "1.9.1",
+          mode: "inventory",
+        },
+      ]),
+    );
+    expect(JSON.stringify(cli)).toContain("lib/path.dart");
+    expect(cli).toEqual(JSON.parse(mcpResult.content[0]?.text ?? "{}"));
+  });
+
   it("PARITY-ERROR-ENVELOPE: typed CodeDiff error is CLI JSON === MCP JSON", async () => {
     const error = new CodeDiffError("Comparison was rate limited.", {
       code: "RATE_LIMITED",

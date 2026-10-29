@@ -241,13 +241,13 @@ describe("resolve_target parity", () => {
       code: "INVALID_ARGUMENT",
       retryable: false,
       error:
-        "Unsupported registry 'not-a-registry'. Supported: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist, rubygems, go, swift.",
+        "Unsupported registry 'not-a-registry'. Supported: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist, rubygems, go, swift, pub.",
     });
     expect(mcp).toMatchObject({
       code: "INVALID_ARGUMENT",
       retryable: false,
       error:
-        "Unsupported registry 'not-a-registry'. Supported: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist, rubygems, go, swift.",
+        "Unsupported registry 'not-a-registry'. Supported: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist, rubygems, go, swift, pub.",
     });
     expect(Object.keys(cli as object).sort()).toEqual(
       Object.keys(mcp as object).sort(),

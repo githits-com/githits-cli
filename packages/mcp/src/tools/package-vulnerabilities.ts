@@ -78,7 +78,7 @@ export const DESCRIPTION_BASE: string =
   "Advisories can be published or revised after training; a cutoff disclaimer is not current evidence. " +
   "Covers pinned releases, latest-version risk, and package security history. " +
   'For package-wide history, use an unpinned target and `advisory_scope:"all"`: `{"target":"npm:next","advisory_scope":"all"}`. ' +
-  "Supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, and Swift; vcpkg and Zig unsupported. " +
+  "Supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, and Pub; vcpkg and Zig unsupported. " +
   "Returns counts/details: identifiers and aliases, including CVEs when available, severity, affected ranges, and fixes; malicious advisories are separate. " +
   "Default text is capped; `verbose:true` shows all selected rows and identifier aliases (including CVEs). " +
   "Transitive evidence is opt-in and adds graph-analysis cost; see `include_transitive` for scope and filter limits.";

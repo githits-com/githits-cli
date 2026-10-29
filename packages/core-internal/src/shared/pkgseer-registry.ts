@@ -23,6 +23,7 @@ export const PKGSEER_REGISTRY_ARGS = [
   "rubygems",
   "go",
   "swift",
+  "pub",
 ] as const;
 
 export type PkgseerRegistryArg = (typeof PKGSEER_REGISTRY_ARGS)[number];
@@ -40,6 +41,7 @@ const registryMap = {
   rubygems: "RUBYGEMS",
   go: "GO",
   swift: "SWIFT",
+  pub: "PUB",
 } as const satisfies Record<PkgseerRegistryArg, string>;
 
 export type PkgseerRegistry = (typeof registryMap)[keyof typeof registryMap];

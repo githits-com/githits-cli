@@ -92,6 +92,158 @@ async function mcpJson(
 }
 
 describe("package_summary parity", () => {
+  it.each([
+    ["positive", 12_345],
+    ["zero", 0],
+    ["unknown", undefined],
+  ] as const)(
+    "Pub preserves native-case identity and %s monthly counts in CLI/MCP JSON",
+    async (_label, downloadsLastMonth) => {
+      const packageName = "CaseSensitivePubPackage";
+      const summary = structuredClone(defaultPackageSummary);
+      summary.package.name = packageName;
+      summary.package.registry = "PUB";
+      summary.package.downloadsLastMonth = downloadsLastMonth;
+      const packageSummary = mock(
+        (
+          _params?: Parameters<PackageIntelligenceService["packageSummary"]>[0],
+        ) => Promise.resolve(summary),
+      );
+      const service = createMockPackageIntelligenceService({
+        packageSummary: packageSummary as never,
+      });
+
+      const cli = await cliJson(
+        `pub:${packageName}`,
+        cliDeps({ packageIntelligenceService: service }),
+      );
+      const { json, isError } = await mcpJson(
+        { target: `pub:${packageName}` },
+        packageSummary as never,
+      );
+
+      expect(isError).toBeUndefined();
+      expect(packageSummary).toHaveBeenCalledTimes(2);
+      expect(packageSummary.mock.calls).toEqual([
+        [
+          {
+            registry: "PUB",
+            packageName,
+            includeVerboseFields: true,
+          },
+        ],
+        [
+          {
+            registry: "PUB",
+            packageName,
+            includeVerboseFields: true,
+          },
+        ],
+      ]);
+      expect(cli).toEqual(json);
+      expect(cli).toMatchObject({
+        registry: "pub",
+        name: packageName,
+      });
+      const cliDownloads = (cli as Record<string, unknown>).downloads as Record<
+        string,
+        unknown
+      >;
+      const mcpDownloads = (json as Record<string, unknown>)
+        .downloads as Record<string, unknown>;
+      expect(cliDownloads.lastMonth).toBe(downloadsLastMonth);
+      expect(mcpDownloads.lastMonth).toBe(downloadsLastMonth);
+      expect(Object.hasOwn(cliDownloads, "lastMonth")).toBe(
+        downloadsLastMonth !== undefined,
+      );
+      expect(Object.hasOwn(mcpDownloads, "lastMonth")).toBe(
+        downloadsLastMonth !== undefined,
+      );
+    },
+  );
+
+  it("Pub formatter distinguishes zero from unknown monthly counts", async () => {
+    const packageName = "CaseSensitivePubPackage";
+    const zeroSummary = structuredClone(defaultPackageSummary);
+    zeroSummary.package.name = packageName;
+    zeroSummary.package.registry = "PUB";
+    zeroSummary.package.downloadsLastMonth = 0;
+    const unknownSummary = structuredClone(zeroSummary);
+    unknownSummary.package.downloadsLastMonth = undefined;
+    const zeroService = createMockPackageIntelligenceService({
+      packageSummary: mock(() => Promise.resolve(zeroSummary)) as never,
+    });
+    const unknownService = createMockPackageIntelligenceService({
+      packageSummary: mock(() => Promise.resolve(unknownSummary)) as never,
+    });
+
+    const zeroWrites: string[] = [];
+    const zeroWriteSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      zeroWrites.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+    try {
+      await pkgInfoAction(
+        `pub:${packageName}`,
+        {},
+        cliDeps({ packageIntelligenceService: zeroService }),
+      );
+    } finally {
+      zeroWriteSpy.mockRestore();
+    }
+
+    const unknownWrites: string[] = [];
+    const unknownWriteSpy = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      unknownWrites.push(
+        typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+      );
+      return true;
+    }) as typeof process.stdout.write);
+    try {
+      await pkgInfoAction(
+        `pub:${packageName}`,
+        {},
+        cliDeps({ packageIntelligenceService: unknownService }),
+      );
+    } finally {
+      unknownWriteSpy.mockRestore();
+    }
+
+    const zeroMcpTool = createParityMcpTool("pkg_info", {
+      packageIntelligenceService: zeroService,
+    });
+    const zeroMcpResult = await zeroMcpTool.handler(
+      { target: `pub:${packageName}`, format: "text" },
+      {},
+    );
+    const unknownMcpTool = createParityMcpTool("pkg_info", {
+      packageIntelligenceService: unknownService,
+    });
+    const unknownMcpResult = await unknownMcpTool.handler(
+      { target: `pub:${packageName}`, format: "text" },
+      {},
+    );
+
+    for (const text of [
+      zeroWrites.join(""),
+      zeroMcpResult.content[0]?.text ?? "",
+    ]) {
+      expect(text).toMatch(/Downloads\s+0 \/ month/);
+    }
+    for (const text of [
+      unknownWrites.join(""),
+      unknownMcpResult.content[0]?.text ?? "",
+    ]) {
+      expect(text).not.toMatch(/Downloads\s+.*\/ month/);
+    }
+  });
+
   it("PARITY-JSON-KEYS: happy path CLI === MCP", async () => {
     const packageSummary = mock(
       (_params?: Parameters<PackageIntelligenceService["packageSummary"]>[0]) =>
@@ -246,6 +398,30 @@ describe("package_summary parity", () => {
     expect(Object.keys(cli as object).sort()).toEqual(
       Object.keys(json as object).sort(),
     );
+    expect(packageSummary).not.toHaveBeenCalled();
+  });
+
+  it("Pub exact pins with build metadata are rejected before service calls", async () => {
+    const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
+    const service = createMockPackageIntelligenceService({
+      packageSummary: packageSummary as never,
+    });
+    const target = "pub:CaseSensitivePubPackage@1.2.3+build.7";
+
+    const cli = await cliJson(
+      target,
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const { json, isError } = await mcpJson(
+      { target },
+      packageSummary as never,
+    );
+
+    expect(isError).toBe(true);
+    expect(cli).toMatchObject({ code: "INVALID_ARGUMENT", retryable: false });
+    expect(json).toMatchObject({ code: "INVALID_ARGUMENT", retryable: false });
+    expect((cli as Record<string, unknown>).error).toContain("1.2.3+build.7");
+    expect((json as Record<string, unknown>).error).toContain("1.2.3+build.7");
     expect(packageSummary).not.toHaveBeenCalled();
   });
 

@@ -91,6 +91,7 @@ const COMPARISONS: readonly Comparison[] = [
   },
 ];
 const INVENTORIES: readonly Comparison[] = [
+  { id: "pub", target: "pub:path", from: "1.9.0", to: "1.9.1", maxFiles: 3 },
   { id: "hex", target: "hex:plug", from: "1.15.0", to: "1.16.0", maxFiles: 3 },
   {
     id: "nuget",

@@ -476,7 +476,8 @@ export interface DirectDependency {
 /**
  * Node in a typed dependency graph. Mirrors `DependencyGraphNode`.
  * `registry` is a lowercase string: `"npm"`, `"pypi"`, …, or
- * `"synthetic"` for manifest / project root nodes. `version` is null
+ * `"flutter_sdk"` for SDK nodes, or `"synthetic"` for project root nodes.
+ * These graph namespaces are not package registry inputs. `version` is null
  * for synthetic roots.
  */
 export interface DependencyGraphNode {

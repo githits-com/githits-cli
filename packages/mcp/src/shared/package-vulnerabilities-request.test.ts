@@ -40,6 +40,15 @@ describe("buildPackageVulnerabilitiesParams", () => {
     }
   });
 
+  it("accepts Pub and maps it to the backend enum", () => {
+    const { params } = buildPackageVulnerabilitiesParams({
+      registry: "pub",
+      packageName: "path",
+    });
+    expect(params.registry).toBe("PUB");
+    expect(supportsVulnerabilitiesRegistry(params.registry)).toBe(true);
+  });
+
   it("trims whitespace on packageName and version", () => {
     const { params } = buildPackageVulnerabilitiesParams({
       registry: "npm",
@@ -288,7 +297,7 @@ describe("buildPackageVulnerabilitiesParams", () => {
       } catch (error) {
         expect(error).toBeInstanceOf(UnsupportedVulnerabilitiesRegistryError);
         expect((error as Error).message).toBe(
-          `pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift. Got: ${registry}.`,
+          `pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, and pub. Got: ${registry}.`,
         );
       }
     }
@@ -306,6 +315,7 @@ describe("buildPackageVulnerabilitiesParams", () => {
       "rubygems",
       "go",
       "swift",
+      "pub",
     ];
     for (const registry of supported) {
       expect(() =>

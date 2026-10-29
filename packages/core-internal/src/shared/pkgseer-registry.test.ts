@@ -25,6 +25,7 @@ describe("toPkgseerRegistry", () => {
       ["rubygems", "RUBYGEMS"],
       ["go", "GO"],
       ["swift", "SWIFT"],
+      ["pub", "PUB"],
     ];
 
     for (const [arg, expected] of cases) {
@@ -50,6 +51,14 @@ describe("toPkgseerRegistryLowercase", () => {
 });
 
 describe("isKnownPkgseerRegistryArg", () => {
+  it("admits Pub and round-trips its registry values", () => {
+    expect(isKnownPkgseerRegistryArg("pub")).toBe(true);
+    expect(knownPkgseerRegistryArgs()).toContain("pub");
+    expect(PKGSEER_REGISTRY_VALUES).toContain("PUB");
+    expect(toPkgseerRegistry("pub")).toBe("PUB");
+    expect(toPkgseerRegistryLowercase("PUB")).toBe("pub");
+  });
+
   it("accepts every registered lowercase surface value", () => {
     for (const arg of knownPkgseerRegistryArgs()) {
       expect(isKnownPkgseerRegistryArg(arg)).toBe(true);

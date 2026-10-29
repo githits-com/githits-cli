@@ -552,6 +552,36 @@ describe("projectUnifiedSearchPresentation", () => {
     });
   });
 
+  it("preserves Pub native case and build version in recovery locators", () => {
+    const presentation = projectUnifiedSearchPresentation(
+      completed({
+        results: [],
+        sourceStatus: [
+          source({
+            targetLabel: "pub:Synthetic_Pub latest",
+            requestedTarget: "pub:Synthetic_Pub latest",
+            codeIndexState: "UNRESOLVABLE",
+            targetResolution: {
+              availableVersions: [
+                { version: "1.2.3+build.7", ref: "release-1.2.3" },
+              ],
+              availableRefs: [],
+            },
+            resultCount: 0,
+          }),
+        ],
+      }),
+    );
+
+    expect(presentation.targetGroups[0]?.recovery).toEqual({
+      kind: "try",
+      category: "version",
+      target: "pub:Synthetic_Pub@1.2.3+build.7",
+      additionalTargets: [],
+      truncated: false,
+    });
+  });
+
   it("keeps terminal recovery for a failed peer beside healthy hits", () => {
     const presentation = projectUnifiedSearchPresentation(
       completed({
