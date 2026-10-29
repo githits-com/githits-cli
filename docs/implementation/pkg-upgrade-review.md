@@ -271,7 +271,10 @@ Guide availability depends on stored migration-guide results on the backend.
 A dev check on 2026-10-26 rejected the full 30-review JSON projection with guides
 and optional security/dependency evidence at complexity 502 against a limit of
 500; the same request without guides succeeded. Backend query-budget support for
-this projection is a prerequisite for rollout.
+this projection is a prerequisite for rollout. The full request passed on dev
+on 2026-10-27 (PR #519). Release verification on 2026-10-29 also passed against
+production: a 30-entry Express 4.18.2-to-5.1.0 JSON batch with transitive security
+and dependency-issue evidence returned all 30 reviews with guide metadata.
 
 Direct advisory deltas are backend-provided over logical advisory identity
 (`id` and aliases); introduced/fixed/unchanged aliases remain in JSON while text

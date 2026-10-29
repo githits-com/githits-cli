@@ -5,6 +5,26 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.37.0] - 2026-10-29
+
+### Added
+
+- **Upgrade migration guides** - Show available migration-guide links in CLI and MCP upgrade reviews and preserve them in JSON.
+
+### Fixed
+
+- **Self-contained MCP descriptions** - Remove retired tool names and migration prose, trim repeated guidance, and preserve current tool selection and follow-up instructions. Hosted clients receive the changes after the MCP package is released and deployed by the hosted server.
+
+## [@githits/mcp 0.37.0] - 2026-10-29
+
+### Added
+
+- **Upgrade migration guides** - Show available migration-guide links in MCP upgrade reviews and preserve them in JSON. Hosted clients receive the changes after the MCP package is released and deployed by the hosted server.
+
+### Fixed
+
+- **Self-contained MCP descriptions** - Remove retired tool names and migration prose, trim repeated guidance, and preserve current tool selection and follow-up instructions. Hosted clients receive the changes after the MCP package is released and deployed by the hosted server.
+
 ## [githits 0.36.1] - 2026-10-27
 
 ### Fixed
