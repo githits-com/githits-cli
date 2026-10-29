@@ -104,7 +104,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@inquirer/checkbox": "5.2.6",
+    "@inquirer/checkbox": "5.2.7",
     "@inquirer/confirm": "6.3.3",
     "@inquirer/core": "12.0.4",
     "@inquirer/select": "5.2.6",
