@@ -1,3 +1,4 @@
+import { posix, win32 } from "node:path";
 import { DEFAULT_MCP_URL } from "@githits/core-internal";
 import type { ExecService } from "../../services/exec-service.js";
 import type { FileSystemService } from "../../services/filesystem-service.js";
@@ -7,6 +8,7 @@ import {
 } from "./claude-user-config.js";
 import { traceInit, traceProbeEnd, traceProbeStart } from "./init-trace.js";
 import {
+  classifyConfigSetupContent,
   type FileSetupCheck,
   getSetupCheckStatus,
   type SetupCheck,
@@ -63,6 +65,8 @@ export interface CompositeUninstallStep {
 export type ConfigFileFormat = "json" | "yaml" | "toml";
 
 export type InitSetupScope = "user" | "project";
+export type InitSetupProfile = "remote" | "local";
+export type InitSetupMode = InitSetupProfile | "preserve";
 
 /**
  * Setup configuration for agents that need config file editing.
@@ -196,9 +200,15 @@ function evaluateCodexMcpGet(result: {
     ) {
       return "probe_failed";
     }
-    return "enabled" in parsed && parsed.enabled === false
-      ? "disabled"
-      : "configured";
+    if ("enabled" in parsed && parsed.enabled === false) return "disabled";
+    if (
+      !("transport" in parsed) ||
+      !parsed.transport ||
+      typeof parsed.transport !== "object" ||
+      !("type" in parsed.transport)
+    )
+      return "probe_failed";
+    return parsed.transport.type === "stdio" ? "configured" : "non_canonical";
   } catch {
     return "probe_failed";
   }
@@ -234,6 +244,14 @@ export type ProjectSetupSupport =
  * and how to configure it.
  */
 export interface AgentDefinition {
+  /** Effective connection and guidance policy resolved by init. */
+  setupProfile?: InitSetupProfile;
+  mcpTransport?: "stdio" | "http";
+  directoryUrl?: string;
+  projectSharedConfigNotice?: string;
+  legacyDesktopConfigured?: boolean;
+  remoteInstructions?: string[];
+  preserveTransport?: boolean;
   /** Display name shown to the user (e.g., "Claude Code") */
   name: string;
   /** Unique identifier (e.g., "claude-code") */
@@ -772,7 +790,7 @@ const codexCli: AgentDefinition = {
   detectionMethod: "binary",
   setupMethod: "cli",
   detectBinary: isCodexExecutableAvailable,
-  getSetupConfig: () => ({
+  getSetupConfig: (fs) => ({
     method: "cli",
     commands: [
       {
@@ -786,6 +804,7 @@ const codexCli: AgentDefinition = {
       args: ["mcp", "get", "githits", "--json"],
       timeoutMs: CODEX_MCP_CHECK_TIMEOUT_MS,
       useIsolatedCwd: true,
+      ...(process.env.CODEX_HOME && { env: { CODEX_HOME: getCodexHome(fs) } }),
       evaluateResult: evaluateCodexMcpGet,
     },
   }),
@@ -978,7 +997,7 @@ const geminiCli: AgentDefinition = {
   detectionMethod: "binary",
   setupMethod: "cli",
   detectBinary: async (exec) => isExecutableAvailable(exec, "gemini"),
-  getSetupConfig: () => ({
+  getSetupConfig: (fs) => ({
     method: "cli",
     commands: [
       {
@@ -1007,14 +1026,7 @@ const geminiCli: AgentDefinition = {
         ],
       },
     ],
-    check: {
-      kind: "command",
-      command: "gemini",
-      args: ["mcp", "list"],
-      requireExitCodeZero: true,
-      configuredPattern:
-        /^\s*(?:[^\w\s]+\s+)?githits\b[^\r\n]*\bnpx\b[^\r\n]*\bgithits@latest\b/im,
-    },
+    check: configFileCheck(getGeminiConfig(fs)),
   }),
   getUninstallConfig: () => ({
     method: "cli",
@@ -1251,7 +1263,7 @@ const amazonQCli: AgentDefinition = {
   detectionMethod: "binary",
   setupMethod: "cli",
   detectCommand: async (exec) => detectAmazonQCommand(exec),
-  getSetupConfig: (_fs, context) => {
+  getSetupConfig: (fs, context) => {
     const command = context?.command ?? "q";
     return {
       method: "cli",
@@ -1263,6 +1275,7 @@ const amazonQCli: AgentDefinition = {
             "add",
             "--name",
             "githits",
+            "--force",
             "--command",
             GITHITS_MCP_INVOCATION[0],
             "--args",
@@ -1271,10 +1284,7 @@ const amazonQCli: AgentDefinition = {
         },
       ],
       check: {
-        kind: "command",
-        command,
-        args: ["mcp", "list"],
-        configuredPattern: /githits/i,
+        ...configFileCheck(getAmazonQConfig(fs)),
       },
     };
   },
@@ -1283,7 +1293,7 @@ const amazonQCli: AgentDefinition = {
     commands: [
       {
         command: context?.command ?? "q",
-        args: ["mcp", "remove", "githits"],
+        args: ["mcp", "remove", "--name", "githits"],
       },
     ],
   }),
@@ -1351,6 +1361,7 @@ export async function detectAgents(
 
 /** Result of scanning all agents for install and configuration status */
 export interface ScanResult {
+  manualSetup?: AgentDefinition[];
   /** Detected and not yet configured */
   needsSetup: AgentDefinition[];
   /** Detected and already configured */
@@ -1373,6 +1384,7 @@ export interface ScanAgentsOptions {
 }
 
 type AgentScanOutcome =
+  | { status: "manual_action_required"; agent: AgentDefinition }
   | { status: "needs_setup"; agent: AgentDefinition }
   | { status: "already_configured"; agent: AgentDefinition }
   | { status: "not_detected"; agent: AgentDefinition }
@@ -1488,6 +1500,20 @@ async function scanSingleAgent(
     return { status: "not_detected", agent };
   }
 
+  if (agent.directoryUrl && scope === "user") {
+    const legacy = getAgentSetupConfig(agent, fs, scope, setupContext)!;
+    const status = await getSetupCheckStatus(legacy, fs, execService);
+    return {
+      status: "manual_action_required",
+      agent: {
+        ...agent,
+        legacyDesktopConfigured:
+          status === "configured" ||
+          status === "non_canonical" ||
+          status === "disabled",
+      },
+    };
+  }
   const config = getAgentSetupConfig(agent, fs, scope, setupContext);
   if (!config) {
     return {
@@ -1503,10 +1529,35 @@ async function scanSingleAgent(
     resolvedSetupConfig: config,
     resolvedSetupContext: setupContext,
   };
-  const checkStatus = await getSetupCheckStatus(config, fs, execService, {
+  let checkStatus = await getSetupCheckStatus(config, fs, execService, {
     agentId: agent.id,
     phase: "check",
   });
+  if (agent.preserveTransport && checkStatus === "non_canonical") {
+    const remote = resolveInitAgent(
+      agentDefinitions.find((candidate) => candidate.id === agent.id)!,
+      "remote",
+    );
+    const remoteConfig = getAgentSetupConfig(remote, fs, scope, setupContext);
+    if (remoteConfig) {
+      const remoteStatus = await getSetupCheckStatus(
+        remoteConfig,
+        fs,
+        execService,
+      );
+      if (remoteStatus === "configured")
+        Object.assign(scannedAgent, remote, {
+          resolvedSetupConfig: remoteConfig,
+          resolvedSetupContext: setupContext,
+        });
+      if (
+        remoteStatus === "configured" ||
+        remoteStatus === "disabled" ||
+        remoteStatus === "probe_failed"
+      )
+        checkStatus = remoteStatus;
+    }
+  }
   scannedAgent.resolvedSetupCheckStatus = checkStatus;
   if (checkStatus === "configured") {
     traceInit(
@@ -1562,7 +1613,10 @@ export async function scanAgents(
   );
 
   for (const outcome of outcomes) {
-    if (outcome.status === "already_configured") {
+    if (outcome.status === "manual_action_required") {
+      result.manualSetup ??= [];
+      result.manualSetup.push(outcome.agent);
+    } else if (outcome.status === "already_configured") {
       result.alreadyConfigured.push(outcome.agent);
     } else if (outcome.status === "needs_setup") {
       result.needsSetup.push(outcome.agent);
@@ -1596,4 +1650,214 @@ export function buildCheckboxChoices(
     value: agent.id,
     checked: detectedIds.includes(agent.id),
   }));
+}
+
+function getAmazonQConfig(fs: FileSystemService): ConfigFileSetup {
+  return {
+    method: "config-file",
+    configPath: fs.joinPath(fs.getHomeDir(), ".aws", "amazonq", "mcp.json"),
+    serversKey: "mcpServers",
+    serverName: "githits",
+    serverConfig: getStandardMcpServerConfig(),
+  };
+}
+function getGeminiConfig(
+  fs: FileSystemService,
+  remote = false,
+): ConfigFileSetup {
+  const override = process.env.GEMINI_CLI_HOME;
+  const paths = process.platform === "win32" ? win32 : posix;
+  const home = override
+    ? paths.resolve(fs.getCwd(), override)
+    : fs.getHomeDir();
+  return {
+    method: "config-file",
+    configPath: fs.joinPath(home, ".gemini", "settings.json"),
+    serversKey: "mcpServers",
+    serverName: "githits",
+    serverConfig: remote
+      ? { httpUrl: DEFAULT_MCP_URL }
+      : getStandardMcpServerConfig(),
+  };
+}
+function configFileCheck(
+  config: ConfigFileSetup,
+  alternate?: Record<string, unknown>,
+): FileSetupCheck {
+  return {
+    kind: "file",
+    path: config.configPath,
+    evaluateContent: (content) => {
+      const status = classifyConfigSetupContent(config, content);
+      return status === "non_canonical" && alternate
+        ? classifyConfigSetupContent(
+            { ...config, serverConfig: alternate },
+            content,
+          )
+        : status;
+    },
+  };
+}
+
+function nativeRemoteValue(
+  id: string,
+  scope: InitSetupScope,
+): Record<string, unknown> {
+  const url = DEFAULT_MCP_URL;
+  switch (id) {
+    case "claude-code":
+    case "vscode":
+    case "factory-droid":
+      return { type: "http", url };
+    case "cline":
+      return { type: "streamableHttp", url };
+    case "windsurf":
+    case "google-antigravity":
+      return { serverUrl: url };
+    case "gemini-cli":
+    case "qwen-code":
+      return { httpUrl: url };
+    case "opencode":
+    case "kilo-code":
+      return { type: "remote", url, enabled: true };
+    case "hermes-agent":
+      return { url, auth: "oauth" };
+    case "pi":
+      return scope === "user"
+        ? { url, lifecycle: "eager", directTools: true }
+        : { type: "http", url };
+    case "amazon-q-cli":
+      return { type: "http", url };
+    default:
+      return { url };
+  }
+}
+
+function remoteSetup(
+  agent: AgentDefinition,
+  fs: FileSystemService,
+  scope: InitSetupScope,
+  context?: AgentSetupContext,
+): SetupConfig {
+  const value = nativeRemoteValue(agent.id, scope);
+  const local = getAgentSetupConfig(agent, fs, scope, context)!;
+  if (scope === "user" && agent.id === "codex-cli") {
+    const home = getCodexHome(fs);
+    return {
+      method: "config-file",
+      configPath: fs.joinPath(home, "config.toml"),
+      format: "toml",
+      serversKey: "mcp_servers",
+      serverName: "githits",
+      serverConfig: value,
+    };
+  }
+  if (scope === "user" && agent.id === "amazon-q-cli")
+    return { ...getAmazonQConfig(fs), serverConfig: value };
+  if (local.method === "config-file") return { ...local, serverConfig: value };
+  if (local.method === "composite")
+    return {
+      ...local,
+      steps: local.steps.map((step) =>
+        step.method === "config-file" ? { ...step, serverConfig: value } : step,
+      ),
+    };
+  if (local.method !== "cli")
+    throw new Error("Unsupported remote setup descriptor");
+  const commands = local.commands.map((command) => {
+    if (command.args[0] !== "mcp" || command.args[1] !== "add") return command;
+    return {
+      ...command,
+      args: [
+        "mcp",
+        "add",
+        "--transport",
+        "http",
+        "--scope",
+        "user",
+        "githits",
+        DEFAULT_MCP_URL,
+      ],
+    };
+  });
+  const check: SetupCheck =
+    agent.id === "claude-code"
+      ? {
+          kind: "file",
+          path: resolveClaudeUserConfigPath(fs),
+          evaluateContent: (content) =>
+            parseClaudeUserMcpState(content, {
+              type: "http",
+              url: DEFAULT_MCP_URL,
+            }).status,
+        }
+      : configFileCheck(getGeminiConfig(fs, true), {
+          type: "http",
+          url: DEFAULT_MCP_URL,
+        });
+  return { ...local, commands, check };
+}
+
+/** Hosts own native config shapes and the OAuth action shown after configuration. */
+function resolveInitAgent(
+  agent: AgentDefinition,
+  mode: InitSetupMode,
+): AgentDefinition {
+  const remote = mode === "remote";
+  const actions: Record<string, string> = {
+    "claude-code": "Open /mcp in Claude Code and authenticate githits.",
+    cursor:
+      "Open Cursor's MCP panel and Authenticate GitHits, or run `cursor-agent mcp login GitHits`.",
+    "codex-cli": "Run `codex mcp login githits`.",
+    "gemini-cli": "Run `/mcp auth githits` in Gemini CLI.",
+    pi: "Run `/mcp-auth GitHits` in Pi.",
+    opencode: "Run `opencode mcp auth GitHits`.",
+    "kilo-code": "Run `kilo mcp auth GitHits`.",
+  };
+  const result: AgentDefinition = {
+    ...agent,
+    setupProfile: remote ? "remote" : "local",
+    mcpTransport: remote || agent.id === "cursor" ? "http" : "stdio",
+    preserveTransport: mode === "preserve",
+    remoteInstructions: [
+      actions[agent.id] ??
+        `Open ${agent.name}'s MCP settings and use Authenticate/Authorize for GitHits.`,
+      "Open a new agent session and verify that GitHits tools are available.",
+    ],
+  };
+  if (agent.id === "claude-code" || agent.id === "pi")
+    result.projectSharedConfigNotice =
+      "Claude Code and Pi share this project's .mcp.json GitHits entry; changing it affects both hosts.";
+  if (agent.id === "claude-desktop")
+    result.directoryUrl = "https://claude.ai/directory/githits";
+  if (remote && agent.id !== "claude-desktop") {
+    if (agent.id === "codex-cli" || agent.id === "amazon-q-cli")
+      result.setupMethod = "config-file";
+    result.getSetupConfig = (fs, context) =>
+      remoteSetup(agent, fs, "user", context);
+    if (agent.projectSetup?.supported)
+      result.projectSetup = {
+        supported: true,
+        getSetupConfig: (fs, context) =>
+          remoteSetup(agent, fs, "project", context),
+      };
+  }
+  return result;
+}
+
+/** Resolve init policy without changing legacy definitions used by uninstall. */
+export function getInitAgentDefinitions(
+  mode: InitSetupMode,
+): AgentDefinition[] {
+  return agentDefinitions.map((agent) => resolveInitAgent(agent, mode));
+}
+
+function getCodexHome(fs: FileSystemService): string {
+  const override = process.env.CODEX_HOME;
+  const paths = process.platform === "win32" ? win32 : posix;
+  return override
+    ? paths.isAbsolute(override)
+      ? override
+      : paths.resolve(fs.getCwd(), override)
+    : fs.joinPath(fs.getHomeDir(), ".codex");
 }

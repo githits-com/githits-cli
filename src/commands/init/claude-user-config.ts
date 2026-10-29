@@ -8,6 +8,16 @@ export interface ClaudeMcpInvocation {
   args: readonly string[];
 }
 
+/** HTTP shape used to identify the configured GitHits MCP server. */
+export interface ClaudeHttpMcpExpectation {
+  type: "http";
+  url: string;
+}
+
+export type ClaudeUserMcpExpectation =
+  | ClaudeMcpInvocation
+  | ClaudeHttpMcpExpectation;
+
 export type ClaudeUserMcpParseResult =
   | {
       status: "configured";
@@ -39,7 +49,7 @@ export function resolveClaudeUserConfigPath(
 /** Classify Claude's user-scoped GitHits MCP entry without exposing its data. */
 export function parseClaudeUserMcpState(
   contents: string,
-  expectedInvocation: ClaudeMcpInvocation,
+  expected: ClaudeUserMcpExpectation,
 ): ClaudeUserMcpParseResult {
   let document: unknown;
   try {
@@ -70,11 +80,14 @@ export function parseClaudeUserMcpState(
     return { status: "probe_failed" };
   }
 
-  const effectiveType = githits.type === undefined ? "stdio" : githits.type;
-  const isCanonical =
-    effectiveType === "stdio" &&
-    githits.command === expectedInvocation.command &&
-    hasExpectedArgs(githits.args, expectedInvocation.args);
+  const isCanonical = isHttpExpectation(expected)
+    ? githits.type === expected.type &&
+      githits.url === expected.url &&
+      !hasNonemptyLocalInvocation(githits)
+    : (githits.type === undefined ? "stdio" : githits.type) === "stdio" &&
+      githits.command === expected.command &&
+      hasExpectedArgs(githits.args, expected.args) &&
+      !hasNonemptyUrl(githits);
 
   return isCanonical ? { status: "configured" } : { status: "non_canonical" };
 }
@@ -83,11 +96,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isHttpExpectation(
+  expected: ClaudeUserMcpExpectation,
+): expected is ClaudeHttpMcpExpectation {
+  return "type" in expected;
+}
+
 function isStructurallyValidServerEntry(
   entry: Record<string, unknown>,
 ): boolean {
   if ("type" in entry && typeof entry.type !== "string") return false;
   if ("command" in entry && typeof entry.command !== "string") return false;
+  if ("url" in entry && typeof entry.url !== "string") return false;
   if (
     "args" in entry &&
     (!Array.isArray(entry.args) ||
@@ -96,6 +116,17 @@ function isStructurallyValidServerEntry(
     return false;
   }
   return true;
+}
+
+function hasNonemptyLocalInvocation(entry: Record<string, unknown>): boolean {
+  return (
+    (typeof entry.command === "string" && entry.command.length > 0) ||
+    (Array.isArray(entry.args) && entry.args.length > 0)
+  );
+}
+
+function hasNonemptyUrl(entry: Record<string, unknown>): boolean {
+  return typeof entry.url === "string" && entry.url.length > 0;
 }
 
 function hasExpectedArgs(

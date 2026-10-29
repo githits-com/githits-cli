@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
-import { win32 } from "node:path";
+import { posix, win32 } from "node:path";
 import type { ExecResult } from "../../services/exec-service.js";
 import {
   createMockExecService,
@@ -11,10 +11,372 @@ import {
   type AgentDefinition,
   agentDefinitions,
   buildCheckboxChoices,
+  type ConfigFileSetup,
   detectAgents,
   getAgentSetupConfig,
+  getInitAgentDefinitions,
+  type SetupConfig,
   scanAgents,
 } from "./agent-definitions.js";
+
+const REMOTE_MCP_URL = "https://mcp.githits.com";
+
+interface RemoteConfigCase {
+  agentId: string;
+  scope: "user" | "project";
+  configPath: string;
+  serversKey: string;
+  serverName: string;
+  serverConfig: Record<string, unknown>;
+  format?: "toml" | "yaml";
+  setupMethod?: "config-file" | "composite";
+  compareLegacyLocation?: boolean;
+}
+
+function getAgentDefinition(
+  definitions: readonly AgentDefinition[],
+  agentId: string,
+): AgentDefinition {
+  const agent = definitions.find((definition) => definition.id === agentId);
+  if (!agent) throw new Error(`Missing agent definition: ${agentId}`);
+  return agent;
+}
+
+function getConfigFileSteps(setup: SetupConfig | null): ConfigFileSetup[] {
+  if (!setup) return [];
+  if (setup.method === "config-file") return [setup];
+  if (setup.method === "composite") {
+    return setup.steps.filter(
+      (step): step is ConfigFileSetup => step.method === "config-file",
+    );
+  }
+  return [];
+}
+
+function configFileLocations(
+  setup: SetupConfig | null,
+): Array<Pick<ConfigFileSetup, "configPath" | "serversKey" | "serverName">> {
+  return getConfigFileSteps(setup).map(
+    ({ configPath, serversKey, serverName }) => ({
+      configPath,
+      serversKey,
+      serverName,
+    }),
+  );
+}
+
+function expectRemoteConfigCase(
+  setup: SetupConfig | null,
+  testCase: RemoteConfigCase,
+): void {
+  expect(setup?.method).toBe(testCase.setupMethod ?? "config-file");
+  const configFiles = getConfigFileSteps(setup);
+  expect(configFiles).toHaveLength(1);
+  expect(configFiles[0]).toEqual({
+    method: "config-file",
+    configPath: testCase.configPath,
+    ...(testCase.format === undefined ? {} : { format: testCase.format }),
+    serversKey: testCase.serversKey,
+    serverName: testCase.serverName,
+    serverConfig: testCase.serverConfig,
+  });
+
+  if (testCase.setupMethod === "composite") {
+    if (setup?.method !== "composite") {
+      throw new Error("Expected composite remote setup");
+    }
+    expect(setup.steps[0]).toMatchObject({
+      method: "cli",
+      commands: [{ command: "pi", args: ["install", "npm:pi-mcp-adapter"] }],
+    });
+  }
+}
+
+function withEnvironmentOverrides(
+  overrides: Readonly<Record<string, string | undefined>>,
+  run: () => void,
+): void {
+  const previous = new Map<string, string | undefined>();
+  for (const [name, value] of Object.entries(overrides)) {
+    previous.set(name, process.env[name]);
+    if (value === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = value;
+    }
+  }
+
+  try {
+    run();
+  } finally {
+    for (const [name, value] of previous) {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    }
+  }
+}
+
+function withRemoteNativeTestEnvironment(run: () => void): void {
+  withEnvironmentOverrides(
+    {
+      APPDATA: undefined,
+      CLAUDE_CONFIG_DIR: undefined,
+      CODEX_HOME: undefined,
+      GEMINI_CLI_HOME: undefined,
+      HERMES_HOME: undefined,
+      PI_CODING_AGENT_DIR: undefined,
+      XDG_DATA_HOME: undefined,
+    },
+    () => withTestPlatform("linux", run),
+  );
+}
+
+const REMOTE_NATIVE_CONFIG_CASES: readonly RemoteConfigCase[] = [
+  {
+    agentId: "cursor",
+    scope: "user",
+    configPath: "/home/test/.cursor/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "windsurf",
+    scope: "user",
+    configPath: "/home/test/.codeium/windsurf/mcp_config.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { serverUrl: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "vscode",
+    scope: "user",
+    configPath: "/home/test/.config/Code/User/mcp.json",
+    serversKey: "servers",
+    serverName: "GitHits",
+    serverConfig: { type: "http", url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "cline",
+    scope: "user",
+    configPath: "/home/test/.cline/data/settings/cline_mcp_settings.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { type: "streamableHttp", url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "pi",
+    scope: "user",
+    configPath: "/home/test/.pi/agent/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: {
+      url: REMOTE_MCP_URL,
+      lifecycle: "eager",
+      directTools: true,
+    },
+    setupMethod: "composite",
+  },
+  {
+    agentId: "google-antigravity",
+    scope: "user",
+    configPath: "/home/test/.gemini/config/mcp_config.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { serverUrl: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "opencode",
+    scope: "user",
+    configPath: "/home/test/.config/opencode/opencode.json",
+    serversKey: "mcp",
+    serverName: "GitHits",
+    serverConfig: { type: "remote", url: REMOTE_MCP_URL, enabled: true },
+  },
+  {
+    agentId: "hermes-agent",
+    scope: "user",
+    configPath: "/home/test/.hermes/config.yaml",
+    format: "yaml",
+    serversKey: "mcp_servers",
+    serverName: "GitHits",
+    serverConfig: { url: REMOTE_MCP_URL, auth: "oauth" },
+  },
+  {
+    agentId: "zed",
+    scope: "user",
+    configPath: "/home/test/.config/zed/settings.json",
+    serversKey: "context_servers",
+    serverName: "GitHits",
+    serverConfig: { url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "junie",
+    scope: "user",
+    configPath: "/home/test/.junie/mcp/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "qwen-code",
+    scope: "user",
+    configPath: "/home/test/.qwen/settings.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { httpUrl: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "kiro",
+    scope: "user",
+    configPath: "/home/test/.kiro/settings/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "kilo-code",
+    scope: "user",
+    configPath: "/home/test/.config/kilo/kilo.jsonc",
+    serversKey: "mcp",
+    serverName: "GitHits",
+    serverConfig: { type: "remote", url: REMOTE_MCP_URL, enabled: true },
+  },
+  {
+    agentId: "factory-droid",
+    scope: "user",
+    configPath: "/home/test/.factory/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { type: "http", url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "amazon-q-cli",
+    scope: "user",
+    configPath: "/home/test/.aws/amazonq/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "githits",
+    serverConfig: { type: "http", url: REMOTE_MCP_URL },
+    compareLegacyLocation: false,
+  },
+  {
+    agentId: "claude-code",
+    scope: "project",
+    configPath: "/workspace/repo/.mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { type: "http", url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "cursor",
+    scope: "project",
+    configPath: "/workspace/repo/.cursor/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "vscode",
+    scope: "project",
+    configPath: "/workspace/repo/.vscode/mcp.json",
+    serversKey: "servers",
+    serverName: "GitHits",
+    serverConfig: { type: "http", url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "codex-cli",
+    scope: "project",
+    configPath: "/workspace/repo/.codex/config.toml",
+    format: "toml",
+    serversKey: "mcp_servers",
+    serverName: "githits",
+    serverConfig: { url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "pi",
+    scope: "project",
+    configPath: "/workspace/repo/.mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { type: "http", url: REMOTE_MCP_URL },
+    setupMethod: "composite",
+  },
+  {
+    agentId: "gemini-cli",
+    scope: "project",
+    configPath: "/workspace/repo/.gemini/settings.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { httpUrl: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "google-antigravity",
+    scope: "project",
+    configPath: "/workspace/repo/.agents/mcp_config.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { serverUrl: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "opencode",
+    scope: "project",
+    configPath: "/workspace/repo/opencode.json",
+    serversKey: "mcp",
+    serverName: "GitHits",
+    serverConfig: { type: "remote", url: REMOTE_MCP_URL, enabled: true },
+  },
+  {
+    agentId: "zed",
+    scope: "project",
+    configPath: "/workspace/repo/.zed/settings.json",
+    serversKey: "context_servers",
+    serverName: "GitHits",
+    serverConfig: { url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "junie",
+    scope: "project",
+    configPath: "/workspace/repo/.junie/mcp/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "qwen-code",
+    scope: "project",
+    configPath: "/workspace/repo/.qwen/settings.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { httpUrl: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "kiro",
+    scope: "project",
+    configPath: "/workspace/repo/.kiro/settings/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { url: REMOTE_MCP_URL },
+  },
+  {
+    agentId: "kilo-code",
+    scope: "project",
+    configPath: "/workspace/repo/.kilo/kilo.jsonc",
+    serversKey: "mcp",
+    serverName: "GitHits",
+    serverConfig: { type: "remote", url: REMOTE_MCP_URL, enabled: true },
+  },
+  {
+    agentId: "factory-droid",
+    scope: "project",
+    configPath: "/workspace/repo/.factory/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "GitHits",
+    serverConfig: { type: "http", url: REMOTE_MCP_URL },
+  },
+];
 
 function createWindowsFileSystemService(
   impl: Parameters<typeof createMockFileSystemService>[0] = {},
@@ -911,6 +1273,7 @@ describe("getSetupConfig", () => {
             "add",
             "--name",
             "githits",
+            "--force",
             "--command",
             "npx",
             "--args",
@@ -919,10 +1282,9 @@ describe("getSetupConfig", () => {
         },
       ]);
       expect(config.check).toEqual({
-        kind: "command",
-        command: "qchat",
-        args: ["mcp", "list"],
-        configuredPattern: /githits/i,
+        kind: "file",
+        path: "/home/test/.aws/amazonq/mcp.json",
+        evaluateContent: expect.any(Function),
       });
     }
   });
@@ -1413,6 +1775,433 @@ describe("getSetupConfig", () => {
   });
 });
 
+describe("remote MCP native configuration", () => {
+  const remoteDefinitions = getInitAgentDefinitions("remote");
+
+  it("selects all 18 automatic agents for remote setup", () => {
+    const expectedAgentIds = [
+      "amazon-q-cli",
+      "claude-code",
+      "cline",
+      "codex-cli",
+      "cursor",
+      "factory-droid",
+      "gemini-cli",
+      "google-antigravity",
+      "hermes-agent",
+      "junie",
+      "kilo-code",
+      "kiro",
+      "opencode",
+      "pi",
+      "qwen-code",
+      "vscode",
+      "windsurf",
+      "zed",
+    ];
+    const automaticAgents = remoteDefinitions.filter(
+      (agent) => agent.id !== "claude-desktop",
+    );
+
+    expect(automaticAgents.map((agent) => agent.id).sort()).toEqual(
+      expectedAgentIds,
+    );
+    for (const agent of automaticAgents) {
+      expect(agent.setupProfile).toBe("remote");
+      expect(agent.mcpTransport).toBe("http");
+    }
+  });
+
+  for (const testCase of REMOTE_NATIVE_CONFIG_CASES) {
+    it(`${testCase.agentId} ${testCase.scope} uses its exact native entry`, () => {
+      withRemoteNativeTestEnvironment(() => {
+        const fs = createMockFileSystemService({
+          getHomeDir: mock(() => "/home/test"),
+          getCwd: mock(() => "/workspace/repo"),
+          joinPath: mock((...segments: string[]) => segments.join("/")),
+        });
+        const remoteAgent = getAgentDefinition(
+          remoteDefinitions,
+          testCase.agentId,
+        );
+        expect(remoteAgent.setupProfile).toBe("remote");
+        expect(remoteAgent.mcpTransport).toBe("http");
+        const remoteSetup = getAgentSetupConfig(
+          remoteAgent,
+          fs,
+          testCase.scope,
+        );
+
+        expectRemoteConfigCase(remoteSetup, testCase);
+
+        if (testCase.compareLegacyLocation !== false) {
+          const legacyAgent = getAgentDefinition(
+            agentDefinitions,
+            testCase.agentId,
+          );
+          const legacySetup = getAgentSetupConfig(
+            legacyAgent,
+            fs,
+            testCase.scope,
+          );
+          expect(configFileLocations(remoteSetup)).toEqual(
+            configFileLocations(legacySetup),
+          );
+        }
+      });
+    });
+  }
+
+  it("claude-code user adds HTTP MCP after legacy cleanup", () => {
+    withRemoteNativeTestEnvironment(() => {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        getCwd: mock(() => "/workspace/repo"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = getAgentDefinition(remoteDefinitions, "claude-code");
+      const setup = getAgentSetupConfig(agent, fs, "user");
+
+      expect(setup?.method).toBe("cli");
+      if (setup?.method !== "cli") {
+        throw new Error("Expected Claude Code CLI setup");
+      }
+      expect(
+        setup.commands.map(({ command, args }) => ({ command, args })),
+      ).toEqual([
+        { command: "claude", args: ["plugin", "uninstall", "githits"] },
+        {
+          command: "claude",
+          args: ["plugin", "marketplace", "remove", "githits-plugins"],
+        },
+        {
+          command: "claude",
+          args: ["mcp", "remove", "githits", "--scope", "user"],
+        },
+        {
+          command: "claude",
+          args: [
+            "mcp",
+            "add",
+            "--transport",
+            "http",
+            "--scope",
+            "user",
+            "githits",
+            REMOTE_MCP_URL,
+          ],
+        },
+      ]);
+      expect(setup.check).toMatchObject({
+        kind: "file",
+        path: "/home/test/.claude.json",
+      });
+    });
+  });
+
+  it("gemini-cli user adds HTTP MCP after legacy cleanup", () => {
+    withRemoteNativeTestEnvironment(() => {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        getCwd: mock(() => "/workspace/repo"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = getAgentDefinition(remoteDefinitions, "gemini-cli");
+      const setup = getAgentSetupConfig(agent, fs, "user");
+
+      expect(setup?.method).toBe("cli");
+      if (setup?.method !== "cli") {
+        throw new Error("Expected Gemini CLI setup");
+      }
+      expect(
+        setup.commands.map(({ command, args }) => ({ command, args })),
+      ).toEqual([
+        {
+          command: "gemini",
+          args: ["extensions", "uninstall", "githits"],
+        },
+        {
+          command: "gemini",
+          args: ["mcp", "remove", "--scope", "user", "githits"],
+        },
+        {
+          command: "gemini",
+          args: [
+            "mcp",
+            "add",
+            "--transport",
+            "http",
+            "--scope",
+            "user",
+            "githits",
+            REMOTE_MCP_URL,
+          ],
+        },
+      ]);
+      expect(setup.check).toMatchObject({
+        kind: "file",
+        path: "/home/test/.gemini/settings.json",
+      });
+    });
+  });
+
+  const codexUserPathCases = [
+    {
+      name: "absent CODEX_HOME",
+      value: undefined,
+      configPath: "/home/test/.codex/config.toml",
+    },
+    {
+      name: "empty CODEX_HOME",
+      value: "",
+      configPath: "/home/test/.codex/config.toml",
+    },
+    {
+      name: "absolute CODEX_HOME",
+      value: "/custom/codex-home",
+      configPath: "/custom/codex-home/config.toml",
+    },
+    {
+      name: "relative CODEX_HOME",
+      value: "codex-home",
+      configPath: "/workspace/repo/codex-home/config.toml",
+    },
+  ] as const;
+
+  for (const testCase of codexUserPathCases) {
+    it(`codex-cli user honors ${testCase.name}`, () => {
+      withRemoteNativeTestEnvironment(() => {
+        withEnvironmentOverrides({ CODEX_HOME: testCase.value }, () => {
+          const fs = createMockFileSystemService({
+            getHomeDir: mock(() => "/home/test"),
+            getCwd: mock(() => "/workspace/repo"),
+            joinPath: mock((...segments: string[]) => segments.join("/")),
+          });
+          const agent = getAgentDefinition(remoteDefinitions, "codex-cli");
+          const setup = getAgentSetupConfig(agent, fs, "user");
+
+          expectRemoteConfigCase(setup, {
+            agentId: "codex-cli",
+            scope: "user",
+            configPath: testCase.configPath,
+            format: "toml",
+            serversKey: "mcp_servers",
+            serverName: "githits",
+            serverConfig: { url: REMOTE_MCP_URL },
+          });
+        });
+      });
+    });
+  }
+
+  it("amazon-q-cli user retains native uninstall by server name", () => {
+    withRemoteNativeTestEnvironment(() => {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        getCwd: mock(() => "/workspace/repo"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = getAgentDefinition(remoteDefinitions, "amazon-q-cli");
+      const uninstall = agent.getUninstallConfig?.(fs);
+
+      expect(uninstall?.method).toBe("cli");
+      if (uninstall?.method !== "cli") {
+        throw new Error("Expected Amazon Q CLI uninstall");
+      }
+      expect(
+        uninstall.commands.map(({ command, args }) => ({ command, args })),
+      ).toEqual([
+        { command: "q", args: ["mcp", "remove", "--name", "githits"] },
+      ]);
+    });
+  });
+
+  for (const agentId of ["windsurf", "cline", "hermes-agent", "amazon-q-cli"]) {
+    it(`${agentId} keeps project setup unsupported`, () => {
+      withRemoteNativeTestEnvironment(() => {
+        const fs = createMockFileSystemService({
+          getHomeDir: mock(() => "/home/test"),
+          getCwd: mock(() => "/workspace/repo"),
+          joinPath: mock((...segments: string[]) => segments.join("/")),
+        });
+        const remoteAgent = getAgentDefinition(remoteDefinitions, agentId);
+        const legacyAgent = getAgentDefinition(agentDefinitions, agentId);
+
+        expect(remoteAgent.projectSetup?.supported).toBe(false);
+        expect(getAgentSetupConfig(remoteAgent, fs, "project")).toBeNull();
+        expect(getAgentSetupConfig(legacyAgent, fs, "project")).toBeNull();
+      });
+    });
+  }
+
+  it("claude-desktop uses the directory URL and has no project setup", () => {
+    withRemoteNativeTestEnvironment(() => {
+      const fs = createMockFileSystemService({
+        getHomeDir: mock(() => "/home/test"),
+        getCwd: mock(() => "/workspace/repo"),
+        joinPath: mock((...segments: string[]) => segments.join("/")),
+      });
+      const agent = getAgentDefinition(remoteDefinitions, "claude-desktop");
+
+      expect(agent.directoryUrl).toBe("https://claude.ai/directory/githits");
+      expect(agent.projectSetup?.supported).toBe(false);
+      expect(getAgentSetupConfig(agent, fs, "project")).toBeNull();
+    });
+  });
+});
+
+describe("Gemini user settings home override", () => {
+  const profiles = [
+    {
+      name: "local",
+      mode: "local",
+      userEntry: {
+        command: "npx",
+        args: ["-y", "githits@latest", "mcp", "start"],
+      },
+    },
+    {
+      name: "remote",
+      mode: "remote",
+      userEntry: { type: "http", url: REMOTE_MCP_URL },
+    },
+  ] as const;
+
+  const posixCases = [
+    {
+      name: "unset override falls back to the home directory",
+      envValue: undefined,
+      homeDir: "/home/test",
+      cwd: "/workspace/repo",
+      expectedUserPath: "/home/test/.gemini/settings.json",
+    },
+    {
+      name: "empty override falls back to the home directory",
+      envValue: "",
+      homeDir: "/home/test",
+      cwd: "/workspace/repo",
+      expectedUserPath: "/home/test/.gemini/settings.json",
+    },
+    {
+      name: "default home fallback uses the filesystem home directory",
+      envValue: undefined,
+      homeDir: "/home/default-user",
+      cwd: "/workspace/repo",
+      expectedUserPath: "/home/default-user/.gemini/settings.json",
+    },
+    {
+      name: "absolute override uses its configured directory",
+      envValue: "/custom/gemini-home",
+      homeDir: "/home/test",
+      cwd: "/workspace/repo",
+      expectedUserPath: "/custom/gemini-home/.gemini/settings.json",
+    },
+    {
+      name: "relative override resolves from the working directory",
+      envValue: "gemini-home",
+      homeDir: "/home/test",
+      cwd: "/workspace/repo",
+      expectedUserPath: "/workspace/repo/gemini-home/.gemini/settings.json",
+    },
+  ] as const;
+
+  for (const profile of profiles) {
+    for (const testCase of posixCases) {
+      it(`${profile.name} profile: ${testCase.name}`, () => {
+        withRemoteNativeTestEnvironment(() => {
+          if (testCase.envValue === undefined) {
+            delete process.env.GEMINI_CLI_HOME;
+          } else {
+            process.env.GEMINI_CLI_HOME = testCase.envValue;
+          }
+
+          const fs = createMockFileSystemService({
+            getHomeDir: mock(() => testCase.homeDir),
+            getCwd: mock(() => testCase.cwd),
+            joinPath: mock((...segments: string[]) => posix.join(...segments)),
+          });
+          const agent = getAgentDefinition(
+            getInitAgentDefinitions(profile.mode),
+            "gemini-cli",
+          );
+          const userSetup = getAgentSetupConfig(agent, fs, "user");
+
+          expect(userSetup?.method).toBe("cli");
+          if (userSetup?.method !== "cli" || userSetup.check?.kind !== "file") {
+            throw new Error("Expected Gemini user file probe");
+          }
+          expect(userSetup.check.path).toBe(testCase.expectedUserPath);
+          expect(
+            userSetup.check.evaluateContent(
+              JSON.stringify({ mcpServers: { githits: profile.userEntry } }),
+            ),
+          ).toBe("configured");
+
+          const projectSetup = getAgentSetupConfig(agent, fs, "project");
+          expect(projectSetup?.method).toBe("config-file");
+          if (projectSetup?.method !== "config-file") {
+            throw new Error("Expected Gemini project config-file setup");
+          }
+          expect(projectSetup.configPath).toBe(
+            posix.join(testCase.cwd, ".gemini", "settings.json"),
+          );
+        });
+      });
+    }
+  }
+
+  it("local and remote profiles use win32 resolution for relative overrides", async () => {
+    const previousGeminiHome = process.env.GEMINI_CLI_HOME;
+    process.env.GEMINI_CLI_HOME = "gemini-home";
+
+    try {
+      await withTestPlatform("win32", () => {
+        const cwd = "C:\\workspace\\repo";
+        const fs = createWindowsFileSystemService({
+          getHomeDir: mock(() => "C:\\Users\\test"),
+          getCwd: mock(() => cwd),
+        });
+
+        for (const profile of profiles) {
+          const agent = getAgentDefinition(
+            getInitAgentDefinitions(profile.mode),
+            "gemini-cli",
+          );
+          const userSetup = getAgentSetupConfig(agent, fs, "user");
+
+          expect(userSetup?.method).toBe("cli");
+          if (userSetup?.method !== "cli" || userSetup.check?.kind !== "file") {
+            throw new Error("Expected Gemini user file probe");
+          }
+          expect(userSetup.check.path).toBe(
+            win32.join(cwd, "gemini-home", ".gemini", "settings.json"),
+          );
+          expect(
+            userSetup.check.evaluateContent(
+              JSON.stringify({ mcpServers: { githits: profile.userEntry } }),
+            ),
+          ).toBe("configured");
+
+          const projectSetup = getAgentSetupConfig(agent, fs, "project");
+          expect(projectSetup?.method).toBe("config-file");
+          if (projectSetup?.method !== "config-file") {
+            throw new Error("Expected Gemini project config-file setup");
+          }
+          expect(projectSetup.configPath).toBe(
+            win32.join(cwd, ".gemini", "settings.json"),
+          );
+        }
+      });
+    } finally {
+      if (previousGeminiHome === undefined) {
+        delete process.env.GEMINI_CLI_HOME;
+      } else {
+        process.env.GEMINI_CLI_HOME = previousGeminiHome;
+      }
+    }
+  });
+});
+
 describe("detectAgents", () => {
   it("returns ids of agents whose directories exist", async () => {
     const fs = createMockFileSystemService({
@@ -1727,10 +2516,20 @@ describe("scanAgents", () => {
     );
   });
 
-  it("categorizes Gemini CLI as configured only for the stdio CLI entry", async () => {
+  it("categorizes Gemini CLI from native config independently of connection health", async () => {
     const lookupCmd = lookupCommandFor();
     const { fs, execService } = createScanMocks({
       detectedDirs: [],
+      configFiles: {
+        "/home/test/.gemini/settings.json": JSON.stringify({
+          mcpServers: {
+            githits: {
+              command: "npx",
+              args: ["-y", "githits@latest", "mcp", "start"],
+            },
+          },
+        }),
+      },
       execResults: {
         [`${lookupCmd} gemini`]: {
           exitCode: 0,
@@ -2742,6 +3541,22 @@ describe("scanAgents", () => {
 
     // Config files for all config-file agents with GitHits configured
     const allConfiguredFiles: Record<string, string> = {
+      [joinPath(homeDir, ".gemini", "settings.json")]: JSON.stringify({
+        mcpServers: {
+          githits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
+      [joinPath(homeDir, ".aws", "amazonq", "mcp.json")]: JSON.stringify({
+        mcpServers: {
+          githits: {
+            command: "npx",
+            args: ["-y", "githits@latest", "mcp", "start"],
+          },
+        },
+      }),
       [joinPath(homeDir, ".claude.json")]: JSON.stringify({
         mcpServers: {
           githits: {
@@ -2980,6 +3795,12 @@ describe("scanAgents", () => {
           execResults: allCliConfigured,
         });
         const result = await scanAgents(agentDefinitions, fs, execService);
+        expect(
+          result.needsSetup.map((agent) => ({
+            id: agent.id,
+            status: agent.resolvedSetupCheckStatus,
+          })),
+        ).toEqual([]);
         expect(result.alreadyConfigured).toHaveLength(19);
         expect(result.needsSetup).toHaveLength(0);
         expect(result.notDetected).toHaveLength(0);

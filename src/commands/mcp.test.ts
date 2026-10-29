@@ -25,6 +25,7 @@ import type {
   ServerRequest,
 } from "@modelcontextprotocol/sdk/types.js";
 import { Command } from "commander";
+import { FileSystemServiceImpl } from "../services/filesystem-service.js";
 import history from "../services/fixtures/mcp-skill-history.json";
 import {
   inspectSkillContent,
@@ -66,6 +67,11 @@ async function withConfigHome<T>(
   const previousHome = process.env.HOME;
   const previousProfile = process.env.USERPROFILE;
   const previousCwd = process.cwd();
+  // Bun may cache os.homedir(); maintenance must only inspect this fixture's home.
+  const homeSpy = spyOn(
+    FileSystemServiceImpl.prototype,
+    "getHomeDir",
+  ).mockReturnValue(configHome);
   process.env.HOME = configHome;
   process.env.USERPROFILE = configHome;
   process.chdir(configHome);
@@ -74,6 +80,7 @@ async function withConfigHome<T>(
   try {
     return await fn();
   } finally {
+    homeSpy.mockRestore();
     process.chdir(previousCwd);
     if (previousHome === undefined) delete process.env.HOME;
     else process.env.HOME = previousHome;

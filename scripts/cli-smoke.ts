@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildCliDocsReadCommand,
@@ -1241,6 +1242,67 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
         `${command} should explain the valid callback port range`,
       );
     }
+
+    const initHelp = await runCliWithEnv(["init", "--help"], env);
+    assert(
+      initHelp.exitCode === 0 &&
+        initHelp.stdout.includes("--remote") &&
+        initHelp.stdout.includes("--local"),
+      "init help should expose both setup profiles",
+    );
+    const conflictingProfiles = await runCliWithEnv(
+      ["init", "--remote", "--local", "--detect-agents", "--json"],
+      env,
+    );
+    assert(
+      conflictingProfiles.exitCode !== 0 &&
+        conflictingProfiles.stdout.trim() === "",
+      "conflicting init profiles should fail before detection with clean stdout",
+    );
+    assert(
+      JSON.parse(conflictingProfiles.stderr).code === "INVALID_ARGUMENT",
+      "conflicting init profiles should return a staged argument envelope",
+    );
+    // Keep every host-owned override inside the existing disposable smoke home.
+    const initEnv = {
+      ...env,
+      CODEX_HOME: join(isolated.root, ".codex"),
+      CLAUDE_CONFIG_DIR: isolated.root,
+      GEMINI_CLI_HOME: isolated.root,
+      HERMES_HOME: join(isolated.root, ".hermes"),
+      PI_CODING_AGENT_DIR: join(isolated.root, ".pi", "agent"),
+    };
+    const remoteDetection = await runCliWithEnv(
+      ["init", "--remote", "--no-guidance", "--detect-agents", "--json"],
+      initEnv,
+    );
+    assert(
+      remoteDetection.exitCode === 0,
+      "remote init detection should be local-only and unauthenticated",
+    );
+    const detected = JSON.parse(remoteDetection.stdout);
+    assert(
+      detected.mode === "detect-agents" &&
+        detected.setupProfile === "remote" &&
+        detected.guidanceRequested === false,
+      "remote init should preserve profile and guidance intent in staged JSON",
+    );
+    assert(
+      Array.isArray(detected.manualActionIds) &&
+        Array.isArray(detected.installableIds) &&
+        Array.isArray(detected.actionableIds),
+      "remote init should separate manual and automatic targets",
+    );
+    assert(
+      !detected.installableIds.includes("claude-desktop") &&
+        !detected.actionableIds.includes("claude-desktop"),
+      "Desktop directory setup must not count as automatic installation",
+    );
+    if (detected.suggestedCommand)
+      assert(
+        detected.suggestedCommand.includes("--remote --no-guidance"),
+        "remote staged follow-up should retain selectors",
+      );
 
     for (const args of [
       ["read", SMOKE_PACKAGE_SPEC, "package.json"],

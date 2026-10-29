@@ -16,41 +16,176 @@ retargeted. Guidance-only and stale-skill cleanup selections do not mutate MCP
 configuration or authenticate. An empty selection prints `Nothing selected, no
 changes made` and returns before review, authentication, or writes.
 
-The first prompt offers guided MCP, plain MCP, standalone Agent Skills, or an
-exit. Guided MCP is the default. `--no-guidance` selects plain MCP and performs
-no skill migration. A project guidance consent decline recomputes the selected
-actions and exits before review, authentication, or writes when only guidance
-repair remains.
+The first prompt asks `How would you like to set up GitHits?` and offers:
 
-Staged detection preserves the machine-readable `installableIds` MCP-only
-contract. `guidanceStatus`, `guidanceRequested`, and `actionableIds` expose
-guidance repair without changing the meaning of existing fields. Staged JSON
-is authoritative for the selected IDs and distinguishes success,
-`already_configured`, unsupported, skipped, and failed outcomes.
+1. Connect via remote MCP (recommended), preselected.
+2. Use the local CLI (supports experimental features): local where supported,
+   remote otherwise. Experimental tools remain opt-in on local integrations.
+3. Configure MCP only (local first): no skills or agent instructions.
+4. View CLI skill setup instructions (shows installation commands).
+5. Exit.
+
+`--remote` and `--local` are mutually exclusive profile selectors and bypass
+that profile prompt. `--remote --no-guidance` configures hosted MCP without
+writing guidance. An interactive profile choice requests migration. Fresh
+no-selector staged/`--yes` setup remains local-first; reruns preserve a valid
+canonical local or hosted transport. Preserve mode does not infer installation
+history. Cursor has the same hosted config in both profiles, so no-selector
+setup retains its existing four-skill policy; explicit remote requests the
+MCP-only subset. There is no fallback to another transport after a failure.
+
+A project guidance consent decline recomputes selected actions and exits before
+writes when only guidance repair remains. Staged `installableIds` remains
+MCP-only; `actionableIds` adds guidance repair. The top-level `setupProfile` is
+`remote`, `local`, or `preserve`; per-agent `setupProfile` and `transport` report
+the resolved policy/connection. Follow-up commands retain the exact explicit
+selector, scope, IDs, `--no-guidance`, and JSON mode.
+
+Claude Desktop always reports `manual_action_required` and the exact directory
+page https://claude.ai/directory/githits. The user chooses Connect/Install and
+signs in in Claude, then verifies tools in a new conversation. Init never
+activates the connector, opens its browser flow, writes Desktop MCP/skills, or
+claims it is connected. `manualActionIds` and per-entry `manualAction` describe
+this separately from automatic installation. Desktop-only setup returns without
+write confirmation or CLI auth; mixed setup keeps manual outcomes outside the
+automatic success/failure counts. Unselected Desktop receives no handoff.
+Legacy Desktop local bytes are retained and reported when detected; explicit
+uninstall can remove that local config. Connector disconnection belongs to
+Claude. Desktop remains unsupported at project scope.
 
 ## MCP transport and authentication
 
-Before selection, intent copy is transport-neutral. After selection, review and
-final summaries describe the actual targets:
+Host definitions own native config formats, verified locations/scopes, effective
+transport, guidance profile, and remote auth instructions. Init resolves these
+before scanning and retains them through checks, writes, verification, and
+reporting. Setup reuses the existing command/config-file/composite executors.
+Config-file checks and native command file probes share one pure classifier;
+malformed/unreadable and disabled entries block setup before MCP mutation.
+Canonical remote matching preserves host-owned extras, including Q serialized
+defaults and Cline settings, while rejecting conflicting local commands/URLs.
 
-- all non-Cursor targets use the local stdio command
-  `npx -y githits@latest mcp start`;
-- Cursor-only targets use the hosted remote MCP at
-  `https://mcp.githits.com`;
-- mixed selections name both the local target group and Cursor's remote target.
+Hosted MCP uses https://mcp.githits.com and host-owned OAuth. Entirely hosted
+setup and guidance-only repairs do not construct CLI login dependencies. Local
+CLI auth only applies to selected local integrations. Configuration success is
+not an authenticated tool-discovery result; remote next steps also appear on
+configured/guidance-only paths. Cursor retains its MCP-panel Authenticate action,
+`cursor-agent mcp login GitHits`, and copyable tool-discovery commands. Other
+hosts receive their own auth action and new-session discovery instructions.
+Staged Cursor-only auth keeps `managed_by_cursor`; other hosted-only setup uses
+`managed_by_host`, with additive per-host `remoteAuth` instructions for mixed runs.
 
-Cursor authentication is separate from local GitHits CLI authentication. A
-Cursor setup requires one Authenticate action in Cursor's MCP panel, or
-`cursor-agent mcp login GitHits`, followed by tool discovery in a new Cursor
-Agent chat. Cursor-only setup skips local CLI login. Mixed setup authenticates
-only the non-Cursor integrations locally and labels that status accordingly.
+Claude Code and Gemini retain legacy plugin/extension cleanup before native
+HTTP or stdio add. Gemini file checks accept both current `{type:"http",url}`
+and legacy `httpUrl` user HTTP representations independently of connection
+health. User file probes honor `GEMINI_CLI_HOME` as the base containing
+`.gemini/settings.json`, matching Gemini native add; project settings remain
+relative to the project. Q remote writes the existing `~/.aws/amazonq/mcp.json` map; local add
+uses `--force` for explicit replacement and uninstall uses `--name githits`.
+Codex remote user/project setup edits native TOML directly: `codex mcp add
+--url` starts browser OAuth and would block unattended setup. Login remains the
+separate `codex mcp login githits` step. User checks/writes honor `CODEX_HOME`
+(default `~/.codex`); relative overrides are resolved before isolated probes.
+Local Codex accepts enabled custom/pinned stdio commands and detects the CLI
+with bounded PATH/version probes.
 
-Pi user setup writes `directTools: true` alongside its eager lifecycle in the
-Pi-owned `~/.pi/agent/mcp.json` entry. Project `.mcp.json` keeps the standard
-shared MCP shape and does not receive Pi's user-only `directTools` setting.
-Codex detection requires both a successful `PATH` lookup and a successful,
-bounded `codex --version` probe; a missing, failing, timed-out, or unlaunchable
-probe means Codex is not detected.
+The shared TOML editor patches only GitHits entries, including case variants
+and descendant tables. It preserves unrelated source, comments, formatting,
+BOM and line endings for user and project setup/removal. The existing parser
+validates the result against intended settings before atomic write. There is
+no whole-file rewrite fallback and no destructive TOML rewrite warning.
+
+Pi keeps its adapter installation and user `lifecycle: eager` / `directTools:
+true`; project `.mcp.json` uses the shared native shape. Claude Code and Pi read
+the same project GitHits entry; review/detection disclose that changing it
+affects both hosts. Other scopes and unrelated server entries are preserved.
+
+## Native remote configuration
+
+Init uses the existing scope/path/server-key/name in each agent definition, replacing
+only the selected GitHits entry with its native remote configuration. `URL`
+below means the canonical `https://mcp.githits.com`.
+
+| Agent | Remote entry or native user command |
+| --- | --- |
+| Claude Code | User: `claude mcp add --transport http --scope user githits URL`, retaining existing migration cleanup; project: `{type:"http",url:URL}` |
+| Cursor | Existing `{url:URL}` |
+| Windsurf | `{serverUrl:URL}` at the existing Windsurf path; no successor product detection/path migration |
+| VS Code / Copilot | `{type:"http",url:URL}` |
+| Cline | `{type:"streamableHttp",url:URL}` at the existing user path |
+| Codex CLI | User/project TOML: `url = "URL"`; user path honors `CODEX_HOME` |
+| Pi | Retain existing adapter composite; user: `{url:URL,lifecycle:"eager",directTools:true}`; shared project `.mcp.json`: `{type:"http",url:URL}` |
+| Gemini CLI | User: `gemini mcp add --transport http --scope user githits URL`, retaining cleanup and honoring `GEMINI_CLI_HOME` for the settings base; accept native `{type:"http",url:URL}` and legacy `{httpUrl:URL}`; project writes `{httpUrl:URL}` |
+| Google Antigravity | `{serverUrl:URL}` |
+| OpenCode and Kilo Code CLI | `{type:"remote",url:URL,enabled:true}` |
+| Hermes Agent | YAML entry `url: URL`, `auth: oauth`; user scope only |
+| Zed and Junie | `{url:URL}` |
+| Qwen Code | `{httpUrl:URL}` |
+| Kiro | `{url:URL}` |
+| Factory Droid | `{type:"http",url:URL}` |
+| Amazon Q CLI | User JSON `~/.aws/amazonq/mcp.json`, `mcpServers.githits = {type:"http",url:URL}`; native uninstall is `q mcp remove --name githits` |
+| Claude Desktop | Directory handoff only; retain legacy local setup descriptor solely for uninstall |
+
+Verified host contracts (2026-10-20):
+
+- Cline `ca7402c5`, `apps/vscode/src/services/mcp/schemas.ts:87-164`
+  explicitly accepts the existing flat format as well as nested transport.
+  Explicit `streamableHttp` is required; URL-only defaults to SSE. Keep the flat
+  supported format rather than migrating the host's whole config.
+- Current public [OpenCode MCP documentation](https://opencode.ai/docs/mcp-servers/)
+  uses the existing direct `mcp.<name>` map with remote type, URL, and enabled
+  state. Another source directory has a newer nesting shape; do not mistake
+  that unrelated/unreleased surface for a requirement to migrate existing setup.
+  Installed OpenCode 1.18.30 exposes native `mcp add --url`; Codex 0.163.0 also
+  exposes `mcp add --url` (help/version probes only, no user config read).
+- Codex `e18a20d6`, `codex-rs/cli/src/mcp_cmd.rs:453-490` writes the
+  entry and immediately awaits browser OAuth from `mcp add --url`. Local
+  Codex 0.163.0 help has no no-login switch. Remote user setup therefore uses
+  the existing TOML executor at `CODEX_HOME/config.toml`, or
+  `~/.codex/config.toml` when the environment value is absent/empty; project
+  setup keeps `.codex/config.toml`. Preserve sibling settings and preserve surrounding comments/formatting through the shared TOML editor
+  described above. Do not run native remote add or manufacture
+  a bearer-token variable to suppress OAuth. Report `codex mcp login githits`
+  separately. `codex-rs/utils/home-dir/src/lib.rs:13-60` confirms the override
+  and default; resolve relative overrides against the working directory, as
+  native filesystem paths do. Existing setup creates the config directory if
+  needed; no independent Codex-home validator/framework is needed. Keep local
+  stdio add and native uninstall unchanged. Regression cases cover default,
+  nonempty/empty override, existing siblings, exact remote match, disabled
+  state, and no native add or login call during hosted configuration.
+- Kilo `5cc65d12`, `packages/sdk/js/src/v2/gen/types.gen.ts:2481` and
+  `packages/kilo-docs/pages/automate/mcp/using-in-kilo-code.md` confirm its CLI
+  direct map and remote entry. Do not use editor-extension formats.
+- Pi adapter `1c7a84d4`, `docs/configuration.md` confirms Pi-owned `mcp.json`
+  and shared `.mcp.json`; `docs/auth.md` confirms URL-only OAuth discovery.
+  No explicit auth property is required in the shared Claude/Pi project entry.
+- Amazon Q `15cc8f3c`, `crates/chat-cli/src/util/paths.rs:59-61` confirms
+  `.aws/amazonq/mcp.json`. Its add command requires a local executable, so remote
+  setup writes that existing global map instead; `mcp remove` handles the same
+  map (`crates/chat-cli/src/cli/mcp.rs:256-260`); its RemoveArgs requires
+  `--name githits` (`:211-214`), correcting the existing positional invocation. This is the same legacy global
+  source existing local init already uses, not a new caller constraint.
+- Gemini `76e4d7c0`, `packages/cli/src/commands/mcp/add.ts:17-153`
+  confirms native add only writes configuration and returns, without starting
+  OAuth. Current native HTTP output is `{type:"http",url:URL}` whereas legacy
+  `httpUrl` remains supported. The user remote file check accepts either native
+  HTTP representation at the canonical URL, rejecting SSE, conflicting values,
+  malformed or disabled entries; project writes its existing `httpUrl` shape.
+  Both supported representations have regression coverage for native add idempotency. User probes follow the native `GEMINI_CLI_HOME` settings base; project paths stay project-relative.
+- Official Junie docs confirm URL entries and the existing scope paths.
+  Official Droid docs confirm HTTP config and OAuth. Existing Windsurf scope
+  stays explicit; the redirected successor docs' path is not adopted.
+
+Remote sign-in instructions belong to each definition: Claude Code `/mcp`,
+Cursor existing panel/login commands, Codex `codex mcp login githits`, Gemini
+`/mcp auth githits`, Pi `/mcp-auth GitHits`, OpenCode/Kilo native MCP auth,
+and the other hosts' documented MCP Authenticate/Authorize action. Every remote
+instruction ends with a new-session/tool-discovery check; none claims CLI auth
+proves remote readiness. Preserve exact host/server-name spelling.
+
+The native settings-home override does not establish exclusive guidance
+discovery. Before changing guidance locations for a custom Gemini home, verify
+whether the native host also reads the standard location; the investigation
+criteria are recorded in [the backlog](../plans/open-backlog.md#verify-gemini-custom-home-guidance-discovery).
 
 ## Supporting MCP guidance
 
@@ -115,12 +250,19 @@ and registers GitHits; that environment differs from a normal workspace.
 
 ## Skill catalog and active roots
 
-Guided setup requires exactly these four packaged skills:
+The local-first profile and plugin packages use these four canonical skills:
 
 - `githits-code`
 - `githits-mcp`
 - `githits-onboarding`
 - `githits-package`
+
+The remote profile requests only `githits-mcp` plus existing managed instruction
+blocks at verified targets, preserving pre-existing extra/CLI skill files.
+Some hosts support skills without an instruction block; Amazon Q has neither
+target and reports `guidanceStatus: "not_supported"` while MCP remains installable.
+Mixed preserve-mode profiles sharing a skill root take the union by target
+file path, independently of selection order.
 
 The runtime catalog is defined in `src/commands/init/guidance-assets.ts` and
 is checked for parity with plugin packaging. Missing files are repaired;
@@ -232,7 +374,7 @@ targets are only the exact CLI-owned files
 `<scope>/.junie/skills/githits-mcp/SKILL.md`; unrelated skills, directories,
 plugin payloads, and managed instruction blocks are preserved.
 
-Guided setup writes and verifies all four active skill files before removing a
+Guided setup writes and verifies its requested skill subset before removing a
 historical file. If active installation or verification fails, the historical
 file remains. If cleanup fails, the active set remains usable and the exact
 failed historical path is reported with a generic reason. Missing historical
