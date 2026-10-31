@@ -3,4 +3,4 @@
 "@githits/mcp": minor
 ---
 
-- **Googlesource HTTPS targets** - Accept public `*.googlesource.com` project URLs in the shared repository parser, preserving refs and HTTPS replay pointers without changing existing providers. Update the public `githits-code` HTTPS reference in the release branch; hosted MCP requires package adoption and deployment.
+- **Googlesource HTTPS targets** - Search, read, list, grep and diff accept public `*.googlesource.com` project URLs with refs and HTTPS replay pointers. HTTPS-only parsing rejects all ports, preserves project case and normalizes one terminal `.git`/slash; fuzzy resolve replay requires the backend serialization update, and hosted MCP requires package adoption and deployment.
