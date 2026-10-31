@@ -819,7 +819,7 @@ normalization, pagination, actions, errors, and text output.
   filters, symbol hydration,
   per-file limit, and separate error/output behavior; it is not an MCP pair.
 
-See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, GitLab, and owner-qualified Launchpad addressing contract and provider-preserving response identity.
+See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, GitLab, Launchpad, and Googlesource addressing contract and provider-preserving response identity.
 
 See [Unified read](unified-read.md) for backend-owned source resolution, fragment ranges, indexing waits, Ask pointer translation and release migration.
 

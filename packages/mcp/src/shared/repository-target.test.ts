@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   formatRepositoryTarget,
   formatRepositoryTargetLabel,
+  isCanonicalRepositoryUrl,
   isRepositoryTargetSpec,
   parseRepositoryTargetSpec,
 } from "./repository-target.js";
@@ -17,6 +18,106 @@ describe("formatRepositoryTarget", () => {
     expect(
       formatRepositoryTarget("https://example.com/owner/repo", "main"),
     ).toBe("https://example.com/owner/repo@main");
+  });
+});
+
+describe("Googlesource HTTPS repository grammar", () => {
+  it.each([
+    ["https://go.googlesource.com/time", "https://go.googlesource.com/time"],
+    [
+      "https://go.googlesource.com/sync.git/",
+      "https://go.googlesource.com/sync",
+    ],
+    [
+      "HTTPS://CHROMIUM.GOOGLESOURCE.COM/Chromium/Src/",
+      "https://chromium.googlesource.com/Chromium/Src",
+    ],
+    [
+      "https://a.b-c.googlesource.com/_Project/.hidden/repo-name_1.2",
+      "https://a.b-c.googlesource.com/_Project/.hidden/repo-name_1.2",
+    ],
+    [
+      "https://go-review.googlesource.com/time",
+      "https://go-review.googlesource.com/time",
+    ],
+  ])("canonicalizes %s without a compact prefix", (input, repoUrl) => {
+    for (const gitRef of [
+      undefined,
+      "v0.16.0",
+      "release/v1@stable",
+      "fb013b3d",
+      "fb013b3d305a26f5ef5350a6eaffc7c87a200383",
+    ]) {
+      const spec = `${input}${gitRef === undefined ? "" : `@${gitRef}`}`;
+      expect(isRepositoryTargetSpec(spec)).toBe(true);
+      expect(parseRepositoryTargetSpec(spec)).toEqual({
+        repoUrl,
+        ...(gitRef === undefined ? {} : { gitRef }),
+      });
+      const formatted = formatRepositoryTarget(repoUrl, gitRef);
+      expect(formatted).toBe(
+        `${repoUrl}${gitRef === undefined ? "" : `@${gitRef}`}`,
+      );
+      expect(parseRepositoryTargetSpec(formatted)).toEqual(
+        parseRepositoryTargetSpec(spec),
+      );
+    }
+    expect(isCanonicalRepositoryUrl(repoUrl)).toBe(true);
+    expect(formatRepositoryTarget(input, "main")).toBe(`${repoUrl}@main`);
+    expect(formatRepositoryTargetLabel(`${repoUrl}@v0.16.0`)).toBe(
+      `${repoUrl}@v0.16.0`,
+    );
+  });
+
+  it.each([
+    "http://go.googlesource.com/time",
+    "git://go.googlesource.com/time",
+    "ssh://go.googlesource.com/time",
+    "git+https://go.googlesource.com/time",
+    "googlesource:go/time",
+    "go.googlesource.com/time",
+    "https://googlesource.com/time",
+    "https://go.googlesource.com.evil.test/time",
+    "https://evilgooglesource.com/time",
+    "https://-go.googlesource.com/time",
+    "https://go-.googlesource.com/time",
+    "https://go..googlesource.com/time",
+    `https://${"a".repeat(64)}.googlesource.com/time`,
+    `https://${"a".repeat(63)}.${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(47)}.googlesource.com/time`,
+    "https://go.googlesource.com./time",
+    "https://%67o.googlesource.com/time",
+    "https://go%2egooglesource.com/time",
+    "https://gö.googlesource.com/time",
+    "https://user@go.googlesource.com/time",
+    "https://user:password@go.googlesource.com/time",
+    "https://go.googlesource.com:/time",
+    "https://go.googlesource.com:443/time",
+    "https://go.googlesource.com:8443/time",
+    "https://go.googlesource.com/",
+    "https://go.googlesource.com/.git",
+    "https://go.googlesource.com/time.git.git",
+    "https://go.googlesource.com/time//",
+    "https://go.googlesource.com/time/./other",
+    "https://go.googlesource.com/time/../other",
+    "https://go.googlesource.com/time/%2e%2e/other",
+    "https://go.googlesource.com/time%2Fother",
+    "https://go.googlesource.com/time%5cother",
+    "https://go.googlesource.com/%74ime",
+    "https://go.googlesource.com/time%252Fother",
+    "https://go.googlesource.com/time\\other",
+    "https://go.googlesource.com/timé",
+    "https://go.googlesource.com/time?",
+    "https://go.googlesource.com/time?format=TEXT",
+    "https://go.googlesource.com/time#readme",
+    "https://go.googlesource.com/time@main#readme",
+    "https://go.googlesource.com/time@",
+    "https://go.googlesource.com/time/+/refs/heads/master/rate/rate.go",
+    "https://go.googlesource.com/time/+log",
+    "https://go.googlesource.com/time/+refs",
+    "https://go.googlesource.com/time/+archive/main.tar.gz",
+  ])("rejects %s", (spec) => {
+    expect(() => parseRepositoryTargetSpec(spec)).toThrow();
+    expect(isCanonicalRepositoryUrl(spec)).toBe(false);
   });
 });
 

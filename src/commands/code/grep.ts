@@ -283,7 +283,8 @@ Use \`githits search\` for discovery; use \`githits code grep\` when you know th
 Addressing: <target> accepts registry:name[@version], github:org/repo[@ref], codeberg:owner/repo[@ref], gitlab:group[/subgroup...]/project[@ref],
 launchpad:~owner/+git/repo[@ref], launchpad:~owner/project/+git/repo[@ref],
 or launchpad:~owner/distro/+source/source/+git/repo[@ref] (lp:PROJECT also accepted).
-Full HTTPS repository URLs are accepted on github.com, codeberg.org, gitlab.com, git.launchpad.net or code.launchpad.net.
+Full HTTPS repository URLs are accepted on github.com, codeberg.org, gitlab.com, git.launchpad.net, code.launchpad.net or public *.googlesource.com hosts.
+Googlesource uses full HTTPS targets only; project case is preserved and ports are rejected.
 Launchpad also accepts lp:PROJECT and owner-scoped or distribution-source defaults.
 HTTPS code.launchpad.net and git.launchpad.net accept the same paths;
 git://git.launchpad.net requires a complete owner-qualified path.
