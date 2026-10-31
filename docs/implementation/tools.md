@@ -1319,7 +1319,7 @@ See `docs/guidelines/TESTING.md` for the full testing pattern.
 - [`cli-commands.md`](./cli-commands.md) — CLI commands that mirror these MCP tools
 - `docs/guidelines/ARCHITECTURAL_GUIDELINES.md` — service isolation and testing patterns
 
-See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, GitLab, and owner-qualified Launchpad addressing contract and provider-preserving response identity.
+See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, GitLab, Launchpad, and Googlesource addressing contract and provider-preserving response identity.
 
 ### Search path compatibility
 
