@@ -11,6 +11,7 @@ import { sanitizeTerminalText } from "./terminal-text.js";
 
 export interface ResolveTargetCandidatePayload {
   target: string;
+  canonicalKey?: string;
   name?: string;
   kind: string;
   confidence?: string;
@@ -69,11 +70,11 @@ export function buildResolveTargetSuccessPayload(
     ambiguous: result.ambiguous,
     candidates,
     protectedMatches: dedupeTargets(result.protectedMatches).map(
-      (target) => target.canonicalKey,
+      (target) => target.searchTarget,
     ),
     targetsTruncated: result.targetsTruncated,
   };
-  if (result.best) payload.best = result.best.canonicalKey;
+  if (result.best) payload.best = result.best.searchTarget;
   if (result.ambiguous) {
     payload.ambiguousReason = result.ambiguousReason.toLowerCase();
   }
@@ -84,10 +85,12 @@ function projectTarget(
   target: ResolveTargetTarget,
 ): ResolveTargetCandidatePayload {
   const payload: ResolveTargetCandidatePayload = {
-    target: target.canonicalKey,
+    target: target.searchTarget,
     kind: target.kind.toLowerCase(),
     direct: target.match !== undefined,
   };
+  if (target.canonicalKey !== target.searchTarget)
+    payload.canonicalKey = target.canonicalKey;
   assign(payload, "confidence", target.match?.confidence.toLowerCase());
   assign(payload, "groupKey", target.groupKey);
   assign(payload, "name", target.displayName);
@@ -314,7 +317,7 @@ export function formatResolveTargetTerminal(
     const sourceOption = result.best.kind === "SITE" ? " --source docs" : "";
     lines.push(
       "",
-      `Next: githits search ${shellQuote(query)} --in ${shellQuote(sanitizeTerminalText(result.best.canonicalKey))}${sourceOption}`,
+      `Next: githits search ${shellQuote(query)} --in ${shellQuote(sanitizeTerminalText(result.best.searchTarget))}${sourceOption}`,
     );
   } else if (hasBlockedDirectTarget) {
     lines.push(
@@ -385,7 +388,7 @@ function formatTerminalTarget(
   const kind = target.kind.toLowerCase();
   const knownKind = KNOWN_KIND_VALUES.has(kind) ? kind : "target";
   const identity = highlight(
-    sanitizeTerminalText(target.canonicalKey),
+    sanitizeTerminalText(target.searchTarget),
     useColors,
   );
   const fields = target.match

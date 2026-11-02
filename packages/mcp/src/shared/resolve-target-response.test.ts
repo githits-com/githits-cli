@@ -34,6 +34,7 @@ function candidate(
   return {
     kind: "PACKAGE",
     canonicalKey: "npm:express",
+    searchTarget: "npm:express",
     confidence,
     displayName: "express",
     description: "Fast web framework",
@@ -135,6 +136,7 @@ describe("buildResolveTargetSuccessPayload", () => {
     const extra = {
       kind: "PACKAGE",
       canonicalKey: "pypi:express",
+      searchTarget: "pypi:express",
       confidence: "EXACT",
     };
     const payload = buildResolveTargetSuccessPayload(
@@ -210,6 +212,7 @@ describe("buildResolveTargetSuccessPayload", () => {
     const related = candidate({
       kind: "SITE",
       canonicalKey: "site:expressjs.com",
+      searchTarget: "site:expressjs.com",
       groupKey: "github:expressjs/express",
       match: undefined,
       stars: undefined,
@@ -250,6 +253,7 @@ describe("buildResolveTargetSuccessPayload", () => {
   it("does not sort presentation groups back into direct rank order", () => {
     const lead = candidate({
       canonicalKey: "npm:project",
+      searchTarget: "npm:project",
       groupKey: "github:owner/project",
       matchTier: 0,
       score: 100,
@@ -257,6 +261,7 @@ describe("buildResolveTargetSuccessPayload", () => {
     const groupedLowerRank = candidate({
       kind: "REPOSITORY",
       canonicalKey: "github:owner/project",
+      searchTarget: "github:owner/project",
       groupKey: "github:owner/project",
       confidence: "HIGH",
       matchTier: 2,
@@ -264,6 +269,7 @@ describe("buildResolveTargetSuccessPayload", () => {
     });
     const ungroupedHigherRank = candidate({
       canonicalKey: "npm:other",
+      searchTarget: "npm:other",
       groupKey: undefined,
       confidence: "HIGH",
       matchTier: 1,
@@ -385,16 +391,33 @@ describe("isResolveTargetActionable", () => {
 describe("groupResolveTargets", () => {
   it("groups only contiguous equal non-null keys while preserving order", () => {
     const targets = [
-      candidate({ canonicalKey: "npm:a", groupKey: "project:a" }),
+      candidate({
+        canonicalKey: "npm:a",
+        searchTarget: "npm:a",
+        groupKey: "project:a",
+      }),
       candidate({
         kind: "REPOSITORY",
         canonicalKey: "github:a/a",
+        searchTarget: "github:a/a",
         groupKey: "project:a",
         match: undefined,
       }),
-      candidate({ canonicalKey: "npm:singleton", groupKey: undefined }),
-      candidate({ canonicalKey: "npm:a-again", groupKey: "project:a" }),
-      candidate({ canonicalKey: "npm:null-2", groupKey: undefined }),
+      candidate({
+        canonicalKey: "npm:singleton",
+        searchTarget: "npm:singleton",
+        groupKey: undefined,
+      }),
+      candidate({
+        canonicalKey: "npm:a-again",
+        searchTarget: "npm:a-again",
+        groupKey: "project:a",
+      }),
+      candidate({
+        canonicalKey: "npm:null-2",
+        searchTarget: "npm:null-2",
+        groupKey: undefined,
+      }),
     ];
 
     expect(
@@ -437,6 +460,7 @@ describe("formatResolveTargetTerminal", () => {
     const repository = candidate({
       kind: "REPOSITORY",
       canonicalKey: "github:expressjs/express",
+      searchTarget: "github:expressjs/express",
       groupKey: "github:expressjs/express",
       match: undefined,
       downloadsLastMonth: undefined,
@@ -448,6 +472,7 @@ describe("formatResolveTargetTerminal", () => {
     const site = candidate({
       kind: "SITE",
       canonicalKey: "site:expressjs.com",
+      searchTarget: "site:expressjs.com",
       groupKey: "github:expressjs/express",
       match: undefined,
       stars: undefined,
@@ -489,6 +514,7 @@ describe("formatResolveTargetTerminal", () => {
     const repository = candidate({
       kind: "REPOSITORY",
       canonicalKey: "github:expressjs/express",
+      searchTarget: "github:expressjs/express",
       groupKey: "github:expressjs/express",
       match: undefined,
       downloadsLastMonth: undefined,
@@ -500,6 +526,7 @@ describe("formatResolveTargetTerminal", () => {
     const site = candidate({
       kind: "SITE",
       canonicalKey: "site:expressjs.com",
+      searchTarget: "site:expressjs.com",
       groupKey: "github:expressjs/express",
       match: undefined,
       stars: undefined,
@@ -554,6 +581,7 @@ describe("formatResolveTargetTerminal", () => {
     const repository = candidate({
       kind: "REPOSITORY",
       canonicalKey: "github:expressjs/express",
+      searchTarget: "github:expressjs/express",
       downloadsLastMonth: undefined,
       docsAvailable: false,
       codeFileCount: 1_234,
@@ -575,6 +603,7 @@ describe("formatResolveTargetTerminal", () => {
     const repository = candidate({
       kind: "REPOSITORY",
       canonicalKey: "github:expressjs/express",
+      searchTarget: "github:expressjs/express",
       downloadsLastMonth: undefined,
       license: "Mit",
       latestVersionMaliciousStatus: "NOT_APPLICABLE",
@@ -591,6 +620,7 @@ describe("formatResolveTargetTerminal", () => {
     const directSite = candidate({
       kind: "SITE",
       canonicalKey: "site:expressjs.com",
+      searchTarget: "site:expressjs.com",
       groupKey: "github:expressjs/express",
       docsAvailable: true,
       codeAvailable: false,
@@ -656,12 +686,14 @@ describe("formatResolveTargetTerminal", () => {
   it("renders coarse similarity only when verbose without changing order or gates", () => {
     const lodashEs = candidate({
       canonicalKey: "npm:lodash-es",
+      searchTarget: "npm:lodash-es",
       displayName: "lodash-es",
       confidence: "MEDIUM",
       nameSimilarity: 0.333,
     });
     const lodash = candidate({
       canonicalKey: "npm:lodash",
+      searchTarget: "npm:lodash",
       displayName: "lodash",
       confidence: "MEDIUM",
       nameSimilarity: 0.4,
@@ -705,11 +737,13 @@ describe("formatResolveTargetTerminal", () => {
   it("renders protected matches inline without changing candidate order", () => {
     const protectedExtra = candidate({
       canonicalKey: "pypi:express",
+      searchTarget: "pypi:express",
       registry: "PYPI",
     });
     const alternative = candidate({
       kind: "REPOSITORY",
       canonicalKey: "github:expressjs/express",
+      searchTarget: "github:expressjs/express",
       displayName: "expressjs/express",
       downloadsLastMonth: undefined,
       confidence: "HIGH",
@@ -740,6 +774,8 @@ describe("formatResolveTargetTerminal", () => {
       kind: "SITE",
       canonicalKey:
         "site:developer.apple.com/design/human-interface-guidelines",
+      searchTarget:
+        "site:developer.apple.com/design/human-interface-guidelines",
       displayName: "Apple Human Interface Guidelines",
       stars: undefined,
       downloadsLastMonth: undefined,
@@ -765,11 +801,13 @@ describe("formatResolveTargetTerminal", () => {
     const protectedExtra = {
       kind: "PACKAGE",
       canonicalKey: "pypi:express",
+      searchTarget: "pypi:express",
       confidence: "EXACT",
     };
     const best = {
       kind: "REPOSITORY",
       canonicalKey: "github:expressjs/express",
+      searchTarget: "github:expressjs/express",
       confidence: "HIGH",
     };
     const output = formatResolveTargetTerminal(
@@ -793,6 +831,7 @@ describe("formatResolveTargetTerminal", () => {
   it("shows total downloads or a linked repository when monthly downloads are unavailable", () => {
     const crates = candidate({
       canonicalKey: "crates:serde",
+      searchTarget: "crates:serde",
       stars: undefined,
       downloadsLastMonth: undefined,
       downloadsTotal: 500_000_000,
@@ -800,6 +839,7 @@ describe("formatResolveTargetTerminal", () => {
     });
     const maven = candidate({
       canonicalKey: "maven:com.google.guava:guava",
+      searchTarget: "maven:com.google.guava:guava",
       stars: undefined,
       downloadsLastMonth: undefined,
       downloadsTotal: undefined,
@@ -906,6 +946,7 @@ describe("formatResolveTargetTerminal", () => {
     const repository = candidate({
       kind: "REPOSITORY",
       canonicalKey: "github:expressjs/express",
+      searchTarget: "github:expressjs/express",
       latestVersionMaliciousStatus: "NOT_APPLICABLE",
     });
     const output = formatResolveTargetTerminal(
@@ -1042,6 +1083,7 @@ describe("formatResolveTargetTerminal", () => {
     const clear = candidate();
     const affected = candidate({
       canonicalKey: "npm:express-lookalike",
+      searchTarget: "npm:express-lookalike",
       latestVersionMaliciousStatus: "AFFECTED",
     });
     const output = formatResolveTargetTerminal(
@@ -1124,6 +1166,7 @@ describe("formatResolveTargetTerminal", () => {
   it("strips terminal control sequences from backend-provided text", () => {
     const hostile = candidate({
       canonicalKey: "npm:x\u001b[31m",
+      searchTarget: "npm:x\u001b[31m",
       description:
         "safe\u001b]8;;https://evil.test\u0007click\u001b]8;;\u0007 \u009bred \u0007 bell\treturn \rcarriage",
     });
@@ -1177,6 +1220,7 @@ describe("S2b readiness", () => {
       const best = candidate({
         kind: "SITE",
         canonicalKey: "site:ai.pydantic.dev",
+        searchTarget: "site:ai.pydantic.dev",
         confidence,
         docsAvailable: false,
         latestVersionMaliciousStatus: "NOT_APPLICABLE",
@@ -1194,6 +1238,7 @@ describe("S2b readiness", () => {
       const best = candidate({
         kind: "SITE",
         canonicalKey: "site:ai.pydantic.dev",
+        searchTarget: "site:ai.pydantic.dev",
         docsAvailable: false,
         docsPageCount: count,
         latestVersionMaliciousStatus: "NOT_APPLICABLE",
@@ -1213,6 +1258,7 @@ describe("S2b readiness", () => {
       const best = candidate({
         kind: "SITE",
         canonicalKey: "site:ai.pydantic.dev",
+        searchTarget: "site:ai.pydantic.dev",
         docsAvailable: false,
       });
       if (status === undefined)
@@ -1236,3 +1282,50 @@ describe("S2b readiness", () => {
     }
   });
 });
+
+it.each([
+  [
+    "REPOSITORY",
+    "googlesource:go.googlesource.com/time",
+    "https://go.googlesource.com/time",
+    "NOT_APPLICABLE",
+  ],
+  ["SITE", "site:example.com", "site:example.com/guide", "NOT_APPLICABLE"],
+])(
+  "emits %s replay addresses while keeping canonical matching and identity",
+  (kind, canonicalKey, searchTarget, status) => {
+    const best = {
+      ...candidate({
+        kind,
+        canonicalKey,
+        latestVersionMaliciousStatus: status,
+      }),
+      searchTarget,
+    };
+    const resolved = result({
+      best,
+      protectedMatches: [best, best],
+      targets: [best],
+    });
+    const payload = buildResolveTargetSuccessPayload(resolved);
+    expect(payload.best).toBe(searchTarget);
+    expect(payload.protectedMatches).toEqual([searchTarget]);
+    expect(payload.candidates[0]).toMatchObject({
+      target: searchTarget,
+      canonicalKey,
+    });
+    expect(findResolveTargetBestTarget(resolved)).toBe(best);
+    expect(isResolveTargetActionable(resolved)).toBe(true);
+    const text = formatResolveTargetTerminal(resolved, {
+      name: "project",
+      query: "source",
+    });
+    expect(text).toContain(searchTarget);
+    expect(text).toContain(`--in '${searchTarget}'`);
+    if (kind === "REPOSITORY") expect(text).not.toContain(canonicalKey);
+    const blocked = { ...best, latestVersionMaliciousStatus: "AFFECTED" };
+    expect(
+      isResolveTargetActionable(result({ best, targets: [blocked] })),
+    ).toBe(false);
+  },
+);

@@ -18,6 +18,7 @@ const ENDPOINT = "https://pkgseer.dev";
 const LIST_CANDIDATE = {
   kind: "PACKAGE",
   canonicalKey: "npm:express",
+  searchTarget: "npm:express",
   latestVersionMaliciousStatus: "CLEAR",
 };
 
@@ -82,12 +83,14 @@ function resultBody(
         best: {
           kind: "PACKAGE",
           canonicalKey: "npm:express",
+          searchTarget: "npm:express",
           confidence: "EXACT",
         },
         protectedMatches: [
           {
             kind: "PACKAGE",
             canonicalKey: "npm:express",
+            searchTarget: "npm:express",
             confidence: "EXACT",
           },
         ],
@@ -174,6 +177,7 @@ describe("ResolveTargetServiceImpl", () => {
     ).toContain(`fragment ResolveTargetReferenceFields on TargetResolutionCandidate {
   kind
   canonicalKey
+  searchTarget
   confidence
 }`);
     expect(request.query.match(/\.\.\.ResolveTargetJsonFields/g)).toHaveLength(
@@ -188,6 +192,7 @@ describe("ResolveTargetServiceImpl", () => {
     for (const field of [
       "kind",
       "canonicalKey",
+      "searchTarget",
       "confidence",
       "latestVersionMaliciousStatus",
       "description",
@@ -250,12 +255,14 @@ describe("ResolveTargetServiceImpl", () => {
     expect(result.best).toEqual({
       kind: "PACKAGE",
       canonicalKey: "npm:express",
+      searchTarget: "npm:express",
       confidence: "EXACT",
     });
     expect(result.protectedMatches).toEqual([
       {
         kind: "PACKAGE",
         canonicalKey: "npm:express",
+        searchTarget: "npm:express",
         confidence: "EXACT",
       },
     ]);
@@ -300,6 +307,7 @@ describe("ResolveTargetServiceImpl", () => {
     expect(result.best).toEqual({
       kind: "PACKAGE",
       canonicalKey: "npm:express",
+      searchTarget: "npm:express",
       confidence: "EXACT",
     });
     const {
@@ -345,11 +353,13 @@ describe("ResolveTargetServiceImpl", () => {
     const lodash = {
       ...COMPACT_CANDIDATE,
       canonicalKey: "npm:lodash",
+      searchTarget: "npm:lodash",
       match: { confidence: "MEDIUM", nameSimilarity: null },
     };
     const unmatched = {
       ...COMPACT_CANDIDATE,
       canonicalKey: "npm:underscore",
+      searchTarget: "npm:underscore",
       match: { confidence: "LOW", nameSimilarity: null },
     };
     const response = resultBody(COMPACT_CANDIDATE, {
@@ -414,6 +424,7 @@ describe("ResolveTargetServiceImpl", () => {
       ...COMPACT_CANDIDATE,
       kind: "SITE",
       canonicalKey: "site:expressjs.com",
+      searchTarget: "site:expressjs.com",
       latestVersionMaliciousStatus: "NOT_APPLICABLE",
       repositoryUrl: null,
       stars: null,
@@ -453,6 +464,7 @@ describe("ResolveTargetServiceImpl", () => {
       {
         kind: "SITE",
         canonicalKey: "site:expressjs.com",
+        searchTarget: "site:expressjs.com",
         latestVersionMaliciousStatus: "NOT_APPLICABLE",
         description: "Fast web framework",
         docsAvailable: true,
@@ -797,12 +809,14 @@ describe("S2b readiness", () => {
       const best = {
         kind: "SITE",
         canonicalKey: "site:ai.pydantic.dev",
+        searchTarget: "site:ai.pydantic.dev",
         confidence: "EXACT",
       };
       const site = {
         ...DETAILED_CANDIDATE,
         kind: "SITE",
         canonicalKey: best.canonicalKey,
+        searchTarget: best.searchTarget,
         displayName: "Pydantic AI",
         latestVersionMaliciousStatus: "NOT_APPLICABLE",
         docsAvailable: false,
@@ -817,6 +831,7 @@ describe("S2b readiness", () => {
       const relatedPackage = {
         ...DETAILED_CANDIDATE,
         canonicalKey: "pypi:pydantic-ai",
+        searchTarget: "pypi:pydantic-ai",
         registry: "PYPI",
         packageName: "pydantic-ai",
         match: null,
@@ -824,6 +839,7 @@ describe("S2b readiness", () => {
       const relatedSite = {
         ...site,
         canonicalKey: "site:docs.pydantic.dev",
+        searchTarget: "site:docs.pydantic.dev",
         docsAvailable: true,
         match: null,
       };
@@ -873,4 +889,85 @@ describe("S2b readiness", () => {
       expect(result.targets[2]?.match).toBeUndefined();
     });
   }
+});
+
+it.each([false, true])(
+  "preserves replay addresses separately from identity in detailed mode %s",
+  async (includeDetailedFields) => {
+    const canonicalKey = "googlesource:go.googlesource.com/time";
+    const searchTarget = "https://go.googlesource.com/time";
+    const reference = {
+      kind: "REPOSITORY",
+      canonicalKey,
+      searchTarget,
+      confidence: "HIGH",
+    };
+    const target = {
+      ...DETAILED_CANDIDATE,
+      kind: "REPOSITORY",
+      canonicalKey,
+      searchTarget,
+      repositoryUrl: searchTarget,
+      latestVersionMaliciousStatus: "NOT_APPLICABLE",
+    };
+    let request: { query: string } | undefined;
+    const service = new ResolveTargetServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(
+        mock((_url: string, init?: RequestInit) => {
+          request = JSON.parse(String(init?.body));
+          return Promise.resolve(
+            jsonResponse(
+              resultBody(target, {
+                best: reference,
+                protectedMatches: [reference],
+                candidates: undefined,
+              }),
+            ),
+          );
+        }),
+      ),
+    );
+    const result = await service.resolveTarget({
+      name: "Go time",
+      limit: 8,
+      includeDetailedFields,
+      includeNameSimilarity: false,
+    });
+    expect(result.best).toEqual(reference);
+    expect(result.protectedMatches).toEqual([reference]);
+    expect(result.targets[0]).toMatchObject({ canonicalKey, searchTarget });
+    expect(request?.query).toContain("canonicalKey\n  searchTarget");
+    expect(request?.query).toContain(
+      "fragment ResolveTargetListFields on TargetResolutionTarget {\n  kind\n  canonicalKey\n  searchTarget\n",
+    );
+    expect(request?.query).toContain(
+      "candidates @include(if: $includeNameSimilarity) {\n      canonicalKey\n      nameSimilarity\n    }",
+    );
+  },
+);
+
+it("rejects a resolver response missing the required replay address", async () => {
+  const service = new ResolveTargetServiceImpl(
+    ENDPOINT,
+    createMockTokenProvider(),
+    asFetchFn(
+      mock(() =>
+        Promise.resolve(
+          jsonResponse(
+            resultBody({ ...COMPACT_CANDIDATE, searchTarget: undefined }),
+          ),
+        ),
+      ),
+    ),
+  );
+  await expect(
+    service.resolveTarget({
+      name: "express",
+      limit: 8,
+      includeDetailedFields: false,
+      includeNameSimilarity: false,
+    }),
+  ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
 });

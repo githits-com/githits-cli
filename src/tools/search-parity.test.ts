@@ -566,7 +566,12 @@ describe("S2b readiness", () => {
     for (const surface of ["CLI", "MCP"]) {
       it(`${surface} continues ${target} with unready docs into ordinary search before reporting indexing`, async () => {
         const kind = target.startsWith("site:") ? "SITE" : "PACKAGE";
-        const best = { kind, canonicalKey: target, confidence: "EXACT" };
+        const best = {
+          kind,
+          canonicalKey: target,
+          searchTarget: target,
+          confidence: "EXACT",
+        };
         const resolved: ResolveTargetResult = {
           best,
           targets: [

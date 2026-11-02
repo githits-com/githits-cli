@@ -6,7 +6,7 @@ const REPO_PATTERN = /^[A-Za-z0-9._-]+$/;
 const LAUNCHPAD_NAMESPACE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9+._-]*$/;
 
 interface ProviderGrammar {
-  readonly prefix: string;
+  readonly prefix?: string;
   readonly host: string;
   readonly prefixAliases?: readonly string[];
   readonly hostAliases?: readonly string[];
@@ -35,6 +35,10 @@ function validCodebergPath(parts: string[]): boolean {
     parts.length === 2 &&
     parts.every((part) => /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(part))
   );
+}
+
+function validGooglesourcePath(parts: string[]): boolean {
+  return parts.every(validComponent) && !parts.at(-1)!.endsWith(".git");
 }
 
 // GitLab reserves these routes rather than allowing them as repository identity.
@@ -102,11 +106,13 @@ function validLaunchpadDefaultPath(parts: string[]): boolean {
   );
 }
 
-/** Decode only Launchpad identity components, after the raw ref split. */
+/** Normalize provider identity only after splitting the raw ref suffix. */
 function repositoryPathParts(
   path: string,
   provider: ProviderGrammar,
 ): string[] {
+  if (provider.name === "Googlesource")
+    return path.replace(/\.git$/, "").split("/");
   const parts = path.split("/");
   if (provider.prefix !== "launchpad:") return parts;
   try {
@@ -161,6 +167,30 @@ const PROVIDERS: readonly ProviderGrammar[] = Object.freeze([
     validatePath: validLaunchpadPath,
   }),
 ]);
+
+/** Googlesource hosts are distinct DNS identities with no compact prefix. */
+function repositoryProvider(host: string): ProviderGrammar | undefined {
+  const provider = PROVIDERS.find(
+    (entry) => entry.host === host || entry.hostAliases?.includes(host),
+  );
+  if (provider) return provider;
+  if (
+    host.length > 253 ||
+    !host.endsWith(".googlesource.com") ||
+    !host
+      .split(".")
+      .every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))
+  )
+    return undefined;
+  return {
+    host,
+    name: "Googlesource",
+    path: "project[/subproject...]",
+    allowHttp: false,
+    hostShorthand: false,
+    validatePath: validGooglesourcePath,
+  };
+}
 const REPOSITORY_TARGET_ERROR =
   "Repository target must be github:owner/repo, codeberg:owner/repo, gitlab:group[/subgroup...]/project, lp:PROJECT, launchpad:~owner/+git/repo, or an approved full HTTPS URL, with optional @gitRef suffix.";
 
@@ -177,7 +207,7 @@ export function normaliseRepositoryTargetSpec(
     return trimmed;
   for (const provider of PROVIDERS) {
     const prefix = [provider.prefix, ...(provider.prefixAliases ?? [])].find(
-      (entry) => lower.startsWith(entry),
+      (entry) => entry !== undefined && lower.startsWith(entry),
     );
     if (prefix)
       return `https://${provider.host}/${trimmed.slice(prefix.length)}`;
@@ -228,17 +258,22 @@ function parseRepositoryTarget(
     throw new InvalidArgumentError(REPOSITORY_TARGET_ERROR);
   }
   const host = url.hostname.toLowerCase();
-  const provider = PROVIDERS.find(
-    (entry) => entry.host === host || entry.hostAliases?.includes(host),
-  );
-  if (!provider || (url.port && !(scheme === "git" && url.port === "9418")))
+  const provider = repositoryProvider(host);
+  if (
+    !provider ||
+    (url.port && !(scheme === "git" && url.port === "9418")) ||
+    // Reject ports and encoded/Unicode authorities before URL can erase intent.
+    (provider.name === "Googlesource" && authority.toLowerCase() !== host)
+  )
     throw new InvalidArgumentError(
-      "Repository URL targets must use github.com, codeberg.org, gitlab.com, or git.launchpad.net (code.launchpad.net also accepted); unsupported/self-hosted hosts and nondefault ports are not accepted.",
+      "Repository URL targets must use github.com, codeberg.org, gitlab.com, git.launchpad.net (code.launchpad.net also accepted), or a public *.googlesource.com host; unsupported/self-hosted hosts and nondefault ports are not accepted. Googlesource URLs do not accept any explicit port.",
     );
   const guidance =
     provider.prefix === "launchpad:"
       ? "Use lp:PROJECT or lp:~owner/project/+git/repo, with optional @ref."
-      : `Use ${provider.prefix}${provider.path} with optional @gitRef, or https://${provider.host}/${provider.path}.`;
+      : provider.prefix
+        ? `Use ${provider.prefix}${provider.path} with optional @gitRef, or https://${provider.host}/${provider.path}.`
+        : `Use https://${provider.host}/${provider.path} with optional @gitRef.`;
   const validPath = (parts: string[]): boolean =>
     provider.validatePath(parts) ||
     (provider.prefix === "launchpad:" &&
@@ -335,8 +370,10 @@ export function formatRepositoryTarget(
     const parsed = parseRepositoryTarget(repoUrl, "url");
     if (parsed.repoUrl && parsed.gitRef === undefined) {
       const url = new URL(parsed.repoUrl);
-      const provider = PROVIDERS.find((entry) => entry.host === url.host)!;
-      compact = `${provider.prefix}${url.pathname.slice(1).replaceAll("@", "%40")}`;
+      const provider = repositoryProvider(url.host)!;
+      compact = provider.prefix
+        ? `${provider.prefix}${url.pathname.slice(1).replaceAll("@", "%40")}`
+        : parsed.repoUrl;
     }
   } catch {
     /* Keep unsupported backend identities lossless. */

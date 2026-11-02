@@ -1,16 +1,18 @@
 # Repository target grammar
 
 `packages/mcp/src/shared/repository-target.ts` owns direct repository recognition,
-validation, normalization, and compact formatting. Its frozen provider table
+validation, normalization, and public target formatting. Its frozen provider table
 owns host aliases, HTTP/shorthand compatibility, and provider path validators.
 Callers supply contextual help and explicit response identity; they do not
-select providers or infer them from bare paths.
+select providers or infer them from bare paths. Public Googlesource hosts use
+the same parser with a DNS host validator and no compact prefix.
 
 | Provider | Compact form | Full URL | Compatibility |
 | --- | --- | --- | --- |
 | GitHub | `github:owner/repo` | `https://github.com/owner/repo` | `github.com/owner/repo` shorthand and HTTP |
 | Codeberg | `codeberg:owner/repo` | `https://codeberg.org/owner/repo` | Exactly two path components; HTTPS only |
 | GitLab | `gitlab:group[/subgroup...]/project` | `https://gitlab.com/group/subgroup/project` | Nested namespaces; HTTPS only |
+| Googlesource | Full HTTPS only | `https://go.googlesource.com/time` | Public `*.googlesource.com` DNS hosts; no ports or inferred review aliases |
 | Launchpad Git | `lp:project` or `launchpad:~owner/+git/repo` (see below) | `https://git.launchpad.net/<complete-path>` | Case-insensitive `lp:`; HTTPS `code.launchpad.net` roots; complete `git://git.launchpad.net` roots on default/9418 port |
 
 Each form accepts an optional `@ref`. The first `@` in the repository path
@@ -19,7 +21,8 @@ remain part of the ref. `#` is reserved for semantic fragments and is not a
 repository revision delimiter. Legacy `#ref` input is rejected with the exact
 `@ref` replacement. Fragments, query strings, mixed suffixes, and empty refs
 are rejected. Omitted refs retain default-branch intent. Output uses
-`provider:path@ref` and preserves repository path/ref case.
+`provider:path@ref` for compact providers and full HTTPS `@ref` for Googlesource,
+preserving repository path/ref case.
 
 For GitHub, GitLab and Codeberg the parser validates raw paths before URL
 normalization: dot traversal, percent-encoded components, backslashes, empty
@@ -40,6 +43,45 @@ Packages retain registry-native coordinates: `zig:gh/owner/repo`,
 `swift:gitlab.com/group/project`. They remain scoped to the package subpath,
 including within monorepos. Direct repositories retain full-repository scope.
 Bare `owner/repo` never selects a provider.
+
+## Googlesource HTTPS targets
+
+Use a full HTTPS project URL, for example
+`https://go.googlesource.com/time@v0.16.0` or
+`https://go.googlesource.com/sync@04914c20`. The ref suffix uses the shared
+first-`@` split and preserves branch, tag and short/full SHA bytes. Paths and
+symbol selectors keep their existing separate read/list/grep handling. Emitted
+HTTPS targets and exact commit pointers remain HTTPS; there is no public
+`googlesource:` compact form.
+
+Hosts must end at a `.googlesource.com` DNS boundary, contain only valid ASCII
+DNS labels (up to 63 characters each and 253 total), and are folded to lowercase.
+Project components preserve case and allow ASCII letters, digits, `.`, `_` and
+`-`, excluding empty, `.` and `..` components. One terminal `.git` and one
+trailing slash are removed; a remaining terminal `.git` is rejected to keep
+normalization stable. Nested project paths are accepted. Public `-review`
+endpoints follow the same grammar and keep their own host identity.
+
+HTTP and other transports, every explicit port (including `:443` and an empty
+port), credentials, queries, fragments, percent-encoded identity, traversal,
+backslashes, Unicode identity, Gitiles `+` web routes and suffix lookalikes are
+rejected. Authority checks retain raw spelling so URL normalization cannot
+silently admit an encoded host or erase a port. These rules match backend
+provider canonicalization from PR 3815 at `ab4e8e9`.
+
+Search, navigation, resolve canonical-input recognition and code-diff target
+identity all share this grammar. Canonical full URLs do not need fuzzy resolve. Resolver output uses the
+backend searchTarget HTTPS address while preserving its distinct canonicalKey
+as identity; see [target resolution](resolve-target.md#identity-and-replay-addresses).
+The backend owns native source access and raw-diff availability; the client adds
+no transport or provider API. Existing provider syntax and protocol-default-port
+compatibility remain unchanged.
+
+The public `githits-code` reference must add Googlesource to its HTTPS list in
+the release branch containing this behavior, following the public Agent Skill
+lifecycle. The current stable MCP guide already permits supported full URLs and
+its exact public-skill parity is unchanged. Hosted MCP receives parser changes
+only after `@githits/mcp` release, dependency adoption and hosted deployment.
 
 ## Launchpad Git targets
 

@@ -40,6 +40,7 @@ function result(
   const best = {
     kind: "PACKAGE",
     canonicalKey: "npm:express",
+    searchTarget: "npm:express",
     confidence: "EXACT",
   };
   return {
@@ -49,6 +50,7 @@ function result(
       {
         kind: best.kind,
         canonicalKey: best.canonicalKey,
+        searchTarget: best.searchTarget,
         displayName: "express",
         description: "Fast web framework",
         registry: "NPM",
@@ -229,7 +231,7 @@ describe("resolve_target MCP adapter", () => {
     expect(text).not.toContain("Warning:");
     expect(text).not.toContain("malicious");
     expect(text).toContain(
-      'Next: pass the canonical target "npm:express" to the next MCP tool.',
+      'Next: pass the returned target "npm:express" to the next MCP tool.',
     );
     expect(text).not.toContain("githits ");
 
@@ -254,6 +256,7 @@ describe("resolve_target MCP adapter", () => {
     const lodashEs: ResolveTargetTarget = {
       kind: "PACKAGE",
       canonicalKey: "npm:lodash-es",
+      searchTarget: "npm:lodash-es",
       latestVersionMaliciousStatus: "CLEAR",
       docsAvailable: true,
       codeAvailable: true,
@@ -262,12 +265,14 @@ describe("resolve_target MCP adapter", () => {
     const lodash: ResolveTargetTarget = {
       ...lodashEs,
       canonicalKey: "npm:lodash",
+      searchTarget: "npm:lodash",
       match: { confidence: "MEDIUM", nameSimilarity: 0.4 },
     };
     const resolved = result({
       best: {
         kind: lodashEs.kind,
         canonicalKey: lodashEs.canonicalKey,
+        searchTarget: lodashEs.searchTarget,
         confidence: "MEDIUM",
       },
       targets: [lodashEs, lodash],
@@ -300,7 +305,7 @@ describe("resolve_target MCP adapter", () => {
     expect(text).not.toContain("readiness");
     expect(text).toContain("never auto-select the best match");
     expect(text).not.toContain(
-      'pass the canonical target "npm:lodash-es" to the next MCP tool',
+      'pass the returned target "npm:lodash-es" to the next MCP tool',
     );
   });
 
@@ -308,6 +313,7 @@ describe("resolve_target MCP adapter", () => {
     const site = {
       kind: "SITE",
       canonicalKey: "site:expressjs.com",
+      searchTarget: "site:expressjs.com",
       confidence: "EXACT",
       latestVersionMaliciousStatus: "NOT_APPLICABLE",
       docsAvailable: true,
@@ -319,6 +325,7 @@ describe("resolve_target MCP adapter", () => {
     const relatedPackage: ResolveTargetTarget = {
       kind: "PACKAGE",
       canonicalKey: "npm:express",
+      searchTarget: "npm:express",
       latestVersionMaliciousStatus: "UNKNOWN",
       docsAvailable: false,
       codeAvailable: false,
@@ -327,6 +334,7 @@ describe("resolve_target MCP adapter", () => {
     const relatedRepository: ResolveTargetTarget = {
       kind: "REPOSITORY",
       canonicalKey: "github:expressjs/express",
+      searchTarget: "github:expressjs/express",
       latestVersionMaliciousStatus: "NOT_APPLICABLE",
       docsAvailable: false,
       codeAvailable: true,
@@ -367,6 +375,7 @@ describe("resolve_target MCP adapter", () => {
       const best = {
         kind: "PACKAGE",
         canonicalKey: "npm:express",
+        searchTarget: "npm:express",
         confidence,
       };
       const bestCandidate = {
@@ -385,7 +394,7 @@ describe("resolve_target MCP adapter", () => {
         `Best match: npm:express [${confidence.toLowerCase()}; package].`,
       );
       expect(text).toContain(
-        'Next: pass the canonical target "npm:express" to the next MCP tool.',
+        'Next: pass the returned target "npm:express" to the next MCP tool.',
       );
       expect(text).not.toContain("Unconfirmed ranked targets:");
       expect(text).not.toContain("Warning:");
@@ -397,6 +406,7 @@ describe("resolve_target MCP adapter", () => {
     const site = {
       kind: "SITE" as const,
       canonicalKey: "site:expressjs.com",
+      searchTarget: "site:expressjs.com",
       confidence: "EXACT" as const,
       latestVersionMaliciousStatus: "NOT_APPLICABLE" as const,
       docsAvailable: true,
@@ -411,13 +421,14 @@ describe("resolve_target MCP adapter", () => {
     expect(text).toContain(
       'Next: call search with target "site:expressjs.com" and source "docs", then call read for relevant results.',
     );
-    expect(text).not.toContain("pass the canonical target");
+    expect(text).not.toContain("pass the returned target");
   });
 
   it("renders repository code availability at repository scope", () => {
     const repository: ResolveTargetTarget = {
       kind: "REPOSITORY",
       canonicalKey: "github:openai/codex",
+      searchTarget: "github:openai/codex",
       latestVersionMaliciousStatus: "NOT_APPLICABLE",
       docsAvailable: false,
       codeAvailable: true,
@@ -428,6 +439,7 @@ describe("resolve_target MCP adapter", () => {
         best: {
           kind: repository.kind,
           canonicalKey: repository.canonicalKey,
+          searchTarget: repository.searchTarget,
           confidence: "EXACT",
         },
         targets: [repository],
@@ -460,6 +472,7 @@ describe("resolve_target MCP adapter", () => {
       const best = {
         kind: "PACKAGE",
         canonicalKey: "npm:express",
+        searchTarget: "npm:express",
         confidence: "EXACT",
       };
       const text = formatResolveTargetMcpText(
@@ -483,7 +496,7 @@ describe("resolve_target MCP adapter", () => {
       expect(text).toContain("Warning:");
       expect(text).toContain("Targets:\n  1. npm:express");
       expect(text).not.toContain("Next:");
-      expect(text).not.toContain("pass the canonical target");
+      expect(text).not.toContain("pass the returned target");
       expect(text).not.toContain("next MCP tool");
     }
   });
@@ -492,6 +505,7 @@ describe("resolve_target MCP adapter", () => {
     const best = {
       kind: "PACKAGE",
       canonicalKey: "npm:lookalike",
+      searchTarget: "npm:lookalike",
       confidence: "EXACT",
     };
     const text = formatResolveTargetMcpText(
@@ -533,6 +547,7 @@ describe("resolve_target MCP adapter", () => {
       const best = {
         kind: "PACKAGE",
         canonicalKey: "npm:express",
+        searchTarget: "npm:express",
         confidence,
       };
       const text = formatResolveTargetMcpText(
@@ -542,6 +557,7 @@ describe("resolve_target MCP adapter", () => {
             {
               kind: best.kind,
               canonicalKey: best.canonicalKey,
+              searchTarget: best.searchTarget,
               latestVersionMaliciousStatus: "CLEAR",
               docsAvailable: false,
               codeAvailable: false,
@@ -550,6 +566,7 @@ describe("resolve_target MCP adapter", () => {
             {
               kind: "REPOSITORY",
               canonicalKey: "github:expressjs/express",
+              searchTarget: "github:expressjs/express",
               latestVersionMaliciousStatus: "NOT_APPLICABLE",
               docsAvailable: false,
               codeAvailable: false,
@@ -560,6 +577,7 @@ describe("resolve_target MCP adapter", () => {
             {
               kind: "PACKAGE",
               canonicalKey: "jsr:@express/core",
+              searchTarget: "jsr:@express/core",
               confidence: "EXACT",
             },
           ],
@@ -576,7 +594,7 @@ describe("resolve_target MCP adapter", () => {
         "Next: narrow the name or filters, or explicitly choose a candidate",
       );
       expect(text).not.toContain(
-        'pass the canonical target "npm:express" to the next MCP tool',
+        'pass the returned target "npm:express" to the next MCP tool',
       );
       expect(text).not.toContain("next MCP tool");
     }
@@ -587,6 +605,7 @@ describe("resolve_target MCP adapter", () => {
       const best = {
         kind: "PACKAGE",
         canonicalKey: "npm:express",
+        searchTarget: "npm:express",
         confidence,
       };
       const text = formatResolveTargetMcpText(
@@ -648,6 +667,7 @@ describe("resolve_target MCP adapter", () => {
         {
           kind: "PACKAGE",
           canonicalKey: "npm:express",
+          searchTarget: "npm:express",
           latestVersionMaliciousStatus: "CLEAR",
           docsAvailable: false,
           codeAvailable: false,
@@ -656,6 +676,7 @@ describe("resolve_target MCP adapter", () => {
         {
           kind: "REPOSITORY",
           canonicalKey: "github:expressjs/express",
+          searchTarget: "github:expressjs/express",
           latestVersionMaliciousStatus: "NOT_APPLICABLE",
           docsAvailable: false,
           codeAvailable: false,
@@ -679,6 +700,7 @@ describe("resolve_target MCP adapter", () => {
     const best = {
       kind: "PACKAGE",
       canonicalKey: "npm:express",
+      searchTarget: "npm:express",
       confidence: "LOW",
     };
     const text = formatResolveTargetMcpText(
@@ -688,6 +710,7 @@ describe("resolve_target MCP adapter", () => {
           {
             kind: "PACKAGE",
             canonicalKey: "npm:express",
+            searchTarget: "npm:express",
             latestVersionMaliciousStatus: "CLEAR",
             docsAvailable: false,
             codeAvailable: false,
@@ -711,7 +734,7 @@ describe("resolve_target MCP adapter", () => {
     expect(text).not.toContain("Warning:");
     expect(text).not.toContain("Unconfirmed ranked candidates:");
     expect(text).not.toContain(
-      'pass the canonical target "npm:express" to the next MCP tool',
+      'pass the returned target "npm:express" to the next MCP tool',
     );
   });
 
@@ -815,6 +838,7 @@ describe("resolve_target MCP adapter", () => {
       (_, index) => ({
         kind: "PACKAGE",
         canonicalKey: `npm:library-${index}`,
+        searchTarget: `npm:library-${index}`,
         latestVersionMaliciousStatus: "CLEAR",
         docsAvailable: false,
         codeAvailable: false,
@@ -824,6 +848,7 @@ describe("resolve_target MCP adapter", () => {
     const references = targets.map((target) => ({
       kind: target.kind,
       canonicalKey: target.canonicalKey,
+      searchTarget: target.searchTarget,
       confidence: "HIGH",
     }));
     const text = formatResolveTargetMcpText(
@@ -844,6 +869,7 @@ describe("resolve_target MCP adapter", () => {
       best: {
         kind: "PACKAGE",
         canonicalKey: "npm:x\u001b[31m",
+        searchTarget: "npm:x\u001b[31m",
         confidence: "EXACT",
       },
       protectedMatches: [],
@@ -851,6 +877,7 @@ describe("resolve_target MCP adapter", () => {
         {
           kind: "PACKAGE",
           canonicalKey: "npm:x\u001b[31m",
+          searchTarget: "npm:x\u001b[31m",
           latestVersionMaliciousStatus: "CLEAR",
           description: `first\n${"x".repeat(300)}\u0007`,
           docsAvailable: true,

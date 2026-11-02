@@ -1458,15 +1458,14 @@ function smokeResponse(
   args: Record<string, unknown>,
 ): McpSmokeToolResult {
   if (
-    (name === "pkg_deps" &&
-      args.target === "go:github.com/docker/docker@v20.10.0") ||
+    (name === "pkg_deps" && args.target === "npm:express@99.99.99") ||
     (name === "list" &&
       args.target === "github:expressjs/express@v99.99.99-nope")
   ) {
     const code = name === "pkg_deps" ? "VERSION_NOT_FOUND" : "REF_NOT_FOUND";
     const details =
       name === "pkg_deps"
-        ? { availablePackageVersions: ["v20.10.0+incompatible"] }
+        ? { availablePackageVersions: ["5.3.0"] }
         : { suggestedRefs: [{ ref: "v5.3.0" }] };
     return {
       isError: true,
@@ -1523,7 +1522,7 @@ function smokeResponse(
         );
       }
       return textResult(
-        'Targets:\n  1. npm:express [exact; package]\n     github:expressjs/express\nRelated targets:\n       site:expressjs.com\nNext: pass the canonical target "npm:express" to search.',
+        'Targets:\n  1. npm:express [exact; package]\n     github:expressjs/express\nRelated targets:\n       site:expressjs.com\nNext: pass the returned target "npm:express" to search.',
       );
     case "code_diff":
       return textResult(

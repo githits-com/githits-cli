@@ -74,6 +74,7 @@ export interface ResolveTargetParams {
 export interface ResolveTargetReference {
   kind: string;
   canonicalKey: string;
+  searchTarget: string;
   confidence: string;
 }
 
@@ -88,6 +89,7 @@ export interface ResolveTargetMatch {
 export interface ResolveTargetTarget {
   kind: string;
   canonicalKey: string;
+  searchTarget: string;
   displayName?: string;
   description?: string;
   registry?: string;
@@ -160,6 +162,7 @@ const detailedMatchSchema = compactMatchSchema.extend({
 const listTargetSchema = z.object({
   kind: z.string(),
   canonicalKey: z.string(),
+  searchTarget: z.string(),
   latestVersionMaliciousStatus: z.string(),
   latestVersionMaliciousEvidence: latestVersionMaliciousEvidenceSchema,
   description: z.string().nullable().optional(),
@@ -179,6 +182,7 @@ const listTargetSchema = z.object({
 const targetReferenceSchema = z.object({
   kind: z.string(),
   canonicalKey: z.string(),
+  searchTarget: z.string(),
   confidence: z.string(),
 });
 
@@ -269,12 +273,14 @@ query ResolveTarget(
 fragment ResolveTargetReferenceFields on TargetResolutionCandidate {
   kind
   canonicalKey
+  searchTarget
   confidence
 }
 
 fragment ResolveTargetListFields on TargetResolutionTarget {
   kind
   canonicalKey
+  searchTarget
   latestVersionMaliciousStatus
   latestVersionMaliciousEvidence {
     advisories {
@@ -429,6 +435,7 @@ function normaliseReference(
   return {
     kind: target.kind,
     canonicalKey: target.canonicalKey,
+    searchTarget: target.searchTarget,
     confidence: target.confidence,
   };
 }
@@ -459,6 +466,7 @@ function normaliseTarget(
   const result: ResolveTargetTarget = {
     kind: target.kind,
     canonicalKey: target.canonicalKey,
+    searchTarget: target.searchTarget,
     latestVersionMaliciousStatus: target.latestVersionMaliciousStatus,
     docsAvailable: target.docsAvailable,
     codeAvailable: target.codeAvailable,

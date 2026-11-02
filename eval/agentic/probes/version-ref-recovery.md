@@ -1,7 +1,6 @@
 # Workload: Correcting unavailable package versions and repository refs
 
-Inspect the direct dependencies of Go package github.com/docker/docker at
-v20.10.0. Also inspect README.md in the public expressjs/express GitHub
+Inspect the direct dependencies of npm package express at version 99.99.99. Also inspect README.md in the public expressjs/express GitHub
 repository at ref v99.99.99-nope.
 
 For each request, report whether the exact requested version or ref exists.

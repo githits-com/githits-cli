@@ -26,6 +26,8 @@ import {
 import { createParityMcpTool } from "./parity-test-helpers.js";
 
 const targets = [
+  ["https://go.googlesource.com/time", "https://go.googlesource.com/time"],
+  ["https://go.googlesource.com/sync.git/", "https://go.googlesource.com/sync"],
   ["github:owner/repo", "https://github.com/owner/repo"],
   ["codeberg:zigil/decimal", "https://codeberg.org/zigil/decimal"],
   [
@@ -290,6 +292,8 @@ describe("provider target consumer parity", () => {
     "launchpad:~Owner/+git/Repo%402@0123456789abcdef0123456789abcdef01234567/docs/Guide.md",
     "LP:~Owner/Project/+git/Repo@release%2FKeepCase/docs/Guide.md#Heading",
     "lP:~Owner/Distro/+source/Source/+git/Repo@main#Symbol",
+    "https://go.googlesource.com/time@fb013b3d/rate/rate.go",
+    "https://go.googlesource.com/sync@04914c20#golang.org/x/sync/errgroup.Group",
   ])(
     "replays repository page IDs and semantic fragments unchanged: %s",
     async (target) => {

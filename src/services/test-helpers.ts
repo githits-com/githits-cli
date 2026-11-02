@@ -1135,12 +1135,14 @@ export const defaultResolveTargetResult: ResolveTargetResult = {
   best: {
     kind: "PACKAGE",
     canonicalKey: "npm:express",
+    searchTarget: "npm:express",
     confidence: "EXACT",
   },
   protectedMatches: [
     {
       kind: "PACKAGE",
       canonicalKey: "npm:express",
+      searchTarget: "npm:express",
       confidence: "EXACT",
     },
   ],
@@ -1148,6 +1150,7 @@ export const defaultResolveTargetResult: ResolveTargetResult = {
     {
       kind: "PACKAGE",
       canonicalKey: "npm:express",
+      searchTarget: "npm:express",
       displayName: "express",
       description: "Fast web framework",
       registry: "NPM",

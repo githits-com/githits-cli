@@ -1,22 +1,19 @@
 # Open backlog
 
-## Authenticated smoke recovery fixture — 2026-10-24
+## Googlesource public skill release boundary — 2026-10-31
 
-During [PR #516](https://github.com/githits-com/githits-cli/pull/516), both full
-authenticated smoke suites stopped before grep: the recovery probe expects
-`go:github.com/docker/docker@v20.10.0` to fail, but dev now resolves it as
-`v20.10.0+incompatible`. A nonexistent version returned `VERSION_NOT_FOUND`
-without alternatives, so it cannot simply replace the existing probe, which
-also checks backend-supplied recovery guidance. Unauthenticated smoke and the
-affected built CLI/MCP grep qualification passed independently.
+When the release includes public Googlesource HTTPS repository parsing, update
+`skills/githits-code/references/code-and-docs.md`'s direct-repository HTTPS list
+to include public `*.googlesource.com` hosts and the already released Launchpad
+hosts. Document full HTTPS-only syntax, no explicit ports, project case,
+terminal `.git`/slash normalization, distinct review hosts and unchanged `@ref`
+replay. The feature PR leaves public skills unchanged because the Agent Skill
+lifecycle forbids advertising unreleased CLI/MCP behavior on `main`.
 
-Ownership: the CLI/MCP smoke cohorts own the fixture and assertions; backend
-recovery metadata owns the supplied alternatives. Investigate that boundary
-before choosing a replacement fixture or correcting a verified producer issue.
-Keep the assertions for error code, alternatives and native CLI/MCP recovery
-syntax; do not turn the probe into a successful lookup or weaken coverage.
-Acceptance: both authenticated dev smoke suites pass with a verified failing
-version/ref and supplied alternatives, and continue through their live cohorts.
+Ownership: release preparation owns this documentation boundary. Acceptance:
+the release branch carries the matching CLI implementation and skill reference;
+`bun run plugins:generate` and `bun run plugins:check` pass. See
+[repository target grammar](../implementation/repository-targets.md#googlesource-https-targets).
 
 ## Literal path round-trips — 2026-10-22
 

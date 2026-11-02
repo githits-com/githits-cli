@@ -345,7 +345,7 @@ export function registerCodeDiffCommand(
     )
     .option(
       "--repo-url <url>",
-      "Repository URL (GitHub, Codeberg, GitLab, or Launchpad Git)",
+      "Repository URL (GitHub, Codeberg, GitLab, Launchpad Git, or public Googlesource)",
     )
     .option("-p, --patch", "Emit bounded patches (default)")
     .option("--stat", "Emit per-file line statistics")
