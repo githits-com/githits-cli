@@ -134,6 +134,7 @@ describe("resolve_target parity", () => {
     result.targets.push({
       kind: "SITE",
       canonicalKey: "site:expressjs.com",
+      searchTarget: "site:expressjs.com",
       latestVersionMaliciousStatus: "NOT_APPLICABLE",
       docsAvailable: true,
       codeAvailable: false,
@@ -345,12 +346,14 @@ function unreadySiteResult(): ResolveTargetResult {
     best: {
       kind: "SITE",
       canonicalKey: "site:ai.pydantic.dev",
+      searchTarget: "site:ai.pydantic.dev",
       confidence: "EXACT",
     },
     targets: [
       {
         kind: "SITE",
         canonicalKey: "site:ai.pydantic.dev",
+        searchTarget: "site:ai.pydantic.dev",
         displayName: "Pydantic AI",
         latestVersionMaliciousStatus: "NOT_APPLICABLE",
         docsAvailable: false,
@@ -441,6 +444,7 @@ describe("S2b readiness", () => {
             {
               kind: "PACKAGE",
               canonicalKey: "pypi:pydantic-ai",
+              searchTarget: "pypi:pydantic-ai",
               docsAvailable: true,
               codeAvailable: false,
               latestVersionMaliciousStatus: "CLEAR",
@@ -448,6 +452,7 @@ describe("S2b readiness", () => {
             {
               kind: "SITE",
               canonicalKey: "site:docs.pydantic.dev",
+              searchTarget: "site:docs.pydantic.dev",
               docsAvailable: true,
               codeAvailable: false,
               latestVersionMaliciousStatus: "NOT_APPLICABLE",
@@ -555,4 +560,51 @@ describe("S2b readiness", () => {
       });
     }
   }
+});
+
+it("CLI/MCP preserve Googlesource replay addresses and canonical identity", async () => {
+  const canonicalKey = "googlesource:go.googlesource.com/time";
+  const searchTarget = "https://go.googlesource.com/time";
+  const best = {
+    kind: "REPOSITORY",
+    canonicalKey,
+    searchTarget,
+    confidence: "HIGH",
+  };
+  const resolved = {
+    ...defaultResolveTargetResult,
+    best,
+    protectedMatches: [best],
+    targets: [
+      {
+        ...defaultResolveTargetResult.targets[0]!,
+        kind: "REPOSITORY",
+        canonicalKey,
+        searchTarget,
+        latestVersionMaliciousStatus: "NOT_APPLICABLE",
+        match: { confidence: "HIGH" },
+      },
+    ],
+  };
+  const service = createMockResolveTargetService({
+    resolveTarget: mock(() => Promise.resolve(resolved)),
+  });
+  const cli = await cliJson(
+    "Go time",
+    {},
+    cliDeps({ resolveTargetService: service }),
+  );
+  const tool = createParityMcpTool("resolve_target", {
+    resolveTargetService: service,
+  });
+  const mcp = await tool.handler({ name: "Go time", format: "json" }, {});
+  expect(JSON.parse(mcp.content[0]!.text!)).toEqual(cli);
+  expect(cli).toMatchObject({
+    best: searchTarget,
+    protectedMatches: [searchTarget],
+    candidates: [{ target: searchTarget, canonicalKey }],
+  });
+  const text = await tool.handler({ name: "Go time" }, {});
+  expect(text.content[0]!.text!).toContain(searchTarget);
+  expect(text.content[0]!.text!).not.toContain(canonicalKey);
 });

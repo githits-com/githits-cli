@@ -70,7 +70,9 @@ silently admit an encoded host or erase a port. These rules match backend
 provider canonicalization from PR 3815 at `ab4e8e9`.
 
 Search, navigation, resolve canonical-input recognition and code-diff target
-identity all share this grammar. Canonical full URLs do not need fuzzy resolve.
+identity all share this grammar. Canonical full URLs do not need fuzzy resolve. Resolver output uses the
+backend searchTarget HTTPS address while preserving its distinct canonicalKey
+as identity; see [target resolution](resolve-target.md#identity-and-replay-addresses).
 The backend owns native source access and raw-diff availability; the client adds
 no transport or provider API. Existing provider syntax and protocol-default-port
 compatibility remain unchanged.
@@ -428,71 +430,3 @@ emitted documentation locators, and `code diff <target> <sha>..<sha>
 and `code_diff`. `pkg changelog` is package-only; do not pass repository
 targets to it. Set `GITHITS_CODE_NAV_URL` to the verified dev endpoint
 for its replay; never print authentication state or credential values.
-
-
-## Googlesource development verification (2026-10-31)
-
-Validation used freshly fetched main `6f937fb` plus this parser change, the built
-`node dist/cli.js`, `GITHITS_ENV=dev`, no endpoint overrides, and a dev credential
-passed privately through the existing `GITHITS_API_TOKEN` path. No credential
-values were logged. The original `search Limiter --in
-https://go.googlesource.com/time@v0.16.0 --source code --limit 5 --wait 60000`
-returned five hits and an executable HTTPS short-SHA read command.
-
-| Project / tag | Served commit | File / exact bytes |
-| --- | --- | --- |
-| time / `v0.16.0` | `fb013b3d305a26f5ef5350a6eaffc7c87a200383` | `rate/rate.go`, 12,635 bytes |
-| sync / `v0.17.0` | `04914c200cb38d4ea960ee6a4c314a028c632991` | `errgroup/errgroup.go`, 4,007 bytes |
-
-For both projects, CODE and SYMBOL searches returned positive hits; exact
-literal grep found the type declaration; scoped/root list and full-SHA file
-read succeeded. Qualified symbol reads with `--selector` selected
-`golang.org/x/time/rate.Limiter` (lines 57-66) and
-`golang.org/x/sync/errgroup.Group` (25-34). Root-list browse actions retained
-full HTTPS commits and their exact `paths` arrays (`rate/*`, `errgroup/*`);
-replaying them returned short-SHA read actions (`@fb013b3d`, `@04914c20`). Those
-target/path pairs replayed unchanged and returned content identical to full-SHA
-reads. SHA-256 matched the list inventory hashes:
-
-- time: `91e9f16a4b3b71c524d64b6125f1a8059f2fd1f1f0b7046c0708df0322d29330`
-- sync: `696b0385dd5f1a165c7d0251160afc3d652b9f64f4a8f64b9a9495e6ac4695eb`
-
-The emitted time CODE-search read command replayed with its target, path and
-`--lines 100-106` unchanged. Equal-SHA `code diff` for time with `--name-status
---json` returned an empty complete inventory with both expected commit endpoints.
-Canonical full-URL resolve was rejected locally with the existing "does not
-need resolution" guidance. Fuzzy resolves of `golang.org/x/time` and
-`golang.org/x/sync` returned their package/repository candidates, but repository
-`target` still contained backend-internal `googlesource:` keys. Backend PR 3818
-owns that public serialization correction; this client deliberately does not
-accept those keys or infer a compact alias. Direct HTTPS use has no dependency
-on that follow-up.
-
-The retained Express control used `npm:express@5.2.1` at
-`dbac741a49a5a64336b70c06e85c2e2706e36336`: CODE search for
-`createApplication`, `list lib/`, literal grep scoped to `lib/express.js`, and
-full-file read all succeeded. Its native-v6 format designation comes from the
-backend handoff; the CLI responses expose served commits, not native artifact
-format versions.
-
-Deterministic checks: focused parser/parity 482 passed; complete `bun test`
-6,840 passed (27,726 expectations, 259 files); typecheck, build, formatting,
-lint, plugin consistency and public-package validation passed. Source and built
-unauthenticated CLI smoke each passed 33 steps; source and built MCP
-registration smoke each passed seven steps. Authenticated `smoke:cli` and
-`smoke:mcp` both stopped at the pre-existing Docker recovery fixture: dev
-successfully resolves `go:github.com/docker/docker@v20.10.0`, which the fixture
-expects to fail. This is recorded in the
-[authenticated smoke backlog](../plans/open-backlog.md#authenticated-smoke-recovery-fixture--2026-10-24);
-the suites did not reach later live cohorts and are not reported as passing.
-
-The existing descriptor-only `code-file-navigation` agent eval completed
-against local MCP/dev with Codex (`gpt-6-luna`, high effort): quick_start, list,
-and two read calls completed; the final answer identified the factory and
-prototype attachment in Express 5.3.0 with self-reported high confidence.
-Raw tool calls, final answer and run-level metrics were inspected. No
-`isolation-violations.json` was emitted (the harness writes it only for detected
-violations). Duration was 22.017 seconds, four logical MCP calls, 29,675 uncached
-input tokens, 168,832 cached input tokens and 877 output tokens. Artifacts remain
-local under `.agent-eval/googlesource-navigation`; this is behavior evidence,
-not a graded quality claim.

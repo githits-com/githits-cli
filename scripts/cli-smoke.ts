@@ -1574,10 +1574,10 @@ async function runResolveLiveSmoke(env: Record<string, string>): Promise<void> {
 async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   for (const probe of [
     {
-      argv: ["pkg", "deps", "go:github.com/docker/docker@v20.10.0"],
+      argv: ["pkg", "deps", "npm:express@99.99.99"],
       code: "VERSION_NOT_FOUND",
       fact: "availablePackageVersions",
-      operand: "go:github.com/docker/docker@",
+      operand: "npm:express@",
     },
     {
       argv: ["list", "github:expressjs/express@v99.99.99-nope"],

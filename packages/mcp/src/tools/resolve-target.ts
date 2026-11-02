@@ -217,14 +217,14 @@ export function formatResolveTargetMcpText(
     );
   } else if (result.ambiguous) {
     lines.push(
-      "Next: narrow the name or filters, or explicitly choose a candidate; pass its exact canonical target to the next MCP tool, never auto-select.",
+      "Next: narrow the name or filters, or explicitly choose a candidate; pass its exact returned target to the next MCP tool, never auto-select.",
     );
   } else if (actionable && result.best) {
-    const target = sanitizeTerminalText(result.best.canonicalKey);
+    const target = sanitizeTerminalText(result.best.searchTarget);
     lines.push(
       result.best.kind === "SITE"
         ? `Next: call search with target "${target}" and source "docs", then call read for relevant results.`
-        : `Next: pass the canonical target "${target}" to the next MCP tool.`,
+        : `Next: pass the returned target "${target}" to the next MCP tool.`,
     );
   } else if (result.best && hasBlockedDirectTarget) {
     lines.push(
@@ -250,7 +250,7 @@ function formatReference(target: ResolveTargetReference): string {
   const kind = sanitizeTerminalText(target.kind.toLowerCase());
   const confidence = sanitizeTerminalText(target.confidence.toLowerCase());
   return [
-    sanitizeTerminalText(target.canonicalKey),
+    sanitizeTerminalText(target.searchTarget),
     `[${confidence}; ${kind}]`,
   ].join(" ");
 }
@@ -295,7 +295,7 @@ function formatMcpTarget(target: ResolveTargetTarget): string {
   const relationship = target.match
     ? sanitizeTerminalText(target.match.confidence.toLowerCase())
     : "related";
-  return `${sanitizeTerminalText(target.canonicalKey)} [${relationship}; ${kind}]`;
+  return `${sanitizeTerminalText(target.searchTarget)} [${relationship}; ${kind}]`;
 }
 
 function formatProtectedMarker(

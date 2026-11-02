@@ -855,7 +855,7 @@ export function assertMcpResolveText(resolveTextBody: string): void {
     "resolve text should include MCP-native candidate guidance",
   );
   const directTarget = resolveTextBody.match(
-    /Next: pass the canonical target "([^"]+)"/,
+    /Next: pass the returned target "([^"]+)"/,
   )?.[1];
   if (directTarget) {
     assert(
@@ -888,7 +888,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   for (const probe of [
     {
       tool: "pkg_deps",
-      target: "go:github.com/docker/docker@v20.10.0",
+      target: "npm:express@99.99.99",
       code: "VERSION_NOT_FOUND",
       fact: "availablePackageVersions",
     },

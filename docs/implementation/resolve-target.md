@@ -33,6 +33,24 @@ identity with `clear` or `not_applicable` status. Other or missing decisions are
 non-actionable and suppress the normal next-tool handoff. `clear` is not a
 vulnerability-free claim.
 
+## Identity and replay addresses
+
+The backend's `canonicalKey` identifies a candidate for best/protected matching,
+deduplication, grouping and malicious-content checks. Its required `searchTarget`
+is the address to pass to the next tool. The core service fetches and validates
+both fields in compact and detailed modes, including best/protected references;
+the optional lexical-similarity sidecar remains identity-only.
+
+CLI and MCP candidate headings, continuation commands, JSON candidate `target`,
+`best` and `protectedMatches` use `searchTarget` unchanged. When the replay
+address differs, JSON also includes the candidate's `canonicalKey`, preserving
+identity without repeating an equal value. For example, Googlesource identity
+`googlesource:go.googlesource.com/time` emits target
+`https://go.googlesource.com/time`; a site corpus can emit a scoped descendant
+address while retaining its corpus key. No client provider alias or inferred
+address replaces the backend-owned field. Both fields are required in the
+public resolver result/reference types supplied by custom service providers.
+
 ## Public MCP composition
 
 `McpToolServices` requires `resolveTargetService`. Remote providers construct the
@@ -43,8 +61,7 @@ result, candidate and malicious-content types are exported there. The factory
 and `ResolveTargetMcpArgs` are available from `@githits/mcp/tools`.
 
 The stable registry and smoke inventory contain 15 tools, including one resolver
-and `research`. No GraphQL fields, ranking, authentication,
-continuation gates or output envelopes change. Compact requests still omit
+and `research`. Ranking, authentication and continuation gates are unchanged. Compact requests still omit
 JSON-only details; verbose text adds only lexical-similarity evidence. The shared
 guide and public MCP skill route bare names to `resolve_target`; its
 description owns the continuation gates.

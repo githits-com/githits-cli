@@ -811,7 +811,7 @@ Targets:
      Related targets:
        npm:express-lookalike [related; package]
          Warning: Malicious content affects the latest version. Do not use this target.
-Next: pass the canonical target "npm:express" to the next MCP tool.
+Next: pass the returned target "npm:express" to the next MCP tool.
 `;
 
   it("allows a verified best action when only an alternative is warned", () => {
@@ -843,7 +843,7 @@ Targets:
   1. npm:express [exact; package]
      Related targets:
        github:owner/project [high; repository]
-Next: pass the canonical target "github:owner/project" to the next MCP tool.
+Next: pass the returned target "github:owner/project" to the next MCP tool.
 `;
     expect(() => assertMcpResolveText(nestedMcpBest)).not.toThrow();
 
@@ -893,7 +893,7 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
   it("accepts a warning-only blocked result with no normal action", () => {
     const cliBlocked = cliMixed.replace(/\nNext: githits search[^\n]+\n/, "\n");
     const mcpBlocked = mcpMixed.replace(
-      /Next: pass the canonical target[^\n]+\n/,
+      /Next: pass the returned target[^\n]+\n/,
       "",
     );
 
@@ -926,7 +926,7 @@ Next: pass the canonical target "github:owner/project" to the next MCP tool.
 
   it("requires explicit choice and no automatic selection for ambiguity", () => {
     const text =
-      "Ambiguous: low confidence.\nTargets:\n  1. npm:express [low; package]\nNext: narrow the name or filters, or explicitly choose a candidate; pass its exact canonical target to the next MCP tool, never auto-select.\n";
+      "Ambiguous: low confidence.\nTargets:\n  1. npm:express [low; package]\nNext: narrow the name or filters, or explicitly choose a candidate; pass its exact returned target to the next MCP tool, never auto-select.\n";
     expect(() => assertMcpResolveText(text)).not.toThrow();
     expect(() =>
       assertMcpResolveText(text.replace("never auto-select", "continue")),

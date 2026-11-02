@@ -341,13 +341,13 @@ githits resolve "pi agent" --query "coding agent CLI" --json
 ```
 
 Resolves a human-provided package, public repository, or standalone
-documentation-site name to canonical targets such as `npm:express`,
+documentation-site name to replayable targets such as `npm:express`,
 `github:openai/codex`, or `site:expressjs.com`. The backend supplies one ordered
 presentation list containing direct ranked matches and bounded relation-only
 package, repository, and site context. The CLI preserves that order and groups
 only contiguous targets with the same non-null `groupKey`; null keys always
 remain singleton groups. Each group is numbered once and every additional
-identity appears under one `Related targets:` heading. Canonical keys stay
+identity appears under one `Related targets:` heading. Returned search targets stay
 copyable and every member is explicitly direct (with confidence) or related.
 
 Each target keeps its normalized description, capped at 240 characters. Compact
@@ -478,8 +478,8 @@ and serve a commit SHA; compact resolver text does not add a trailing readiness
 disclaimer or render negative availability labels.
 
 The command and MCP tool share `ResolveTargetService`. Its GraphQL selection
-keeps `best` and `protectedMatches` to `kind`, `canonicalKey`, and `confidence`;
-one ordered `targets` selection always includes compact identity, presentation,
+keeps `best` and `protectedMatches` to `kind`, `canonicalKey`, `searchTarget`, and `confidence`;
+one ordered `targets` selection always includes compact identity, replay address, presentation,
 security, grouping, count, and license fields, while JSON-only identity and
 detailed `match` fields remain conditional. Because the grouped target type does
 not expose lexical evidence, one conditional legacy `candidates` sidecar is

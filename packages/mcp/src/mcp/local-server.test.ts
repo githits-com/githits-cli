@@ -405,6 +405,7 @@ describe("createLocalMcpServer", () => {
         best: {
           kind: "PACKAGE",
           canonicalKey: "npm:express",
+          searchTarget: "npm:express",
           confidence: "EXACT",
         },
         protectedMatches: [],
