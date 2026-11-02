@@ -1207,15 +1207,19 @@ than being converted to a `ToolResult`; service deadlines and ordinary service
 errors retain their existing mapping behavior.
 
 The public `/tools` entry exports the neutral `AuthenticationError`,
-`ApiRateLimitError`, `FetchTimeoutError`, and `TermsAcceptanceRequiredError`
+`ApiRateLimitError`, `FetchTimeoutError`, `ProviderReauthenticationRequiredError`, and `TermsAcceptanceRequiredError`
 constructors. An injected browser service should throw one of these exact
 constructors when it wants `get_example` to produce the corresponding
-structured `AUTH_REQUIRED`, `RATE_LIMITED`, `TIMEOUT`, or
+structured `AUTH_REQUIRED`, `REAUTH_REQUIRED`, `RATE_LIMITED`, `TIMEOUT`, or
 `TERMS_ACCEPTANCE_REQUIRED` `ToolResult`. This is an explicit service-error
 contract, not automatic HTTP response classification. Callable execution
 supplies the host-neutral authentication action `Authenticate with GitHits,
 then retry.`; terms errors use their canonical `acceptanceUrl` action, and
 arbitrary errors remain `UNKNOWN`.
+
+Example search and Research return `REAUTH_REQUIRED` with `retryable: false` when
+sign-in is required. `details.action` contains guidance and `details.reauthUrl`
+contains the sign-in link when available. Complete sign-in before retrying.
 
 MCP execution has a different boundary. The MCP SDK callback receives raw
 callback state (`extra`) in the server adapter. The adapter extracts only the

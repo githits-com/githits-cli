@@ -67,6 +67,7 @@ export {
   parsePkgseerRegistryArg,
   toPkgseerRegistry,
 } from "./shared/pkgseer-registry.js";
+export { ProviderReauthenticationRequiredError } from "./shared/provider-reauthentication.js";
 export type { TermsAcceptanceRemediation } from "./shared/terms-acceptance.js";
 export {
   TERMS_ACCEPTANCE_REQUIRED_CODE,

@@ -129,11 +129,16 @@ error result.
 
 An injected browser service should throw one of the exported neutral error
 constructors when it wants `get_example` to return a structured
-`AUTH_REQUIRED`, `RATE_LIMITED`, `TIMEOUT`, or `TERMS_ACCEPTANCE_REQUIRED`
+`AUTH_REQUIRED`, `REAUTH_REQUIRED`, `RATE_LIMITED`, `TIMEOUT`, or `TERMS_ACCEPTANCE_REQUIRED`
 `ToolResult`. This is an explicit thrown-error contract, not automatic HTTP
 response classification. Callable authentication remediation is host-neutral:
 `Authenticate with GitHits, then retry.` Terms errors use the canonical
 `acceptanceUrl` action. Other errors remain `UNKNOWN`.
+
+`ProviderReauthenticationRequiredError` is exported from `/tools` and `/client`.
+Example search and Research map it to `REAUTH_REQUIRED` with `retryable: false`.
+`details.action` provides sign-in guidance; `details.reauthUrl` contains a validated
+sign-in link when available. Complete sign-in before retrying the request.
 
 A frontend can add a small registration adapter for its WebMCP host API. The
 adapter owns the host-specific registration call and passes its signal through;

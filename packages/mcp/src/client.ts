@@ -105,7 +105,6 @@ export type {
   ServiceRequestOptions,
   TokenProvider,
 } from "@githits/core-internal";
-
 export {
   AGENTIC_ASK_REQUEST_TIMEOUT_MS,
   AgenticAskServiceImpl,
@@ -136,6 +135,7 @@ export {
   MalformedListResponseError,
   PackageIntelligenceServiceImpl,
   PKGSEER_REGISTRY_LIST,
+  ProviderReauthenticationRequiredError,
   ReadServiceImpl,
   RefreshingGitHitsService,
   ResolveTargetServiceImpl,

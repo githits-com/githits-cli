@@ -71,6 +71,7 @@ import {
 } from "./services/locked-auth-storage.js";
 import { MigratingAuthStorage } from "./services/migrating-auth-storage.js";
 import { ModeAwareFileAuthStorage } from "./services/mode-aware-file-auth-storage.js";
+import { createProviderRecoveryHandler } from "./services/provider-reauthentication.js";
 import { createCliFetch, createLazyCliFetch } from "./services/proxy-fetch.js";
 import {
   TokenManager,
@@ -321,6 +322,8 @@ export interface Dependencies {
 }
 
 export interface CreateContainerOptions {
+  /** Enabled only by interactive CLI commands and local stdio MCP. */
+  openProviderRecovery?: boolean;
   /** Resolve stored OAuth immediately. Disable for MCP startup to avoid keychain prompts until first tool use. */
   resolveStoredToken?: boolean;
   /** How stored OAuth refresh failures surface for this container's token manager, including later service refreshes. */
@@ -347,6 +350,10 @@ export async function createContainer(
     const fetchFn = createCliFetch();
     const authService = new AuthServiceImpl(fetchFn);
     const browserService = new BrowserServiceImpl();
+    const recoverProvider = createProviderRecoveryHandler(
+      browserService,
+      options.openProviderRecovery ?? false,
+    );
     const clientHeaders = createClientHeaderBuilder({
       clientName: options.clientName ?? BASE_CLIENT_NAME,
       clientVersion: version,
@@ -414,6 +421,13 @@ export async function createContainer(
         fetchFn,
         { ...serviceRuntime, timeoutMs: AGENTIC_ASK_REQUEST_TIMEOUT_MS },
       );
+      const githitsService = new GitHitsServiceImpl(
+        apiUrl,
+        envToken,
+        fetchFn,
+        undefined,
+        serviceRuntime,
+      );
 
       return {
         authStorage,
@@ -432,14 +446,14 @@ export async function createContainer(
         listService,
         grepService,
         resolveTargetService,
-        agenticAskService,
-        githitsService: new GitHitsServiceImpl(
-          apiUrl,
-          envToken,
-          fetchFn,
-          undefined,
-          serviceRuntime,
-        ),
+        agenticAskService: {
+          ask: (...args) =>
+            agenticAskService.ask(...args).catch(recoverProvider),
+        },
+        githitsService: {
+          search: (...args) =>
+            githitsService.search(...args).catch(recoverProvider),
+        },
         tokenProvider,
       };
     }
@@ -505,6 +519,19 @@ export async function createContainer(
       fetchFn,
       { ...serviceRuntime, timeoutMs: AGENTIC_ASK_REQUEST_TIMEOUT_MS },
     );
+    const githitsService = new RefreshingGitHitsService(
+      apiUrl,
+      tokenManager,
+      (innerApiUrl, token) =>
+        new GitHitsServiceImpl(
+          innerApiUrl,
+          token,
+          fetchFn,
+          undefined,
+          serviceRuntime,
+        ),
+      serviceRuntime,
+    );
 
     return {
       authStorage,
@@ -523,20 +550,13 @@ export async function createContainer(
       listService,
       grepService,
       resolveTargetService,
-      agenticAskService,
-      githitsService: new RefreshingGitHitsService(
-        apiUrl,
-        tokenManager,
-        (innerApiUrl, token) =>
-          new GitHitsServiceImpl(
-            innerApiUrl,
-            token,
-            fetchFn,
-            undefined,
-            serviceRuntime,
-          ),
-        serviceRuntime,
-      ),
+      agenticAskService: {
+        ask: (...args) => agenticAskService.ask(...args).catch(recoverProvider),
+      },
+      githitsService: {
+        search: (...args) =>
+          githitsService.search(...args).catch(recoverProvider),
+      },
       tokenProvider: tokenManager,
     };
   });

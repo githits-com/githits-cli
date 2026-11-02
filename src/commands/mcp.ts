@@ -129,6 +129,7 @@ export async function createMcpCommandStartup(
   let server: LocalMcpServer | undefined;
   const services = await createContainer({
     resolveStoredToken: false,
+    openProviderRecovery: true,
     clientName: "githits-cli/mcp",
     agentProvider: () => readMcpClientVersion(server),
   });

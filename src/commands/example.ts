@@ -122,7 +122,7 @@ export function registerExampleCommand(program: Command) {
     .option("--explain", "Include AI-generated explanation")
     .option("--json", "Output as JSON for piping")
     .action(async (query: string, options: ExampleOptions) => {
-      const deps = await loadContainer();
+      const deps = await loadContainer(options);
       const progress = options.json ? undefined : createCommandProgress(deps);
       try {
         await exampleAction(query, options, { ...deps, progress });
@@ -133,7 +133,10 @@ export function registerExampleCommand(program: Command) {
     });
 }
 
-async function loadContainer() {
+async function loadContainer(options: ExampleOptions) {
   const { createContainer } = await import("../container.js");
-  return createContainer();
+  return createContainer({
+    openProviderRecovery:
+      !options.json && Boolean(process.stdin.isTTY && process.stdout.isTTY),
+  });
 }

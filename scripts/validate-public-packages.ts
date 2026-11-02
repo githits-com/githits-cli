@@ -498,11 +498,11 @@ async function scanPackFileList(
   );
   if (
     packageInfo.id === "root" &&
-    !list.split("\n").includes("package/githits-icon.svg")
+    !list.split(/\r?\n/).includes("package/githits-icon.svg")
   ) {
     throw new Error("Root tarball omits the Claude plugin icon");
   }
-  for (const line of list.split("\n")) {
+  for (const line of list.split(/\r?\n/)) {
     if (!line.trim()) continue;
     if (
       line.includes("packages/core-internal") ||
@@ -628,7 +628,7 @@ async function verifyMcpToolsRuntime(appDirectory: string): Promise<void> {
   const runtimeCheckPath = join(appDirectory, "tools-runtime-check.mjs");
   await writeFile(
     runtimeCheckPath,
-    `import { ApiRateLimitError, AuthenticationError, FetchTimeoutError, TermsAcceptanceRequiredError, createGetExampleTool, createResearchTool, createResolveTargetTool, toCallableTool } from "@githits/mcp/tools";
+    `import { ApiRateLimitError, AuthenticationError, FetchTimeoutError, ProviderReauthenticationRequiredError, TermsAcceptanceRequiredError, createGetExampleTool, createResearchTool, createResolveTargetTool, toCallableTool } from "@githits/mcp/tools";
 for (const [name, value] of Object.entries({ ApiRateLimitError, AuthenticationError, FetchTimeoutError, TermsAcceptanceRequiredError })) {
   if (typeof value !== "function") throw new Error("missing packed public error constructor: " + name);
 }
@@ -669,6 +669,17 @@ const termsService = {
     throw new TermsAcceptanceRequiredError();
   },
 };
+const recoveryUrl = "https://dev.githits.com/auth/reauth";
+const recoveryFailure = async () => { throw new ProviderReauthenticationRequiredError(recoveryUrl); };
+for (const [tool, input] of [
+  [createGetExampleTool({ search: recoveryFailure }), { query: "packed recovery" }],
+  [createResearchTool({ ask: recoveryFailure }), { question: "How?" }],
+]) {
+  const recoveryResult = await toCallableTool(tool).execute({ ...input, format: "json" });
+  const recoveryPayload = JSON.parse(recoveryResult.content?.[0]?.text ?? "{}");
+  if (recoveryResult.isError !== true || recoveryPayload.code !== "REAUTH_REQUIRED" || recoveryPayload.retryable !== false) throw new Error("packed recovery envelope was incorrect");
+  if (recoveryPayload.details?.reauthUrl !== recoveryUrl || !recoveryPayload.details?.action?.includes(recoveryUrl)) throw new Error("packed recovery URL was lost");
+}
 const termsCallable = toCallableTool(createGetExampleTool(termsService));
 const termsResult = await termsCallable.execute({ query: "packed terms", format: "json" });
 if (termsResult.isError !== true) throw new Error("packed terms result was not an error");

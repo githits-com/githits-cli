@@ -23,6 +23,9 @@ interface CliErrorPayload {
 }
 
 export function formatMappedErrorForTerminal(mapped: MappedError): string {
+  if (mapped.code === "REAUTH_REQUIRED") {
+    return formatMappedErrorText(mapped, { width: process.stderr.columns });
+  }
   if (mapped.code === "VERSION_NOT_FOUND" || mapped.code === "REF_NOT_FOUND") {
     return formatMappedErrorText(mapped, {
       width: process.stderr.columns,

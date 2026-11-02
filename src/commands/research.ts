@@ -282,7 +282,11 @@ export function registerResearchCommand(program: Command): Command {
           question,
           options.thread,
         );
-        const deps = await createContainer();
+        const deps = await createContainer({
+          openProviderRecovery:
+            !options.json &&
+            Boolean(process.stdin.isTTY && process.stdout.isTTY),
+        });
         const progress = options.json ? undefined : createCommandProgress(deps);
         try {
           await researchAction(input.target, input.question, options, {

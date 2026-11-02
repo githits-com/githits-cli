@@ -1,9 +1,8 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, mock, spyOn } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  AgenticAskServiceImpl,
   GrepServiceImpl,
   ListServiceImpl,
   ReadServiceImpl,
@@ -19,6 +18,7 @@ import {
   recordAuthFingerprint,
 } from "./container.js";
 import { AuthConfigError } from "./services/auth-config.js";
+import { BrowserServiceImpl } from "./services/browser-service.js";
 import {
   createMockAuthStorage,
   createValidTokenData,
@@ -406,7 +406,7 @@ describe("createContainer", () => {
         expect(deps.resolveTargetService).toBeInstanceOf(
           ResolveTargetServiceImpl,
         );
-        expect(deps.agenticAskService).toBeInstanceOf(AgenticAskServiceImpl);
+        expect(typeof deps.agenticAskService.ask).toBe("function");
         expect(deps.readService).toBeInstanceOf(ReadServiceImpl);
         expect(deps.listService).toBeInstanceOf(ListServiceImpl);
         expect(deps.grepService).toBeInstanceOf(GrepServiceImpl);
@@ -422,7 +422,7 @@ describe("createContainer", () => {
           expect(deps.resolveTargetService).toBeInstanceOf(
             ResolveTargetServiceImpl,
           );
-          expect(deps.agenticAskService).toBeInstanceOf(AgenticAskServiceImpl);
+          expect(typeof deps.agenticAskService.ask).toBe("function");
           expect(deps.readService).toBeInstanceOf(ReadServiceImpl);
           expect(deps.listService).toBeInstanceOf(ListServiceImpl);
           expect(deps.grepService).toBeInstanceOf(GrepServiceImpl);
@@ -481,6 +481,48 @@ describe("createContainer", () => {
       ),
     );
   });
+
+  it.each([true, false])(
+    "shares one provider recovery launch across local services (enabled=%s)",
+    async (enabled) => {
+      await withoutProxyEnv(async () =>
+        withApiToken("ghi-test", async () => {
+          const originalFetch = globalThis.fetch;
+          const fetchFn = mock(async () =>
+            Response.json(
+              {
+                code: "REAUTH_REQUIRED",
+                reauth_url: "https://dev.githits.com/auth/reauth",
+              },
+              { status: 401 },
+            ),
+          );
+          const open = spyOn(
+            BrowserServiceImpl.prototype,
+            "open",
+          ).mockResolvedValue(undefined);
+          globalThis.fetch = fetchFn as unknown as typeof fetch;
+          try {
+            const deps = await createContainer({
+              resolveStoredToken: false,
+              openProviderRecovery: enabled,
+            });
+            await expect(
+              deps.githitsService.search({ query: "test" }),
+            ).rejects.toMatchObject({ code: "REAUTH_REQUIRED" });
+            await expect(
+              deps.agenticAskService.ask({ question: "How?" }),
+            ).rejects.toMatchObject({ code: "REAUTH_REQUIRED" });
+            expect(fetchFn).toHaveBeenCalledTimes(2);
+            expect(open).toHaveBeenCalledTimes(enabled ? 1 : 0);
+          } finally {
+            globalThis.fetch = originalFetch;
+            open.mockRestore();
+          }
+        }),
+      );
+    },
+  );
 
   it("passes the non-throwing stored refresh policy to the token manager", async () => {
     const storageRoot = await mkdtemp(join(tmpdir(), "githits-init-auth-"));

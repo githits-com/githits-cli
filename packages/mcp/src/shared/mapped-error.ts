@@ -24,6 +24,7 @@ export type MappedErrorCode =
   | "UNRESOLVABLE"
   | "ACCESS_DENIED"
   | "AUTH_REQUIRED"
+  | "REAUTH_REQUIRED"
   | "TERMS_ACCEPTANCE_REQUIRED"
   | "NETWORK"
   | "INVALID_ARGUMENT"
@@ -44,6 +45,7 @@ export interface MappedErrorDetails {
   targetIndex?: number;
   targetCount?: number;
   action?: string;
+  reauthUrl?: string;
   hint?: string;
   availableVersions?: RecoveryRef[];
   availableRefs?: RecoveryRef[];
