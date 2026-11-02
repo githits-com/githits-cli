@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
 import {
   AuthenticationError,
+  GitHitsServiceImpl,
   TermsAcceptanceRequiredError,
 } from "./githits-service.js";
 import { RefreshingGitHitsService } from "./refreshing-githits-service.js";
@@ -13,6 +14,29 @@ describe("RefreshingGitHitsService", () => {
   const API_URL = "https://api.githits.com";
 
   describe("search", () => {
+    it("preserves a backend provider 401 without refreshing or replaying", async () => {
+      const provider = createMockTokenProvider();
+      const fetchFn = mock(async () =>
+        Response.json(
+          {
+            code: "REAUTH_REQUIRED",
+            reauth_url: "https://dev.githits.com/auth/reauth",
+          },
+          { status: 401 },
+        ),
+      ) as unknown as typeof fetch;
+      const service = new RefreshingGitHitsService(
+        API_URL,
+        provider,
+        (url, token) => new GitHitsServiceImpl(url, token, fetchFn),
+      );
+      await expect(service.search({ query: "test" })).rejects.toMatchObject({
+        code: "REAUTH_REQUIRED",
+        reauthUrl: "https://dev.githits.com/auth/reauth",
+      });
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(provider.forceRefresh).not.toHaveBeenCalled();
+    });
     it("delegates to inner service with token from provider", async () => {
       const innerService = createMockGitHitsService();
       const tokenProvider = createMockTokenProvider();

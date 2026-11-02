@@ -1,4 +1,5 @@
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
+import { throwIfProviderReauthenticationRequired } from "../shared/provider-reauthentication.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import { throwIfTermsAcceptanceRequired } from "../shared/terms-acceptance.js";
 import { validateServiceUrl } from "./config.js";
@@ -249,6 +250,7 @@ export class AgenticAskServiceImpl implements AgenticAskService {
       let targetError: TargetErrorDetail | undefined;
       let rateLimitScope: AgenticAskRateLimitScope | undefined;
       if (
+        response.status === 401 ||
         response.status === 403 ||
         response.status === 400 ||
         response.status === 429
@@ -264,7 +266,9 @@ export class AgenticAskServiceImpl implements AgenticAskService {
         } catch (cause) {
           if (signal.aborted) throw signal.reason ?? cause;
         }
-        if (response.status === 403) throwIfTermsAcceptanceRequired(body);
+        if (response.status === 401)
+          throwIfProviderReauthenticationRequired(body);
+        else if (response.status === 403) throwIfTermsAcceptanceRequired(body);
         else if (response.status === 400) targetError = parseTargetError(body);
         else rateLimitScope = parseRateLimitScope(body);
       } else {

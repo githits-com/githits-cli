@@ -5,6 +5,7 @@ import {
   isFetchTimeoutError,
 } from "../shared/fetch-timeout.js";
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
+import { throwIfProviderReauthenticationRequired } from "../shared/provider-reauthentication.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import {
   TermsAcceptanceRequiredError,
@@ -248,6 +249,7 @@ export class GitHitsServiceImpl implements GitHitsService {
 
     switch (status) {
       case 401:
+        throwIfProviderReauthenticationRequired(body);
         return new AuthenticationError(
           SERVER_AUTHENTICATION_REJECTED_MESSAGE,
           "server",

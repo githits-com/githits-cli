@@ -2,6 +2,7 @@ import {
   ApiRateLimitError as CoreApiRateLimitError,
   AuthenticationError as CoreAuthenticationError,
   FetchTimeoutError as CoreFetchTimeoutError,
+  ProviderReauthenticationRequiredError as CoreProviderReauthenticationRequiredError,
   TermsAcceptanceRequiredError as CoreTermsAcceptanceRequiredError,
 } from "@githits/core-internal/browser";
 
@@ -41,6 +42,19 @@ interface TermsAcceptanceRequiredErrorInstance extends Error {
   readonly termsUrl: string;
   readonly acceptanceUrl: string;
 }
+
+interface ProviderReauthenticationRequiredErrorInstance extends Error {
+  readonly code: "REAUTH_REQUIRED";
+  readonly reauthUrl: string | undefined;
+}
+
+interface ProviderReauthenticationRequiredErrorConstructor {
+  new (reauthUrl?: string): ProviderReauthenticationRequiredErrorInstance;
+}
+
+/** Sign-in recovery required before the caller retries their request. */
+export const ProviderReauthenticationRequiredError: ProviderReauthenticationRequiredErrorConstructor =
+  CoreProviderReauthenticationRequiredError;
 
 interface TermsAcceptanceRequiredErrorConstructor {
   new (remediation?: {

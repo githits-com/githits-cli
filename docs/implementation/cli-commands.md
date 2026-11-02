@@ -167,6 +167,12 @@ acceptance URL; `ghi-*` credentials never enter a refresh loop.
 
 ### `githits example`
 
+If example search or Research requires sign-in, text and JSON output include
+sign-in guidance. JSON uses `REAUTH_REQUIRED`, `retryable: false`, and
+`details.reauthUrl` when a sign-in link is available. Interactive commands and
+local MCP can open the page automatically; noninteractive commands and `--json`
+return the guidance. Finish signing in, then retry the request.
+
 ```
 githits example "how to use express middleware"
 githits example "how to use express middleware" --lang javascript

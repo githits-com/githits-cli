@@ -7,6 +7,7 @@ import {
   MalformedAgenticAskResponseError,
 } from "@githits/core-internal/browser";
 import type { MappedError } from "./mapped-error.js";
+import { mapProviderReauthenticationError } from "./provider-reauthentication-error-map.js";
 import { mapSessionIdError } from "./session-id-error-map.js";
 import { mapTermsAcceptanceError } from "./terms-acceptance-error-map.js";
 
@@ -18,6 +19,8 @@ export interface AgenticAskMappedError {
 
 /** Map transport-neutral Ask failures for both CLI and MCP surfaces. */
 export function mapAgenticAskError(error: unknown): AgenticAskMappedError {
+  const providerError = mapProviderReauthenticationError(error);
+  if (providerError) return { mapped: providerError };
   const sessionError = mapSessionIdError(error);
   if (sessionError) return { mapped: sessionError };
   const termsError = mapTermsAcceptanceError(error);

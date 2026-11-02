@@ -431,6 +431,34 @@ describe("AgenticAskServiceImpl", () => {
     ]);
   });
 
+  it.each(["stale.jwt.token", "ghi-static-token"])(
+    "does not refresh or replay provider recovery with %s",
+    async (token) => {
+      const forceRefresh = mock(async () => "unexpected");
+      const tokenProvider = createMockTokenProvider({
+        getToken: mock(async () => token),
+        forceRefresh,
+      });
+      const fetchFn = mock(async () =>
+        jsonResponse(
+          {
+            code: "REAUTH_REQUIRED",
+            reauth_url: "https://dev.githits.com/auth/reauth",
+          },
+          { status: 401 },
+        ),
+      ) as unknown as typeof fetch;
+      await expect(
+        createService(fetchFn, { tokenProvider }).ask({ question: "How?" }),
+      ).rejects.toMatchObject({
+        code: "REAUTH_REQUIRED",
+        reauthUrl: "https://dev.githits.com/auth/reauth",
+      });
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(forceRefresh).not.toHaveBeenCalled();
+    },
+  );
+
   it("refreshes an OAuth token once after a terms gate", async () => {
     const forceRefresh = mock(() => Promise.resolve("fresh-token"));
     const tokenProvider = createMockTokenProvider({

@@ -23,4 +23,5 @@ export * from "./shared/fetch-timeout.js";
 export * from "./shared/http-error-detail.js";
 export * from "./shared/pkgseer-graphql.js";
 export * from "./shared/pkgseer-registry.js";
+export { ProviderReauthenticationRequiredError } from "./shared/provider-reauthentication.js";
 export * from "./shared/request-headers.js";
