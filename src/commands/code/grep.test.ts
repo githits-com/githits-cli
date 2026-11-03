@@ -31,6 +31,17 @@ describe("code grep help", () => {
     expect(help).not.toContain("ASCII");
     expect(help).not.toContain("code, caller_count");
     expect(help).not.toContain("parent_symbol_ref");
+    expect(help).toContain("`literal` (default)");
+    expect(help).toContain("--regex");
+    expect(help).toContain(
+      "foo|bar alternates; foo\\|bar matches a literal pipe.",
+    );
+    expect(help).toContain("Content-index regex needs literal text");
+    expect(help).toContain(
+      "a single exact-file route accepts anchorless regex",
+    );
+    expect(help.split("foo\\|bar")).toHaveLength(2);
+    expect(help).not.toContain("with no path, path_prefix, or glob");
   });
 });
 

@@ -1319,6 +1319,22 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
         grepHelp.stdout.includes("--path-prefix lib/"),
       "grep help must expose defaults, context caps and file/directory selectors",
     );
+    const legacyGrepHelp = await runCliWithEnv(["code", "grep", "--help"], env);
+    for (const [name, result] of [
+      ["grep", grepHelp],
+      ["code grep", legacyGrepHelp],
+    ] as const) {
+      const prose = result.stdout.replace(/\s+/g, " ");
+      assert(
+        result.exitCode === 0 &&
+          prose.includes(
+            "foo|bar alternates; foo\\|bar matches a literal pipe.",
+          ) &&
+          prose.includes("Content-index regex needs literal text") &&
+          prose.includes("a single exact-file route accepts anchorless regex"),
+        `${name} help must preserve escaped-pipe syntax and route-specific regex requirements`,
+      );
+    }
     const readHelp = await runCliWithEnv(["read", "--help"], env);
     assert(
       readHelp.exitCode === 0 &&
