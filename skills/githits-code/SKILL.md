@@ -59,7 +59,7 @@ Research rate limits cover all questions/targets: wait the returned delay or dai
 
 Run `githits`. If unavailable, explain that `npx -y githits@latest` downloads and executes the CLI; use it only when authorized. Never expose credentials. Run login only with sign-in authorization; `--no-browser` requires a user able to finish the URL flow. Do not start OAuth in CI/evals; report missing credentials.
 
-If using a PowerShell `.cmd` shim, invoke it explicitly: `githits.cmd --% grep "foo|bar" npm:express`. The `.ps1` shim needs no workaround.
+If using a PowerShell `.cmd` shim, invoke it explicitly: `githits.cmd --% grep "foo|bar" npm:express`. After `--%`, use double quotes and one command per line. The `.ps1` shim needs no workaround.
 
 For `REAUTH_REQUIRED`, show the supplied URL and wait; do not loop or run login. For `TERMS_ACCEPTANCE_REQUIRED`, obtain explicit acceptance authorization; retry once after acceptance.
 
