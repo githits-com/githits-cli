@@ -46,7 +46,7 @@ Use `--depth` to request capped transitive output. Without it, output is direct 
 
 ## Changelog
 
-`githits pkg changelog <registry:name[@version|@from..to]>` returns release notes for a package. Bare targets use latest mode. Pin `@version` for one selected release. Use `@from..to`, `@from..`, or `@..to` for interval and upper-cap forms.
+`githits pkg changelog <registry:name[@version|@from..to]>` returns release notes for a package. Latest uses an unversioned target such as `npm:express`, with no trailing `@`. Pin `@version` for one selected release. Use `@from..to`, `@from..`, or `@..to` for interval and upper-cap forms.
 
 Ranges exclude `from` and include `to`: `npm:express@4.21.2..5.2.1` returns releases after 4.21.2 through 5.2.1, including 5.2.1 but excluding 4.21.2. Use `npm:express@4.21.2` to read the starting release itself. `@from..` excludes `from` and continues through latest; `@..to` includes `to` and remains capped by `--limit`.
 
@@ -57,16 +57,19 @@ classifications, uncertainty, coverage and nearby sources. Kind tags describe th
 statement; bracketed `!` marks action labels, while no-impact statements remain
 plain bullets. `--changes actionable` selects action labels; `important` adds
 knowledge labels. Both retain uncertain classifications. Filters apply before
-statement pagination; `all` is the default.
+statement pagination; `all` is the default. Preserve generated-from-commits source
+labels and pending/unavailable generation status. Generated statements are not
+publisher-written notes; missing or empty notes do not establish safety.
 
 `--verbatim` shows full original notes instead of statements; `--verbose` is its
 deprecated alias in text and JSON. `--no-body` shows a version/date/URL timeline
 and skips parsing/classification; it cannot be combined with verbatim or verbose.
-`--changes` is ignored outside statement views. Default JSON contains complete
-statement evidence rather than raw entry bodies or the old risk-only fields;
-use `--verbatim --json` for original bodies.
+`--changes` is ignored outside statement views. Default JSON contains
+statement text and provenance rather than raw entry bodies or the old risk-only fields;
+use `--verbatim --json` for original bodies. JSON omits `fullText` when identical
+to `text` and previews one commit reference, with `commitsOmitted` for the rest.
 
-`--from` (excluded) and `--to` (included) remain package range flags on a bare spec. Inline single-release targets reject those flags and `--limit`. Repository and site targets are not supported.
+`--from` (excluded) and `--to` (included) remain package range flags on a bare spec. Inline single-release targets reject those flags. Omit `--limit` for exact versions or ranges with a starting version; only latest and upper-cap `@..to` / `--to` accept it. Repository and site targets are not supported.
 
 ## Upgrade Review
 
@@ -126,5 +129,3 @@ Use package results directly. Start upgrade comparisons with `pkg upgrade-review
 ## Version spelling
 
 Go exact versions accept `v1.2.3` or `1.2.3`, including pseudo versions; requests use canonical `v`-prefixed form. Other changelog range inputs omit a leading `v`, except Swift release tags.
-
-For latest changelog entries use an unversioned target such as `npm:express`, with no trailing `@`. Omit `--limit` for an exact version or any range with a starting version; only latest and `@..to` accept it.

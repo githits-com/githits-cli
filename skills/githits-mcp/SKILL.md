@@ -17,7 +17,7 @@ Load this guide through `githits-mcp` or `quick_start` once; do not load both.
 | --- | --- |
 | A known symbol, file, or docs section | `read` |
 | Relevant code/docs at an unknown location | `search` |
-| Exact text, identifiers, or call sites | `grep` |
+| Exact text, regex patterns, or call sites | `grep` |
 | File names or directory structure | `list` |
 | Investigating behavior across code/docs | `research` |
 | Examples from other projects | `get_example` |
@@ -42,7 +42,7 @@ Read known symbols directly with `selector` before searching or grepping. Follow
 
 ## Retrieval
 
-- Search concepts; literal-grep known text. Omit project/version terms already in the target.
+- Search concepts; literal-grep known text. Regex patterns use grep, never search. Omit project/version terms already in the target.
 - Use known locations before searching again. Revise failed queries from results; do not repeat equivalent searches.
 - Use sufficient content directly. Read omitted deciding conditions or bodies; combine nearby needed code and avoid repeated small windows.
 - Batch independent calls with known arguments; inspect results before dependent calls.

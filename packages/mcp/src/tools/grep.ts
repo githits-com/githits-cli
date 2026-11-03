@@ -72,7 +72,7 @@ const schema: ZodRawShape = {
   pattern: z
     .string()
     .describe(
-      "RE2 regex by default, or exact text with pattern_type literal (1-200 UTF-8 bytes). Prefer literal identifiers. A pipe means alternation; escaping it matches a literal pipe. No lookaround/backreferences; multi-file regex needs a literal anchor.",
+      "RE2 regex by default, or exact text with pattern_type literal (1-200 UTF-8 bytes). Prefer literal identifiers. A pipe means alternation; escaping it matches a literal pipe. No lookaround/backreferences. Content-index regex needs literal text; a single exact-file route accepts anchorless regex. A path selector alone does not guarantee that route.",
     ),
   pattern_type: z
     .enum(["regex", "literal"])

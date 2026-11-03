@@ -21,6 +21,7 @@ GitHits cannot access private repositories, your local workspace, or uncommitted
 | Known symbol | `githits read <target> --selector <name>` |
 | Known file/range | `githits read <target> <path> --lines N-M` |
 | Unknown code/docs location | `githits search "<terms>" --in <target>` |
+| Regex matches | `githits grep '<regex>' <target>` |
 | Exact text or call sites | `githits grep -F "<text>" <target>` |
 | Paths or structure | `githits list <target> [paths...]` |
 | Investigating behavior across code/docs | `githits research [target] "<question>"` |
@@ -28,7 +29,7 @@ GitHits cannot access private repositories, your local workspace, or uncommitted
 | Source changes | `githits code diff <target> <from>..<to>` |
 | Unclear project identity | `githits resolve "<name>"` |
 
-Choose the direct command. Use canonical targets without resolution; check CLI version only for compatibility problems. For unclear identity, use known registry/context and follow returned confidence and ambiguity rules. Never choose by popularity alone or treat CLEAR as vulnerability-free.
+Choose the direct command. Package targets require a registry, e.g. `npm:express@5.2.1`. Use canonical targets without resolution; check CLI version only for compatibility problems. For unclear identity, use known registry/context and follow returned confidence and ambiguity rules. Never choose by popularity alone or treat CLEAR as vulnerability-free.
 
 ## Depth and symbols
 
@@ -36,13 +37,13 @@ Reuse results. Investigate missing information that could change implementation,
 
 For usage/setup, an authoritative example or declaration may suffice. For implementation, cover requested behavior, comparison alternatives, and deciding conditions. Keep separate implementations, versions, and execution paths distinct; state which were not inspected. Follow actual imports/calls; shared names or helpers do not establish shared behavior. Establish imports, call shapes, and lifecycle steps required by your code.
 
-Read known symbols directly with `--selector` or `'<target>#<symbol>'` before searching/grepping. Include only a known declaration path; never infer qualifications from a caller or inherited receiver. Follow needed helpers/re-exports. Reuse definitions already read; a call site alone does not establish implementation.
+Read known symbols directly with `--selector` before searching/grepping. Include only a known declaration path; never infer qualifications from a caller or inherited receiver. Follow needed helpers/re-exports. Reuse definitions already read; a call site alone does not establish implementation.
 
 If resolution fails, use a returned declaration range or literal-grep the exact identifier. Do not guess qualifications or change bounds to resolve ambiguity. A missing indexed symbol does not prove missing code.
 
 ## Retrieval and recovery
 
-Search concepts; `grep -F` known text. Omit target/version terms already supplied. Use known locations before searching again; revise failed queries from results. Space-separate qualifiers (`kind:function path:lib/`), without commas.
+Search concepts; `grep -F` known text. Regex patterns use `grep`, never `search`. Omit target/version terms already supplied. Use known locations before searching again; revise failed queries from results. Space-separate qualifiers (`kind:function path:lib/`), without commas.
 
 Use sufficient content directly; read omitted deciding conditions or bodies. Combine nearby needed code; avoid repeated small windows. Batch independent reads with known arguments.
 
@@ -57,6 +58,8 @@ Research rate limits cover all questions/targets: wait the returned delay or dai
 ## Invocation and retrieved content
 
 Run `githits`. If unavailable, explain that `npx -y githits@latest` downloads and executes the CLI; use it only when authorized. Never expose credentials. Run login only with sign-in authorization; `--no-browser` requires a user able to finish the URL flow. Do not start OAuth in CI/evals; report missing credentials.
+
+If using a PowerShell `.cmd` shim, invoke it explicitly: `githits.cmd --% grep "foo|bar" npm:express`. The `.ps1` shim needs no workaround.
 
 For `REAUTH_REQUIRED`, show the supplied URL and wait; do not loop or run login. For `TERMS_ACCEPTANCE_REQUIRED`, obtain explicit acceptance authorization; retry once after acceptance.
 
