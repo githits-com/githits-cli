@@ -8,12 +8,15 @@ import {
   extractAgenticAskDisplay,
   isRepositoryTargetSpec,
   LegacyRepositoryRefError,
+  type MappedError,
   type McpProgressHook,
   mapAgenticAskError,
   parseRepositoryTargetSpec,
+  parseUnifiedSearchTargetSpec,
   RESEARCH_VERIFIED_ANSWER_GUIDANCE,
   requireAuth,
   sanitizeTerminalText,
+  shellQuoteExact,
 } from "@githits/mcp/internal";
 import { type Command, InvalidArgumentError, Option } from "commander";
 import { createContainer } from "../container.js";
@@ -103,10 +106,16 @@ export async function researchAction(
     spinner.stop();
     if (isCallerCancellation(error, deps.signal)) throw error;
     const failure = mapAgenticAskError(error);
+    const example = buildResearchDiscoveryExample(
+      failure.mapped,
+      "target" in subject ? subject.target : undefined,
+    );
     if (options.json) {
+      const payload = buildCliMappedErrorPayload(failure.mapped);
       console.error(
         JSON.stringify({
-          ...buildCliMappedErrorPayload(failure.mapped),
+          ...payload,
+          ...(example ? { details: { ...payload.details, example } } : {}),
           ...(failure.toolCallId ? { tool_call_id: failure.toolCallId } : {}),
           ...(failure.threadId ? { thread_id: failure.threadId } : {}),
         }),
@@ -130,10 +139,36 @@ export async function researchAction(
           ? [`Thread ID: ${sanitizeTerminalText(failure.threadId)}`]
           : []),
       ];
-      console.error([diagnostic, ...identifiers].join("\n"));
+      console.error(
+        [
+          diagnostic,
+          ...(example ? [`Example: ${example}`] : []),
+          ...identifiers,
+        ].join("\n"),
+      );
     }
     process.exit(1);
   }
+}
+
+/** Build a CLI search template; the target originates in argv and cannot contain NUL. */
+export function buildResearchDiscoveryExample(
+  mapped: MappedError,
+  target: string | undefined,
+): string | undefined {
+  if (
+    mapped.code !== "RATE_LIMITED" ||
+    mapped.details?.rateLimitScope !== "daily" ||
+    target === undefined
+  ) {
+    return undefined;
+  }
+  try {
+    parseUnifiedSearchTargetSpec(target);
+  } catch {
+    return undefined;
+  }
+  return `githits search --in ${shellQuoteExact(target)} -- 'your query'`;
 }
 
 /** Print backend-owned Markdown through the terminal safety boundary. */
