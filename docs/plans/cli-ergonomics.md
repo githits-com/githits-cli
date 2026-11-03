@@ -5,7 +5,7 @@
 - Overall: **IN PROGRESS**; Phase 1 merged in [#530](https://github.com/githits-com/githits-cli/pull/530);
   Phase 1a merged in [#533](https://github.com/githits-com/githits-cli/pull/533);
   Phase 2 merged in [#535](https://github.com/githits-com/githits-cli/pull/535);
-  Phase 3 needs design before implementation.
+  Phase 3 is parked by user decision; Phase 4 awaits the backend contract.
 - Owner: this CLI worktree; backend investigations have separate child worktrees.
 - User direction, 2026-11-03: improve CLI ergonomics from the supplied feedback;
   exclude all skill changes because OP is reviewing those separately. Dispatch
@@ -14,12 +14,13 @@
   retain their contract and evidence gates; all skill changes remain excluded.
 - User direction after #530 merged: plan compact CLI regex guidance. Matching
   is correct; explain alternation versus literal pipes in help, not runtime hints.
+- User decision, 2026-11-03: park built-in output limits. Frequent use of `head`
+  in one feedback report does not establish a need for another output control.
 
 When complete, common valid CLI near-misses work without another call, failures
-provide a relevant next command when the request supplies enough information,
-and callers can bound large text responses without discarding trust facts or
-losing access to omitted evidence. Unified grep can expose legacy-equivalent
-enclosing-symbol metadata after its backend establishes that contract; actual
+provide a relevant next command when the request supplies enough information.
+Unified grep can expose legacy-equivalent enclosing-symbol metadata after its
+backend establishes that contract; actual
 source bodies are a separate, cost-dependent improvement. Regex guidance is
 compact and accurate without silently changing caller intent.
 
@@ -67,10 +68,13 @@ Its separate backend schema-documentation note remains in PkgSeer's backlog.
 ## Scope and boundaries
 
 Included: context tolerance, exact single-line reads, path-operand guidance,
-compact CLI regex help, Research recovery, optional bounded text output, and
-later adoption of verified backend enclosing-symbol capabilities. Existing
+compact CLI regex help, Research recovery, and later adoption of verified backend
+enclosing-symbol capabilities. Existing
 command help and permanent implementation docs may change; skills, shared MCP
 instructions and plugin assets must not change as a side effect.
+
+Built-in output limits are parked, outside active implementation scope. Phase 3
+records the evidence required to reconsider them.
 
 Phase 2 additionally excludes MCP descriptors/instructions, shared error-map
 or generic formatter changes, and public API changes. Its action is CLI-only;
@@ -104,13 +108,10 @@ and authoritative read actions; aigrep owns matching and parsed source blocks.
 3. Keep input-derived correction actions at the request-aware CLI boundary;
    do not move request discovery or service calls into a formatter. Reuse exact
    shell quoting and terminal sanitization. Backend locators remain authoritative.
-4. Extend each affected shared formatter with explicit presentation inputs when
-   adding text budgets; do not wrap finished stdout in a generic `head` filter.
-   Preserve machine JSON and make omission distinct from backend incompleteness.
-5. Backend-dependent controls follow a verified, versioned producer contract.
+4. Backend-dependent controls follow a verified, versioned producer contract.
    Never hydrate blocks through hidden per-hit read requests or synthesize bounds
    from regex/indentation in the CLI.
-6. CLI owns command-specific syntax guidance and mode names. Completed Phase 1a
+5. CLI owns command-specific syntax guidance and mode names. Completed Phase 1a
    updated registration text and its CLI-only legacy note in place, preserving
    argument-name translations without a new replacement layer or helper. Phase 2
    adds its small request-aware action helper at the same CLI ownership level.
@@ -128,7 +129,7 @@ Unknowns/product decisions: **none for Phase 2's Research increment**.
 Its typed limit scope and local search eligibility are verified. Grep operand
 recovery stays with [typed validation recovery](open-backlog.md#validation-error-recovery-after-pkgseer-phases-3-4):
 verify deployed producer shapes and preserve their facts before adding hints.
-Phase 3 still needs budget units, supported commands and exact replay semantics.
+Phase 3 is parked; no output-budget design or implementation is scheduled.
 Phase 4 needs the released producer contract and any separately approved body
 extension. These later unknowns do not block scoped Research recovery.
 
@@ -144,7 +145,7 @@ formatting alone. Obtain approval before introducing infrastructure.
 | 1 — tolerate common arguments | COMPLETE; merged #530 | `--lines N` selects one line; excessive valid context becomes 10 with a visible notice; path flags are clear in help. | Existing read/grep paths only. |
 | 1a — compact regex guidance | COMPLETE; merged #533 | Both CLI grep helps distinguish alternation/literal pipes and qualify route-dependent literal-text requirements. | Merged #530 and verified regex investigation; no backend change. |
 | 2 — scoped Research recovery | COMPLETE; merged #535 | Daily Research exhaustion shows a scoped search example with a fixed query placeholder when an explicit search-compatible target exists. | Merged #533, existing typed rate-limit scope and local parser/quoting. Grep validation adoption remains separately gated. |
-| 3 — bounded readable output | NEEDS DESIGN at phase boundary | Opt-in text budgets preserve trust facts and provide honest access to omitted evidence. | Phase 2; representative output and replay evidence. |
+| 3 — bounded readable output | PARKED by user decision | No built-in output limits; reconsider only with demonstrated harm or repeated avoidable cost from current previews. | New evidence and a decision to resume. |
 | 4 — backend-assisted enclosing symbols | WAITING ON NATIVE CONTRACT | Unified grep can opt into legacy-equivalent enclosing-symbol metadata and exact source-read ranges; source bodies remain conditional on cost. | Native implementation/release, PkgSeer adoption and verified wire contract. |
 
 ### Phase 1 — tolerate common arguments
@@ -173,28 +174,23 @@ Durable contracts live in `docs/implementation/research.md` and
 
 ### Phase 3 — bounded readable output
 
-Status: **NEEDS DESIGN**. Outcome: callers avoid external `head` while keeping
-trust/coverage facts, read locators and an explicit route to omitted evidence.
-Ordering: follows Phase 2. Design dependencies are reorientation against current
-formatter ownership and representative captured output.
-Assumption: opt-in presentation controls can improve ergonomics without changing
-default output or machine JSON. Unknowns: first command, line/character units,
-budget scope, large-line handling and replay semantics. Resolve from one grep
-page and one source/docs read with existing fixtures plus real served output;
-do not create a cross-tool truncation framework or add two competing knobs by
-default. Coordinate with `search-output-ux.md` rather than duplicating its work.
+Status: **PARKED by user decision, 2026-11-03**. No design or implementation is
+scheduled, and this phase does not gate enclosing-symbol adoption.
 
-Acceptance: a reviewed first-command design distinguishes locally omitted output
-from backend partial coverage; preserves provenance/warnings/actions outside the
-evidence budget; never slices ANSI/Unicode/source lines into misleading evidence;
-leaves JSON complete; and provides an exact retry/read path for omitted content.
-Before claiming an efficiency improvement, name and compare the same cases:
-one existing mixed-source 100-hit grep page and one selected large-file read,
-with identical inputs and recorded HTTP calls/selected fields plus output bytes
-and lines before/after. Presentation-only savings must not be described as less
-backend work. Runtime performance claims additionally require a narrow release
-build benchmark and same-case baseline/candidate comparison. Detail only after
-the preceding increment and captured output settle the contract.
+Evidence: the supplied report says agents piped output through `head` more than
+half the time. This establishes frequent previewing, not failure of that workflow.
+`head` already keeps discarded text out of the agent's context. A formatter-only
+limit would still fetch the same backend response. Grep's trailing continuation
+cursor and read guidance can be discarded, but the report does not demonstrate
+that this caused failed tasks or additional calls.
+
+The earlier assumption that built-in budgets would improve ergonomics enough to
+justify a new control remains unproven. Reconsider only when traces demonstrate
+lost continuation information causing problems or repeated avoidable refetching,
+and compare the smallest remedy with existing request controls and shell previews.
+No budget units, commands, formatter architecture or acceptance contract are
+selected. A decision to resume requires new evidence; coordinate any resulting
+design with `search-output-ux.md` rather than duplicating its work.
 
 ### Phase 4 — backend-assisted enclosing symbols
 
