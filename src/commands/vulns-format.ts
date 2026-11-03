@@ -1,5 +1,14 @@
-import type { AdvisoryLookup, LookupPackage } from "@githits/core-internal";
-import { sanitizeTerminalText, wrapTerminalProse } from "@githits/mcp/internal";
+import {
+  type AdvisoryLookup,
+  type LookupPackage,
+  parsePkgseerRegistryArg,
+  toPkgseerRegistry,
+} from "@githits/core-internal";
+import {
+  sanitizeTerminalText,
+  supportsVulnerabilitiesRegistry,
+  wrapTerminalProse,
+} from "@githits/mcp/internal";
 
 export interface VulnsError {
   error: string;
@@ -64,22 +73,12 @@ export function formatVulns(
         }
         if (options.verbose && group.sourceEvidence)
           renderAffected(group.sourceEvidence.affected ?? [], add, "      ");
-        const registry = pkg.registry?.toLowerCase();
+        const registry = pkg.registry
+          ? parsePkgseerRegistryArg(pkg.registry)
+          : undefined;
         if (
           registry &&
-          [
-            "npm",
-            "pypi",
-            "hex",
-            "crates",
-            "nuget",
-            "maven",
-            "packagist",
-            "rubygems",
-            "go",
-            "swift",
-            "pub",
-          ].includes(registry)
+          supportsVulnerabilitiesRegistry(toPkgseerRegistry(registry))
         ) {
           add("    Assess installed version:");
           lines.push(
@@ -167,7 +166,11 @@ export function formatVulns(
         "  For package/version assessment, use githits pkg vulns <registry>:<name>@<installed-version>.",
       );
     if (result.error?.details?.notAttempted)
-      add("  Not attempted after an earlier access failure.");
+      add(
+        lookup
+          ? "  Remaining package pages not read after an earlier access failure."
+          : "  Not attempted after an earlier access failure.",
+      );
   }
   add();
   add(

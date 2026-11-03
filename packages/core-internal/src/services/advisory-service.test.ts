@@ -338,7 +338,7 @@ describe("operation-local partial envelope", () => {
       section: "AFFECTED_PACKAGES",
       code: "FUTURE_DISPLAY_ERROR",
       retryable: true,
-      path: localPath,
+      path: localPath.slice(2),
     });
     expect(JSON.stringify(item)).not.toContain("raw upstream exception");
     expect(debug).toHaveBeenCalled();
@@ -468,5 +468,47 @@ describe("selected compact wire shape", () => {
       { body: { data: { vulnerabilityLookup: [fixture] } } },
     ]);
     expect(await service.lookup(["CVE-example"], false)).toEqual([fixture]);
+  });
+});
+
+describe("batched diagnostic attribution", () => {
+  it("makes a non-first compact input display error relative to that result", async () => {
+    const response = success(["a", "b"]);
+    response.body.data.vulnerabilityLookup[1]!.affectedPackages!.entries[0]!
+      .advisories[0]!.affectedVersionDisplay = null;
+    const path = [
+      "vulnerabilityLookup",
+      1,
+      "affectedPackages",
+      "entries",
+      0,
+      "advisories",
+      0,
+      "affectedVersionDisplay",
+    ];
+    const { service } = setup([
+      {
+        body: {
+          ...response.body,
+          errors: [
+            {
+              message: "private producer diagnostic",
+              path,
+              extensions: { code: "DISPLAY_ERROR", retryable: true },
+            },
+          ],
+        },
+      },
+    ]);
+    const [first, second] = await service.lookup(["a", "b"], false);
+    expect(first?.unknownDetails).toEqual([]);
+    expect(second?.unknownDetails[0]?.path).toEqual([
+      "affectedPackages",
+      "entries",
+      0,
+      "advisories",
+      0,
+      "affectedVersionDisplay",
+    ]);
   });
 });

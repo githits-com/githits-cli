@@ -125,4 +125,12 @@ cursor is failure. Null display without a field error is not failure. Compact
 empty mapping text says it cannot establish non-affectedness and points to
 --verbose for original/package-less evidence. Sanitized optional-field diagnostics
 include section AFFECTED_PACKAGES, producer code/retryability, neutral local
-message and operation-local path. No raw error body is exposed.
+message and result-relative path into retained package entries. No raw error body is exposed.
+
+Implementation review R1 closure: nullable-display paths now point into the
+retained result, stripping root/batch prefixes and offsetting continuation group
+indices; debug events keep original wire paths. Sibling scan: both source/local
+displays, initial compact batch items, continuation appends, JSON/text locators,
+docs and tests. Reused the already-exported supportsVulnerabilitiesRegistry with
+core registry parsing for follow-ups, without adding any MCP export. Clarified
+remaining-pages wording when an initial page was acquired before admission stops.

@@ -184,7 +184,20 @@ export async function readAdvisoryReports(
           // report intact and retain only diagnostics from that failed continuation.
           const page = next.affectedPackages;
           lookup.unknownDetails.push(
-            ...next.unknownDetails.filter((detail) => !page || detail.path),
+            ...next.unknownDetails
+              .filter((detail) => !page || detail.path)
+              .map((detail) =>
+                detail.path
+                  ? {
+                      ...detail,
+                      path: [
+                        ...detail.path.slice(0, 2),
+                        (detail.path[2] as number) + connection.entries.length,
+                        ...detail.path.slice(3),
+                      ],
+                    }
+                  : detail,
+              ),
           );
           if (!page) {
             const problem =

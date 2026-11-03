@@ -229,8 +229,6 @@ describe("vulns command", () => {
       {
         ...unknown("FUTURE_DISPLAY", "AFFECTED_PACKAGES"),
         path: [
-          "vulnerabilityLookup",
-          0,
           "affectedPackages",
           "entries",
           0,
@@ -385,5 +383,50 @@ describe("nullable supporting evidence", () => {
       error: { code: "UPSTREAM_ERROR" },
     });
     expect(service.lookup).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("drained diagnostic attribution", () => {
+  it("offsets continuation field diagnostics into retained whole-group entries", async () => {
+    const first = nextPage(item());
+    const second = item();
+    second.advisory = undefined;
+    second.affectedPackages!.entries[0]!.package.name = "other-package";
+    second.affectedPackages!.entries[0]!.advisories[0]!.affectedVersionDisplay =
+      null;
+    second.affectedPackages!.pageInfo.totalCount = 2;
+    second.unknownDetails = [
+      {
+        ...unknown("DISPLAY_ERROR", "AFFECTED_PACKAGES"),
+        path: [
+          "affectedPackages",
+          "entries",
+          0,
+          "advisories",
+          0,
+          "affectedVersionDisplay",
+        ],
+      },
+    ];
+    const service = createMockAdvisoryService({
+      lookup: mock(
+        async (_ids: string[], _detailed: boolean, after?: string) =>
+          after ? [second] : [first],
+      ),
+    });
+    const [result] = await readAdvisoryReports(["CVE-example"], true, service);
+    expect(result?.lookup?.unknownDetails[0]?.path).toEqual([
+      "affectedPackages",
+      "entries",
+      1,
+      "advisories",
+      0,
+      "affectedVersionDisplay",
+    ]);
+    expect(result?.lookup?.affectedPackages?.entries[1]?.package.name).toBe(
+      "other-package",
+    );
+    expect(result?.status).toBe("partial");
+    expect(result?.packagePagination?.complete).toBe(true);
   });
 });

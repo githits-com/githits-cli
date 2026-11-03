@@ -150,3 +150,22 @@ describe("source package evidence", () => {
     );
   });
 });
+
+describe("admission stop wording", () => {
+  it("distinguishes a retained first page from an entirely unattempted lookup", () => {
+    const item = result();
+    item.status = "partial";
+    item.packagePagination!.complete = false;
+    item.error = {
+      code: "AUTH_REQUIRED",
+      error: "Authentication required.",
+      retryable: false,
+      details: { notAttempted: true },
+    };
+    const output = formatVulns([item], { width: 120 });
+    expect(output).toContain(
+      "Remaining package pages not read after an earlier access failure.",
+    );
+    expect(output).not.toContain("Not attempted after");
+  });
+});

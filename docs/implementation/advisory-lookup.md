@@ -93,7 +93,9 @@ fatal. Other operations retain their existing reject-on-error policy.
 
 Supporting-field errors append an operation-local diagnostic with section
 AFFECTED_PACKAGES, producer code/retryability, a neutral local message, null
-ambiguity fields and the original GraphQL `path`. Raw provider messages are not
+ambiguity fields and a result-relative `path` into the retained lookup. The GraphQL root/item
+prefix is removed and continuation group indices are offset into accumulated
+entries; backend debug diagnostics retain the original response path. Raw provider messages are not
 rendered. Debug diagnostics retain safe code/path information. Null display
 without an error is valid unsupported/missing display evidence, not itself an
 acquisition failure. Full typed source/local evidence remains available.

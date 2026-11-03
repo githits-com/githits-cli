@@ -220,7 +220,7 @@ export class AdvisoryServiceImpl implements AdvisoryService {
         retryable: error.extensions?.retryable === true,
         candidateIds: null,
         candidateIdsTruncated: null,
-        path: error.path,
+        path: error.path?.slice(2),
       });
       if (this.runtime.diagnostics?.isEnabled("pkg-graphql")) {
         this.runtime.diagnostics.debug("pkg-graphql", {
