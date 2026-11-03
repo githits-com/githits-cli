@@ -234,6 +234,70 @@ describe("package_vulnerabilities parity", () => {
     }
   });
 
+  it.each([false, true])(
+    "Pub advisory outcomes preserve evidence (affected=%s)",
+    async (affected) => {
+      const report = zeroVulnsReport();
+      report.package = {
+        registry: "PUB",
+        name: "Synthetic_Pub",
+        version: "1.2.3+build.7",
+      };
+      if (affected) {
+        report.security = {
+          nonAffectingVulnerabilityCount: 0,
+          upgradePaths: [],
+          affectedVulnerabilityCount: 1,
+          allVulnerabilityCount: 1,
+          currentVersionAffected: true,
+          vulnerabilities: [
+            {
+              osvId: "PUB-TEST-0001",
+              summary: "Synthetic advisory",
+              severityScore: 7.5,
+            },
+          ],
+        };
+      }
+      const packageVulnerabilities = mock(
+        (
+          _params?: Parameters<
+            PackageIntelligenceService["packageVulnerabilities"]
+          >[0],
+        ) => Promise.resolve(report),
+      );
+      const cli = await cliJson(
+        "pub:Synthetic_Pub@1.2.3+build.7",
+        {},
+        cliDeps({
+          packageIntelligenceService: createMockPackageIntelligenceService({
+            packageVulnerabilities,
+          }),
+        }),
+      );
+      const { json, isError } = await mcpJson(
+        { target: "pub:Synthetic_Pub@1.2.3+build.7" },
+        packageVulnerabilities,
+      );
+      expect(isError).toBeUndefined();
+      expect(cli).toEqual(json);
+      expect(json).toMatchObject({
+        registry: "pub",
+        name: "Synthetic_Pub",
+        version: "1.2.3+build.7",
+        summary: { total: affected ? 1 : 0 },
+      });
+      expect(packageVulnerabilities.mock.calls).toHaveLength(2);
+      for (const [params] of packageVulnerabilities.mock.calls)
+        expect(params).toMatchObject({
+          registry: "PUB",
+          packageName: "Synthetic_Pub",
+          version: "1.2.3+build.7",
+        });
+      if (affected) expect(JSON.stringify(json)).toContain("PUB-TEST-0001");
+    },
+  );
+
   it("PARITY-JSON-KEYS: happy path CLI === MCP", async () => {
     const packageVulnerabilities = mock(
       (

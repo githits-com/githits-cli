@@ -709,7 +709,11 @@ When a new tool lands with both MCP and CLI surfaces:
   terminal formatter collapses them; the JSON envelope preserves
   every duplicate the backend emitted.
 - **Preprocessed transitive.** `transitive.packages[]` carries
-  `{name, version, importers[]}` records; `conflicts[]` is typed
+  `{registry?, name, version?, importers?}` records. Exact unambiguous graph
+  matches retain registry independently of importer output; absent or ambiguous
+  matches omit registry/provenance. Importers retain registry/name/version/constraint.
+  Text qualifies non-header namespaces and MCP `include_importers: true` displays
+  provenance while keeping issue summaries compact. `conflicts[]` is typed
   `{name, requiredVersions, requirements}` when decodable;
   `circularDependencies[]` is typed `{cycle: string[]}` when decodable.
   Each conflict requirement preserves one backend edge in its original

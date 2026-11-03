@@ -136,6 +136,7 @@ export function createPackageDependenciesTool(
           return textResult(
             formatPackageDependenciesTerminal(report, {
               useColors: false,
+              includeImporters: args.include_importers === true,
               requestedVersion: params.version,
               canonicalLifecycles: textLifecycles,
               includeTransitive: includeTransitiveOutput,

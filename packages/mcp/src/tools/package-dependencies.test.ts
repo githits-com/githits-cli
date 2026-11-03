@@ -836,6 +836,42 @@ describe("createPackageDependenciesTool — compact target validation", () => {
 });
 
 describe("createPackageDependenciesTool — silent-noop rejection", () => {
+  it("honors include_importers in text output", async () => {
+    const tool = createPackageDependenciesTool(
+      createMockPackageIntelligenceService({
+        packageDependencies: async () =>
+          structuredClone(transitiveDependencyReport),
+      }),
+    );
+    const rich = await tool.handler(
+      { target: "npm:express", include_importers: true },
+      {},
+    );
+    expect(rich.isError).toBeUndefined();
+    expect(rich.content[0]?.text).toContain("required by express@5.2.1");
+    const compact = await tool.handler(
+      { target: "npm:express", max_depth: 2 },
+      {},
+    );
+    expect(compact.content[0]?.text).not.toContain("required by");
+  });
+
+  it("keeps issues compact when importer provenance is requested", async () => {
+    const tool = createPackageDependenciesTool(
+      createMockPackageIntelligenceService({
+        packageDependencies: async () => issueDependencyReport(),
+      }),
+    );
+    const result = await tool.handler(
+      { target: "npm:express", include_importers: true, include_issues: true },
+      {},
+    );
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("required by express@5.2.1");
+    expect(text).toContain('Pass format: "json" for complete issue details.');
+    expect(text).not.toContain("zeta-deprecated");
+  });
+
   it("include_importers alone requests the transitive block with provenance", async () => {
     const tool = createPackageDependenciesTool(
       createMockPackageIntelligenceService({

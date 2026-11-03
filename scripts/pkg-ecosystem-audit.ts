@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
+  isKnownPkgseerRegistryArg,
   type PkgseerRegistryArg,
   toPkgseerRegistry,
 } from "@githits/core-internal";
@@ -52,19 +53,7 @@ interface AuditSummary {
   }>;
 }
 
-type Registry =
-  | "npm"
-  | "pypi"
-  | "hex"
-  | "crates"
-  | "nuget"
-  | "maven"
-  | "zig"
-  | "vcpkg"
-  | "packagist"
-  | "rubygems"
-  | "go"
-  | "swift";
+type Registry = PkgseerRegistryArg;
 
 type ToolName = "pkg_info" | "pkg_changelog" | "pkg_vulns" | "pkg_deps";
 
@@ -105,6 +94,9 @@ const DEFAULT_FIXTURES: PackageFixture[] = [
   { registry: "swift", name: "github.com/apple/swift-crypto" },
   { registry: "swift", name: "github.com/apple/swift-nio" },
   { registry: "swift", name: "github.com/vapor/vapor" },
+  { registry: "pub", name: "path" },
+  { registry: "pub", name: "http" },
+  { registry: "pub", name: "collection" },
 ];
 
 const args = parseArgs(process.argv.slice(2));
@@ -247,7 +239,7 @@ function buildCommand(fixture: PackageFixture, tool: ToolName): string[] {
 }
 
 function isExpectedUnsupported(registry: Registry, tool: ToolName): boolean {
-  const backendRegistry = toPkgseerRegistry(registry as PkgseerRegistryArg);
+  const backendRegistry = toPkgseerRegistry(registry);
   if (tool === "pkg_vulns") {
     return !supportsVulnerabilitiesRegistry(backendRegistry);
   }
@@ -418,20 +410,7 @@ function applyLimitPerRegistry(
 }
 
 function isRegistry(value: string | undefined): value is Registry {
-  return [
-    "npm",
-    "pypi",
-    "hex",
-    "crates",
-    "nuget",
-    "maven",
-    "zig",
-    "vcpkg",
-    "packagist",
-    "rubygems",
-    "go",
-    "swift",
-  ].includes(value ?? "");
+  return value !== undefined && isKnownPkgseerRegistryArg(value);
 }
 
 function isTool(value: string | undefined): value is ToolName {

@@ -445,17 +445,29 @@ describe("buildPackageDependenciesSuccessPayload — transitive block", () => {
     expect(payload.transitive?.uniquePackages).toBe(45);
     expect(payload.transitive?.packages).toEqual([
       {
+        registry: "npm",
         name: "accepts",
         version: "2.0.0",
         importers: [
-          { name: "express", version: "5.2.1", constraint: "^2.0.0" },
+          {
+            registry: "npm",
+            name: "express",
+            version: "5.2.1",
+            constraint: "^2.0.0",
+          },
         ],
       },
       {
+        registry: "npm",
         name: "body-parser",
         version: "2.2.2",
         importers: [
-          { name: "express", version: "5.2.1", constraint: "^2.2.1" },
+          {
+            registry: "npm",
+            name: "express",
+            version: "5.2.1",
+            constraint: "^2.2.1",
+          },
         ],
       },
     ]);
