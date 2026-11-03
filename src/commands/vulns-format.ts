@@ -126,7 +126,8 @@ export function formatVulns(
           );
         if (advisory.details) {
           add("    Source explanation:");
-          for (const line of advisory.details.split("\n")) add(`      ${line}`);
+          for (const line of advisory.details.split("\n"))
+            add(line.trim() ? `      ${line}` : "");
         }
         renderAffected(advisory.affected ?? [], add, "    ");
         for (const reference of advisory.references ?? [])
@@ -161,6 +162,10 @@ export function formatVulns(
         `  Error [${result.error.code}; retryable=${result.error.retryable}]: ${result.error.error}`,
       );
     }
+    if (result.error?.code === "NOT_FOUND" && !connection?.entries.length)
+      add(
+        "  For package/version assessment, use githits pkg vulns <registry>:<name>@<installed-version>.",
+      );
     if (result.error?.details?.notAttempted)
       add("  Not attempted after an earlier access failure.");
   }

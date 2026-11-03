@@ -40,6 +40,24 @@ export function mapVulnsError(error: unknown): VulnsError {
     retryable: mapped.retryable ?? false,
   };
 }
+function typedError(
+  detail: AdvisoryLookup["unknownDetails"][number],
+): VulnsError {
+  return {
+    code: detail.code,
+    error: detail.message,
+    retryable: detail.retryable,
+    details: {
+      section: detail.section,
+      ...(detail.candidateIds !== null
+        ? {
+            candidateIds: detail.candidateIds,
+            candidateIdsTruncated: detail.candidateIdsTruncated,
+          }
+        : {}),
+    },
+  };
+}
 function stopsAdmission(error: VulnsError): boolean {
   return [
     "AUTH_REQUIRED",
@@ -60,21 +78,7 @@ function classify(result: VulnsResult): VulnsResult {
     const problem =
       lookup.unknownDetails.find((detail) => detail.code !== "NOT_FOUND") ??
       lookup.unknownDetails[0];
-    if (problem)
-      result.error = {
-        code: problem.code,
-        error: problem.message,
-        retryable: problem.retryable,
-        details: {
-          section: problem.section,
-          ...(problem.candidateIds !== null
-            ? {
-                candidateIds: problem.candidateIds,
-                candidateIdsTruncated: problem.candidateIdsTruncated,
-              }
-            : {}),
-        },
-      };
+    if (problem) result.error = typedError(problem);
   }
   const failed =
     result.error ||
@@ -183,12 +187,18 @@ export async function readAdvisoryReports(
             ...next.unknownDetails.filter((detail) => !page || detail.path),
           );
           if (!page) {
-            result.error = {
-              code: "INCOMPLETE_PACKAGES",
-              error:
-                "Package continuation failed; earlier evidence is retained. Run the lookup again for a current report.",
-              retryable: false,
-            };
+            const problem =
+              next.unknownDetails.find(
+                (detail) => detail.section === "AFFECTED_PACKAGES",
+              ) ?? next.unknownDetails[0];
+            result.error = problem
+              ? typedError(problem)
+              : {
+                  code: "INCOMPLETE_PACKAGES",
+                  error:
+                    "Package continuation failed; earlier evidence is retained.",
+                  retryable: false,
+                };
             break;
           }
           connection.entries.push(...page.entries);

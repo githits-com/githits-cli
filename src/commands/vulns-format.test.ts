@@ -40,7 +40,9 @@ describe("vulns formatter", () => {
     expect(output).toContain("CVSS:4.0/AV:N/AC:L");
     expect(output).toContain("2026-11-03T12:34:56.123456789Z");
     expect(output).toContain("UNSAFE_LINKS_NEUTRALIZED");
-    expect(output).toContain("Full source explanation.");
+    expect(output).toContain(
+      "Full source explanation.\n\n      Second paragraph.",
+    );
     expect(output).toContain("FUTURE_REFERENCE: URL unavailable");
     expect(output).toContain("résumé with Unicode");
   });

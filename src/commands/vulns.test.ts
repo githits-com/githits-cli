@@ -216,7 +216,10 @@ describe("vulns command", () => {
         complete: false,
         pagesRead: 1,
       });
-      expect(result.error).toBeDefined();
+      expect(result.error).toMatchObject({
+        code: kind === "stale" ? "VALIDATION_ERROR" : "TIMEOUT",
+        retryable: kind === "request",
+      });
       expect(lookup).toHaveBeenCalledTimes(2);
     },
   );
