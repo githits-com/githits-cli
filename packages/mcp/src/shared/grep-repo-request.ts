@@ -9,16 +9,24 @@ import {
   DEFAULT_WAIT_TIMEOUT_MS,
   MAX_WAIT_TIMEOUT_MS,
 } from "./code-navigation-defaults.js";
+import {
+  type GrepContextClamping,
+  normalizeGrepContextValue,
+  resolveGrepContext,
+} from "./grep-context.js";
 import { InvalidPackageSpecError } from "./package-spec.js";
 
 export {
   GREP_REPO_SYMBOL_FIELDS,
   type GrepRepoSymbolField,
 } from "@githits/core-internal";
+export {
+  GREP_CONTEXT_MAX as GREP_REPO_CONTEXT_MAX,
+  type GrepContextClamping,
+} from "./grep-context.js";
 
 const PATTERN_MAX = 200;
 export const GREP_REPO_CONTEXT_MIN = 0;
-export const GREP_REPO_CONTEXT_MAX = 10;
 const LIMIT_MIN = 1;
 const LIMIT_MAX = 1000;
 const LIMIT_DEFAULT = 50;
@@ -53,14 +61,6 @@ export interface GrepRepoRequestInput {
   cursor?: string;
   symbolFields?: readonly string[];
   waitTimeoutMs?: number;
-}
-
-/** Present only when requested surrounding context exceeds the backend ceiling. */
-export interface GrepContextClamping {
-  requestedBefore: number;
-  requestedAfter: number;
-  effectiveBefore: number;
-  effectiveAfter: number;
 }
 
 export interface GrepRepoRequestBuildResult {
@@ -107,23 +107,23 @@ export function buildGrepRepoParams(
   const globs = normalizeStringList(input.globs, "globs");
   const extensions = normalizeExtensions(input.extensions);
 
-  const contextLines = normalizeOptionalContext(
+  const contextLines = normalizeGrepContextValue(
     input.contextLines,
     "context_lines",
   );
-  const contextLinesBefore = normalizeOptionalContext(
+  const contextLinesBefore = normalizeGrepContextValue(
     input.contextLinesBefore,
     "context_lines_before",
   );
-  const contextLinesAfter = normalizeOptionalContext(
+  const contextLinesAfter = normalizeGrepContextValue(
     input.contextLinesAfter,
     "context_lines_after",
   );
 
-  const resolvedBefore =
-    contextLinesBefore ?? (contextLines !== undefined ? contextLines : 0);
-  const resolvedAfter =
-    contextLinesAfter ?? (contextLines !== undefined ? contextLines : 0);
+  const context = resolveGrepContext(
+    contextLinesBefore ?? contextLines,
+    contextLinesAfter ?? contextLines,
+  );
 
   const maxMatches = normalizeMaxMatches(input.maxMatches);
   const maxMatchesPerFile = normalizeMaxMatchesPerFile(
@@ -137,18 +137,9 @@ export function buildGrepRepoParams(
   const pathSelectors = buildPathSelectors({ path, pathPrefix, globs });
   const hasPathSelectors = (pathSelectors?.length ?? 0) > 0;
 
-  const requestedBefore = input.contextLinesBefore ?? input.contextLines ?? 0;
-  const requestedAfter = input.contextLinesAfter ?? input.contextLines ?? 0;
   return {
-    ...(requestedBefore > resolvedBefore || requestedAfter > resolvedAfter
-      ? {
-          contextClamping: {
-            requestedBefore,
-            requestedAfter,
-            effectiveBefore: resolvedBefore,
-            effectiveAfter: resolvedAfter,
-          },
-        }
+    ...(context.contextClamping
+      ? { contextClamping: context.contextClamping }
       : {}),
     params: {
       target: input.target,
@@ -165,8 +156,8 @@ export function buildGrepRepoParams(
       excludeDocFiles: input.excludeDocFiles,
       excludeTestFiles: input.excludeTestFiles,
       allowUnscoped: hasPathSelectors ? undefined : true,
-      contextLinesBefore: resolvedBefore,
-      contextLinesAfter: resolvedAfter,
+      contextLinesBefore: context.contextLinesBefore,
+      contextLinesAfter: context.contextLinesAfter,
       maxMatches,
       maxMatchesPerFile,
       cursor,
@@ -260,19 +251,6 @@ function normalizeExtensions(values: string[] | undefined): string[] {
     }
   }
   return out;
-}
-
-function normalizeOptionalContext(
-  value: number | undefined,
-  field: string,
-): number | undefined {
-  if (value === undefined) return undefined;
-  if (!Number.isSafeInteger(value) || value < GREP_REPO_CONTEXT_MIN) {
-    throw new InvalidPackageSpecError(
-      `\`${field}\` must be a nonnegative safe integer. Got ${value}.`,
-    );
-  }
-  return Math.min(value, GREP_REPO_CONTEXT_MAX);
 }
 
 function normalizeMaxMatches(value: number | undefined): number {

@@ -1,14 +1,17 @@
 import type { GrepService } from "@githits/core-internal";
 import {
+  buildGrepContextClampingNotice,
   buildGrepParams,
   formatGrepText,
   type GrepRequestTargetInput,
   InvalidGrepRequestError,
+  InvalidPackageSpecError,
   isGrepSiteTarget,
   mapGrepError,
-  normalizeGrepContextLines,
+  normalizeGrepContextValue,
   projectGrepResult,
   requireAuth,
+  resolveGrepContext,
   sanitizeTerminalText,
   shouldUseColors,
 } from "@githits/mcp/internal";
@@ -53,9 +56,10 @@ export async function grepAction(
 ): Promise<void> {
   try {
     requireAuth(deps);
-    const context = contextValue(options.context, "--context");
+    const symmetric = contextValue(options.context, "--context");
     const before = contextValue(options.beforeContext, "--before-context");
     const after = contextValue(options.afterContext, "--after-context");
+    const context = resolveGrepContext(before ?? symmetric, after ?? symmetric);
     const pathSelectors = options.pathSelectors ?? [];
     const sourceOptions =
       options.corpus !== undefined || pathSelectors.length > 0;
@@ -73,20 +77,32 @@ export async function grepAction(
       ),
       patternType: options.fixedStrings ? "literal" : "regex",
       ignoreCase: options.ignoreCase,
-      contextLinesBefore: before ?? context,
-      contextLinesAfter: after ?? context,
+      contextLinesBefore: context.contextLinesBefore,
+      contextLinesAfter: context.contextLinesAfter,
       maxMatches: numeric(options.limit),
       waitTimeoutMs: numeric(options.wait),
       cursor: options.cursor,
       includeDetailedFields: options.json === true,
     });
+    if (!options.json) {
+      const notice = buildGrepContextClampingNotice(
+        context.contextClamping,
+        "cli",
+      );
+      if (notice) console.error(notice);
+    }
     const spinner =
       deps.createSpinner?.() ??
       startSpinner("Searching indexed source and documentation", !options.json);
     const result = await deps.grepService
       .grep(params)
       .finally(() => spinner.stop());
-    const projected = projectGrepResult(result);
+    const projected = {
+      ...projectGrepResult(result),
+      ...(context.contextClamping
+        ? { contextClamping: context.contextClamping }
+        : {}),
+    };
     if (options.json) console.log(JSON.stringify(projected));
     else
       process.stdout.write(
@@ -149,7 +165,15 @@ function contextValue(
   field: string,
 ): number | undefined {
   return values
-    ?.map((value) => normalizeGrepContextLines(numeric(value), field))
+    ?.map((value) => {
+      try {
+        return normalizeGrepContextValue(numeric(value), field);
+      } catch (error) {
+        if (error instanceof InvalidPackageSpecError)
+          throw new InvalidGrepRequestError(field, error.message);
+        throw error;
+      }
+    })
     .at(-1);
 }
 function collect(value: string, previous: string[] = []): string[] {
@@ -165,7 +189,7 @@ export function registerGrepCommand(
     .command("grep")
     .summary("Find regex or literal matches across source and documentation")
     .description(
-      "Search ordered package, repository, and site: targets. Defaults: RE2 regex, case-sensitive, zero context, and all indexed repository files. Package targets also include selected hosted documentation independently of --corpus and path filters. Matching uses indexed content, not local files. Regex supports RE2 and backend anchoring requirements; unsupported or anchorless expressions fail explicitly. -s follows rg (case-sensitive); grep uses -s to suppress errors. Unlike grep/rg -m, --limit is a global page cap. Partial results and exact read actions remain visible. Use -- before a leading-dash pattern.",
+      "Search ordered package, repository, and site: targets. Defaults: RE2 regex, case-sensitive, zero context, and all indexed repository files. Package targets also include selected hosted documentation independently of --corpus and path filters. Matching uses indexed content, not local files. Regex supports RE2 and backend anchoring requirements; unsupported or anchorless expressions fail explicitly. -s follows rg (case-sensitive); grep uses -s to suppress errors. Unlike grep/rg -m, --limit is a global page cap. Partial results and exact read actions remain visible. Use -- before a leading-dash pattern. Positional operands after the pattern are targets, not file paths. For an exact file: githits grep router npm:express --path lib/express.js. For a directory: githits grep router npm:express --path-prefix lib/.",
     )
     .argument("<pattern>", "RE2 regex, or literal with -F")
     .argument("<targets...>", "Ordered package, repository, or site: operands")
@@ -175,11 +199,19 @@ export function registerGrepCommand(
       "-s, --case-sensitive",
       "Match case sensitively (rg convention; last case flag wins)",
     )
-    .option("-A, --after-context <n>", "Trailing context lines (0-10)", collect)
-    .option("-B, --before-context <n>", "Leading context lines (0-10)", collect)
+    .option(
+      "-A, --after-context <n>",
+      "Trailing context lines (nonnegative safe integer; capped at 10)",
+      collect,
+    )
+    .option(
+      "-B, --before-context <n>",
+      "Leading context lines (nonnegative safe integer; capped at 10)",
+      collect,
+    )
     .option(
       "-C, --context <n>",
-      "Context on both sides; -A/-B override their side (0-10)",
+      "Context on both sides (nonnegative safe integer; capped at 10); -A/-B override their side",
       collect,
     )
     .option(

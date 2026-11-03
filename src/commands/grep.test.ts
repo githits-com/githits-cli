@@ -48,6 +48,10 @@ describe("unified grep CLI", () => {
     expect(help).toContain("independently");
     expect(help).not.toContain("--literal");
     expect(help).not.toContain("--regex");
+    expect(help).toContain("capped at 10");
+    expect(help).toContain("--path lib/express.js");
+    expect(help).toContain("--path-prefix lib/");
+    expect(help).toContain("targets, not file paths");
   });
   it("parses ordered mixed operands and interleaved selectors with explicit defaults", async () => {
     const grep = mock((_params: GrepParams) =>
@@ -189,7 +193,7 @@ describe("unified grep CLI", () => {
         registerGrepCommand(program, async () => d);
         await expect(
           program.parseAsync(
-            ["grep", "router", "npm:x", flag, "11", flag, "0", "--json"],
+            ["grep", "router", "npm:x", flag, "invalid", flag, "0", "--json"],
             { from: "user" },
           ),
         ).rejects.toThrow("exit");
@@ -243,9 +247,10 @@ describe("unified grep CLI", () => {
     });
     try {
       for (const options of [
-        { context: ["11"], beforeContext: ["0"], afterContext: ["0"] },
         { beforeContext: ["-1"] },
         { afterContext: ["1.2"] },
+        { context: ["9007199254740992"] },
+        { context: [""] },
         { corpus: "all" },
         { pathSelectors: [{ kind: "exact", value: "a" }] },
         { pathSelectors: [{ kind: "glob", value: "*" }] },
@@ -269,6 +274,197 @@ describe("unified grep CLI", () => {
       error.mockRestore();
     }
   });
+  it.each([0, 10, 11, 20])(
+    "normalizes context %s with structured JSON facts only when capped",
+    async (requested) => {
+      const d = deps();
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      const error = spyOn(console, "error").mockImplementation(() => {});
+      try {
+        await grepAction(
+          "router",
+          ["npm:x"],
+          { context: [String(requested)], json: true },
+          d,
+        );
+        expect(d.grepService.grep).toHaveBeenCalledTimes(1);
+        expect(d.grepService.grep).toHaveBeenCalledWith(
+          expect.objectContaining({
+            contextLinesBefore: Math.min(requested, 10),
+            contextLinesAfter: Math.min(requested, 10),
+          }),
+        );
+        expect(log).toHaveBeenCalledTimes(1);
+        expect(error).not.toHaveBeenCalled();
+        expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual({
+          ...defaultGrepResult,
+          ...(requested > 10
+            ? {
+                contextClamping: {
+                  requestedBefore: requested,
+                  requestedAfter: requested,
+                  effectiveBefore: 10,
+                  effectiveAfter: 10,
+                },
+              }
+            : {}),
+        });
+      } finally {
+        log.mockRestore();
+        error.mockRestore();
+      }
+    },
+  );
+
+  it("reports asymmetric clamping once on text stderr with the larger-read action", async () => {
+    const d = deps();
+    const write = spyOn(process.stdout, "write").mockImplementation(() => true);
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await grepAction(
+        "router",
+        ["npm:x"],
+        { context: ["20"], afterContext: ["3"] },
+        d,
+      );
+      expect(d.grepService.grep).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contextLinesBefore: 10,
+          contextLinesAfter: 3,
+        }),
+      );
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(error.mock.calls[0]?.[0]).toBe(
+        "Context limited to 10 before / 3 after (requested 20 / 3; maximum 10 per side). Use githits read for a larger window.",
+      );
+      expect(write).toHaveBeenCalledTimes(1);
+      expect(String(write.mock.calls[0]?.[0])).not.toContain("Context limited");
+    } finally {
+      write.mockRestore();
+      error.mockRestore();
+    }
+  });
+
+  it.each([
+    { context: ["20"], beforeContext: ["0"], afterContext: ["0"] },
+    { context: ["20", "3"] },
+  ] satisfies GrepCommandOptions[])(
+    "does not report overridden excessive context: %j",
+    async (options) => {
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      const error = spyOn(console, "error").mockImplementation(() => {});
+      const d = deps();
+      try {
+        await grepAction("router", ["npm:x"], { ...options, json: true }, d);
+        const expected = options.beforeContext ? 0 : 3;
+        expect(d.grepService.grep).toHaveBeenCalledWith(
+          expect.objectContaining({
+            contextLinesBefore: expected,
+            contextLinesAfter: expected,
+          }),
+        );
+        expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toEqual(
+          defaultGrepResult,
+        );
+        expect(error).not.toHaveBeenCalled();
+      } finally {
+        log.mockRestore();
+        error.mockRestore();
+      }
+    },
+  );
+
+  it("keeps a clamped service failure as one JSON stderr error without stdout", async () => {
+    const grep = mock(() =>
+      Promise.reject(
+        new GrepGraphQLError("server timeout", { code: "TIMEOUT" }),
+      ),
+    );
+    const stop = mock(() => {});
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("exit");
+    });
+    try {
+      await expect(
+        grepAction(
+          "router",
+          ["npm:x"],
+          { context: ["20"], json: true },
+          deps({
+            grepService: createMockGrepService({ grep }),
+            createSpinner: () => ({ stop }),
+          }),
+        ),
+      ).rejects.toThrow("exit");
+      expect(grep).toHaveBeenCalledTimes(1);
+      expect(grep).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contextLinesBefore: 10,
+          contextLinesAfter: 10,
+        }),
+      );
+      expect(stop).toHaveBeenCalledTimes(1);
+      expect(log).not.toHaveBeenCalled();
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(String(error.mock.calls[0]?.[0])).code).toBe("TIMEOUT");
+    } finally {
+      log.mockRestore();
+      error.mockRestore();
+      exit.mockRestore();
+    }
+  });
+
+  it("does not print a clamping notice before another argument fails validation", async () => {
+    const d = deps();
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("exit");
+    });
+    try {
+      await expect(
+        grepAction("router", ["npm:x"], { context: ["20"], limit: "0" }, d),
+      ).rejects.toThrow("exit");
+      expect(d.grepService.grep).not.toHaveBeenCalled();
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(String(error.mock.calls[0]?.[0])).not.toContain("Context limited");
+    } finally {
+      error.mockRestore();
+      exit.mockRestore();
+    }
+  });
+
+  it.each(["-1", "1.2", "abc", "9007199254740992"])(
+    "reports invalid CLI context %s with native flag and cap advice",
+    async (value) => {
+      const d = deps();
+      const error = spyOn(console, "error").mockImplementation(() => {});
+      const exit = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("exit");
+      });
+      try {
+        await expect(
+          grepAction(
+            "router",
+            ["npm:x"],
+            { beforeContext: [value], json: true },
+            d,
+          ),
+        ).rejects.toThrow("exit");
+        const payload = JSON.parse(String(error.mock.calls[0]?.[0]));
+        expect(payload.code).toBe("INVALID_ARGUMENT");
+        expect(payload.error).toContain("--before-context");
+        expect(payload.error).toContain("nonnegative safe integer");
+        expect(payload.error).toContain("above 10 are capped");
+        expect(d.grepService.grep).not.toHaveBeenCalled();
+      } finally {
+        error.mockRestore();
+        exit.mockRestore();
+      }
+    },
+  );
+
   it("keeps partial and cursor-expired pages successful and always stops the spinner", async () => {
     const write = spyOn(process.stdout, "write").mockImplementation(() => true);
     const stop = mock(() => {});

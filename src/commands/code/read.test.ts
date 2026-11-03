@@ -223,6 +223,7 @@ describe("pkgReadAction", () => {
   });
 
   it.each([
+    ["10", 10, 10],
     ["10-40", 10, 40],
     ["10-", 10, undefined],
     ["-40", 1, 40],
@@ -275,7 +276,8 @@ describe("pkgReadAction", () => {
   });
 
   it.each([
-    "10", // single line — ambiguous
+    "", // explicitly supplied empty value
+    "2147483648", // outside GraphQL Int
     "40-10", // reversed
     "abc", // non-numeric
     "0-5", // zero isn't 1-indexed

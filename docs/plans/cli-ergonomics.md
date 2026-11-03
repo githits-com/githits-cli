@@ -2,13 +2,13 @@
 
 ## Status and expected outcome
 
-- Overall: **READY FOR PHASE 1**.
+- Overall: **IN PROGRESS**; Phase 1 implementation is under verification.
 - Owner: this CLI worktree; backend investigations have separate child worktrees.
 - User direction, 2026-11-03: improve CLI ergonomics from the supplied feedback;
   exclude all skill changes because OP is reviewing those separately. Dispatch
   backend agents for escaped-pipe regex handling and unified grep enclosing blocks.
-- No production implementation is authorized by this planning task. Routine
-  plan delivery and the requested backend planning handoffs are in scope.
+- The user invoked `$orchestrate` to implement ready Phase 1. Later phases
+  retain their contract and evidence gates; all skill changes remain excluded.
 
 When complete, common valid CLI near-misses work without another call, failures
 provide a relevant next command when the request supplies enough information,
@@ -17,7 +17,7 @@ losing access to omitted evidence. Unified grep can expose enclosing source
 blocks only after its owning backend establishes that contract. Regex intent is
 never silently changed.
 
-## Verified current state
+## Verified planning baseline
 
 Evidence was collected against CLI `0.37.0`, branch
 `jlitola/analyze-ergonomics-feedback`, initial HEAD
@@ -105,14 +105,14 @@ formatting alone. Obtain approval before introducing infrastructure.
 
 | Phase | Status | Observable outcome | Dependencies |
 | --- | --- | --- | --- |
-| 1 — tolerate common arguments | READY | `--lines N` selects one line; excessive valid context becomes 10 with a visible notice; path flags are clear in help. | Existing read/grep paths only. |
+| 1 — tolerate common arguments | IN PROGRESS | `--lines N` selects one line; excessive valid context becomes 10 with a visible notice; path flags are clear in help. | Existing read/grep paths only. |
 | 2 — actionable failure recovery | PLANNED | Daily Research exhaustion offers one usable scoped discovery command where possible; verified path-operand failures explain the correct flags. | Phase 1; inspect exact failure/operand contracts before final detail. |
 | 3 — bounded readable output | NEEDS DESIGN at phase boundary | Opt-in text budgets preserve trust facts and provide honest access to omitted evidence. | Phase 2; representative output and replay evidence. |
 | 4 — backend-assisted grep context | WAITING ON BACKEND PLANS | Unified grep can provide requested enclosing blocks with authoritative ranges; regex diagnostics clarify intent without rewriting patterns. | Backend evidence, user-settled contracts and backend availability. |
 
 ### Phase 1 — tolerate common arguments
 
-Status: **READY**. Outcome: fewer failed invocations for valid
+Status: **IN PROGRESS**. Outcome: fewer failed invocations for valid
 human/agent intent, with unchanged backend payload contracts.
 
 Assumptions: those listed above. Unknowns/product decisions: **none**.
@@ -190,6 +190,10 @@ Tests and verification:
   unit and smoke assertions directly prove the input/output contract. If that
   boundary changes during implementation, revise the plan and select the affected
   workload from `eval/agentic/README.md` per repository guidance.
+- Keep disposable smoke homes independent of host Keychain defaults: the scoped
+  environment helper defaults to file storage unless explicitly overridden.
+  This verified test-harness correction is part of Phase 1's validation path;
+  it does not change application authentication or copy host file credentials.
 
 Acceptance: all three reader routes accept exact single-line requests; every
 valid excessive CLI context value reaches the backend capped at 10 with one

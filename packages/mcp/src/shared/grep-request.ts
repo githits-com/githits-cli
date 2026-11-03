@@ -4,6 +4,7 @@ import type {
   GrepPathSelector,
 } from "@githits/core-internal";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
+import { GREP_CONTEXT_MAX } from "./grep-context.js";
 import { InvalidArgumentError } from "./package-spec.js";
 
 const MAX_TARGETS = 20;
@@ -295,7 +296,7 @@ export function normalizeGrepContextLines(
   value: number | undefined,
   field: string,
 ): number | undefined {
-  return normalizeInteger(value, field, 0, 10);
+  return normalizeInteger(value, field, 0, GREP_CONTEXT_MAX);
 }
 
 function normalizeCursor(value: string | undefined): string | undefined {
