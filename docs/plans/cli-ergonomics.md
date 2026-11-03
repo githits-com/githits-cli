@@ -61,8 +61,8 @@ pipe distinction. Unified help incorrectly says all anchorless expressions
 fail; the legacy CLI-derived note qualifies literal-text requirements only by
 selector presence, rather than the actual content-index/exact-file route.
 Its existing `GREP_REPO_PATTERN_NOTE` has only a CLI consumer via the
-workspace-only `@githits/mcp/internal` transition export; no MCP tool or public entrypoint
-uses it. Its private package path does not make this a public MCP change.
+workspace-only `@githits/mcp/internal` transition export; no MCP tool or public
+entrypoint uses it. Its private package path does not make this a public MCP change.
 The legacy CLI reference's ASCII-only folding sentence contradicts current
 Unicode-aware help and its existing test; correct that adjacent documentation.
 
@@ -80,8 +80,7 @@ retains its separate MCP gates.
 
 Excluded: skill editing/routing rewrites; regex rewriting, intent detection,
 empty-result reminders or automatic literal retries; automatic Research
-retries/backoff;
-async Research infrastructure; quota accounting/doctor network probes; package
+retries/backoff; async Research infrastructure; quota accounting/doctor network probes; package
 freshness timestamps; inferred manifest/registry selection; multi-file or
 disjoint-range batching; literal numeric-colon/whitespace path fixes; broad
 formatter redesign; release, publish, deploy or merge. These substantial backend
@@ -176,7 +175,8 @@ Implementation scope and order:
 
 1. Edit CLI help copy in `src/commands/grep.ts`, `src/commands/code/grep.ts`
    and its existing internal note in
-   `packages/mcp/src/shared/grep-repo-request.ts`. Explain once per help page, in REGEX context:
+   `packages/mcp/src/shared/grep-repo-request.ts`. Explain once per help page,
+   in REGEX context:
    `foo|bar` matches alternatives; `foo\|bar` matches a literal pipe. Keep default
    modes explicit (unified REGEX/`-F`, legacy LITERAL/`--regex`). Any shell examples
    quote the entire pattern so the shell preserves the pipe and backslash.
@@ -213,8 +213,8 @@ Acceptance and validation:
   Keep each at or below its baseline: redundant prose anywhere in these two
   help pages may be tightened, while context/target/path/global-limit facts and
   distinct mode/route guidance remain. Avoid appending explanatory paragraphs.
-  Report rendered bytes, not model-token, latency,
-  backend-cost or graded agent-quality savings. Inspect both rendered helps.
+  Report rendered bytes, not model-token, latency, backend-cost or graded
+  agent-quality savings. Inspect both rendered helps.
 - Run `bun test src/commands/grep.test.ts src/commands/code/grep.test.ts
   packages/mcp/src/shared/grep-request.test.ts
   packages/mcp/src/shared/grep-repo-request.test.ts`, typecheck, lint/format,
