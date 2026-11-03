@@ -805,6 +805,62 @@ function unit(
 }
 
 describe("complete upgrade statement presentation", () => {
+  it.each(["generated", "pending", "not_generated"] as const)(
+    "shows generation evidence for empty upgrade release: %s",
+    (status) => {
+      const review = statementReview([]);
+      const coverage = review.changelog.statements!.coverage[0]!;
+      coverage.status = "without_notes";
+      coverage.generation = {
+        status,
+        reason: status === "generated" ? null : "budget",
+        notice: status === "generated" ? "Server empty notice" : null,
+      };
+      review.changelog.riskCoverage.versionsWithoutNotes = 1;
+      const text = formatPackageUpgradeReviewTerminal(
+        formatterResponse([review]),
+      ).replace(/\s+/g, " ");
+      expect(text).toContain(
+        status === "generated"
+          ? "Statements were generated from commits; none need action."
+          : status === "pending"
+            ? "Generated notes are being prepared"
+            : "No generated notes can be produced",
+      );
+      expect(text).toContain("not evidence of no risk");
+      if (status === "generated") expect(text).toContain("Server empty notice");
+      else expect(text).toContain("Reason: budget.");
+    },
+  );
+  it("renders generated upgrade statements and server notice even when a filter hides other statements", () => {
+    const item = {
+      ...unit(),
+      source: "generated",
+      url: undefined,
+      heading: undefined,
+      commits: [
+        { sha: "abcdef0123456789", url: "https://example.com/commit/abcdef0" },
+      ],
+    };
+    const review = statementReview([item]);
+    review.changelog.statements!.coverage[0]!.generation = {
+      status: "generated",
+      reason: null,
+      notice: "Server notice",
+    };
+    let text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    ).replace(/\s+/g, " ");
+    expect(text).toContain(
+      "Generated from commits; not written by the maintainers.",
+    );
+    expect(text).toContain("abcdef0: https://example.com/commit/abcdef0");
+    expect(text.match(/Server notice/g)).toHaveLength(1);
+    review.changelog.statements!.items = [];
+    text = formatPackageUpgradeReviewTerminal(formatterResponse([review]));
+    expect(text).toContain("Server notice");
+    expect(text).not.toContain("none need action");
+  });
   it("renders captured complete Express evidence with source order and whole-range counts", () => {
     const review = formatterReview({
       changelog: expressChangelog as UpgradeChangelog,

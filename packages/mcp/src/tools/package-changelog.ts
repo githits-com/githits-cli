@@ -149,6 +149,7 @@ export function createPackageChangelogTool(
               useColors: false,
               bodyPreviewLines,
               fullStatementHint: 'pass format="json" for full text',
+              fullCommitsHint: 'pass format="json" for all cited commits',
               fullBodyHint: "pass verbatim=true for full original notes",
             }).trimEnd(),
           );

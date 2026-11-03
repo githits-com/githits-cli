@@ -12,6 +12,7 @@ function statement(position = 0, classified = true, json = false) {
     version: "1.0.0",
     position,
     sourceIndex: 0,
+    commits: null,
     heading: null,
     source: "RELEASES",
     url: "https://example.com/1.0.0",
@@ -48,6 +49,7 @@ function coverage(total = 1, assessed = total) {
     {
       version: "1.0.0",
       status: assessed === total ? "CLASSIFIED" : "NOT_ASSESSED",
+      generation: null,
       statementsTotal: total,
       statementsAssessed: assessed,
       statementsNotAssessed: total - assessed,
@@ -191,6 +193,12 @@ describe("changelog view projections", () => {
             expect(wire.query.includes("statements(first: 100")).toBe(
               view === "statements",
             );
+            expect(wire.query.includes("commits { sha url }")).toBe(
+              view === "statements",
+            );
+            expect(
+              wire.query.includes("generation { status reason notice }"),
+            ).toBe(view === "statements");
             expect(wire.query.includes("fullText")).toBe(
               view === "statements" && includeJsonFields,
             );
@@ -229,6 +237,114 @@ describe("changelog view projections", () => {
 
 describe("complete changelog pagination", () => {
   it.each([undefined, "1.0.0"])(
+    "preserves generated evidence and original coverage for selector %s",
+    async (version) => {
+      const item = {
+        ...statement(0, true, true),
+        source: "GENERATED",
+        heading: null,
+        url: null,
+        commits: [{ sha: "abcdef0123456789", url: null }],
+        classification: {
+          ...statement(0, true, true).classification!,
+          ambiguous: false,
+          tierConfidence: null,
+          model: "generator",
+          formulation: "generated-v1",
+        },
+      };
+      const generation = {
+        status: "GENERATED",
+        reason: null,
+        notice: "Server notice",
+      };
+      const p = page();
+      Reflect.set(p, "items", [item]);
+      Object.assign(p.coverage[0]!, { status: "WITHOUT_NOTES", generation });
+      const result = await setup([p], {
+        version,
+        includeJsonFields: true,
+      }).call();
+      expect(result.statements?.coverage[0]).toMatchObject({
+        status: "WITHOUT_NOTES",
+        generation,
+      });
+      expect(result.statements?.items[0]).toMatchObject({
+        source: "GENERATED",
+        commits: item.commits,
+        classification: { ambiguous: false, model: "generator" },
+      });
+      expect(result.statements?.items[0]?.url).toBeUndefined();
+      expect(result.statements?.items[0]?.heading).toBeUndefined();
+      expect(
+        result.statements?.items[0]?.classification?.tierConfidence,
+      ).toBeUndefined();
+    },
+  );
+  it.each(["GENERATED", "PENDING", "NOT_GENERATED"])(
+    "keeps generation coverage on an empty release: %s",
+    async (status) => {
+      const generation = {
+        status,
+        reason: status === "GENERATED" ? null : "budget",
+        notice: status === "GENERATED" ? "Server notice" : null,
+      };
+      const p = page([], 0);
+      Object.assign(p.coverage[0]!, { status: "UNPARSEABLE", generation });
+      const result = await setup([p]).call();
+      expect(result.statements?.coverage[0]).toMatchObject({
+        status: "UNPARSEABLE",
+        generation,
+      });
+    },
+  );
+  it("rejects changed generation evidence between pages", async () => {
+    const first = page(
+      Array.from({ length: 100 }, (_, i) => statement(i)),
+      101,
+    );
+    const next = page([statement(100)], 101, 100);
+    Reflect.set(first.coverage[0]!, "generation", {
+      status: "PENDING",
+      reason: "budget",
+      notice: null,
+    });
+    Reflect.set(next.coverage[0]!, "generation", {
+      status: "GENERATED",
+      reason: null,
+      notice: "Server notice",
+    });
+    await expect(setup([first, next]).call()).rejects.toThrow(
+      "evidence changed",
+    );
+  });
+  it("still derives assessment for thin notes with generation metadata", async () => {
+    const p = page([statement()], 1, 0, coverage(1, 0));
+    Reflect.set(p.coverage[0]!, "generation", {
+      status: "GENERATED",
+      reason: null,
+      notice: "Server notice",
+    });
+    const result = await setup([p]).call();
+    expect(result.statements?.coverage[0]).toMatchObject({
+      status: "CLASSIFIED",
+      statementsNotAssessed: 0,
+    });
+  });
+  it.each(["commits", "generation"] as const)(
+    "requires selected nullable %s evidence",
+    async (field) => {
+      const p = page();
+      Reflect.deleteProperty(
+        field === "commits" ? p.items[0]! : p.coverage[0]!,
+        field,
+      );
+      await expect(setup([p]).call()).rejects.toThrow(
+        MalformedPackageIntelligenceResponseError,
+      );
+    },
+  );
+  it.each([undefined, "1.0.0"])(
     "collects over100 statements for selector %s, omitting repeat metadata",
     async (version) => {
       const run = setup(
@@ -245,6 +361,10 @@ describe("complete changelog pagination", () => {
       expect(result.statements?.items).toHaveLength(101);
       expect(result.statements?.matchingCount).toBe(101);
       expect(run.requests).toHaveLength(2);
+      expect(run.requests[1]?.query).toContain("commits { sha url }");
+      expect(run.requests[1]?.query).toContain(
+        "generation { status reason notice }",
+      );
       expect(run.requests[1]?.variables).toMatchObject({
         offset: 100,
         ...(version ? { version } : {}),

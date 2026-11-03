@@ -1,10 +1,27 @@
 # Package changelog evidence
 
-`pkg changelog` and MCP `pkg_changelog` show every parsed release-note statement
+`pkg changelog` and MCP `pkg_changelog` show every release-note statement
 in source order, with available agent classifications. Raw notes are a separate
 view, avoiding duplicate previews. Statements and source links are the evidence;
 classifications never assign a package-level verdict. Upgrade review additionally
 compares security and dependencies between installed and target versions.
+
+When a release's notes are missing, thin or unparseable, the API can also serve
+statements generated from that release's commits and diff. These follow the
+release's own statements. Text labels them as generated from commits and not
+written by the maintainers, and shows the server's notice once per release.
+Each statement shows up to three cited commits as seven-character SHAs with
+available URLs; a remaining-count hint points to JSON for the complete list.
+
+Generation coverage is independent of assessment status: GENERATED, PENDING or
+NOT_GENERATED does not replace WITHOUT_NOTES or UNPARSEABLE. Generated-empty
+releases explicitly say statements were generated and none need action, with
+the server's notice explaining why this does not mean nothing changed. Pending
+generation shows the server reason and explains that a later request will show
+the notes; unavailable generation shows its reason. These messages also appear
+in detailed upgrade review, even when a filter hides all statements. A nonempty
+release hidden by a filter is never described as generated-empty. Missing or
+unparseable notes remain explicitly insufficient evidence of no risk.
 
 ## Selection and views
 
@@ -88,7 +105,7 @@ metadata. No product-side second query is added for optional details.
 
 | Projection | Selected data |
 | --- | --- |
-| Statement text | First-page version/date/URL; every-page text, position/sourceIndex, heading/source/URL, context, tier/ambiguous/kind and page controls |
+| Statement text | First-page version/date/URL; every-page text, position/sourceIndex, heading/source/URL, cited commits, generation status/reason/notice, context, tier/ambiguous/kind and page controls |
 | Statement JSON | Above plus normalizedVersion, sourcePosition, fullText/context fullText, confidences, model/formulation and aggregate source; no entry.body |
 | All statements | Coverage version/status/statementsTotal; assessment counts derived from collected answers |
 | Filtered statements | Full backend assessment coverage to detect shifting filtered offsets |
@@ -101,7 +118,10 @@ labels cannot shift parsed positions: compare parse coverage/totals, validate
 contiguous ordered positions and derive final assessment coverage from collected
 items. Some earlier items may still be null when later pages carry new answers;
 coverage honestly describes the returned evidence. Zero-unit note statuses remain
-authoritative. Filtered mode compares full coverage and matching counts; observable
+authoritative. WITHOUT_NOTES and UNPARSEABLE also remain authoritative when
+generated statements are present; thin-note assessment still derives from collected
+answers. Generation metadata participates in page consistency checks.
+Filtered mode compares full coverage and matching counts; observable
 changes return a retryable rerun error because labels can shift filtered offsets.
 All modes validate forward offsets, page counts and nonduplicate ordered keys.
 Same-count source edits cannot reliably be detected; no snapshot guarantee.
@@ -123,6 +143,14 @@ riskCoverage. Callers needing original bodies use `--verbatim --json` or
 view; it is no longer a text-only expansion option. Both artifacts have minor
 pending impact during 0.x. Empty selections and exact releases without notes
 remain successful; actual missing packages/versions keep mapped errors.
+
+Statement items include `commits` when supplied, with complete SHAs and nullable
+URLs. Coverage includes `generation` when supplied, with lowercase status and
+the server's nullable reason and notice. Null heading, URL and confidence remain
+omitted under the existing convention; generated statements do not require them.
+Upgrade review retains the same statement evidence and validates generated item
+counts against the whole-range risk counters. Its triage projection remains
+counters-only and does not fetch statements or generation metadata.
 
 ## Validation and measurements
 

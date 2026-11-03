@@ -11,6 +11,7 @@ import {
 } from "./changelog-risk-presentation.js";
 import { colorize, colors, highlight } from "./colors.js";
 import {
+  formatChangelogGeneration,
   formatChangelogVersionStatements,
   type LeanChangelogStatements,
   normaliseChangelogStatements,
@@ -1078,6 +1079,7 @@ function formatChangesSection(
     version: string | null;
     statementsTotal?: number;
     status?: string;
+    generation?: LeanChangelogStatements["coverage"][number]["generation"];
   }> = [...statements.coverage];
   // Keyword metadata can contain unversioned notes; preserve those facts without
   // inventing an assessment or altering backend statement coverage.
@@ -1117,7 +1119,12 @@ function formatChangesSection(
           keywords.push({ text, signals, url: entry.htmlUrl });
       }
     }
-    if (!items.length && !keywords.length && (release.statementsTotal ?? 0) > 0)
+    if (
+      !items.length &&
+      !keywords.length &&
+      (release.statementsTotal ?? 0) > 0 &&
+      !release.generation
+    )
       continue;
     lines.push("");
     lines.push(
@@ -1130,10 +1137,21 @@ function formatChangesSection(
       ).map((line) => highlight(line, options.useColors === true)),
     );
     lines.push(
+      ...formatChangelogGeneration(
+        { ...release, statementsTotal: release.statementsTotal ?? 0 },
+        {
+          useColors: options.useColors === true,
+          terminalWidth: width - 2,
+        },
+      ).map((line) => `  ${line}`),
       ...formatChangelogVersionStatements(items, {
         useColors: options.useColors === true,
         terminalWidth: width - 2,
         compactNonAction: !options.verbose,
+        fullCommitsHint:
+          options.surface === "mcp"
+            ? 'pass format="json" for all cited commits'
+            : undefined,
       }).map((line) => `  ${line}`),
     );
     const shownUrls = new Set(
@@ -1144,13 +1162,19 @@ function formatChangesSection(
       appendWrappedText(lines, "    ", url, width, "    ");
       shownUrls.add(url);
     }
-    if (!items.length && !keywords.length)
+    if (
+      !items.length &&
+      !keywords.length &&
+      !(release.generation && release.statementsTotal === 0)
+    )
       appendWrappedText(
         lines,
         "    ",
-        release.status === "without_notes"
-          ? "No release notes available."
-          : "Notes contain no parsed statements.",
+        release.generation
+          ? "No statements match this filter."
+          : release.status === "without_notes"
+            ? "No release notes available."
+            : "Notes contain no parsed statements.",
         width,
         "    ",
       );

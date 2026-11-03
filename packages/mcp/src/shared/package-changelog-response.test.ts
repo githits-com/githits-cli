@@ -332,6 +332,118 @@ describe("complete statement evidence view", () => {
       explicitFilterFields: new Set(changes ? ["changes"] : []),
     });
   }
+  it("labels generated statements after maintainer notes, shows one notice and bounded commit citations", () => {
+    const report = evidence();
+    const statements = report.statements!;
+    statements.items = statements.items.slice(0, 3);
+    const commits = Array.from({ length: 7 }, (_, i) => ({
+      sha: `abcdef${i}123456789`,
+      url: i === 0 ? null : `https://example.com/commit/${i}`,
+    }));
+    for (const item of statements.items.slice(1)) {
+      item.sourceIndex = 1;
+      item.source = "GENERATED";
+      item.heading = undefined;
+      item.url = undefined;
+      item.commits = commits;
+      item.classification!.ambiguous = false;
+    }
+    statements.coverage[0]!.generation = {
+      status: "GENERATED",
+      reason: null,
+      notice: "Server notice: an empty list does not mean nothing changed.",
+    };
+    const p = payload(report);
+    const text = formatPackageChangelogTerminal(p, { useColors: false });
+    const flat = text.replace(/\s+/g, " ");
+    expect(flat).toContain(
+      "Generated from commits; not written by the maintainers.",
+    );
+    expect(text.indexOf("Quoted statement 0")).toBeLessThan(
+      text.indexOf("Generated from commits"),
+    );
+    expect(text.match(/Server notice:/g)).toHaveLength(1);
+    expect(text).not.toContain("source URL unavailable");
+    expect(text).toContain("abcdef0");
+    expect(text).toContain("abcdef1: https://example.com/commit/1");
+    expect(text).not.toContain("https://example.com/commit/3");
+    expect(flat).toContain("+4 more commits; use --json for all cited commits");
+    expect(p.statements?.items[1]?.commits).toEqual(commits);
+    expect(p.statements?.coverage[0]?.generation).toEqual({
+      status: "generated",
+      reason: null,
+      notice: statements.coverage[0]!.generation!.notice,
+    });
+    expect(statements.coverage[0]!.generation!.status).toBe("GENERATED");
+    expect(
+      Bun.stripANSI(formatPackageChangelogTerminal(p, { useColors: true })),
+    ).toBe(text);
+  });
+  it.each(["latest", "range", "exact"] as const)(
+    "explains generated-empty release in %s mode without claiming nothing changed",
+    (mode) => {
+      const report = evidence();
+      report.statements!.items = [];
+      report.statements!.totalCount = 0;
+      Object.assign(report.statements!.coverage[0]!, {
+        status: "WITHOUT_NOTES",
+        statementsTotal: 0,
+        generation: {
+          status: "GENERATED",
+          reason: null,
+          notice: "Server empty notice",
+        },
+      });
+      report.entries = report.entries.slice(0, 1);
+      const p = { ...payload(report), mode };
+      const text = formatPackageChangelogTerminal(p, {
+        useColors: false,
+      }).replace(/\s+/g, " ");
+      expect(text).toContain(
+        "Statements were generated from commits; none need action.",
+      );
+      expect(text).toContain("Server empty notice");
+      expect(text).toContain("not evidence of no risk");
+      expect(text).not.toContain("No release notes available");
+    },
+  );
+  it("does not describe filtered-out generated statements as generated-empty", () => {
+    const report = evidence();
+    report.statements!.items = [];
+    report.statements!.coverage[0]!.generation = {
+      status: "GENERATED",
+      reason: null,
+      notice: "Server notice",
+    };
+    const text = formatPackageChangelogTerminal(payload(report, "actionable"), {
+      useColors: false,
+    });
+    expect(text).toContain("No statements match this filter");
+    expect(text).not.toContain("none need action");
+    expect(text).toContain("Server notice");
+  });
+  it.each([
+    ["PENDING", "generating", "Generated notes are being prepared"],
+    ["PENDING", "budget", "Generated notes are being prepared"],
+    ["NOT_GENERATED", "no_repository", "No generated notes can be produced"],
+    ["NOT_GENERATED", "failed", "No generated notes can be produced"],
+  ] as const)("explains generation %s: %s", (status, reason, message) => {
+    const report = evidence();
+    report.statements!.items = [];
+    Object.assign(report.statements!.coverage[0]!, {
+      status: "WITHOUT_NOTES",
+      statementsTotal: 0,
+      generation: { status, reason, notice: null },
+    });
+    const text = formatPackageChangelogTerminal(payload(report), {
+      useColors: false,
+    }).replace(/\s+/g, " ");
+    expect(text).toContain(message);
+    expect(text).toContain(`Reason: ${reason}.`);
+    expect(text).toContain("not evidence of no risk");
+    if (status === "PENDING")
+      expect(text).toContain("A later request will show them");
+  });
   it("renders all parsed units once, source URLs nearby, without raw-note duplication", () => {
     const text = formatPackageChangelogTerminal(payload(), {
       useColors: false,

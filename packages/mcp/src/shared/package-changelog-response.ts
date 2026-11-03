@@ -170,6 +170,14 @@ export function normaliseChangelogStatements(
     coverage: statements.coverage.map((c) => ({
       ...c,
       status: c.status.toLowerCase(),
+      ...(c.generation
+        ? {
+            generation: {
+              ...c.generation,
+              status: c.generation.status.toLowerCase(),
+            },
+          }
+        : {}),
     })),
   };
 }
@@ -211,8 +219,15 @@ export interface LeanChangelogStatements
   extends Omit<ChangelogStatements, "items" | "coverage"> {
   count: number;
   items: LeanChangelogStatement[];
-  coverage: (Omit<ChangelogStatements["coverage"][number], "status"> & {
+  coverage: (Omit<
+    ChangelogStatements["coverage"][number],
+    "status" | "generation"
+  > & {
     status: string;
+    generation?: Omit<
+      NonNullable<ChangelogStatements["coverage"][number]["generation"]>,
+      "status"
+    > & { status: string };
   })[];
 }
 
@@ -220,6 +235,7 @@ export interface FormatChangelogTerminalOptions {
   useColors: boolean;
   fullBodyHint?: string;
   fullStatementHint?: string;
+  fullCommitsHint?: string;
   bodyPreviewLines?: number;
   terminalWidth?: number;
 }
@@ -311,17 +327,21 @@ export function formatPackageChangelogTerminal(
     const items = statements.items.filter(
       (item) => item.version === entry.version,
     );
+    const coverage = statements.coverage.find(
+      (v) => v.version === entry.version,
+    );
+    lines.push(...formatChangelogGeneration(coverage, options));
     if (!items.length) {
       if (entry.htmlUrl) prose(sanitizeTerminalText(entry.htmlUrl), "  ");
-      const coverage = statements.coverage.find(
-        (v) => v.version === entry.version,
-      );
+      if (coverage?.generation && coverage.statementsTotal === 0) continue;
       prose(
-        coverage?.status === "without_notes"
-          ? "No release notes available."
-          : coverage?.status === "unparseable"
-            ? "Notes contain no parsed statements."
-            : "No statements match this filter.",
+        coverage?.generation
+          ? "No statements match this filter."
+          : coverage?.status === "without_notes"
+            ? "No release notes available."
+            : coverage?.status === "unparseable"
+              ? "Notes contain no parsed statements."
+              : "No statements match this filter.",
         "  ",
       );
       continue;
@@ -329,6 +349,43 @@ export function formatPackageChangelogTerminal(
     lines.push(...formatChangelogVersionStatements(items, options));
   }
   return `${lines.join("\n")}\n`;
+}
+
+/** Generation is release-level evidence, including when no statements are shown. */
+export function formatChangelogGeneration(
+  coverage:
+    | Pick<
+        LeanChangelogStatements["coverage"][number],
+        "generation" | "statementsTotal"
+      >
+    | undefined,
+  options: FormatChangelogTerminalOptions,
+): string[] {
+  const generation = coverage?.generation;
+  if (!generation) return [];
+  const lines: string[] = [];
+  const prose = (text: string): void => {
+    lines.push(
+      ...wrapTerminalProse(
+        `  ${sanitizeTerminalText(text)}`,
+        Math.max(20, options.terminalWidth ?? 80),
+        "  ",
+      ),
+    );
+  };
+  if (generation.status === "generated") {
+    if (coverage.statementsTotal === 0)
+      prose("Statements were generated from commits; none need action.");
+    if (generation.notice) prose(generation.notice);
+  } else {
+    prose(
+      generation.status === "pending"
+        ? "Generated notes are being prepared. A later request will show them."
+        : "No generated notes can be produced for this release.",
+    );
+    if (generation.reason) prose(`Reason: ${generation.reason}.`);
+  }
+  return lines;
 }
 
 /** Source ordering and trusted tags belong to the shared statement presentation. */
@@ -349,7 +406,9 @@ export function formatChangelogVersionStatements(
       heading = undefined;
       const source = noteSourceLabel(item.source);
       prose(
-        `${source}${item.url ? `: ${sanitizeTerminalText(item.url)}` : " (source URL unavailable)"}`,
+        item.source === "generated"
+          ? "Generated from commits; not written by the maintainers."
+          : `${source}${item.url ? `: ${sanitizeTerminalText(item.url)}` : " (source URL unavailable)"}`,
         "  ",
       );
     }
@@ -433,6 +492,19 @@ export function formatChangelogVersionStatements(
         `Statement truncated; ${options.fullStatementHint ?? "use --json for full text"}.`,
         "      ",
       );
+    if (item.commits?.length) {
+      prose("Cited commits:", "      ");
+      for (const commit of item.commits.slice(0, 3))
+        prose(
+          `${sanitizeTerminalText(commit.sha.slice(0, 7))}${commit.url ? `: ${sanitizeTerminalText(commit.url)}` : ""}`,
+          "        ",
+        );
+      if (item.commits.length > 3)
+        prose(
+          `+${item.commits.length - 3} more commits; ${options.fullCommitsHint ?? "use --json for all cited commits"}.`,
+          "        ",
+        );
+    }
   }
   return lines;
 }
