@@ -53,12 +53,12 @@ const schema: ZodRawShape = {
 
 export const DESCRIPTION_BASE: string =
   "Assess latest package health and adoption: license, downloads, and activity. Provide " +
-  "an unpinned package target; this tool always returns latest. " +
+  "an unpinned package target; this tool always returns latest known metadata. " +
   "Default text returns license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
   "publish age, latest affected count, and separate package-wide advisory " +
   "history count. Historical counts are not current-version risk. " +
-  "Use `verbose: true` for additional health and history details.";
+  "Use `verbose: true` for additional health and history details. Use metadata directly; missing fields are unknown. Latest and retrieval time do not prove registry freshness or historical release facts.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_INFO_GUARDRAIL}`;
 

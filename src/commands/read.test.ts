@@ -618,15 +618,15 @@ describe("top-level read", () => {
   it("registers new syntax and marks legacy commands deprecated in help", () => {
     const root = new Command();
     const read = registerReadCommand(root);
-    const readHelp = read.helpInformation();
+    const readHelp = read.helpInformation().replace(/\s+/g, " ");
     expect(read.name()).toBe("read");
     expect(readHelp).toContain("--lines");
-    expect(readHelp).toMatch(/mutable\s+current content/);
-    expect(readHelp).toMatch(/--selector\s+selects a code symbol/);
-    expect(readHelp).toContain("<target>#symbol");
+    expect(readHelp).toContain("Hosted docs are mutable");
+    expect(readHelp).toContain("Read known symbols directly");
+    expect(readHelp).toContain("target#symbol");
     expect(readHelp).toContain("Starting line (alternative to --lines)");
-    expect(readHelp).toMatch(/resolved target\s+determines code or docs/);
-    expect(readHelp).toMatch(/repository\s+docs are\s+snapshot-addressed/);
+    expect(readHelp).toContain("Preserve docs locators");
+    expect(readHelp).toMatch(/repository\s+docs address snapshots/);
     expect(readHelp).toContain("full subtree");
     expect(
       registerCodeReadCommand(new Command("code")).helpInformation(),

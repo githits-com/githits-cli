@@ -90,8 +90,7 @@ const schema: ZodRawShape = {
     ),
 };
 
-export const DESCRIPTION =
-  'Resolve OSS dependency names to canonical package, repository, or docs targets. Use known canonical targets directly. Only a non-ambiguous EXACT or HIGH best with CLEAR or NOT_APPLICABLE malicious-content status permits direct continuation; other or missing statuses are non-actionable. CLEAR is not a vulnerability-free claim. MEDIUM and LOW require narrowing or an explicit choice; never auto-select an ambiguous result. A selected `site:` is docs-only: use `list` or `search` with `source: "docs"`, then reuse returned read locators. Inputs leave this machine; open-source targets only.';
+export const DESCRIPTION = `Resolve OSS dependency names to canonical package, repository, or docs targets. Use known canonical targets directly. Narrow unclear names with known registry/context, never popularity alone. Continue only from a non-ambiguous EXACT or HIGH best with CLEAR or NOT_APPLICABLE malicious-content status. Other or missing statuses are non-actionable. MEDIUM and LOW require narrowing or an explicit choice; never auto-select an ambiguous result. CLEAR is not a vulnerability-free claim. A selected \`site:\` is docs-only: search with source: "docs" and reuse returned read locators. Inputs leave this machine; open-source targets only.`;
 
 export function createResolveTargetTool(
   service: ResolveTargetService,

@@ -50,7 +50,7 @@ const schema: ZodRawShape = {
     .string()
     .min(1)
     .describe(
-      "One research question to answer from indexed public evidence, asked directly; sources are always included. Do not include credentials, personal data, private code, or proprietary content.",
+      "Focused research question about missing information for the task. Sources are included. Do not include credentials, personal data, private code, or proprietary content.",
     ),
   source_format: z
     .enum(["mcp", "url"])
@@ -66,7 +66,7 @@ const schema: ZodRawShape = {
     ),
 };
 
-export const DESCRIPTION: string = `Research a public repository or package to answer a question with sources. Omit target and thread_id to identify the target from the question. If Research returns candidates, retry with the one matching the question's project as target. Supply at most one of target or thread_id. Continue a prior thread by its returned thread_id. Follow-ups can change project, version, or topic; state changes in the question. ${RESEARCH_VERIFIED_ANSWER_GUIDANCE} Sources default to MCP read calls; request source_format=url for original upstream URLs.`;
+export const DESCRIPTION: string = `Research a public repository or package to answer a question with sources. Omit target and thread_id for project identification. If Research returns candidates, retry with the one matching established context as target; never guess. Use direct reads/package tools when sufficient. Reuse thread_id for follow-ups; state scope changes. ${RESEARCH_VERIFIED_ANSWER_GUIDANCE} Request an overview only when needed. Research takes package/repository targets, not site: targets.`;
 
 export function createResearchTool(
   service: AgenticAskService,

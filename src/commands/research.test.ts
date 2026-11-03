@@ -507,7 +507,8 @@ describe("researchAction", () => {
     ).rejects.toThrow("process.exit");
 
     expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toEqual({
-      error: "Research timed out. Try again.",
+      error:
+        "Research timed out. Reuse existing results or a direct lookup where sufficient; retry only if still needed and the caller allows enough execution time.",
       code: "TIMEOUT",
       retryable: true,
       details: { timeoutMs: 210_000 },

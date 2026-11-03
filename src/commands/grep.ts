@@ -165,7 +165,9 @@ export function registerGrepCommand(
     .command("grep")
     .summary("Find regex or literal matches across source and documentation")
     .description(
-      "Search ordered package, repository, and site: targets. Defaults: RE2 regex, case-sensitive, zero context, and all indexed repository files. Package targets also include selected hosted documentation independently of --corpus and path filters. Matching uses indexed content, not local files. Regex supports RE2 and backend anchoring requirements; unsupported or anchorless expressions fail explicitly. -s follows rg (case-sensitive); grep uses -s to suppress errors. Unlike grep/rg -m, --limit is a global page cap. Partial results and exact read actions remain visible. Use -- before a leading-dash pattern.",
+      `Find matches in indexed open-source code and docs, not local files. Use \`-F\` for exact identifiers/text. Defaults are RE2 regex, case-sensitive, zero context. Alternation is \`|\`; \`\\|\` matches a pipe. Lookaround/backreferences are unsupported. Multi-file regex requires a literal anchor. Package targets include selected hosted docs independently of --corpus and path filters.
+
+Use \`githits read <target> --selector <name>\` for known definitions; grep for occurrences or unresolved definitions. Pass paths with \`--path-prefix\`; extra positional operands are targets. Context flags accept 0-10. Use read for larger sections. \`--limit\` is a global page cap. Use \`--\` before leading-dash patterns.`,
     )
     .argument("<pattern>", "RE2 regex, or literal with -F")
     .argument("<targets...>", "Ordered package, repository, or site: operands")

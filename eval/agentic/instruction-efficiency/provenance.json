@@ -1,0 +1,17 @@
+{
+  "source": "githits-benchmark/baselines/luna-golden-questions-6-10/questions.json",
+  "questions": [
+    {
+      "id": "Q09",
+      "path": "eval/agentic/instruction-efficiency/workloads/q09.md",
+      "sha256": "6422af072d94b817fe030d4a14e213a8101bc476c004b8bfbade4b99d38ed1cd",
+      "prompt": "In Better Auth v1.6 with a configured database and no secondary storage, how are sessions stored and refreshed, and which session options control expiration?"
+    },
+    {
+      "id": "Q10",
+      "path": "eval/agentic/instruction-efficiency/workloads/q10.md",
+      "sha256": "1c92eed945ddce172cbf6bf8f0fdac027ac81870adf1b25e4ec17ceae664d21b",
+      "prompt": "In XState v5, how does `assign()` update context during a transition without mutating it directly?"
+    }
+  ]
+}

@@ -33,7 +33,7 @@ describe("createPackageUpgradeReviewTool", () => {
     expect(tool.name).toBe("pkg_upgrade_review");
     expect(tool.description).toContain("reports facts only");
     expect(tool.description).toContain(
-      "Use signals as a starting point to evaluate the impact of changes on the codebase",
+      "Start assessments here; do not repeat covered checks",
     );
     expect(tool.description).toContain("pkg_changelog and code_diff");
     expect(tool.annotations?.readOnlyHint).toBe(true);

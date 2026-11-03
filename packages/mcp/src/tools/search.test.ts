@@ -33,46 +33,40 @@ describe("searchTool", () => {
     expect(descriptor?.description.slice(0, 80)).toBe(
       "Discover relevant docs, code, and symbols in a known public target. Start here f",
     );
+    expect(descriptor?.description).toContain("Hosted docs are mutable");
     expect(descriptor?.description).toContain(
-      "Hosted HTTP(S) pages are mutable",
-    );
-    expect(descriptor?.description).toContain(
-      "replay its complete emitted read action or generated `followUp` unchanged, including supplied selector and bounds",
+      "replay its complete emitted read action or generated `followUp` unchanged, including selector and bounds",
     );
     expect(descriptor?.description).toContain(
       "repository docs address snapshots",
     );
     expect(descriptor?.description).toContain(
-      "A `[docs page]` header is a page locator; its action selects the hit's section",
+      "A docs-page header locates the page; its action selects the section",
     );
     const readDescriptor = getMcpToolDescriptors().find(
       (entry) => entry.name === "read",
     );
-    expect(readDescriptor?.description).toContain(
+    expect(readDescriptor?.schema.selector?.description).toContain(
       "A docs URL fragment needs no bounds",
     );
-    expect(readDescriptor?.description).toContain(
+    expect(readDescriptor?.schema.selector?.description).toContain(
       "full subtree through the next equal-or-higher heading",
     );
+    expect(readDescriptor?.description).toContain("Hosted docs are mutable");
     expect(readDescriptor?.description).toContain(
-      "Hosted/crawled HTTP(S) docs targets read mutable current content",
-    );
-    expect(readDescriptor?.description).toContain(
-      "repository-doc targets address snapshots",
+      "repository docs address snapshots",
     );
   });
 
   it("keeps the common path simple and delegates continuation details", () => {
     const tool = createSearchTool(createMockCodeNavigationService());
 
+    expect(tool.description).toContain("Use sufficient hit content directly");
     expect(tool.description).toContain(
-      "A `search` call can return complete results directly",
+      "an active action and searchRef are returned",
     );
-    expect(tool.description).toContain(
-      "the response supplies both a `searchRef` and a `search_status` action",
-    );
-    expect(tool.description).toContain("never repeat `search` to poll");
-    expect(tool.description).toContain("`search_status`");
+    expect(tool.description).toContain("Do not repeat search to poll");
+    expect(tool.description).toContain("search_status");
     expect(tool.description).toContain(
       "Terminal or unrecognized statuses are not polled",
     );
@@ -91,7 +85,7 @@ describe("searchTool", () => {
   it("makes status continuation conditional on needing updated results", () => {
     const tool = createSearchTool(createMockCodeNavigationService());
     expect(tool.description).toContain(
-      "Follow `search_status` only if you need updated results",
+      "Follow search_status only when an active action and searchRef are returned and remaining results matter",
     );
   });
 
@@ -100,8 +94,8 @@ describe("searchTool", () => {
 
     expect(tool.description).toContain("site:<host[/path]>");
     expect(tool.description).toContain("suggestedSiteTargets");
-    expect(tool.description).toContain("retry one explicitly");
-    expect(tool.description).toContain("do not treat suggestions as aliases");
+    expect(tool.description).toContain("retry explicitly");
+    expect(tool.description).toContain("suggestions are not aliases");
   });
 
   it("exposes only the remaining search controls", () => {

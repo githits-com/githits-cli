@@ -59,19 +59,19 @@ export const readSchema: ReadSchema = {
     .string()
     .optional()
     .describe(
-      "Page path relative to the supplied site: target; do not repeat its scope. For code, use an exact package/repo-relative file path from search, list, or grep. Preserve emitted paths unchanged. Omit for other documentation targets; empty means omitted.",
+      "Exact target-relative file or site-page path; do not repeat site scope. For symbols, include only a known declaration file, not a caller/import file. Reuse supplied or returned paths. Omit for other docs targets; empty means omitted.",
     ),
   selector: z
     .string()
     .optional()
     .describe(
-      "Logical docs heading ID or indexed code symbol. With a site path it selects a hosted heading; with a code path it searches exactly that file. Omit path to search a code target. Do not combine with a docs URL fragment or compact target#symbol.",
+      "Known code declaration name or exact docs heading ID. For code symbols, include only a known declaration path; otherwise omit path. Site headings require a page path. Do not guess class qualifications or combine with a docs URL fragment or compact target#symbol. A docs URL fragment needs no bounds and selects the full subtree through the next equal-or-higher heading; either bound overrides it with a page-relative range.",
     ),
   start_line: z
     .number()
     .optional()
     .describe(
-      "Positive 1-indexed start. Either bound overrides a docs URL fragment with a page-relative range.",
+      "Positive 1-indexed start. Include deciding conditions. Either bound overrides a docs fragment; bounds do not disambiguate symbols.",
     ),
   end_line: z
     .number()
@@ -93,15 +93,7 @@ export const readSchema: ReadSchema = {
     ),
 };
 
-export const DESCRIPTION_BASE: string =
-  "Read an indexed source file, code symbol, or documentation section. " +
-  "Pass target and path for a file or site page; use compact target#symbol or selector for a code symbol, and selector for a docs heading. " +
-  "Preserve emitted documentation targets; the resolved result determines code or docs. " +
-  "Hosted/crawled HTTP(S) docs targets read mutable current content; repository-doc targets address snapshots. " +
-  "A docs URL fragment needs no bounds and returns its heading with the full subtree through the next equal-or-higher heading; either bound replaces it with a page-relative range. " +
-  "Use emitted locators to preserve exact revisions. It does not list directories: use list. " +
-  "Read focused windows from search/grep; follow returned continuation and error actions. " +
-  "On INDEXING retry the same target/path with wait_timeout_ms; no content is available yet.";
+export const DESCRIPTION_BASE: string = `Read an indexed source file, code symbol, or documentation section. Pass target and path for files/site pages; selector reads code symbols/docs headings. Read known code declarations directly; include only a known declaration path, never inferred caller qualifications. Follow helpers when their behavior matters; reuse definitions. On resolution failure, use a returned declaration range or literal grep; bounds do not disambiguate. Preserve emitted docs actions. Hosted docs are mutable; repository docs address snapshots. Read needed sections; continue only for missing content. Use list for directories. On INDEXING follow recovery for the same target/path.`;
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${CODE_READ_GUARDRAIL}`;
 
 /** One advertised reader; source-specific selection and error contracts stay intact. */

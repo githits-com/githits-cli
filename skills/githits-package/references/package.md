@@ -118,3 +118,11 @@ nor a patch version establishes compatibility.
 - `githits pkg deps` maps to MCP `pkg_deps`.
 - `githits pkg changelog` maps to MCP `pkg_changelog`; `--changes`, `--verbatim`, `--no-body`, and `--json` map to `changes`, `verbatim:true`, `omit_bodies:true`, and `format:"json"`.
 - `githits pkg upgrade-review` maps to MCP `pkg_upgrade_review`; `--changes <view>` maps to `changes:"<view>"`.
+
+## Investigation scope
+
+Use package results directly. Start upgrade comparisons with `pkg upgrade-review`; add source or changelog details only for a missing fact that could affect the task. Public graphs do not establish a local lockfile or application reachability. Stop when enough is known to continue.
+
+## Version spelling
+
+Go exact versions accept `v1.2.3` or `1.2.3`, including pseudo versions; requests use canonical `v`-prefixed form. Other changelog range inputs omit a leading `v`, except Swift release tags.

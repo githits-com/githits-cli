@@ -29,7 +29,7 @@ export const AGENTIC_ASK_REQUEST_RATE_LIMIT_MESSAGE =
 const AGENTIC_ASK_DAILY_LIMIT_DETAIL =
   "research daily request limit exceeded; try again after 00:00 utc";
 export const AGENTIC_ASK_DAILY_LIMIT_MESSAGE =
-  "Research daily request limit reached for this account or project. Try again after 00:00 UTC; until then, use search, grep, list, or read for evidence. If this persists, contact support@githits.com.";
+  "Research daily request limit reached for this account or project. Try again after 00:00 UTC; do not retry before then. Reuse existing results or use a direct package/code/docs lookup for a specific remaining gap. Report required facts that remain unavailable. If this persists, contact support@githits.com.";
 
 const UUID_V7_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -116,7 +116,9 @@ export class AgenticAskHttpError extends Error {
 
 export class AgenticAskRequestTimeoutError extends Error {
   constructor(readonly timeoutMs: number) {
-    super("Research timed out. Try again.");
+    super(
+      "Research timed out. Reuse existing results or a direct lookup where sufficient; retry only if still needed and the caller allows enough execution time.",
+    );
     this.name = "AgenticAskRequestTimeoutError";
   }
 }

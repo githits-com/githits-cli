@@ -186,3 +186,39 @@ MCP tool with its own schema and documented capabilities.
 Direct repository targets accept approved full HTTPS URLs on github.com, codeberg.org, and gitlab.com. Codeberg requires exactly owner/repo; GitLab allows nested namespaces. Only GitHub supports host shorthand and HTTP compatibility. Never infer a provider from bare owner/repo. Repository refs use an @ suffix and may themselves contain / and @; # is reserved for semantic fragments. Empty refs and mixed suffixes are invalid. Credentials, queries, provider web subpaths, and unsupported/self-hosted hosts are rejected. Package targets keep registry-native coordinates, including `zig:cb/owner/repo` and `swift:gitlab.com/group/project`.
 
 GitLab web paths with `/-/` or reserved routes such as `tree`, `blob`, and `raw` are rejected. Unreserved names such as `issues` can be repository path components; without a web-route marker, the client treats the complete nested path as repository identity.
+
+## Direct navigation
+
+### read
+
+Read known symbols directly with `--selector` or `target#symbol`. Include only a known declaration file. Follow helpers/re-exports when their behavior matters; reuse definitions. After failed resolution, read a returned range or literal-grep the exact identifier. Bounds do not disambiguate symbols.
+
+Use `--lines N-N` for one line or `N-M` for a range. Cover the needed declaration/section rather than repeatedly extending small windows. Hosted docs are mutable; repository docs address snapshots. Preserve docs locators; explicit bounds override heading selection. Use list for directories.
+
+### search
+
+Discover unknown code/docs locations. Read known symbols directly. Keep queries focused on missing information, without redundant target/version terms. Use sufficient results directly; read omitted deciding code before relying on it. Follow returned read actions. Use active `search-status` continuations only when remaining results matter; do not repeat search to poll.
+
+### grep
+
+Use `-F` for exact identifiers/text. Defaults are RE2 regex, case-sensitive, zero context. Alternation is `|`; `\|` matches a pipe. Lookaround/backreferences are unsupported. Multi-file regex requires a literal anchor.
+
+Use `githits read <target> --selector <name>` for known definitions; grep for occurrences or unresolved definitions. Pass paths with `--path-prefix`; extra positional operands are targets. Context flags accept 0-10. Use read for larger sections. `--limit` is a global page cap. Use `--` before leading-dash patterns.
+
+### list
+
+Browse names and structure. Skip listing when a usable path/symbol is known. Restrict recursion and pagination to needed paths. Reuse returned target-relative locations.
+
+### resolve
+
+Resolve unclear names; use canonical targets directly. Narrow with known `--registry`, `--query`, `--prefer-kind`, or `--intent-hint`. Do not send private project details. Follow returned confidence, malicious-content, and ambiguity rules; never choose by popularity alone.
+
+### research
+
+Ask a focused question about missing information. Sources are included. Use direct reads/package commands when sufficient. Supply a package/repository target or omit it for identification; docs sites are unsupported.
+
+Reuse `--thread` and state scope changes. Cite returned sources; open them for missing details, contradictions, or required source inspection. Respect retry delays and daily resets. After failure, use a direct lookup for a specific gap.
+
+## Googlesource targets
+
+Use full HTTPS URLs on public `*.googlesource.com` hosts; project case is preserved and ports are rejected. Keep the returned canonical target for follow-ups.

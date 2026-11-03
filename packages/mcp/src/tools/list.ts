@@ -116,19 +116,7 @@ const schema: ZodRawShape = {
     ),
 };
 
-const DESCRIPTION =
-  "List files and documentation paths in a known package, repository, or site. " +
-  "Use it to browse structure or find an exact path before `read`; use `search` " +
-  "for topics.\n\n" +
-  "Package targets cover one package-owned " +
-  "tree; repository targets cover the whole snapshot. Both include source and " +
-  "documentation. Hosted docs use an explicit `site:` target supplied by the " +
-  "user or a docs search result. `paths` are target-relative literals or globs for every target and " +
-  "form a union; omit them for the root. Directories show immediate children " +
-  "unless `recursive` expands them; glob depth is independent of recursion. " +
-  "In site text, a path without trailing `/` is a page even when its source URL ended in `/`. " +
-  "Keep text for model use, including read and continuation guidance; use JSON " +
-  "for exact entry kinds or actions and programmatic consumption.";
+const DESCRIPTION = `List files and documentation paths in a known package, repository, or site. Use this for names and structure; skip it when a usable path or symbol is known. Use search for topics and grep for content. Avoid whole-project enumeration for a narrow lookup. Package targets cover their package tree; repositories cover the snapshot. Both include source and documentation. Hosted docs require an explicit site target from the user or a docs search result. Paths are target-relative literals or globs. Directories list immediate children unless recursive expands them. Reuse returned read actions and paginate only for needed paths. In site text, a path without trailing \`/\` is a page even when its source URL ends in \`/\`. Paths/globs form a union; glob depth is independent of recursion.`;
 
 export function createListTool(
   service: ListService,

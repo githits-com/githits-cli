@@ -128,10 +128,10 @@ describe("research MCP adapter", () => {
     expect(tool.schema.thread_id?.description).toContain("research call");
     expect(tool.schema.question?.description).toContain("research question");
     expect(DESCRIPTION).toContain(
-      "Omit target and thread_id to identify the target from the question",
+      "Omit target and thread_id for project identification",
     );
     expect(DESCRIPTION).toContain(
-      "retry with the one matching the question's project as target",
+      "retry with the one matching established context as target; never guess",
     );
     expect(
       z.object(tool.schema).parse({ question: "How does codex work?" }),

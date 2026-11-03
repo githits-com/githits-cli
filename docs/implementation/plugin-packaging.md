@@ -100,25 +100,24 @@ appendices are excluded from the public skill and do not change the bootstrap
 rule. The skill metadata asks agents to read the guide before evidence-tool
 discovery.
 
-The guide is token-budgeted and owns only what no single descriptor owns:
+The guide is token-budgeted and owns cross-tool choices and investigation depth:
 
 | Section | Content |
 | --- | --- |
 | `# GitHits` | Purpose, private-input boundary, skill/`quick_start` equivalence |
-| `## Choose a tool` | Question-to-tool table covering every stable evidence tool |
-| `## Dependency upgrades` | Local verification beyond package evidence and existing tests |
-| `## Workflow` | Target, locate, read, combine; the hosted-docs hand-off between tools |
-| `## Targets` | Canonical package, repository, and site target conventions |
-| `## Results` | Text versus JSON, evidence reuse, continuation, waits, citation and limits |
-| `## Research` | Privacy boundary and `research` question, citation and thread guidance |
+| `## Choose a tool` | Task-to-tool table covering every stable evidence tool |
+| `## Depth and symbol following` | When declarations suffice, when to follow helpers, reuse, and stopping |
+| `## Retrieval` | Focused discovery, direct reads, batching, locators, output and pagination |
+| `## Versions, research, and recovery` | Target/version conventions, Research follow-ups, recovery and upgrade verification |
 | `## External-content posture` | Shared untrusted-content block from `guardrails.ts` |
 
-Each selected descriptor plus schema remains self-sufficient for its distinct
-job, minimum call shape, supported target family, and operation-specific
-exceptions such as resolver continuation gates, `code_diff` scope, `read`
-selectors and bounds, and `list` site paths. Do not copy those mechanics into
-the guide; `src/commands/mcp-instructions.test.ts` checks that they remain in
-the descriptions. CLI code/package skills express equivalent common policy
+Selected descriptors and schemas own call syntax, limits, and operation-specific
+exceptions: resolver continuation gates, diff scope, selector/bounds mechanics,
+and site paths. The guide explains when to read a known symbol directly and
+when to follow another declaration; it does not duplicate every argument rule.
+`src/commands/mcp-instructions.test.ts` checks the division, and
+`src/skills-packaging.test.ts` enforces exact guide/skill parity.
+CLI code/package skills express equivalent common policy
 independently with CLI spelling; they do not require the MCP skill. This is
 guidance, not a host-enforced loading-order guarantee. Inspect actual execution
 when evaluating compliance.

@@ -127,8 +127,8 @@ const DESCRIPTION =
   "Compares current and target versions using direct vulnerability checks, changelog ranges, target deprecation metadata, peer dependency changes, and optional transitive evidence diffs. " +
   "The tool reports facts only, including agent-classified release-note statements in backend source order, with nearby authoritative URLs and assessment coverage. JSON includes complete selected statement pages, source positions and context, and classifier provenance. It does not assign package-level risk or decide whether to accept an upgrade. Batches default to triage rows; use verbose for full per-package evidence. " +
   "Use this instead of inferring acceptability from semver, including patch bumps. " +
-  "Use signals as a starting point to evaluate the impact of changes on the codebase. " +
-  "You can use pkg_changelog and code_diff to obtain full release-note and source-change details. " +
+  "Start assessments here; do not repeat covered checks. " +
+  "Add pkg_changelog and code_diff only for missing release-note or source details. " +
   "Accepts either one package via registry/package_name/current_version/" +
   `target_version or batch \`packages[]\` with at most ${PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES} upgrades.` +
   `\n\n${PKG_UPGRADE_REVIEW_GUARDRAIL}`;

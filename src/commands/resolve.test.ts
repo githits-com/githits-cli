@@ -476,7 +476,7 @@ describe("registerResolveCommand", () => {
         ?.short,
     ).toBe("-v");
     expect(resolveCommand?.description()).toContain(
-      "--query and --intent-hint values are sent",
+      "Query and intent-hint values rank",
     );
     expect(resolveCommand?.description()).toContain(
       "include credentials, personal data, private code",
@@ -485,10 +485,10 @@ describe("registerResolveCommand", () => {
       "rank retrieved candidates and do not expand candidate retrieval",
     );
     expect(resolveCommand?.description()).toContain(
-      "Pass canonical registry:name, github:owner/repo, codeberg:owner/repo, gitlab:group/subgroup/project, launchpad:~owner/+git/repo, or site:<host[/path]> targets",
+      "use canonical targets directly",
     );
     expect(resolveCommand?.description()).toContain(
-      "standalone documentation-site targets",
+      "Follow returned confidence, malicious-content, and ambiguity rules",
     );
     expect(
       resolveCommand?.options.find((option) => option.long === "--prefer-kind")

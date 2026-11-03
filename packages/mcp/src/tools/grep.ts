@@ -72,12 +72,14 @@ const schema: ZodRawShape = {
   pattern: z
     .string()
     .describe(
-      "RE2 regex (default), or text with pattern_type literal (1-200 UTF-8 bytes). No lookaround or backreferences; multi-file regex needs a literal anchor.",
+      "RE2 regex by default, or exact text with pattern_type literal (1-200 UTF-8 bytes). Prefer literal identifiers. A pipe means alternation; escaping it matches a literal pipe. No lookaround/backreferences; multi-file regex needs a literal anchor.",
     ),
   pattern_type: z
     .enum(["regex", "literal"])
     .optional()
-    .describe("Regex (default) or literal substring matching."),
+    .describe(
+      "Regex by default; select literal for identifiers/text when regex structure is unnecessary.",
+    ),
   ignore_case: z
     .boolean()
     .optional()
@@ -90,14 +92,18 @@ const schema: ZodRawShape = {
     .min(0)
     .max(10)
     .optional()
-    .describe("Lines before each match (0-10; default 0)."),
+    .describe(
+      "Lines before each match (0-10; default 0). Use read for larger sections.",
+    ),
   context_lines_after: z
     .number()
     .int()
     .min(0)
     .max(10)
     .optional()
-    .describe("Lines after each match (0-10; default 0)."),
+    .describe(
+      "Lines after each match (0-10; default 0). Use read for larger sections.",
+    ),
   max_matches: z
     .number()
     .int()
@@ -131,12 +137,7 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Find regex or literal matches across source and documentation. " +
-  "Search ordered package, repository, and site targets; packages include selected hosted docs. " +
-  "Defaults: RE2 regex, case-sensitive, zero context. " +
-  "Use `list` for paths, `search` for topics, and `read` for more context. " +
-  "Text groups matches by file/page with read locators. " +
-  "Indexed matches may be partial; coverage limits and a continuation cursor remain visible." +
+  `Find regex or literal matches across source and documentation. Search ordered package, repository, and site targets for occurrences and call sites. Read known definitions with selector first; use literal grep for unresolved identifiers, search for concepts. Once located, read missing context instead of grepping again. Package targets include selected hosted docs independently of source filters. Text includes read locators; counts cover one page. Preserve ordered targets, matching controls, and coverage limits when continuing.` +
   `\n\n${CODE_GREP_GUARDRAIL}`;
 
 /** One mixed-source MCP page using the same semantics as the top-level CLI. */

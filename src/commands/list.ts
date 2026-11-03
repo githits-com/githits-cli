@@ -192,7 +192,7 @@ export function registerListCommand(
     .command("list")
     .summary("List files and documentation in a target")
     .description(
-      "List files and documentation paths in one package, repository, or hosted site. Paths are target-relative literals or globs for every target. Directories show immediate children; add --recursive to expand them. Text includes read and continuation guidance. Use --silent for paths only and --json only for programmatic processing.",
+      `Browse names and structure. Skip listing when a usable path/symbol is known. Restrict recursion and pagination to needed paths. Reuse returned target-relative locations.`,
     )
     .addHelpText(
       "after",

@@ -78,9 +78,9 @@ const DESCRIPTION_ROUTING: Record<
       "Research a public repository or package to answer a question with sources. Omit ",
     body: [
       "Omit target and thread_id",
-      "returned thread_id",
-      "verified answer that always includes its sources",
-      "source_format=url",
+      "Reuse thread_id",
+      "sources are included",
+      "read them for missing details, contradictions, or required source inspection",
     ],
     absent: ["Experimental"],
   },
@@ -119,9 +119,9 @@ const DESCRIPTION_ROUTING: Record<
     prefix:
       /^Discover relevant docs, code, and symbols in a known public target\./,
     body: [
-      "Start here for open-ended",
-      "`query` plus either `target` or `targets`",
-      "`search_status`",
+      "Start here for unknown locations",
+      "Pass query and either target or targets, not both",
+      "search_status",
       "complete emitted read action",
     ],
   },
@@ -139,16 +139,15 @@ const DESCRIPTION_ROUTING: Record<
     exactPrefix:
       "List files and documentation paths in a known package, repository, or site. Use ",
     body: [
-      "find an exact path before `read`",
-      "use `search` for topics",
-      "one package-owned tree",
-      "whole snapshot",
+      "skip it when a usable path or symbol is known",
+      "Use search for topics",
+      "their package tree",
+      "the snapshot",
       "Both include source and documentation",
-      "explicit `site:` target",
+      "explicit site target",
       "target-relative literals or globs",
       "glob depth is independent",
-      "read and continuation guidance",
-      "use JSON for exact entry kinds or actions",
+      "Reuse returned read actions and paginate only for needed paths",
     ],
   },
   read: {
@@ -157,19 +156,16 @@ const DESCRIPTION_ROUTING: Record<
     exactPrefix:
       "Read an indexed source file, code symbol, or documentation section. Pass target ",
     body: [
-      "use list",
-      "search/grep",
-      "target and path for a file or site page; use compact target#symbol or selector for a code symbol",
-      "resolved result determines code or docs",
-      "Hosted/crawled HTTP(S) docs targets read mutable current content",
-      "repository-doc targets address snapshots",
-      "A docs URL fragment needs no bounds",
-      "full subtree through the next equal-or-higher heading",
-      "either bound replaces it with a page-relative range",
-      "exact revisions",
-      "does not list directories",
-      "returned continuation and error actions",
-      "INDEXING retry",
+      "selector reads code symbols/docs headings",
+      "Read known code declarations directly",
+      "known declaration path",
+      "Follow helpers when their behavior matters",
+      "returned declaration range or literal grep",
+      "bounds do not disambiguate",
+      "Hosted docs are mutable",
+      "repository docs address snapshots",
+      "Use list for directories",
+      "On INDEXING follow recovery for the same target/path",
     ],
   },
   grep: {
@@ -241,7 +237,7 @@ const DESCRIPTION_ROUTING: Record<
       "agent-classified",
       "triage rows",
       "at most 30 upgrades",
-      "Use signals as a starting point",
+      "Start assessments here; do not repeat covered checks",
       "pkg_changelog and code_diff",
     ],
   },
@@ -432,7 +428,7 @@ describe("MCP tool description catalog", () => {
     const querySchema = searchSchema.properties?.query;
     const queryDescription =
       (querySchema as { description?: string } | undefined)?.description ?? "";
-    expect(queryDescription).toContain("Focused discovery terms");
+    expect(queryDescription).toContain("Focused missing behavior");
     expect(queryDescription).not.toContain("use terms such as");
   });
 });

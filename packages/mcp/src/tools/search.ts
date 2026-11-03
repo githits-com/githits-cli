@@ -68,7 +68,7 @@ const schema: ZodRawShape = {
     .string()
     .min(1)
     .describe(
-      "Focused discovery terms, API names, behaviors, or quoted phrases. Add constraints inline, for example `kind:function`, `category:callable`, `path:lib/`, `intent:production`, `name:Router`, or `lang:typescript`; qualifiers combine with terms using query boolean syntax.",
+      "Focused missing behavior, API names, or exact text; omit redundant target/version keywords. Add constraints inline, for example `kind:function`, `category:callable`, `path:lib/`, `intent:production`, `name:Router`, or `lang:typescript`; qualifiers combine with terms using query boolean syntax.",
     ),
   target: searchTargetSchema
     .optional()
@@ -131,12 +131,7 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  'Discover relevant docs, code, and symbols in a known public target. Start here for open-ended "how does", "where is", "find", or "locate" questions. ' +
-  "Required: `query` plus either `target` or `targets`; pass `target` or `targets`, not both. " +
-  "Target indexed dependencies and repositories, or standalone docs with `site:<host[/path]>`. " +
-  "Put search constraints in `query`; inspect warnings and `sourceStatus` for ignored or incompatible qualifiers. `public_only` filters code and symbols, not docs. " +
-  "A `search` call can return complete results directly. Use visible hits for lookup now. Follow `search_status` only if you need updated results and the response supplies both a `searchRef` and a `search_status` action; never repeat `search` to poll. Terminal or unrecognized statuses are not polled; follow the response's recovery guidance instead. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
-  "Use hit content directly when sufficient; otherwise replay its complete emitted read action or generated `followUp` unchanged, including supplied selector and bounds. A `[docs page]` header is a page locator; its action selects the hit's section. Hosted HTTP(S) pages are mutable; repository docs address snapshots. See `read` for direct range and heading selection." +
+  `Discover relevant docs, code, and symbols in a known public target. Start here for unknown locations. Read known symbols with selector instead of searching again. Keep queries focused; target already establishes project/version scope. Put search constraints in \`query\`; inspect warnings and \`sourceStatus\`. Use sufficient hit content directly; otherwise replay its complete emitted read action or generated \`followUp\` unchanged, including selector and bounds. A referenced helper may be declared elsewhere. Once a useful location is known, use it before repeating discovery. Use available hits while indexing continues. Follow search_status only when an active action and searchRef are returned and remaining results matter. Do not repeat search to poll. Pass query and either target or targets, not both. public_only filters code/symbols, not docs. For \`suggestedSiteTargets\`, choose a \`site:<host[/path]>\` and retry explicitly; suggestions are not aliases. Terminal or unrecognized statuses are not polled. A docs-page header locates the page; its action selects the section. Hosted docs are mutable; repository docs address snapshots.` +
   `\n\n${SEARCH_GUARDRAIL}`;
 
 export function createSearchTool(

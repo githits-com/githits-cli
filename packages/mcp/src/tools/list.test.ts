@@ -67,28 +67,27 @@ describe("createListTool", () => {
     expect(first80).not.toContain("code_files");
     expect(first80).not.toContain("docs_list");
     expect(tool.description).not.toMatch(/code_files|docs_list/);
-    expect(tool.description).toContain("find an exact path before `read`");
-    expect(tool.description).toContain("use `search` for topics");
-    expect(tool.description).toContain("one package-owned tree");
-    expect(tool.description).toContain("whole snapshot");
-    expect(tool.description).toContain("Both include source and documentation");
-    expect(tool.description).toContain("explicit `site:` target");
     expect(tool.description).toContain(
-      "supplied by the user or a docs search result",
+      "skip it when a usable path or symbol is known",
     );
+    expect(tool.description).toContain("Use search for topics");
+    expect(tool.description).toContain("their package tree");
+    expect(tool.description).toContain("the snapshot");
+    expect(tool.description).toContain("Both include source and documentation");
+    expect(tool.description).toContain("explicit site target");
+    expect(tool.description).toContain("from the user or a docs search result");
     expect(tool.description).toContain("target-relative literals or globs");
     expect(tool.description).toContain(
-      "Directories show immediate children unless `recursive`",
+      "Directories list immediate children unless recursive",
     );
     expect(tool.description).toContain(
       "glob depth is independent of recursion",
     );
-    expect(tool.description).toContain("read and continuation guidance");
     expect(tool.description).toContain(
-      "a path without trailing `/` is a page even when its source URL ended in `/`",
+      "Reuse returned read actions and paginate only for needed paths",
     );
     expect(tool.description).toContain(
-      "use JSON for exact entry kinds or actions",
+      "a path without trailing `/` is a page even when its source URL ends in `/`",
     );
     expect(tool.schema.format!.description).toContain(
       "parsing or filtering it programmatically",

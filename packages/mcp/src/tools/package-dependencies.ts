@@ -80,7 +80,7 @@ const schema: ZodRawShape = {
 const DESCRIPTION =
   "Inspect what a package depends on, directly or transitively. Lists direct runtime " +
   "dependencies with resolved versions; non-runtime groups are omitted by default. " +
-  "Opt into transitive footprint, per-package provenance, or issue analysis with " +
+  "Expand transitive footprint, provenance, or issue analysis only when needed, with " +
   "the corresponding fields; full-graph analysis is not local application lockfile " +
   "or reachability evidence. Supports " +
   `${SUPPORTED_DEPS_REGISTRIES_LIST}.`;
