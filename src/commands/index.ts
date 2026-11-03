@@ -78,3 +78,5 @@ export {
   settingsTermsAcceptAction,
   settingsTermsAction,
 } from "./settings.js";
+
+export { registerVulnsCommand } from "./vulns.js";

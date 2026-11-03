@@ -28,6 +28,7 @@ describe("authenticated command metadata", () => {
       "docs read",
       "pkg info",
       "pkg vulns",
+      "vulns",
       "pkg deps",
       "pkg changelog",
       "pkg upgrade-review",

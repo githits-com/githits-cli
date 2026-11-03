@@ -122,6 +122,9 @@ Inspect package health and upgrade evidence:
 ```sh
 npx githits@latest pkg info npm:express
 npx githits@latest pkg vulns npm:lodash@4.17.20 --severity high
+
+# Look up advisory IDs across affected packages
+npx githits@latest vulns CVE-2026-26996 GHSA-3ppc-4f35-3m26
 npx githits@latest pkg deps npm:express@4.18.2 --depth 2
 npx githits@latest pkg changelog npm:express --from 4.18.2 --to 5.2.1
 npx githits@latest pkg upgrade-review npm:zod@4.3.6 --to 4.4.3

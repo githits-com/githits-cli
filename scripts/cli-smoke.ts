@@ -83,6 +83,7 @@ export const EXPECTED_STABLE_TOP_LEVEL_COMMANDS = [
   "read",
   "list",
   "grep",
+  "vulns",
   "search",
   "search-status",
   "code",
@@ -1193,6 +1194,41 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
       "stable unauthenticated targetless research",
       "AUTH_REQUIRED",
     );
+
+    const advisoryHelp = await runCliWithEnv(["vulns", "--help"], env);
+    assert(
+      advisoryHelp.exitCode === 0 &&
+        advisoryHelp.stdout.includes("<ids...>") &&
+        advisoryHelp.stdout.includes("--verbose") &&
+        advisoryHelp.stdout.includes("coverage"),
+      "advisory help should expose ID and evidence semantics",
+    );
+    const advisoryAuth = await runCliWithEnv(
+      ["vulns", "CVE-2026-26996", "GHSA-3ppc-4f35-3m26", "--json"],
+      env,
+    );
+    assert(
+      advisoryAuth.exitCode !== 0,
+      "advisory unauthenticated probe must fail",
+    );
+    const advisoryEnvelope = parseJson(
+      advisoryAuth.stdout,
+      "advisory auth probe",
+    );
+    assertRecord(advisoryEnvelope, "advisory auth probe");
+    assert(
+      Array.isArray(advisoryEnvelope.results) &&
+        advisoryEnvelope.results.length === 2,
+      "advisory auth must preserve both inputs",
+    );
+    for (const item of advisoryEnvelope.results as unknown[]) {
+      assertRecord(item, "advisory auth item");
+      assertRecord(item.error, "advisory auth error");
+      assert(
+        item.status === "error" && item.error.code === "AUTH_REQUIRED",
+        "advisory auth result must retain auth guidance",
+      );
+    }
 
     const pubHelp = await runCliWithEnv(["pkg", "info", "--help"], env);
     assert(

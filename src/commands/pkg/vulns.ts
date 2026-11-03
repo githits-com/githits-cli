@@ -122,6 +122,7 @@ changing row completeness. --json emits the complete structured envelope.
 Package spec: <registry>:<name>[@<version>]. Supported registries:
 npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, pub. vcpkg and zig are not supported.
 Omit @<version> to check the latest release.
+For an advisory ID across packages, use githits vulns <ids...>.
 Example: githits pkg vulns npm:lodash@4.17.20 --severity high
 
 Severity filter (--severity) and withdrawn-advisory visibility
