@@ -829,7 +829,19 @@ describe("complete upgrade statement presentation", () => {
       );
       expect(text).toContain("not evidence of no risk");
       if (status === "generated") expect(text).toContain("Server empty notice");
-      else expect(text).toContain("Reason: budget.");
+      else {
+        expect(text).toContain("Reason: budget.");
+        expect(text).toContain("No release notes available.");
+        expect(text).not.toContain("No statements match this filter");
+        coverage.status = "unparseable";
+        review.changelog.riskCoverage.versionsWithoutNotes = 0;
+        review.changelog.riskCoverage.versionsUnparseable = 1;
+        const unparseable = formatPackageUpgradeReviewTerminal(
+          formatterResponse([review]),
+        );
+        expect(unparseable).toContain("Notes contain no parsed statements.");
+        expect(unparseable).not.toContain("No statements match this filter");
+      }
     },
   );
   it("renders generated upgrade statements and server notice even when a filter hides other statements", () => {

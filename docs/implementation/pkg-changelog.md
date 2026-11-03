@@ -18,10 +18,12 @@ NOT_GENERATED does not replace WITHOUT_NOTES or UNPARSEABLE. Generated-empty
 releases explicitly say statements were generated and none need action, with
 the server's notice explaining why this does not mean nothing changed. Pending
 generation shows the server reason and explains that a later request will show
-the notes; unavailable generation shows its reason. These messages also appear
-in detailed upgrade review, even when a filter hides all statements. A nonempty
-release hidden by a filter is never described as generated-empty. Missing or
-unparseable notes remain explicitly insufficient evidence of no risk.
+the notes; unavailable generation shows its reason. Pending and unavailable
+results also identify missing or unparseable maintainer notes for that release.
+These messages also appear in detailed upgrade review, even when a filter hides
+all statements. A nonempty release hidden by a filter is never described as
+generated-empty. Missing or unparseable notes remain explicitly insufficient
+evidence of no risk.
 
 ## Selection and views
 

@@ -548,6 +548,29 @@ describe("complete statement CLI/MCP parity", () => {
     );
     expect(mcpResult).toContain("Server notice");
   });
+  it("uses an MCP-native hint for many generated upgrade citations", async () => {
+    const { service, response } = evidenceService();
+    const statements = response.reviews[0]!.changelog.statements!;
+    for (const item of statements.items) item.textTruncated = false;
+    Object.assign(statements.items[1]!, {
+      source: "GENERATED",
+      url: undefined,
+      commits: Array.from({ length: 7 }, (_, i) => ({
+        sha: `abcdef${i}123456789`,
+        url: null,
+      })),
+    });
+    statements.coverage[0]!.generation = {
+      status: "GENERATED",
+      reason: null,
+      notice: "Server notice",
+    };
+    const text = (await mcpText(args, service)).replace(/\s+/g, " ");
+    expect(text).toContain(
+      '+4 more commits; pass format="json" for all cited commits.',
+    );
+    expect(text).not.toContain("--json");
+  });
   for (const changes of [undefined, " ", "actionable", "important", "all"])
     it(`matches text, JSON and effective filter for ${changes ?? "default"}`, async () => {
       const { service, packageUpgradeReview, response } = evidenceService();

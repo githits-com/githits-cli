@@ -333,9 +333,13 @@ export function formatPackageChangelogTerminal(
     lines.push(...formatChangelogGeneration(coverage, options));
     if (!items.length) {
       if (entry.htmlUrl) prose(sanitizeTerminalText(entry.htmlUrl), "  ");
-      if (coverage?.generation && coverage.statementsTotal === 0) continue;
+      if (
+        coverage?.generation?.status === "generated" &&
+        coverage.statementsTotal === 0
+      )
+        continue;
       prose(
-        coverage?.generation
+        coverage?.generation && coverage.statementsTotal > 0
           ? "No statements match this filter."
           : coverage?.status === "without_notes"
             ? "No release notes available."

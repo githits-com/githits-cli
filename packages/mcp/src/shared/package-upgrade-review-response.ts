@@ -1165,12 +1165,15 @@ function formatChangesSection(
     if (
       !items.length &&
       !keywords.length &&
-      !(release.generation && release.statementsTotal === 0)
+      !(
+        release.generation?.status === "generated" &&
+        release.statementsTotal === 0
+      )
     )
       appendWrappedText(
         lines,
         "    ",
-        release.generation
+        release.generation && (release.statementsTotal ?? 0) > 0
           ? "No statements match this filter."
           : release.status === "without_notes"
             ? "No release notes available."

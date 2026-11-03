@@ -429,6 +429,7 @@ describe("complete statement evidence view", () => {
     ["NOT_GENERATED", "failed", "No generated notes can be produced"],
   ] as const)("explains generation %s: %s", (status, reason, message) => {
     const report = evidence();
+    report.entries = report.entries.slice(0, 1);
     report.statements!.items = [];
     Object.assign(report.statements!.coverage[0]!, {
       status: "WITHOUT_NOTES",
@@ -443,6 +444,14 @@ describe("complete statement evidence view", () => {
     expect(text).toContain("not evidence of no risk");
     if (status === "PENDING")
       expect(text).toContain("A later request will show them");
+    expect(text).toContain("No release notes available.");
+    expect(text).not.toContain("No statements match this filter");
+    report.statements!.coverage[0]!.status = "UNPARSEABLE";
+    const unparseable = formatPackageChangelogTerminal(payload(report), {
+      useColors: false,
+    });
+    expect(unparseable).toContain("Notes contain no parsed statements.");
+    expect(unparseable).not.toContain("No statements match this filter");
   });
   it("renders all parsed units once, source URLs nearby, without raw-note duplication", () => {
     const text = formatPackageChangelogTerminal(payload(), {
