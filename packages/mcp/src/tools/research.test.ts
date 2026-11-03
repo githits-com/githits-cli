@@ -416,9 +416,33 @@ describe("research MCP adapter", () => {
         },
       );
 
-    const minuteText = (await run(perMinute)).content[0]?.text ?? "";
+    const minuteText = ((await run(perMinute)).content[0]?.text ?? "").replace(
+      /\s+/g,
+      " ",
+    );
     expect(minuteText).toContain(AGENTIC_ASK_REQUEST_RATE_LIMIT_MESSAGE);
     expect(minuteText).toContain("Try again in 20 seconds.");
+    expect(minuteText).toContain("before any Research call");
+    expect(minuteText).toContain("other targets, questions, or threads");
+
+    const withoutDelay = new AgenticAskHttpError(
+      "RATE_LIMITED",
+      AGENTIC_ASK_REQUEST_RATE_LIMIT_MESSAGE,
+      429,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      "request",
+    );
+    const missingDelayText = (
+      (await run(withoutDelay)).content[0]?.text ?? ""
+    ).replace(/\s+/g, " ");
+    expect(missingDelayText).toContain(
+      "pause briefly if none is given, before any Research call",
+    );
+    expect(missingDelayText).toEndWith("Try again.");
 
     const dailyResult = await run(daily);
     expect(dailyResult.isError).toBe(true);

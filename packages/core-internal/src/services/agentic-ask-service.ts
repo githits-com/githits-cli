@@ -24,7 +24,7 @@ export const AGENTIC_ASK_MAX_RESPONSE_BYTES: number = 4 * 1024 * 1024;
 const ERROR_DETAIL_MAX_BYTES = 16_384;
 
 export const AGENTIC_ASK_REQUEST_RATE_LIMIT_MESSAGE =
-  "Research request rate limit reached.";
+  "Research request rate limit reached. Wait the returned delay, or pause briefly if none is given, before any Research call, including other targets, questions, or threads. Use direct lookups only for a specific missing fact.";
 /** The API's daily-limit 429 detail, lowercased for comparison. */
 const AGENTIC_ASK_DAILY_LIMIT_DETAIL =
   "research daily request limit exceeded; try again after 00:00 utc";
