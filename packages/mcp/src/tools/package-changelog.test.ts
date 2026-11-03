@@ -32,7 +32,7 @@ describe("createPackageChangelogTool — metadata", () => {
     expect(tool.description).not.toContain("repo_url");
     expect(tool.description).not.toContain("from_version");
     expect(tool.schema.target?.description).toContain(
-      "registry:name[@version|@from..to]",
+      "Latest: npm:express (no @ suffix)",
     );
     expect(tool.schema.target?.description).toContain("Package-only");
     expect(tool.schema.target?.description).toContain(
@@ -42,7 +42,7 @@ describe("createPackageChangelogTool — metadata", () => {
       "Use @from alone for the starting release's own notes",
     );
     expect(tool.schema.limit?.description).toContain(
-      "Do not pass with exact `@version` or lower-bound range targets (`@from..to`, `@from..`)",
+      "Omit for exact @version, @from..to and @from.. targets",
     );
     expect(tool.schema.format?.description).toContain(
       "Use json only when code consumes raw fields",

@@ -60,7 +60,7 @@ const searchTargetSchema = z
   .string()
   .min(1)
   .describe(
-    "Compact target: `npm:react@version`, `github:facebook/react@ref`, `launchpad:~owner/+git/repo@ref` (`lp:PROJECT` also accepted), or `site:react.dev`. Omit the suffix for the latest package version or repository default branch; a ref may be a branch, tag, or commit. `#` is for semantic fragments.",
+    "Compact target: `npm:react@version`, `github:facebook/react@ref`, `launchpad:~owner/+git/repo@ref` (`lp:PROJECT` also accepted), or `site:react.dev`. Omit the suffix for the latest package version or repository default branch; a ref may be a branch, tag, or commit. `#` is for semantic fragments. For a docs page URL use read with that URL as target and no path; search docs with a package, repository, or site: target.",
   );
 
 const schema: ZodRawShape = {
@@ -73,7 +73,7 @@ const schema: ZodRawShape = {
   target: searchTargetSchema
     .optional()
     .describe(
-      "One compact target: `npm:react@version`, `github:facebook/react@ref`, `launchpad:~owner/+git/repo@ref` (`lp:PROJECT` also accepted), or `site:react.dev`. Omit the suffix for the latest package version or repository default branch; a ref may be a branch, tag, or commit. `#` is for semantic fragments. Do not also pass `targets`.",
+      "One compact target: `npm:react@version`, `github:facebook/react@ref`, `launchpad:~owner/+git/repo@ref` (`lp:PROJECT` also accepted), or `site:react.dev`. Omit the suffix for the latest package version or repository default branch; a ref may be a branch, tag, or commit. `#` is for semantic fragments. For a docs page URL use read with that URL as target and no path; search docs with a package, repository, or site: target. Do not also pass `targets`.",
     ),
   targets: z
     .array(searchTargetSchema)

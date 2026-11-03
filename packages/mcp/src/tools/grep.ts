@@ -117,7 +117,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Keep the same ordered targets, pattern/type, filters, case mode, both context counts and max_matches. To change them, omit cursor and start a new request. Empty starts page one. Hosted pages can change before read.",
+      "Copy the complete returned cursor unchanged. Keep the entire targets array (including corpus/path_selectors), pattern/type, case mode, context counts and max_matches unchanged. To change them, omit cursor and start a new request. Empty starts page one. Hosted pages can change before read.",
     ),
   wait_timeout_ms: z
     .number()

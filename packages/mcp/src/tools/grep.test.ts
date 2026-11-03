@@ -146,7 +146,7 @@ describe("unified MCP grep", () => {
     expect(tool.schema.targets?.description).toContain("ordered");
     expect(tool.schema.pattern?.description).toContain("RE2 regex");
     expect(tool.schema.ignore_case?.description).toContain("case-sensitive");
-    expect(tool.schema.cursor?.description).toContain("same ordered targets");
+    expect(tool.schema.cursor?.description).toContain("entire targets array");
     expect(tool.schema.format?.description).toContain("grouped matches");
     expect(tool.schema.pattern?.description).toContain(
       "No lookaround/backreferences",

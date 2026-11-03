@@ -126,3 +126,5 @@ Use package results directly. Start upgrade comparisons with `pkg upgrade-review
 ## Version spelling
 
 Go exact versions accept `v1.2.3` or `1.2.3`, including pseudo versions; requests use canonical `v`-prefixed form. Other changelog range inputs omit a leading `v`, except Swift release tags.
+
+For latest changelog entries use an unversioned target such as `npm:express`, with no trailing `@`. Omit `--limit` for an exact version or any range with a starting version; only latest and `@..to` accept it.
