@@ -42,7 +42,7 @@ describe("createPackageChangelogTool — metadata", () => {
       "Use @from alone for the starting release's own notes",
     );
     expect(tool.schema.limit?.description).toContain(
-      "Omit for exact @version, @from..to and @from.. targets",
+      "Do not send limit with @version, @from..to or @from..",
     );
     expect(tool.schema.format?.description).toContain(
       "Use json only when code consumes raw fields",
