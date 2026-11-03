@@ -1,4 +1,6 @@
 import {
+  type AdvisoryService,
+  AdvisoryServiceImpl,
   AGENTIC_ASK_REQUEST_TIMEOUT_MS,
   type AgentInfo,
   type AgenticAskService,
@@ -305,6 +307,8 @@ export interface Dependencies {
    * service.
    */
   packageIntelligenceService: PackageIntelligenceService;
+  /** CLI-only multi-ID advisory and grouped package reader. */
+  advisoryService: AdvisoryService;
   /** Unified source/site inventory service used by `githits list`. */
   listService: ListService;
   /** Unified source/site grep service used by `githits grep`. */
@@ -442,6 +446,12 @@ export async function createContainer(
         codeNavigationUrl,
         codeNavigationService,
         packageIntelligenceService,
+        advisoryService: new AdvisoryServiceImpl(
+          codeNavigationUrl,
+          tokenProvider,
+          fetchFn,
+          serviceRuntime,
+        ),
         readService,
         listService,
         grepService,
@@ -546,6 +556,12 @@ export async function createContainer(
       codeNavigationUrl,
       codeNavigationService,
       packageIntelligenceService,
+      advisoryService: new AdvisoryServiceImpl(
+        codeNavigationUrl,
+        tokenManager,
+        fetchFn,
+        serviceRuntime,
+      ),
       readService,
       listService,
       grepService,

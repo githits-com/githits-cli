@@ -82,6 +82,7 @@ export const AUTHENTICATED_COMMANDS = [
   "docs read",
   "pkg info",
   "pkg vulns",
+  "vulns",
   "pkg deps",
   "pkg changelog",
   "pkg upgrade-review",

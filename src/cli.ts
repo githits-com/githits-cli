@@ -27,6 +27,7 @@ import {
   registerResolveCommand,
   registerSettingsCommand,
   registerUnifiedSearchCommands,
+  registerVulnsCommand,
   validateResearchCommandBeforeAction,
 } from "./commands/index.js";
 import { loginFlow, stderrLoginOutput } from "./commands/login.js";
@@ -137,6 +138,7 @@ async function main(): Promise<void> {
   registerReadCommand(program);
   registerListCommand(program);
   registerGrepCommand(program);
+  registerVulnsCommand(program);
   const registrationArgv = stripRootRegistrationOptions(argv);
   const updateCheckTask = startUpdateCheckTaskForInvocation({
     args: argv,

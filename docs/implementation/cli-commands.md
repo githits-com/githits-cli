@@ -36,6 +36,7 @@ remains human-readable.
 | `settings terms` | — | `--json` | Show the current Terms of Service acceptance state |
 | `settings terms accept` | — | `--yes`, `--json` | Confirm and accept the current Terms of Service |
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (latest version, downloads, license, vulnerabilities) |
+| `vulns <ids...>` | one or several CVE/OSV IDs or recorded aliases | `--verbose`, `--json` | Attributed source and backend-grouped affected packages across IDs; reads all available package pages with explicit partial outcomes |
 | `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--transitive`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift/pub), optionally including affected versions resolved in its dependency graph |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--depth`, `--issues`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional capped transitive graph, and opt-in dependency issue analysis (npm/pypi/hex/crates/nuget/maven/zig/vcpkg/packagist/rubygems/go/swift/pub) |
 | `pkg changelog <spec>` | package spec (`registry:name[@version\|@from..to]`) | `--from`, `--to`, `--limit`, `--changes`, `--no-body`, `--verbatim`, `--verbose`, `--json` | All parsed statements with available classifications. `--changes` filters; `--verbatim` shows original notes instead, `--verbose` is its deprecated alias; `--no-body` shows only the timeline. |
@@ -615,6 +616,47 @@ for forwarding and rollout requirements.
 **Output envelope.** Success payload is hand-crafted for agent token efficiency: `{registry, name, version, versionCount?, description?, license?, homepage?, repository?, publishedAt?, downloads?: {lastMonth?, total?, refreshedAt?}, github?, vulnerabilities?: {total, affectsLatest, recent?}, advisoryHistory?: {total}, recentChanges?}`. `vulnerabilities.total` and `affectsLatest` retain their latest-version meanings; `advisoryHistory.total` is package-wide history and is independent of the nullable latest count. Omitted fields reflect backend nulls, not dropped data. Error envelope: `{error, code, retryable, details?}` — shared classifier family. Under `--json` the error envelope is written to **stderr** so stdout stays clean for `jq`.
 
 **Troubleshooting.** `GITHITS_DEBUG=pkg-intel` emits PII-safe classified-error diagnostics (area, event, code, error class, detail keys). Use `GITHITS_DEBUG=*` to enable all non-sensitive package/source diagnostics.
+
+### `githits vulns`
+
+```bash
+githits vulns CVE-2026-26996 GHSA-3ppc-4f35-3m26
+githits vulns CVE-2026-26996 --verbose
+githits vulns CVE-2026-26996 --json
+```
+
+Looks up advisory IDs across packages with source-attributed affected ranges and
+source-reported fixes. Exact source records and imported local associations remain
+separate; related CVE/GHSA records can contain different evidence. Package identity,
+alias membership, grouping and range derivation belong to PkgSeer. The CLI never
+parses descriptions to guess packages. Unsupported ecosystems retain their names
+and a null registry. Withdrawn evidence remains visible and marked.
+
+Compact text leads with package/range/fix evidence and reads all available package
+pages. Display truncation is explicit. `--verbose` adds complete defined core
+source detail, raw ranges, precise revisions, aliases, source vectors, references,
+content normalization reports and original affected entries, including package-less
+Git evidence. It never sorts commit hashes, calls a limit/lastAffected boundary a
+fix, or converts a CVSS vector to a numeric score. `--json` emits the complete core
+projection; optional release-detail and related-advisory metadata is not acquired.
+Source fixes are evidence, not verified releases or safe upgrades. Use
+`githits pkg vulns <registry>:<name>@<installed-version>` for version assessment.
+
+Inputs are trimmed and case-preserving, with 1–512 UTF-8 bytes and no embedded
+whitespace, control or format characters. Input order and duplicates survive.
+Invalid IDs produce per-input errors while other valid IDs run. Alias resolution
+is exact-first and backend-owned; requested and served IDs are shown separately.
+
+Coverage describes independent live-source/local-corpus acquisition, not worldwide
+completeness. Checked empty mappings with an available source are successful,
+but never prove non-affectedness. Source/local acquisition, optional display and
+continuation failures retain usable evidence, mark partial/error and exit nonzero.
+An ambiguous source retains candidate IDs/truncation. A missing source plus failed
+local acquisition is an upstream failure, not NOT_FOUND. Auth/terms/access failures
+stop further protected requests; later inputs explicitly report notAttempted.
+
+The [lookup implementation contract](./advisory-lookup.md) defines JSON,
+field selection, partial-envelope handling and continuation.
 
 ### `githits pkg vulns`
 
