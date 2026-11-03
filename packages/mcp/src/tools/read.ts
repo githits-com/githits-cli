@@ -53,7 +53,7 @@ export const readSchema: ReadSchema = {
   target: z
     .string()
     .describe(
-      "For docs, put the returned HTTP(S) page URL or docs ID in target and omit path. Never put a page URL in path or reconstruct its address. A site: target instead requires its exact page path (/ for root). Files use compact package/repo target plus relative path; target#symbol restricts to path when supplied.",
+      'Docs example: {"target":"https://docs.example/guide"} with no path or selector. Copy returned HTTP(S) page URLs or docs IDs into target unchanged; never put a URL in path. A site: target instead requires its exact page path (/ for root). Files use compact package/repo target plus relative path; target#symbol restricts to path when supplied.',
     ),
   path: z
     .string()
@@ -65,7 +65,7 @@ export const readSchema: ReadSchema = {
     .string()
     .optional()
     .describe(
-      "Known code declaration name or returned heading ID for this same docs page. Omit if unknown; never pass an empty string or derive a heading ID from its title. For code symbols, include only a known declaration path; otherwise omit path. Site headings require a page path. Do not guess class qualifications or combine with a docs URL fragment or compact target#symbol. A docs URL fragment needs no bounds and selects the full subtree through the next equal-or-higher heading; either bound overrides it with a page-relative range.",
+      "For code: a known declaration name. For docs: copy an exact heading ID returned for this page; never use or slugify its title. Otherwise leave this argument out entirely, not an empty string. For code symbols, include only a known declaration path; otherwise omit path. Site headings require a page path. Do not guess class qualifications or combine with a docs URL fragment or compact target#symbol. A docs URL fragment needs no bounds and selects the full subtree through the next equal-or-higher heading; either bound overrides it with a page-relative range.",
     ),
   start_line: z
     .number()
@@ -93,7 +93,7 @@ export const readSchema: ReadSchema = {
     ),
 };
 
-export const DESCRIPTION_BASE: string = `Read an indexed source file, code symbol, or documentation section. Pass target and path for files/site pages; selector reads code symbols/docs headings. Read known code declarations with selector before searching/grepping; include only a known declaration path, never inferred caller qualifications. Follow helpers when their behavior matters; reuse definitions. On resolution failure, use a returned declaration range or literal grep; bounds do not disambiguate. Preserve emitted docs actions. If a heading is missing, do not retry it: read the same page without selector/fragment or use page-relative lines. If the page is unavailable, discover an indexed page with search and its source argument set to docs. Hosted docs are mutable; repository docs address snapshots. Read needed sections; continue only for missing content. Use list for directories. On INDEXING follow recovery for the same target/path.`;
+export const DESCRIPTION_BASE: string = `Read an indexed source file, code symbol, or documentation section. Pass target alone for a returned docs URL: omit path and selector. Add selector only by copying a heading ID returned for that same page, never a heading title. For files/site pages use target and path; selector reads code symbols/docs headings. Read known code declarations with selector before searching/grepping; include only a known declaration path, never inferred caller qualifications. Follow helpers when their behavior matters; reuse definitions. On resolution failure, use a returned declaration range or literal grep; bounds do not disambiguate. Preserve emitted docs actions. If a heading is missing, do not retry it: read the same page without selector/fragment or use page-relative lines. If the page is unavailable, discover an indexed page with search and its source argument set to docs. Hosted docs are mutable; repository docs address snapshots. Read needed sections; continue only for missing content. Use list for directories. On INDEXING follow recovery for the same target/path.`;
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${CODE_READ_GUARDRAIL}`;
 
 /** One advertised reader; source-specific selection and error contracts stay intact. */
