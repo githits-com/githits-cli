@@ -442,7 +442,7 @@ describe("changelog statement and view parity", () => {
       });
     });
   }
-  it("uses an MCP-native hint for bounded generated citations", async () => {
+  it("keeps MCP generated text compact even with many cited commits", async () => {
     const report = structuredClone(defaultChangelogReport);
     Object.assign(report.statements!.items[0]!, {
       source: "GENERATED",
@@ -465,9 +465,10 @@ describe("changelog statement and view parity", () => {
     });
     const result = await tool.handler({ target: "npm:express" }, {});
     const text = result.content[0]!.text!.replace(/\s+/g, " ");
-    expect(text).toContain(
-      '+4 more commits; pass format="json" for all cited commits.',
-    );
+    expect(text).toContain("(generated from commits)");
+    expect(text).not.toContain("Cited commits");
+    expect(text).not.toContain("abcdef0");
+    expect(text).not.toContain("Server notice");
     expect(text).not.toContain("--json");
   });
   for (const target of [

@@ -670,9 +670,12 @@ describe("upgrade statement projections", () => {
       expect(query).not.toContain("riskItems");
       expect(query).not.toContain("itemsOmitted");
       expect(query.includes("statements(")).toBe(view !== "triage");
-      expect(query.includes("commits { sha url }")).toBe(view !== "triage");
+      expect(query.includes("commits { sha url }")).toBe(view === "json");
       expect(query.includes("generation { status reason notice }")).toBe(
-        view !== "triage",
+        view === "json",
+      );
+      expect(query.includes("generation { status reason }")).toBe(
+        view === "text",
       );
       expect(query.includes("fullText")).toBe(view === "json");
       expect(query.includes("tierConfidence")).toBe(view === "json");

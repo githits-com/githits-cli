@@ -1148,10 +1148,6 @@ function formatChangesSection(
         useColors: options.useColors === true,
         terminalWidth: width - 2,
         compactNonAction: !options.verbose,
-        fullCommitsHint:
-          options.surface === "mcp"
-            ? 'pass format="json" for all cited commits'
-            : undefined,
       }).map((line) => `  ${line}`),
     );
     const shownUrls = new Set(

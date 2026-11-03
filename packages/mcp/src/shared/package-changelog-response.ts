@@ -235,7 +235,6 @@ export interface FormatChangelogTerminalOptions {
   useColors: boolean;
   fullBodyHint?: string;
   fullStatementHint?: string;
-  fullCommitsHint?: string;
   bodyPreviewLines?: number;
   terminalWidth?: number;
 }
@@ -379,15 +378,14 @@ export function formatChangelogGeneration(
   };
   if (generation.status === "generated") {
     if (coverage.statementsTotal === 0)
-      prose("Statements were generated from commits; none need action.");
-    if (generation.notice) prose(generation.notice);
+      prose("No actionable statements (generated from commits).");
   } else {
+    const reason = generation.reason ? ` (${generation.reason})` : "";
     prose(
       generation.status === "pending"
-        ? "Generated notes are being prepared. A later request will show them."
-        : "No generated notes can be produced for this release.",
+        ? `Generation pending${reason}; retry later.`
+        : `Generation unavailable${reason}.`,
     );
-    if (generation.reason) prose(`Reason: ${generation.reason}.`);
   }
   return lines;
 }
@@ -411,7 +409,7 @@ export function formatChangelogVersionStatements(
       const source = noteSourceLabel(item.source);
       prose(
         item.source === "generated"
-          ? "Generated from commits; not written by the maintainers."
+          ? "(generated from commits)"
           : `${source}${item.url ? `: ${sanitizeTerminalText(item.url)}` : " (source URL unavailable)"}`,
         "  ",
       );
@@ -496,19 +494,6 @@ export function formatChangelogVersionStatements(
         `Statement truncated; ${options.fullStatementHint ?? "use --json for full text"}.`,
         "      ",
       );
-    if (item.commits?.length) {
-      prose("Cited commits:", "      ");
-      for (const commit of item.commits.slice(0, 3))
-        prose(
-          `${sanitizeTerminalText(commit.sha.slice(0, 7))}${commit.url ? `: ${sanitizeTerminalText(commit.url)}` : ""}`,
-          "        ",
-        );
-      if (item.commits.length > 3)
-        prose(
-          `+${item.commits.length - 3} more commits; ${options.fullCommitsHint ?? "use --json for all cited commits"}.`,
-          "        ",
-        );
-    }
   }
   return lines;
 }

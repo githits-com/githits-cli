@@ -822,15 +822,16 @@ describe("complete upgrade statement presentation", () => {
       ).replace(/\s+/g, " ");
       expect(text).toContain(
         status === "generated"
-          ? "Statements were generated from commits; none need action."
+          ? "No actionable statements (generated from commits)."
           : status === "pending"
-            ? "Generated notes are being prepared"
-            : "No generated notes can be produced",
+            ? "Generation pending"
+            : "Generation unavailable",
       );
       expect(text).toContain("not evidence of no risk");
-      if (status === "generated") expect(text).toContain("Server empty notice");
+      if (status === "generated")
+        expect(text).not.toContain("Server empty notice");
       else {
-        expect(text).toContain("Reason: budget.");
+        expect(text).toContain("(budget)");
         expect(text).toContain("No release notes available.");
         expect(text).not.toContain("No statements match this filter");
         coverage.status = "unparseable";
@@ -844,7 +845,7 @@ describe("complete upgrade statement presentation", () => {
       }
     },
   );
-  it("renders generated upgrade statements and server notice even when a filter hides other statements", () => {
+  it("keeps generated upgrade text compact, including when a filter hides statements", () => {
     const item = {
       ...unit(),
       source: "generated",
@@ -863,15 +864,14 @@ describe("complete upgrade statement presentation", () => {
     let text = formatPackageUpgradeReviewTerminal(
       formatterResponse([review]),
     ).replace(/\s+/g, " ");
-    expect(text).toContain(
-      "Generated from commits; not written by the maintainers.",
-    );
-    expect(text).toContain("abcdef0: https://example.com/commit/abcdef0");
-    expect(text.match(/Server notice/g)).toHaveLength(1);
+    expect(text).toContain("(generated from commits)");
+    expect(text).not.toContain("abcdef0");
+    expect(text).not.toContain("Server notice");
     review.changelog.statements!.items = [];
     text = formatPackageUpgradeReviewTerminal(formatterResponse([review]));
-    expect(text).toContain("Server notice");
-    expect(text).not.toContain("none need action");
+    expect(text).toContain("No statements match this filter.");
+    expect(text).not.toContain("(generated from commits)");
+    expect(text).not.toContain("No actionable statements");
   });
   it("renders captured complete Express evidence with source order and whole-range counts", () => {
     const review = formatterReview({

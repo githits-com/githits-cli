@@ -544,11 +544,11 @@ describe("complete statement CLI/MCP parity", () => {
     const mcpResult = await mcpText(args, service);
     expect(cliResult.trimEnd()).toBe(mcpResult);
     expect(mcpResult.replace(/\s+/g, " ")).toContain(
-      "Generated from commits; not written by the maintainers.",
+      "(generated from commits)",
     );
-    expect(mcpResult).toContain("Server notice");
+    expect(mcpResult).not.toContain("Server notice");
   });
-  it("uses an MCP-native hint for many generated upgrade citations", async () => {
+  it("keeps MCP upgrade text compact even with many generated citations", async () => {
     const { service, response } = evidenceService();
     const statements = response.reviews[0]!.changelog.statements!;
     for (const item of statements.items) item.textTruncated = false;
@@ -566,9 +566,10 @@ describe("complete statement CLI/MCP parity", () => {
       notice: "Server notice",
     };
     const text = (await mcpText(args, service)).replace(/\s+/g, " ");
-    expect(text).toContain(
-      '+4 more commits; pass format="json" for all cited commits.',
-    );
+    expect(text).toContain("(generated from commits)");
+    expect(text).not.toContain("Cited commits");
+    expect(text).not.toContain("abcdef0");
+    expect(text).not.toContain("Server notice");
     expect(text).not.toContain("--json");
   });
   for (const changes of [undefined, " ", "actionable", "important", "all"])

@@ -8,17 +8,17 @@ compares security and dependencies between installed and target versions.
 
 When a release's notes are missing, thin or unparseable, the API can also serve
 statements generated from that release's commits and diff. These follow the
-release's own statements. Text labels them as generated from commits and not
-written by the maintainers, and shows the server's notice once per release.
-Each statement shows up to three cited commits as seven-character SHAs with
-available URLs; a remaining-count hint points to JSON for the complete list.
+release's own statements. Text marks their source group once with
+`(generated from commits)`. JSON retains the server's full notice, including the
+distinction from maintainer-written notes, and every cited commit SHA and URL.
+Default text omits the notice and citation list to keep the changes readable.
 
 Generation coverage is independent of assessment status: GENERATED, PENDING or
 NOT_GENERATED does not replace WITHOUT_NOTES or UNPARSEABLE. Generated-empty
-releases explicitly say statements were generated and none need action, with
-the server's notice explaining why this does not mean nothing changed. Pending
-generation shows the server reason and explains that a later request will show
-the notes; unavailable generation shows its reason. Pending and unavailable
+releases say `No actionable statements (generated from commits).` This describes
+the generated statements, not an absence of changes or risk. Pending generation
+uses `Generation pending (reason); retry later.` Unavailable generation uses
+`Generation unavailable (reason).` Pending and unavailable
 results also identify missing or unparseable maintainer notes for that release.
 These messages also appear in detailed upgrade review, even when a filter hides
 all statements. A nonempty release hidden by a filter is never described as
@@ -107,8 +107,8 @@ metadata. No product-side second query is added for optional details.
 
 | Projection | Selected data |
 | --- | --- |
-| Statement text | First-page version/date/URL; every-page text, position/sourceIndex, heading/source/URL, cited commits, generation status/reason/notice, context, tier/ambiguous/kind and page controls |
-| Statement JSON | Above plus normalizedVersion, sourcePosition, fullText/context fullText, confidences, model/formulation and aggregate source; no entry.body |
+| Statement text | First-page version/date/URL; every-page text, position/sourceIndex, heading/source/URL, generation status/reason, context, tier/ambiguous/kind and page controls |
+| Statement JSON | Above plus cited commits, generation notice, normalizedVersion, sourcePosition, fullText/context fullText, confidences, model/formulation and aggregate source; no entry.body |
 | All statements | Coverage version/status/statementsTotal; assessment counts derived from collected answers |
 | Filtered statements | Full backend assessment coverage to detect shifting filtered offsets |
 | Original notes | Entry.body and timeline fields; JSON adds normalizedVersion/source; no statements/risk/provenance |
@@ -148,11 +148,18 @@ remain successful; actual missing packages/versions keep mapped errors.
 
 Statement items include `commits` when supplied, with complete SHAs and nullable
 URLs. Coverage includes `generation` when supplied, with lowercase status and
-the server's nullable reason and notice. Null heading, URL and confidence remain
+the server's nullable reason and notice. Commits and the full notice are selected
+only for JSON; missing selected detail fields fail JSON validation, while text
+decoding accepts their omission. Null heading, URL and confidence remain
 omitted under the existing convention; generated statements do not require them.
 Upgrade review retains the same statement evidence and validates generated item
 counts against the whole-range risk counters. Its triage projection remains
 counters-only and does not fetch statements or generation metadata.
+
+To compare generated-note text size without changing API evidence, save changelog
+and upgrade-review JSON and pass those fixed files to
+`bun scripts/generated-notes-text-size-benchmark.ts <files...>`. It reports UTF-8
+bytes and lines through the shared formatters, without measuring runtime speed.
 
 ## Validation and measurements
 

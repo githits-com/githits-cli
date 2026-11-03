@@ -799,7 +799,7 @@ export interface ChangelogStatementCommit {
 export interface ChangelogStatementGeneration {
   status: "GENERATED" | "PENDING" | "NOT_GENERATED";
   reason: string | null;
-  notice: string | null;
+  notice?: string | null;
 }
 
 export interface ChangelogStatement {
@@ -2267,7 +2267,8 @@ const changelogStatementSchema = z.object({
   url: z.string().nullable(),
   commits: z
     .array(z.object({ sha: z.string(), url: z.string().nullable() }))
-    .nullable(),
+    .nullable()
+    .optional(),
   text: z.string(),
   textTruncated: z.boolean(),
   fullText: z.string().optional(),
@@ -2291,7 +2292,7 @@ const changelogStatementCoverageSchema = z.object({
     .object({
       status: z.enum(["GENERATED", "PENDING", "NOT_GENERATED"]),
       reason: z.string().nullable(),
-      notice: z.string().nullable(),
+      notice: z.string().nullable().optional(),
     })
     .nullable(),
 });
@@ -2706,11 +2707,10 @@ function changelogStatementSelection(
 ): string {
   return `statements(first: 100, offset: $offset, tiers: $tiers) {
     totalCount matchingCount remainingCount nextOffset hasMore
-    coverage { version status statementsTotal generation { status reason notice } ${assessment ? "statementsAssessed statementsNotAssessed statementsNoImpact statementsUnclassified" : ""} }
+    coverage { version status statementsTotal generation { ${json ? "status reason notice" : "status reason"} } ${assessment ? "statementsAssessed statementsNotAssessed statementsNoImpact statementsUnclassified" : ""} }
     items {
       version position sourceIndex heading source url text textTruncated
-      commits { sha url }
-      ${json ? "sourcePosition fullText" : ""}
+      ${json ? "commits { sha url } sourcePosition fullText" : ""}
       context { heading text textTruncated ${json ? "fullText" : ""} }
       classification { tier ambiguous kind ${json ? "tierConfidence kindConfidence model formulation" : ""} }
     }
@@ -2747,17 +2747,21 @@ function validateChangelogStatementPage(
 ): void {
   if (
     json &&
-    page.items.some(
-      (item) =>
-        item.fullText === undefined ||
-        item.sourcePosition === undefined ||
-        (item.context && item.context.fullText === undefined) ||
-        (item.classification &&
-          (item.classification.model === undefined ||
-            item.classification.formulation === undefined ||
-            item.classification.tierConfidence === undefined ||
-            item.classification.kindConfidence === undefined)),
-    )
+    (page.coverage.some(
+      (c) => c.generation && c.generation.notice === undefined,
+    ) ||
+      page.items.some(
+        (item) =>
+          item.commits === undefined ||
+          item.fullText === undefined ||
+          item.sourcePosition === undefined ||
+          (item.context && item.context.fullText === undefined) ||
+          (item.classification &&
+            (item.classification.model === undefined ||
+              item.classification.formulation === undefined ||
+              item.classification.tierConfidence === undefined ||
+              item.classification.kindConfidence === undefined)),
+      ))
   )
     throw new MalformedPackageIntelligenceResponseError(
       "Missing selected changelog statement evidence fields.",
@@ -2891,7 +2895,7 @@ function normaliseChangelogStatement(
       item.classification === null
         ? null
         : stripNullProperties(item.classification),
-    ...(item.commits === null ? {} : { commits: item.commits }),
+    ...(item.commits == null ? {} : { commits: item.commits }),
   } as ChangelogStatement;
 }
 

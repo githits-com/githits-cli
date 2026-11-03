@@ -332,7 +332,7 @@ describe("complete statement evidence view", () => {
       explicitFilterFields: new Set(changes ? ["changes"] : []),
     });
   }
-  it("labels generated statements after maintainer notes, shows one notice and bounded commit citations", () => {
+  it("uses one compact generated marker and keeps detailed evidence in JSON", () => {
     const report = evidence();
     const statements = report.statements!;
     statements.items = statements.items.slice(0, 3);
@@ -356,18 +356,16 @@ describe("complete statement evidence view", () => {
     const p = payload(report);
     const text = formatPackageChangelogTerminal(p, { useColors: false });
     const flat = text.replace(/\s+/g, " ");
-    expect(flat).toContain(
-      "Generated from commits; not written by the maintainers.",
-    );
+    expect(flat).toContain("(generated from commits)");
     expect(text.indexOf("Quoted statement 0")).toBeLessThan(
-      text.indexOf("Generated from commits"),
+      text.indexOf("(generated from commits)"),
     );
-    expect(text.match(/Server notice:/g)).toHaveLength(1);
+    expect(text.match(/\(generated from commits\)/g)).toHaveLength(1);
+    expect(text).not.toContain("Server notice:");
     expect(text).not.toContain("source URL unavailable");
-    expect(text).toContain("abcdef0");
-    expect(text).toContain("abcdef1: https://example.com/commit/1");
-    expect(text).not.toContain("https://example.com/commit/3");
-    expect(flat).toContain("+4 more commits; use --json for all cited commits");
+    expect(text).not.toContain("abcdef0");
+    expect(text).not.toContain("https://example.com/commit/");
+    expect(text).not.toContain("Cited commits");
     expect(p.statements?.items[1]?.commits).toEqual(commits);
     expect(p.statements?.coverage[0]?.generation).toEqual({
       status: "generated",
@@ -400,9 +398,9 @@ describe("complete statement evidence view", () => {
         useColors: false,
       }).replace(/\s+/g, " ");
       expect(text).toContain(
-        "Statements were generated from commits; none need action.",
+        "No actionable statements (generated from commits).",
       );
-      expect(text).toContain("Server empty notice");
+      expect(text).not.toContain("Server empty notice");
       expect(text).toContain("not evidence of no risk");
       expect(text).not.toContain("No release notes available");
     },
@@ -418,15 +416,16 @@ describe("complete statement evidence view", () => {
     const text = formatPackageChangelogTerminal(payload(report, "actionable"), {
       useColors: false,
     });
-    expect(text).toContain("No statements match this filter");
-    expect(text).not.toContain("none need action");
-    expect(text).toContain("Server notice");
+    expect(text).toContain("No statements match this filter.");
+    expect(text).not.toContain("(generated from commits)");
+    expect(text).not.toContain("No actionable statements");
+    expect(text).not.toContain("Server notice");
   });
   it.each([
-    ["PENDING", "generating", "Generated notes are being prepared"],
-    ["PENDING", "budget", "Generated notes are being prepared"],
-    ["NOT_GENERATED", "no_repository", "No generated notes can be produced"],
-    ["NOT_GENERATED", "failed", "No generated notes can be produced"],
+    ["PENDING", "generating", "Generation pending"],
+    ["PENDING", "budget", "Generation pending"],
+    ["NOT_GENERATED", "no_repository", "Generation unavailable"],
+    ["NOT_GENERATED", "failed", "Generation unavailable"],
   ] as const)("explains generation %s: %s", (status, reason, message) => {
     const report = evidence();
     report.entries = report.entries.slice(0, 1);
@@ -440,10 +439,9 @@ describe("complete statement evidence view", () => {
       useColors: false,
     }).replace(/\s+/g, " ");
     expect(text).toContain(message);
-    expect(text).toContain(`Reason: ${reason}.`);
+    expect(text).toContain(`(${reason})`);
     expect(text).toContain("not evidence of no risk");
-    if (status === "PENDING")
-      expect(text).toContain("A later request will show them");
+    if (status === "PENDING") expect(text).toContain("retry later");
     expect(text).toContain("No release notes available.");
     expect(text).not.toContain("No statements match this filter");
     report.statements!.coverage[0]!.status = "UNPARSEABLE";

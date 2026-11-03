@@ -194,11 +194,14 @@ describe("changelog view projections", () => {
               view === "statements",
             );
             expect(wire.query.includes("commits { sha url }")).toBe(
-              view === "statements",
+              view === "statements" && includeJsonFields,
             );
             expect(
               wire.query.includes("generation { status reason notice }"),
-            ).toBe(view === "statements");
+            ).toBe(view === "statements" && includeJsonFields);
+            expect(wire.query.includes("generation { status reason }")).toBe(
+              view === "statements" && !includeJsonFields,
+            );
             expect(wire.query.includes("fullText")).toBe(
               view === "statements" && includeJsonFields,
             );
@@ -236,6 +239,30 @@ describe("changelog view projections", () => {
 });
 
 describe("complete changelog pagination", () => {
+  it("accepts text projections without commit lists or the full notice", async () => {
+    const p = page();
+    Reflect.deleteProperty(p.items[0]!, "commits");
+    Reflect.set(p.coverage[0]!, "generation", {
+      status: "GENERATED",
+      reason: null,
+    });
+    const result = await setup([p]).call();
+    expect(result.statements?.items[0]?.commits).toBeUndefined();
+    expect(result.statements?.coverage[0]?.generation).toEqual({
+      status: "GENERATED",
+      reason: null,
+    });
+  });
+  it("requires the selected generation notice in JSON, including empty releases", async () => {
+    const p = page([], 0);
+    Reflect.set(p.coverage[0]!, "generation", {
+      status: "GENERATED",
+      reason: null,
+    });
+    await expect(
+      setup([p], { includeJsonFields: true }).call(),
+    ).rejects.toThrow("evidence fields");
+  });
   it.each([undefined, "1.0.0"])(
     "preserves generated evidence and original coverage for selector %s",
     async (version) => {
@@ -334,14 +361,14 @@ describe("complete changelog pagination", () => {
   it.each(["commits", "generation"] as const)(
     "requires selected nullable %s evidence",
     async (field) => {
-      const p = page();
+      const p = page([statement(0, true, true)]);
       Reflect.deleteProperty(
         field === "commits" ? p.items[0]! : p.coverage[0]!,
         field,
       );
-      await expect(setup([p]).call()).rejects.toThrow(
-        MalformedPackageIntelligenceResponseError,
-      );
+      await expect(
+        setup([p], { includeJsonFields: true }).call(),
+      ).rejects.toThrow(MalformedPackageIntelligenceResponseError);
     },
   );
   it.each([undefined, "1.0.0"])(
@@ -361,10 +388,8 @@ describe("complete changelog pagination", () => {
       expect(result.statements?.items).toHaveLength(101);
       expect(result.statements?.matchingCount).toBe(101);
       expect(run.requests).toHaveLength(2);
-      expect(run.requests[1]?.query).toContain("commits { sha url }");
-      expect(run.requests[1]?.query).toContain(
-        "generation { status reason notice }",
-      );
+      expect(run.requests[1]?.query).not.toContain("commits { sha url }");
+      expect(run.requests[1]?.query).toContain("generation { status reason }");
       expect(run.requests[1]?.variables).toMatchObject({
         offset: 100,
         ...(version ? { version } : {}),
