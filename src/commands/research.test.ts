@@ -20,7 +20,7 @@ import {
   DESCRIPTION as MCP_RESEARCH_DESCRIPTION,
 } from "../../packages/mcp/src/tools/research.js";
 import {
-  buildResearchDiscoveryAction,
+  buildResearchDiscoveryExample,
   formatAgenticAskHumanResponse,
   type ResearchCommandDependencies,
   registerResearchCommand,
@@ -115,7 +115,7 @@ afterEach(() => {
   mock.restore();
 });
 
-describe("Research discovery action", () => {
+describe("Research discovery example", () => {
   const daily: MappedError = {
     code: "RATE_LIMITED",
     message: AGENTIC_ASK_DAILY_LIMIT_MESSAGE,
@@ -130,17 +130,15 @@ describe("Research discovery action", () => {
     "site:example.com/docs",
     " npm:example ",
   ])("preserves a search-compatible explicit target: %s", (target) => {
-    expect(buildResearchDiscoveryAction(daily, target, "How?")).toBe(
-      `githits search --in '${target}' -- 'How?'`,
+    expect(buildResearchDiscoveryExample(daily, target)).toBe(
+      `githits search --in '${target}' -- 'your query'`,
     );
   });
 
   it.each([undefined, "", " ", "express", "npm:", "lib/router.js"])(
     "omits recovery without a search-compatible target: %s",
     (target) => {
-      expect(
-        buildResearchDiscoveryAction(daily, target, "How?"),
-      ).toBeUndefined();
+      expect(buildResearchDiscoveryExample(daily, target)).toBeUndefined();
     },
   );
 
@@ -150,29 +148,24 @@ describe("Research discovery action", () => {
     { ...daily, code: "NETWORK" as const },
   ])("omits recovery for other failures: %j", (failure) => {
     expect(
-      buildResearchDiscoveryAction(failure, "npm:example", "How?"),
+      buildResearchDiscoveryExample(failure, "npm:example"),
     ).toBeUndefined();
   });
 
-  it("quotes original operands and protects leading-dash questions", () => {
-    const action = buildResearchDiscoveryAction(
+  it("quotes the original target with a fixed query", () => {
+    const example = buildResearchDiscoveryExample(
       daily,
-      "github:acme/lib@feat/o'reilly",
-      "--why 'quoted' $(echo unsafe); `id` \\ λ",
+      "github:acme/lib@feat/o'reilly-λ",
     );
-    expect(action).toBe(
-      "githits search --in 'github:acme/lib@feat/o'\"'\"'reilly' -- '--why '\"'\"'quoted'\"'\"' $(echo unsafe); `id` \\ λ'",
+    expect(example).toBe(
+      "githits search --in 'github:acme/lib@feat/o'\"'\"'reilly-λ' -- 'your query'",
     );
   });
 
-  it("represents argv control characters without raw terminal controls", () => {
-    const action = buildResearchDiscoveryAction(
-      daily,
-      "npm:example",
-      "--why\tline\n\u001b[31m\u0085",
-    );
-    expect(action).toBe(
-      "githits search --in 'npm:example' -- $'--why\\x09line\\x0a\\x1b[31m\\xc2\\x85'",
+  it("escapes whitespace in the original target", () => {
+    const example = buildResearchDiscoveryExample(daily, "\tnpm:example\n");
+    expect(example).toBe(
+      "githits search --in $'\\x09npm:example\\x0a' -- 'your query'",
     );
   });
 });
@@ -441,7 +434,7 @@ describe("researchAction", () => {
   });
 
   it.each([false, true])(
-    "daily Research recovery preserves action and diagnostics (%s)",
+    "daily Research recovery preserves example and diagnostics (%s)",
     async (json) => {
       const error = spyOn(console, "error").mockImplementation(() => undefined);
       const log = spyOn(console, "log").mockImplementation(() => undefined);
@@ -468,7 +461,7 @@ describe("researchAction", () => {
         researchAction("npm:example", "How?", { json }, createDeps(ask)),
       ).rejects.toThrow("process.exit");
 
-      const action = "githits search --in 'npm:example' -- 'How?'";
+      const example = "githits search --in 'npm:example' -- 'your query'";
       expect(exit).toHaveBeenCalledWith(1);
       expect(ask).toHaveBeenCalledTimes(1);
       expect(ask).toHaveBeenCalledWith(
@@ -488,16 +481,17 @@ describe("researchAction", () => {
             status: 429,
             retryAfterSeconds: 43_200,
             rateLimitScope: "daily",
-            action,
+            example,
           },
           tool_call_id: TOOL_CALL_ID,
           thread_id: THREAD_ID,
         });
       } else {
         expect(error.mock.calls[0]?.[0]).toBe(
-          `${AGENTIC_ASK_DAILY_LIMIT_MESSAGE}\nTry: ${action}\nResearch run ID: ${TOOL_CALL_ID}\nThread ID: ${THREAD_ID}`,
+          `${AGENTIC_ASK_DAILY_LIMIT_MESSAGE}\nExample: ${example}\nResearch run ID: ${TOOL_CALL_ID}\nThread ID: ${THREAD_ID}`,
         );
       }
+      expect(error.mock.calls[0]?.[0]).not.toContain("How?");
     },
   );
 
@@ -532,7 +526,8 @@ describe("researchAction", () => {
     ).rejects.toThrow("process.exit");
     const payload = JSON.parse(String(error.mock.calls[0]?.[0]));
     expect(payload.error).toBe(AGENTIC_ASK_DAILY_LIMIT_MESSAGE);
-    expect(payload.details.action).toBeUndefined();
+    expect(payload.details).not.toHaveProperty("example");
+    expect(payload.details).not.toHaveProperty("action");
     expect(payload.tool_call_id).toBe(TOOL_CALL_ID);
     expect(payload.thread_id).toBe(THREAD_ID);
     expect(ask).toHaveBeenCalledTimes(1);

@@ -91,14 +91,19 @@ Research may return a rate-limit error. Both CLI and MCP report it as
 A rate-limit response that cannot be identified as the daily limit is treated as
 the short-term limit.
 
-For a daily limit, the CLI adds one `Try: githits search --in TARGET -- QUESTION`
-line when an explicit target is accepted by the search parser. Both operands
-retain their original values using the existing CLI shell-quoting policy;
-`--` protects leading-dash questions. JSON puts the same bare command in
-`details.action`, preserving the original error, reset advice, timing and IDs.
-This is an optional discovery pivot, not an equivalent Research answer. The CLI
-does not execute it. Targetless/thread requests, bare or invalid targets and
-other errors retain their existing guidance. MCP behavior is unchanged.
+For a daily limit with an explicit search-compatible target, the CLI adds one
+example using the quoted original target and a fixed query placeholder:
+
+```text
+Example: githits search --in 'npm:express' -- 'your query'
+```
+
+Replace `your query` with search terms. JSON puts the same template in
+`details.example`, preserving the original error, reset advice, timing and IDs.
+The Research question is not copied into the example and no keywords are
+extracted. The CLI does not execute it. Targetless/thread requests, bare or
+invalid targets and other errors retain their existing guidance. MCP behavior
+is unchanged.
 
 ## Smoke coverage
 

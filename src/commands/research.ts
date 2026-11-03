@@ -106,33 +106,28 @@ export async function researchAction(
     spinner.stop();
     if (isCallerCancellation(error, deps.signal)) throw error;
     const failure = mapAgenticAskError(error);
-    const action = buildResearchDiscoveryAction(
+    const example = buildResearchDiscoveryExample(
       failure.mapped,
       "target" in subject ? subject.target : undefined,
-      question,
     );
-    const mapped: MappedError = action
-      ? {
-          ...failure.mapped,
-          details: { ...failure.mapped.details, action },
-        }
-      : failure.mapped;
     if (options.json) {
+      const payload = buildCliMappedErrorPayload(failure.mapped);
       console.error(
         JSON.stringify({
-          ...buildCliMappedErrorPayload(mapped),
+          ...payload,
+          ...(example ? { details: { ...payload.details, example } } : {}),
           ...(failure.toolCallId ? { tool_call_id: failure.toolCallId } : {}),
           ...(failure.threadId ? { thread_id: failure.threadId } : {}),
         }),
       );
     } else {
       const diagnostic = formatMappedErrorForTerminal({
-        ...mapped,
-        message: sanitizeTerminalText(mapped.message),
+        ...failure.mapped,
+        message: sanitizeTerminalText(failure.mapped.message),
         details: {
-          ...mapped.details,
-          ...(mapped.details?.hint
-            ? { hint: sanitizeTerminalText(mapped.details.hint) }
+          ...failure.mapped.details,
+          ...(failure.mapped.details?.hint
+            ? { hint: sanitizeTerminalText(failure.mapped.details.hint) }
             : {}),
         },
       });
@@ -147,7 +142,7 @@ export async function researchAction(
       console.error(
         [
           diagnostic,
-          ...(action ? [`Try: ${action}`] : []),
+          ...(example ? [`Example: ${example}`] : []),
           ...identifiers,
         ].join("\n"),
       );
@@ -156,11 +151,10 @@ export async function researchAction(
   }
 }
 
-/** Build a CLI-only discovery pivot; operands originate in argv and cannot contain NUL. */
-export function buildResearchDiscoveryAction(
+/** Build a CLI search template; the target originates in argv and cannot contain NUL. */
+export function buildResearchDiscoveryExample(
   mapped: MappedError,
   target: string | undefined,
-  question: string,
 ): string | undefined {
   if (
     mapped.code !== "RATE_LIMITED" ||
@@ -174,7 +168,7 @@ export function buildResearchDiscoveryAction(
   } catch {
     return undefined;
   }
-  return `githits search --in ${shellQuoteExact(target)} -- ${shellQuoteExact(question)}`;
+  return `githits search --in ${shellQuoteExact(target)} -- 'your query'`;
 }
 
 /** Print backend-owned Markdown through the terminal safety boundary. */
