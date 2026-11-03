@@ -18,7 +18,8 @@ enumerate every host or establish binary provenance or current availability.
 Info, dependency and vulnerability JSON retain `registryRepository: {id,name,url}`;
 unknown evidence is omitted without inferring a default.
 
-Supported registries include npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, vcpkg, and Zig.
+Supported registries include npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, vcpkg, Zig, and Pub.
+Pub targets use `pub:<name>[@<version>]`, for example `pub:http`. SDK graph sources such as `flutter_sdk` are not accepted package registries.
 `cargo:` is an input alias for `crates:` (public crates.io); canonical registry identities remain `crates`.
 Swift package targets use `swift:github.com/<owner>/<repo>` or `swift:gitlab.com/<group>/<project>`; Zig package targets use `zig:gh/<owner>/<repo>` or `zig:cb/<owner>/<repo>`. Keep these registry-native coordinates for package evidence; direct repository targets inspect the full repository.
 
@@ -32,7 +33,7 @@ Direct-only is the default. `--transitive` adds vulnerability evidence for versi
 
 CLI text shows every selected direct and transitive advisory row. `--verbose` adds aliases, dates, malicious-advisory markers, and complete range/fix evidence; `--json` retains structured advisory-wide affected ranges and fixed versions. Compact MCP text remains capped; use `verbose:true` for all selected rows.
 
-Supported registries: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift. vcpkg and Zig are unsupported for vulnerability data.
+Supported registries: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, Pub. vcpkg and Zig are unsupported for vulnerability data.
 
 ## Dependencies
 
@@ -40,7 +41,7 @@ Supported registries: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems,
 
 Flags: `--lifecycle runtime|development|build|peer|optional|all`, `--depth 1-10`, `--issues`, `--verbose`, `--json`.
 
-Supported dependency registries: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, vcpkg, and Zig.
+Supported dependency registries: npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, vcpkg, Zig, and Pub.
 
 Use `--depth` to request capped transitive output. Without it, output is direct dependencies only, but `--issues` still scans the full graph. `--verbose` shows complete issue details.
 
@@ -62,11 +63,12 @@ statement pagination; `all` is the default.
 `--verbatim` shows full original notes instead of statements; `--verbose` is its
 deprecated alias in text and JSON. `--no-body` shows a version/date/URL timeline
 and skips parsing/classification; it cannot be combined with verbatim or verbose.
-`--changes` is ignored outside statement views. Default JSON contains complete
-statement evidence rather than raw entry bodies or the old risk-only fields;
+`--changes` is ignored outside statement views. Default JSON contains selected statement evidence rather than raw entry bodies or the old risk-only fields;
 use `--verbatim --json` for original bodies.
 
 `--from` (excluded) and `--to` (included) remain package range flags on a bare spec. Inline single-release targets reject those flags and `--limit`. Repository and site targets are not supported.
+
+Generated statements follow original notes and are marked `(generated from commits)`. Generation status/reason remains distinct from classification coverage. Pending or unavailable generation and missing/unparseable original notes remain explicit evidence limits; generated-empty output does not prove no changes. JSON uses `source: "generated"`, omits duplicate text/fullText and boilerplate notices, and retains one commit locator plus `commitsOmitted` for additional citations.
 
 ## Upgrade Review
 
@@ -91,7 +93,7 @@ only detailed evidence, not whole-range counters or batch ranking.
 
 Batch text defaults to triage rows ranked by confident action counts. Use
 `--verbose` for full per-package evidence and expanded quotes. JSON preserves
-complete selected statements, source positions and context, backend uncertainty
+selected statements, source positions and context, backend uncertainty
 and classifier provenance under `changelog.statements`, replacing
 `changelog.riskItems`; `riskCoverage.itemsOmitted` is removed. An absent statement
 or zero counter does not establish compatibility with your code.

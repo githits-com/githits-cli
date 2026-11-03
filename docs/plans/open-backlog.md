@@ -1,20 +1,5 @@
 # Open backlog
 
-## Googlesource public skill release boundary — 2026-10-31
-
-When the release includes public Googlesource HTTPS repository parsing, update
-`skills/githits-code/references/code-and-docs.md`'s direct-repository HTTPS list
-to include public `*.googlesource.com` hosts and the already released Launchpad
-hosts. Document full HTTPS-only syntax, no explicit ports, project case,
-terminal `.git`/slash normalization, distinct review hosts and unchanged `@ref`
-replay. The feature PR leaves public skills unchanged because the Agent Skill
-lifecycle forbids advertising unreleased CLI/MCP behavior on `main`.
-
-Ownership: release preparation owns this documentation boundary. Acceptance:
-the release branch carries the matching CLI implementation and skill reference;
-`bun run plugins:generate` and `bun run plugins:check` pass. See
-[repository target grammar](../implementation/repository-targets.md#googlesource-https-targets).
-
 ## Literal path round-trips — 2026-10-22
 
 The path audit reproduced two accepted-input inconsistencies beyond ordinary
