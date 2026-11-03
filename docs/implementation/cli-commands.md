@@ -632,15 +632,24 @@ alias membership, grouping and range derivation belong to PkgSeer. The CLI never
 parses descriptions to guess packages. Unsupported ecosystems retain their names
 and a null registry. Withdrawn evidence remains visible and marked.
 
-Compact text leads with package/range/fix evidence and reads all available package
-pages. Display truncation is explicit. `--verbose` adds complete defined core
-source detail, raw ranges, precise revisions, aliases, source vectors, references,
-content normalization reports and original affected entries, including package-less
-Git evidence. It never sorts commit hashes, calls a limit/lastAffected boundary a
-fix, or converts a CVSS vector to a numeric score. `--json` emits the complete core
-projection; optional release-detail and related-advisory metadata is not acquired.
-Source fixes are evidence, not verified releases or safe upgrades. Use
-`githits pkg vulns <registry>:<name>@<installed-version>` for version assessment.
+Compact text leads with advisory identity, resolved summary, package count and any
+partial cause. Package blocks include registry links, backend-normalized affected spans and source-reported fixes.
+The default shows up to ten spans, with explicit omitted counts when truncated;
+--verbose retains full raw expressions without expanding them into default JSON. Shared source facts appear once per result, with numbered references
+on package evidence; withdrawal/malicious markers also appear beside those refs.
+Null ranges/fixes mean unknown, while empty arrays mean none reported. Unevaluable
+source expressions are explicitly labelled, not treated as affected/safe versions.
+
+`affected` and `fixed` are independent source lists, not index-aligned; a range
+boundary is not necessarily a fix. `--json` emits actionable packages, shared `sources`, zero-based `sourceIndexes`,
+coverage and ordered diagnostics/recovery actions. It omits source prose, transport
+objects and cursors by default. This replaces the initial unreleased raw lookup
+shape. `--verbose` adds original source detail to either text or JSON: aliases,
+dates, vectors, references, normalization changes and original affected/Git events.
+It never sorts commit hashes, calls a limit/lastAffected boundary a fix, or converts
+a CVSS vector into a score. Source fixes remain unverified. Use
+`githits pkg vulns '<target>@<installed-version>'` for known package targets; Go
+mappings require identifying their module or Go release from the package link.
 
 Inputs are trimmed and case-preserving, with 1–512 UTF-8 bytes and no embedded
 whitespace, control or format characters. Input order and duplicates survive.

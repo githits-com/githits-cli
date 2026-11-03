@@ -4323,6 +4323,30 @@ describe("agent eval harness", () => {
     );
   });
 
+  it.each([
+    "githits vulns CVE-2026-26996 --json",
+    "npx -y githits@latest vulns CVE-2026-26996 --verbose --json",
+    "bun run --cwd /repo/githits-cli dev vulns CVE-2026-26996",
+  ])("tracks CLI-only advisory lookup calls: %s", (command) => {
+    const calls = extractToolCalls(
+      JSON.stringify({
+        item: {
+          type: "command_execution",
+          id: "advisory-call",
+          status: "completed",
+          command,
+        },
+      }),
+      "codex",
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      server: "githits-cli",
+      tool: "vulns",
+      status: "completed",
+    });
+  });
+
   it("extracts GitHits CLI calls from skill-surface shell commands", () => {
     const calls = extractToolCalls(
       `${JSON.stringify({

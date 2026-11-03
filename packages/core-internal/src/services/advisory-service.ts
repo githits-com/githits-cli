@@ -87,7 +87,7 @@ export interface AdvisoryServiceRuntime {
   diagnostics?: ServiceDiagnostics;
 }
 
-/** Bounded reads only; the CLI owns batch admission and independent page drains. */
+/** Bounded reads only; the CLI owns ordered input admission and independent page drains. */
 export class AdvisoryServiceImpl implements AdvisoryService {
   constructor(
     private readonly endpointUrl: string,
@@ -103,13 +103,13 @@ export class AdvisoryServiceImpl implements AdvisoryService {
     options?: ServiceRequestOptions,
   ): Promise<AdvisoryLookup[]> {
     const ids = inputs.map(normalizeAdvisoryId);
-    if (!ids.length || ids.length > (detailed || after !== undefined ? 1 : 5)) {
+    if (ids.length !== 1) {
       throw new AdvisoryLookupError(
         "VALIDATION_ERROR",
-        "Use 1-5 compact IDs or one detailed/continuation ID per request.",
+        "Use one advisory ID per request.",
       );
     }
-    const first = detailed ? 5 : after === undefined ? 2 : 10;
+    const first = 5;
     return withServiceDiagnostics(
       this.runtime.diagnostics,
       "advisory.lookup.request",

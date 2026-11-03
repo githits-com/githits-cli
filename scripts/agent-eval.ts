@@ -1737,7 +1737,8 @@ function cliToolNameFromCommand(command: string): string | undefined {
   if (first === "search") return "search";
   if (first === "search-status") return "search_status";
   if (first === "resolve") return "resolve_target";
-  if (["list", "read", "grep", "research"].includes(first)) return first;
+  if (["list", "read", "grep", "research", "vulns"].includes(first))
+    return first;
   if (first === "code" && second) return `code_${second.replace(/-/g, "_")}`;
   if (first === "docs" && second) return `docs_${second.replace(/-/g, "_")}`;
   if (first === "pkg" && second) return `pkg_${second.replace(/-/g, "_")}`;

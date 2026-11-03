@@ -43,7 +43,7 @@ function nextPage(
 }
 
 describe("vulns command", () => {
-  it("chunks compact inputs at five and preserves duplicates, whitespace and result order", async () => {
+  it("reads one ID per admitted request and preserves duplicates, whitespace and result order", async () => {
     const service = createMockAdvisoryService();
     const ids = [" a ", "b", "a", "c", "d", "e", "f"];
     const result = await readAdvisoryReports(ids, false, service);
@@ -52,13 +52,13 @@ describe("vulns command", () => {
       ids.map((x) => x.trim()),
     );
     expect(result.every((x) => x.status === "success")).toBe(true);
-    expect(service.lookup).toHaveBeenCalledTimes(2);
-    expect(service.lookup).toHaveBeenNthCalledWith(
-      1,
-      ["a", "b", "a", "c", "d"],
-      false,
-    );
-    expect(service.lookup).toHaveBeenNthCalledWith(2, ["e", "f"], false);
+    expect(service.lookup).toHaveBeenCalledTimes(ids.length);
+    for (const [index, id] of ids.entries())
+      expect(service.lookup).toHaveBeenNthCalledWith(
+        index + 1,
+        [id.trim()],
+        false,
+      );
   });
   it("uses one request per detailed input and validates locally without discarding good inputs", async () => {
     const service = createMockAdvisoryService();
@@ -88,7 +88,9 @@ describe("vulns command", () => {
     ambiguous.affectedPackages!.coverage.sourceStatus = "AMBIGUOUS";
     ambiguous.unknownDetails = [unknown("AMBIGUOUS_VULNERABILITY_ID")];
     const service = createMockAdvisoryService({
-      lookup: mock(async () => [found, absent, ambiguous]),
+      lookup: mock(async (ids: string[]) => [
+        { good: found, absent, ambiguous }[ids[0]!]!,
+      ]),
     });
     const result = await readAdvisoryReports(
       ["good", "absent", "ambiguous"],
@@ -158,12 +160,14 @@ describe("vulns command", () => {
     secondB.advisory = undefined;
     secondB.affectedPackages!.pageInfo.totalCount = 2;
     const lookup = mock(
-      async (_ids: string[], _detailed: boolean, after?: string) =>
+      async (ids: string[], _detailed: boolean, after?: string) =>
         after === "cursor-a"
           ? [secondA]
           : after === "cursor-b"
             ? [secondB]
-            : [firstA, firstB],
+            : ids[0] === "a"
+              ? [firstA]
+              : [firstB],
     );
     const result = await readAdvisoryReports(
       ["a", "b"],
@@ -171,7 +175,7 @@ describe("vulns command", () => {
       createMockAdvisoryService({ lookup }),
     );
     expect(lookup).toHaveBeenNthCalledWith(2, ["a"], false, "cursor-a");
-    expect(lookup).toHaveBeenNthCalledWith(3, ["b"], false, "cursor-b");
+    expect(lookup).toHaveBeenNthCalledWith(4, ["b"], false, "cursor-b");
     expect(result[0]?.lookup?.unknownDetails).toHaveLength(1);
     expect(
       result[0]?.lookup?.affectedPackages?.entries.map((x) => x.package.name),
@@ -269,11 +273,11 @@ describe("vulns command", () => {
     expect(result[5]?.error?.details?.notAttempted).toBe(true);
     expect(result[6]?.error?.code).toBe("VALIDATION_ERROR");
   });
-  it("preserves other initial batch evidence when continuation auth stops admission", async () => {
+  it("retains earlier input evidence and does not admit later inputs after continuation auth", async () => {
     const lookup = mock(
       async (_ids: string[], _full: boolean, after?: string) => {
         if (after) throw new AuthenticationError("Server rejected", "server");
-        return [nextPage(item("a")), nextPage(item("b"))];
+        return [nextPage(item("a"))];
       },
     );
     const result = await readAdvisoryReports(
@@ -282,21 +286,18 @@ describe("vulns command", () => {
       createMockAdvisoryService({ lookup }),
     );
     expect(lookup).toHaveBeenCalledTimes(2);
-    expect(
-      result.every(
-        (x) =>
-          x.status === "partial" &&
-          x.lookup?.affectedPackages?.entries.length === 1,
-      ),
-    ).toBe(true);
+    expect(result[0]?.status).toBe("partial");
+    expect(result[0]?.lookup?.affectedPackages?.entries).toHaveLength(1);
+    expect(result[1]?.status).toBe("error");
+    expect(result[1]?.lookup).toBeUndefined();
     expect(result[1]?.error?.details?.notAttempted).toBe(true);
   });
   it("help distinguishes source evidence, coverage and installed-version assessment", () => {
     const command = registerVulnsCommand(new Command());
     expect(command.description()).toContain("githits pkg vulns");
-    expect(command.description()).toContain("512 UTF-8 bytes");
-    expect(command.description()).toContain(
-      "including package-less Git ranges",
+    expect(command.description()).toContain("case-sensitive");
+    expect(command.description()).toMatch(
+      /including package-less Git\s+ranges/,
     );
     expect(command.options.map((x) => x.long)).toEqual(["--verbose", "--json"]);
   });
@@ -307,7 +308,7 @@ describe("vulns output boundary", () => {
   afterEach(() => {
     process.exitCode = originalExitCode ?? 0;
   });
-  it("JSON is lossless for the selected core evidence and stderr remains clean", async () => {
+  it("JSON projects actionable evidence and stderr remains clean", async () => {
     const log = spyOn(console, "log").mockImplementation(() => {});
     const stderr = spyOn(console, "error").mockImplementation(() => {});
     try {
@@ -320,8 +321,11 @@ describe("vulns output boundary", () => {
       expect(payload.results[0]).toMatchObject({
         inputId: " CVE-example ",
         status: "success",
-        lookup: defaultAdvisoryLookup,
-        packagePagination: { complete: true, pagesRead: 1 },
+        advisory: { id: "OSV-example" },
+        packages: [
+          { target: "npm:minimatch", evidence: [{ sourceIndexes: [0] }] },
+        ],
+        coverage: { complete: true },
       });
       expect(stderr).not.toHaveBeenCalled();
     } finally {
@@ -329,7 +333,7 @@ describe("vulns output boundary", () => {
       stderr.mockRestore();
     }
   });
-  it("partial results exit nonzero and JSON/verbose both select detailed reads", async () => {
+  it("partial results exit nonzero while JSON is compact and verbose selects detail", async () => {
     const log = spyOn(console, "log").mockImplementation(() => {});
     const write = spyOn(process.stdout, "write").mockImplementation(() => true);
     try {
@@ -349,7 +353,7 @@ describe("vulns output boundary", () => {
         { verbose: true },
         { advisoryService: service },
       );
-      expect(service.lookup).toHaveBeenNthCalledWith(1, ["CVE-example"], true);
+      expect(service.lookup).toHaveBeenNthCalledWith(1, ["CVE-example"], false);
       expect(service.lookup).toHaveBeenNthCalledWith(2, ["CVE-example"], true);
     } finally {
       log.mockRestore();

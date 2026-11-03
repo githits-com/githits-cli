@@ -1,263 +1,262 @@
 import {
-  type AdvisoryLookup,
-  type LookupPackage,
-  parsePkgseerRegistryArg,
-  toPkgseerRegistry,
-} from "@githits/core-internal";
-import {
   sanitizeTerminalText,
-  supportsVulnerabilitiesRegistry,
+  terminalWidth,
   wrapTerminalProse,
 } from "@githits/mcp/internal";
+import {
+  buildVulnsResponse,
+  type VulnsOriginalAffected,
+  type VulnsResult,
+  type VulnsSourceDetail,
+} from "./vulns-response.js";
 
-export interface VulnsError {
-  error: string;
-  code: string;
-  retryable: boolean;
-  details?: Record<string, unknown>;
-}
-export interface VulnsResult {
-  inputId: string;
-  status: "success" | "partial" | "error";
-  lookup?: AdvisoryLookup;
-  packagePagination?: { complete: boolean; pagesRead: number };
-  error?: VulnsError;
-}
+export type { VulnsError, VulnsResult } from "./vulns-response.js";
 
-/** Human presentation only: identities, ranges and evidence order are already backend-owned. */
+/** One projected contract for human text and JSON; source metadata is printed once. */
 export function formatVulns(
   results: VulnsResult[],
   options: { verbose?: boolean; width?: number } = {},
 ): string {
   const lines: string[] = [];
   const width = options.width && options.width > 0 ? options.width : 80;
-  const add = (line = ""): void => {
-    lines.push(...wrapTerminalProse(line, width));
+  const add = (line = "", continuationIndent?: string): void => {
+    const indent = continuationIndent ?? `${line.match(/^\s*/)?.[0] ?? ""}  `;
+    lines.push(...wrapTerminalProse(line, width, indent));
   };
-  for (const result of results) {
+  // Ranges are indivisible evidence items; never imply an open bound by splitting a span.
+  const addItems = (
+    prefix: string,
+    items: string[],
+    separator: string,
+  ): void => {
+    const indent = `${prefix.match(/^\s*/)?.[0] ?? ""}  `;
+    let line = sanitizeTerminalText(prefix);
+    let hasItem = false;
+    items.forEach((item, index) => {
+      const atom =
+        sanitizeTerminalText(item) +
+        (index < items.length - 1 ? separator : "");
+      const next = line + (hasItem ? " " : "") + atom;
+      if (terminalWidth(next) > width) {
+        lines.push(line.trimEnd());
+        line = indent + atom;
+      } else line = next;
+      hasItem = true;
+    });
+    lines.push(line.trimEnd());
+  };
+  const reports = buildVulnsResponse(results, options).results;
+  for (const report of reports) {
     if (lines.length) add();
-    const lookup = result.lookup;
-    const advisory = lookup?.advisory;
-    add(`${result.inputId.trim() || "(empty ID)"} | ${result.status}`);
-    const connection = lookup?.affectedPackages;
-    if (connection?.entries.length) {
-      for (const group of connection.entries) {
-        const pkg = group.package;
+    const advisory = report.advisory;
+    const input = report.inputId.trim() || "(empty ID)";
+    const id =
+      advisory && advisory.id !== input ? `${input} -> ${advisory.id}` : input;
+    const count = report.coverage
+      ? ` | ${report.coverage.returned} package${report.coverage.returned === 1 ? "" : "s"}`
+      : "";
+    add(
+      `${id}${report.status === "success" ? "" : ` | ${report.status}`}${count}${advisory?.withdrawnAt ? " [WITHDRAWN]" : ""}`,
+    );
+    if (advisory?.summary) add(advisory.summary);
+    for (const diagnostic of report.diagnostics ?? []) {
+      const location =
+        diagnostic.packageIndex !== undefined
+          ? ` (package ${diagnostic.packageIndex + 1})`
+          : "";
+      add(`  ${diagnostic.code}${location}: ${diagnostic.message}`);
+      if (diagnostic.candidateIds) {
         add(
-          `  ${pkg.registry ? pkg.registry.toLowerCase() : `${pkg.ecosystem ?? "unknown ecosystem"} (unmapped registry)`}:${pkg.name}`,
+          `  Candidates${diagnostic.candidateIdsTruncated ? " (more omitted)" : ""}: ${diagnostic.candidateIds.join(", ") || "none supplied"}`,
         );
-        if (group.sourceEvidence)
-          renderEvidence(
-            group.sourceEvidence,
-            "live source",
-            add,
-            options.verbose,
-          );
-        for (const local of group.advisories) {
-          renderEvidence(local, "local corpus", add, options.verbose);
-          if (local.summary) add(`      ${local.summary}`);
-          if (local.severityScore !== null)
-            add(
-              `      Severity evidence: ${local.severityScore} (${local.severityType ?? "unknown type"}${local.severityType === "SEVERITY_LABEL" ? "; label approximation, not calculated CVSS" : ""})`,
-            );
-          if (options.verbose) {
-            if (local.aliases?.length)
-              add(`      Aliases: ${local.aliases.join(", ")}`);
-            if (local.isMalicious !== null && local.isMalicious !== undefined)
-              add(`      Malicious source marker: ${local.isMalicious}`);
-            if (local.registry !== undefined)
-              add(
-                `      Source package: ${local.registry ?? "unknown registry"}:${local.packageName ?? "unknown name"}`,
-              );
-          }
-        }
-        if (options.verbose && group.sourceEvidence)
-          renderAffected(group.sourceEvidence.affected ?? [], add, "      ");
-        const registry = pkg.registry
-          ? parsePkgseerRegistryArg(pkg.registry)
-          : undefined;
-        if (
-          registry &&
-          supportsVulnerabilitiesRegistry(toPkgseerRegistry(registry))
-        ) {
-          add("    Assess installed version:");
-          lines.push(
-            sanitizeTerminalText(
-              `      githits pkg vulns ${shellArg(`${registry}:${pkg.name}@<installed-version>`)}`,
+        if (diagnostic.candidateIds.length)
+          add("  Choose an ID: githits vulns <candidate-id>");
+      }
+      if (diagnostic.action && !diagnostic.message.includes(diagnostic.action))
+        add(`  ${diagnostic.action}`);
+      if (diagnostic.hint && !diagnostic.message.includes(diagnostic.hint))
+        add(`  ${diagnostic.hint}`);
+      if (diagnostic.retryable && !/try again|retry/i.test(diagnostic.message))
+        add(
+          diagnostic.retryAfterSeconds !== undefined
+            ? `  Retry in ${Math.ceil(diagnostic.retryAfterSeconds)} seconds.`
+            : "  Retry this lookup.",
+        );
+      if (diagnostic.notAttempted)
+        add("  Not attempted after an earlier access failure.");
+    }
+    if (advisory) {
+      add(advisory.url);
+      if (advisory.withdrawnAt) add(`Withdrawn: ${advisory.withdrawnAt}`);
+    }
+    for (const pkg of report.packages ?? []) {
+      add();
+      add(
+        `  ${pkg.target ?? `${pkg.ecosystem ?? pkg.registry ?? "unknown ecosystem"}:${pkg.name}`} ${pkg.assessment === "unsupported_registry" && !pkg.target ? "(unmapped registry)" : ""}`.trimEnd(),
+      );
+      if (pkg.url) add(`  ${pkg.url}`);
+      for (const evidence of pkg.evidence) {
+        const refs = evidence.sourceIndexes
+          .map(
+            (index) =>
+              `${index + 1}${report.sources?.[index]?.withdrawnAt ? " WITHDRAWN" : ""}${report.sources?.[index]?.malicious ? " MALICIOUS" : ""}`,
+          )
+          .join(", ");
+        const ranges = evidence.affected ?? evidence.affectedDisplay?.ranges;
+        const affected =
+          evidence.affected === null ? "unknown" : "none reported";
+        if (ranges?.length)
+          addItems(
+            `    Affected [${refs}]: `,
+            ranges.map((range) =>
+              range.startsWith("osv-invalid:")
+                ? "(unevaluable source range)"
+                : range,
             ),
+            ";",
           );
+        else add(`    Affected [${refs}]: ${affected}`);
+        if (evidence.affectedTruncated)
+          add(
+            `    Showing ${evidence.affected?.length} of ${evidence.affectedTotal} spans; ${options.verbose ? "raw evidence follows." : "add --verbose for raw evidence."}`,
+          );
+        if (evidence.affectedDisplay?.truncated)
+          add(
+            `    Display: ${evidence.affectedDisplay.ranges.length} of ${evidence.affectedDisplay.totalCount} spans; truncated display-only evidence.`,
+          );
+        if (evidence.fixed?.length)
+          addItems("    Source fixes: ", evidence.fixed, ",");
+        else
+          add(
+            `    Source fixes: ${evidence.fixed === null ? "unknown" : "none reported"}`,
+          );
+        for (const detail of evidence.details ?? []) {
+          add(`    Original package evidence [${detail.sourceIndex + 1}]:`);
+          if (detail.reportedPackage)
+            add(
+              `      Source package: ${detail.reportedPackage.registry ?? "unknown registry"}:${detail.reportedPackage.name ?? "unknown name"}`,
+            );
+          if (detail.rawAffected?.length)
+            addItems("      Raw affected: ", detail.rawAffected, ";");
+          else if (detail.rawAffected !== undefined)
+            add(
+              `      Raw affected: ${detail.rawAffected === null ? "unknown" : "none reported"}`,
+            );
+          renderDetail(detail, add, "      ");
         }
       }
-    } else
-      add(
-        connection
-          ? "  No named package mappings in the available evidence. This does not establish non-affectedness. Use --verbose for original source/Git evidence."
-          : "  Package mappings unavailable; inspect diagnostics.",
-      );
-    if (connection) {
-      add(
-        `  Coverage: live source ${connection.coverage.sourceStatus}; local corpus ${connection.coverage.localStatus}`,
-      );
-      add(
-        `  Packages: ${connection.entries.length} of ${connection.pageInfo.totalCount}; ${result.packagePagination?.complete ? "all available pages read" : "INCOMPLETE pagination"}`,
-      );
     }
-    if (advisory && lookup) {
+    if (report.coverage && !report.packages?.length && advisory)
       add(
-        `  Source advisory: ${advisory.osvId}${advisory.withdrawnAt !== null ? " [WITHDRAWN]" : ""}`,
+        "  No named package mappings; source evidence may identify repository versions.",
       );
-      if (lookup.requestedId !== advisory.osvId)
-        add(`    Requested: ${lookup.requestedId}; served: ${advisory.osvId}`);
-      if (advisory.summary) add(`    ${advisory.summary}`);
-      add(`    ${advisory.sourceUrl}`);
-      if (advisory.withdrawnAt !== null)
-        add(`    Withdrawn: ${advisory.withdrawnAt}`);
-      if (options.verbose) {
-        if (advisory.aliases?.length)
-          add(`    Aliases: ${advisory.aliases.join(", ")}`);
-        if (advisory.publishedAt !== undefined)
-          add(`    Published: ${advisory.publishedAt ?? "unknown"}`);
-        add(`    Source revision: ${advisory.modifiedAt ?? "unknown"}`);
-        if (!advisory.severity?.length) add("    Source severity: unknown");
-        for (const severity of advisory.severity ?? [])
-          add(
-            `    Source severity: ${severity.type} ${severity.score}${severity.source ? ` (${severity.source})` : ""}`,
-          );
-        if (advisory.details) {
-          add("    Source explanation:");
-          for (const line of advisory.details.split("\n"))
-            add(line.trim() ? `      ${line}` : "");
-        }
-        renderAffected(advisory.affected ?? [], add, "    ");
-        for (const reference of advisory.references ?? [])
-          add(
-            `    Reference ${reference.type}: ${reference.url || "URL unavailable"}`,
-          );
-        safety(advisory.contentSafety, add, "    ");
-      } else
+    if (report.sources?.length) {
+      add();
+      add("Sources:");
+      report.sources.forEach((source, index) => {
+        const severity = source.severity
+          ? source.severity.type === "SEVERITY_LABEL"
+            ? `${source.severity.score} (label approximation, not calculated CVSS)`
+            : `${source.severity.score}${source.severity.type ? ` (${source.severity.type.replace("CVSS_V", "CVSS v")})` : " (unknown severity type)"}`
+          : undefined;
         add(
-          "    Original source ranges, Git evidence, vectors and references: use --verbose or --json.",
+          `  [${index + 1}] ${source.id ?? "ID unavailable"} | ${source.origin === "live" ? "live source" : "local corpus"}${severity ? ` | ${severity}` : ""}${source.malicious ? " [MALICIOUS]" : ""}${source.withdrawnAt ? " [WITHDRAWN]" : ""}`,
+        );
+        if (source.summary) add(`    ${source.summary}`);
+        if (source.url !== advisory?.url) add(`    ${source.url}`);
+        if (source.withdrawnAt && source.withdrawnAt !== advisory?.withdrawnAt)
+          add(`    Withdrawn: ${source.withdrawnAt}`);
+        if (options.verbose) renderDetail(source, add, "    ");
+      });
+    }
+    if (advisory && options.verbose) {
+      add();
+      add("Original source:");
+      if (advisory.explanation)
+        for (const line of advisory.explanation.split("\n"))
+          add(line.trim() ? `  ${line}` : "");
+      for (const severity of advisory.severity ?? [])
+        add(
+          `  Severity: ${severity.type} ${severity.score}${severity.source ? ` (${severity.source})` : ""}`,
+        );
+      renderDetail(advisory, add, "  ");
+      for (const reference of advisory.references ?? [])
+        add(
+          `  Reference ${reference.type}: ${reference.url || "URL unavailable"}`,
         );
     }
-    for (const detail of lookup?.unknownDetails ?? []) {
+    if (report.coverage) {
+      const coverage = report.coverage;
+      add();
       add(
-        `  Unknown ${detail.section} [${detail.code}; retryable=${detail.retryable}]: ${detail.message}`,
-      );
-      if (detail.candidateIds !== null)
-        add(
-          `    Candidates${detail.candidateIdsTruncated ? " (truncated)" : ""}: ${detail.candidateIds.join(", ") || "none supplied"}`,
-        );
-      if (detail.path) add(`    Field: ${detail.path.join(".")}`);
-    }
-    if (
-      result.error &&
-      !lookup?.unknownDetails.some(
-        (detail) =>
-          detail.code === result.error?.code &&
-          detail.message === result.error?.error,
-      )
-    ) {
-      add(
-        `  Error [${result.error.code}; retryable=${result.error.retryable}]: ${result.error.error}`,
+        `Evidence: live source ${status(coverage.live)}; local corpus ${status(coverage.local)}. Packages: ${coverage.returned}/${coverage.total}${coverage.complete ? "." : " (INCOMPLETE)."}`,
       );
     }
-    if (result.error?.code === "NOT_FOUND" && !connection?.entries.length)
-      add(
-        "  For package/version assessment, use githits pkg vulns <registry>:<name>@<installed-version>.",
-      );
-    if (result.error?.details?.notAttempted)
-      add(
-        lookup
-          ? "  Remaining package pages not read after an earlier access failure."
-          : "  Not attempted after an earlier access failure.",
-      );
   }
-  add();
-  add(
-    "Source-reported fixes are evidence, not verified safe upgrades. Missing evidence does not establish safety.",
-  );
+  const packages = reports.flatMap((report) => report.packages ?? []);
+  if (packages.some((pkg) => pkg.target && !pkg.assessment)) {
+    add();
+    add(
+      "Assess an installed version: githits pkg vulns '<target>@<installed-version>'",
+    );
+  }
+  if (packages.some((pkg) => pkg.target?.startsWith("go:")))
+    add(
+      "Go entries may identify import paths or the standard library; use their links to identify the module or Go release.",
+    );
+  if (reports.some((report) => report.advisory)) {
+    if (!options.verbose) add("Original source detail: add --verbose.");
+  }
+  if (packages.length || reports.some((report) => report.advisory)) {
+    add(
+      "Source fixes are unverified; missing evidence does not establish safety.",
+    );
+  }
   return `${lines.map(sanitizeTerminalText).join("\n")}\n`;
 }
 
-function renderEvidence(
-  evidence:
-    | NonNullable<LookupPackage["sourceEvidence"]>
-    | LookupPackage["advisories"][number],
-  origin: string,
+function status(value: string): string {
+  return value.toLowerCase().replaceAll("_", " ");
+}
+function renderDetail(
+  detail: VulnsSourceDetail,
   add: (line?: string) => void,
-  verbose?: boolean,
+  indent: string,
 ): void {
-  add(
-    `    ${evidence.osvId ?? "unknown advisory ID"} [${origin}]${evidence.withdrawnAt !== null ? " [WITHDRAWN]" : ""}`,
-  );
-  const display = evidence.affectedVersionDisplay;
-  add(
-    `      Affected: ${display ? display.ranges.join("; ") || "no displayable ranges; affectedness unknown" : evidence.affectedVersionRanges?.join("; ") || "unknown"}`,
-  );
-  if (display?.truncated)
+  if (detail.aliases?.length)
+    add(`${indent}Aliases: ${detail.aliases.join(", ")}`);
+  if (detail.publishedAt) add(`${indent}Published: ${detail.publishedAt}`);
+  if (detail.modifiedAt) add(`${indent}Revision: ${detail.modifiedAt}`);
+  for (const entry of detail.originalAffected ?? [])
+    renderAffected(entry, add, indent);
+  if (detail.normalization)
     add(
-      `      Display truncated: ${display.ranges.length} of ${display.totalCount} spans. Use --verbose/--json for raw range evidence.`,
+      `${indent}Content normalization: ${detail.normalization.filtered ? "modified" : "unchanged"}${detail.normalization.modifications.length ? ` (${detail.normalization.modifications.join(", ")})` : ""}`,
     );
-  add(
-    `      Source fixes: ${evidence.fixedInVersions?.join(", ") || "unknown"}`,
-  );
-  add(`      ${evidence.sourceUrl}`);
-  if (evidence.withdrawnAt !== null)
-    add(`      Withdrawn: ${evidence.withdrawnAt}`);
-  if (evidence.modifiedAt !== undefined)
-    add(`      Revision: ${evidence.modifiedAt ?? "unknown"}`);
-  if (verbose) {
-    add(
-      `      Raw affected evidence: ${evidence.affectedVersionRanges?.join("; ") || "unknown"}`,
-    );
-    if ("publishedAt" in evidence)
-      add(`      Published: ${evidence.publishedAt ?? "unknown"}`);
-    safety(evidence.contentSafety, add, "      ");
-  }
 }
 function renderAffected(
-  entries: NonNullable<NonNullable<AdvisoryLookup["advisory"]>["affected"]>,
+  entry: VulnsOriginalAffected,
   add: (line?: string) => void,
   indent: string,
 ): void {
-  if (!entries.length) add(`${indent}Original affected evidence: unknown`);
-  for (const entry of entries) {
+  add(
+    `${indent}Original affected: ${entry.package ? `${entry.package.ecosystem}:${entry.package.name}` : "package-less repository/commit evidence"}`,
+  );
+  if (entry.package?.purl) add(`${indent}  Purl: ${entry.package.purl}`);
+  for (const severity of entry.severity ?? [])
     add(
-      `${indent}Original affected: ${entry.package ? `${entry.package.ecosystem}:${entry.package.name}` : "package-less repository/commit evidence"}`,
+      `${indent}  Entry severity: ${severity.type} ${severity.score}${severity.source ? ` (${severity.source})` : ""}`,
     );
-    if (entry.package?.purl) add(`${indent}  Purl: ${entry.package.purl}`);
-    for (const severity of entry.severity)
-      add(
-        `${indent}  Entry severity: ${severity.type} ${severity.score}${severity.source ? ` (${severity.source})` : ""}`,
-      );
-    if (entry.versions.length)
-      add(
-        `${indent}  Explicit affected versions: ${entry.versions.join(", ")}`,
-      );
-    for (const range of entry.ranges) {
-      add(`${indent}  ${range.type}${range.repo ? ` ${range.repo}` : ""}`);
-      for (const event of range.events) {
-        for (const [key, value] of Object.entries(event))
-          if (value !== null)
-            add(
-              `${indent}    ${key}: ${value}${key === "fixed" ? " (source fix event)" : key === "limit" || key === "lastAffected" ? " (boundary, not a fix)" : ""}`,
-            );
-      }
-    }
-    if (!entry.ranges.length && !entry.versions.length)
-      add(`${indent}  Affected versions/ranges: unknown`);
+  if (entry.versions?.length)
+    add(`${indent}  Explicit affected versions: ${entry.versions.join(", ")}`);
+  for (const range of entry.ranges ?? []) {
+    add(`${indent}  ${range.type}${range.repo ? ` ${range.repo}` : ""}`);
+    for (const event of range.events)
+      for (const [key, value] of Object.entries(event))
+        add(
+          `${indent}    ${key}: ${value}${key === "fixed" ? " (source fix event)" : key === "limit" || key === "lastAffected" ? " (boundary, not a fix)" : ""}`,
+        );
   }
-}
-function safety(
-  report: { filtered: boolean; modifications: string[] } | undefined,
-  add: (line?: string) => void,
-  indent: string,
-): void {
-  if (report)
-    add(
-      `${indent}Content normalization: ${report.filtered ? "modified" : "unchanged"}${report.modifications.length ? ` (${report.modifications.join(", ")})` : ""}; may include unselected fields.`,
-    );
-}
-function shellArg(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
+  if (!entry.ranges?.length && !entry.versions?.length)
+    add(`${indent}  Affected versions/ranges: unknown`);
 }

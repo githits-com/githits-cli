@@ -71,7 +71,7 @@ const display = z
 const source = z.object({
   osvId: z.string(),
   sourceUrl: z.string(),
-  modifiedAt: z.string(),
+  modifiedAt: z.string().optional(),
   withdrawnAt: z.string().nullable(),
   affectedVersionRanges: strings.nullable(),
   fixedInVersions: strings,
@@ -155,7 +155,7 @@ const detailedLookupSchema = lookupSchema.extend({
       entries: z.array(
         group.extend({
           sourceEvidence: source
-            .required({ affected: true, contentSafety: true })
+            .required({ affected: true, contentSafety: true, modifiedAt: true })
             .nullable(),
           advisories: z.array(
             local.required({
@@ -270,7 +270,7 @@ export interface LookupUnknown {
 export interface LookupSourceEvidence {
   osvId: string;
   sourceUrl: string;
-  modifiedAt: string;
+  modifiedAt?: string;
   withdrawnAt: string | null;
   affectedVersionRanges: string[] | null;
   fixedInVersions: string[];
