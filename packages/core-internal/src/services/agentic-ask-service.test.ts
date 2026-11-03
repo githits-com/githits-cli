@@ -804,7 +804,8 @@ describe("AgenticAskServiceImpl", () => {
       .catch((error: unknown) => error);
     expect(timeoutError).toBeInstanceOf(AgenticAskRequestTimeoutError);
     expect(timeoutError).toMatchObject({
-      message: "Research timed out. Try again.",
+      message:
+        "Research timed out. Reuse existing results or a direct lookup where sufficient; retry only if still needed and the caller allows enough execution time.",
     });
     expect(capturedSignal?.aborted).toBe(true);
   });

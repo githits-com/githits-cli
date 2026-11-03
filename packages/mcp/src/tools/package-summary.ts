@@ -47,18 +47,18 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text. JSON includes `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON adds versionCount, downloads.refreshedAt, advisoryHistory.total.",
     ),
 };
 
 export const DESCRIPTION_BASE: string =
   "Assess latest package health and adoption: license, downloads, and activity. Provide " +
-  "an unpinned package target; this tool always returns latest. " +
-  "Default text returns license, description, repository popularity " +
+  "an unpinned package target; this tool always returns latest known metadata. " +
+  "Registry and source Git repository URLs, when reported, do not establish binary provenance or current availability. Default text returns these URLs, license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
   "publish age, latest affected count, and separate package-wide advisory " +
   "history count. Historical counts are not current-version risk. " +
-  "Use `verbose: true` for additional health and history details.";
+  "Use `verbose: true` for additional health and history details. Use metadata directly; missing fields are unknown. Latest and retrieval time do not prove registry freshness or historical release facts.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_INFO_GUARDRAIL}`;
 

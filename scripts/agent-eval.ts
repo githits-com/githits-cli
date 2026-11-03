@@ -902,6 +902,17 @@ function writeGitHitsShim(
         ? `bun run --cwd "${targetRoot}" dev %*`
         : `npx -y "${options.publishedPackage}" %*`;
     writeFileSync(shimPath, `@echo off\r\n${command}\r\n`);
+    const psQuote = (value: string): string =>
+      `'${value.replace(/['\u2018-\u201b]/g, "$&$&")}'`;
+    const psLauncher = options.server === "local" ? "bun" : "npx";
+    const psCommand =
+      options.server === "local"
+        ? `& bun run --cwd ${psQuote(targetRoot)} dev @args`
+        : `& npx -y ${psQuote(options.publishedPackage)} @args`;
+    writeFileSync(
+      join(binDir, "githits.ps1"),
+      `\uFEFFif (-not (Get-Command ${psLauncher} -ErrorAction SilentlyContinue)) { exit 127 }\r\n${psCommand}\r\nexit $LASTEXITCODE\r\n`,
+    );
     return shimPath;
   }
   const command =
@@ -979,6 +990,12 @@ function planSkillsWorkspace(
   if (cliShim) {
     assertDirectoryOrAbsent(dirname(cliShim), "CLI shim directory");
     assertMissing(cliShim, "existing GitHits CLI shim");
+    if (process.platform === "win32") {
+      assertMissing(
+        join(dirname(cliShim), "githits.ps1"),
+        "existing GitHits CLI shim",
+      );
+    }
   }
   return {
     sourceDir,
@@ -1698,6 +1715,10 @@ function commandPartsAfterGitHits(command: string): string[] | undefined {
   const normalized = stripShellQuoting(command).replace(/\s+/g, " ").trim();
   const githits = normalized.match(/(?:^|\s)githits\s+(.+)$/);
   if (githits?.[1]) return githits[1].split(" ");
+  const windowsLauncher = normalized.match(
+    /(?:^|\s|[/\\])githits\.(?:[cC][mM][dD]|[pP][sS]1|[eE][xX][eE])\s+(.+)$/,
+  );
+  if (windowsLauncher?.[1]) return windowsLauncher[1].split(" ");
   const npx = normalized.match(/(?:^|\s)npx\s+-y\s+githits(?:@\S+)?\s+(.+)$/);
   if (npx?.[1]) return npx[1].split(" ");
   const bunDev = normalized.match(/(?:^|\s)bun\s+run\s+.*\s+dev\s+(.+)$/);
@@ -1716,7 +1737,7 @@ function cliToolNameFromCommand(command: string): string | undefined {
   if (first === "search") return "search";
   if (first === "search-status") return "search_status";
   if (first === "resolve") return "resolve_target";
-  if (first === "list" || first === "read") return first;
+  if (["list", "read", "grep", "research"].includes(first)) return first;
   if (first === "code" && second) return `code_${second.replace(/-/g, "_")}`;
   if (first === "docs" && second) return `docs_${second.replace(/-/g, "_")}`;
   if (first === "pkg" && second) return `pkg_${second.replace(/-/g, "_")}`;

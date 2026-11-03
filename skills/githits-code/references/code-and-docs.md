@@ -1,6 +1,6 @@
 # GitHits Code And Docs CLI Reference
 
-Package target syntax requires an explicit registry: `registry:name@version`, for example `npm:express@5.2.1`; omit `@version` for the latest release. `cargo:` is accepted as an alias for `crates:`. Package targets scope to the package subpath, including within monorepos. Swift package targets use `swift:github.com/<owner>/<repo>` and Zig package targets use `zig:gh/<owner>/<repo>`. Use public repository targets for full repositories or sibling packages. Repository compact targets use `github:org/repo@ref`, `codeberg:owner/repo@ref`, `gitlab:group/subgroup/project@ref`, `github.com/org/repo@ref`, or `https://github.com/org/repo@ref`; omit `@ref` for the backend default branch. Exact standalone documentation sites use `site:<host[/path]>`. Output uses canonical `provider:path@ref` formatting so refs can contain `@` safely. `code` commands also support `--repo-url <url>` with optional `--git-ref <ref>`.
+Package target syntax requires an explicit registry: `registry:name@version`, for example `npm:express@5.2.1`; omit `@version` for the latest release. `cargo:` is accepted as an alias for `crates:`. Package targets scope to the package subpath, including within monorepos. Swift package targets use `swift:github.com/<owner>/<repo>` and Zig package targets use `zig:gh/<owner>/<repo>`. Use public repository targets for full repositories or sibling packages. Repository compact targets use `github:org/repo@ref`, `codeberg:owner/repo@ref`, `gitlab:group/subgroup/project@ref`, `github.com/org/repo@ref`, or `https://github.com/org/repo@ref`; omit `@ref` for the backend default branch. Exact standalone documentation sites use `site:<host[/path]>`. Replay the returned `target` unchanged; `canonicalKey` identifies a candidate and may not be a usable address. `code` commands also support `--repo-url <url>` with optional `--git-ref <ref>`.
 
 ## Launchpad Git
 
@@ -20,8 +20,7 @@ Append `@ref` to select a branch, tag or commit. HTTPS URLs on
 `code.launchpad.net` and `git.launchpad.net` accept the same paths. Git transport
 on `git.launchpad.net` accepts complete owner-qualified paths only. Bazaar is
 unsupported. Mutable defaults resolve through the backend; the CLI does not
-look up or guess owners. Reuse returned canonical `launchpad:` identities,
-commit refs, paths and read actions unchanged.
+look up or guess owners. Reuse returned targets, commit refs, paths and read actions unchanged.
 
 ```bash
 githits list lp:beautifulsoup
@@ -34,7 +33,7 @@ return an empty inventory. Do not infer compatibility from either outcome.
 
 ## Googlesource HTTPS targets
 
-Use full HTTPS project URLs, such as `https://go.googlesource.com/time@v0.16.0`; there is no `googlesource:` shorthand. All explicit ports, including `:443`, are rejected. Hosts normalize to lowercase while project paths preserve case; one terminal `.git` and trailing slash are removed. Public `-review` hosts retain their own identity and are never rewritten to another host. Append `@ref` for branches, tags or commits and reuse emitted HTTPS targets and exact commit pointers unchanged. Gitiles web routes, queries, fragments and non-HTTPS transports are unsupported.
+Use full HTTPS project URLs, such as `https://go.googlesource.com/time@v0.16.0`; there is no `googlesource:` shorthand. All explicit ports, including `:443`, are rejected. Hosts normalize to lowercase while project paths preserve case; one terminal `.git` and trailing slash are removed. Public `-review` hosts retain their own identity and are never rewritten to another host. Append `@ref` for branches, tags or commits and reuse emitted HTTPS targets and exact commit pointers unchanged. Gitiles web routes, queries, fragments and non-HTTPS transports are unsupported. Replay the returned target, not `canonicalKey`; use `--selector` for symbols.
 
 ## Source Diff
 
@@ -49,7 +48,8 @@ Default output is a bounded patch. Choose exactly one of `--patch`, `--stat`,
 `--name-only`, or `--name-status`. Pass one optional repository-relative glob
 after `--`, for example `-- 'packages/router/**'`, when the relevant path is
 known. Globs support `*`, `?`, and whole-component `**`, without brace
-expansion, character classes, or Git pathspec magic.
+expansion, character classes, or Git pathspec magic. For several diff paths,
+use one shared glob or separate calls.
 
 `--max-files` accepts 1-300 for every view; `--max-patch-bytes` accepts
 1024-2097152 for patch output only. `--verbose` adds identity and scope
@@ -100,7 +100,7 @@ If a missing or ambiguous site returns suggested site targets, retry one of thos
 
 Useful flags: repeatable `--file-type`, `--language`, `--intent`, `--limit` (1-500), `--after`, `--wait` (milliseconds, 0-300000; default 30000), `--silent`, `--json`. Text lists paths with direct read guidance; `--silent` emits paths only. JSON retains read/browse actions, lifecycle metadata, and `nextCursor`. Continue by replaying the same selection with the returned opaque cursor. Prefer exact emitted read actions to reconstructed locators.
 
-`--file-type` selects classifications such as `source` or `doc`; select file extensions with a quoted path glob such as `'lib/**/*.js'`. File-type and language names are case-insensitive, so `--language JavaScript` and `--language javascript` select the same source language.
+`--file-type` selects classifications such as `source` or `doc`, never language names; use `--language javascript` for JavaScript; select file extensions with a quoted path glob such as `'lib/**/*.js'`. File-type and language names are case-insensitive, so `--language JavaScript` and `--language javascript` select the same source language.
 
 Site list paths resolve within the required `site:<host[/scope]>` target. One leading `/` is accepted and stays within that scope; `/` alone selects its root. Omitted or empty list paths also select the root. In text output, a site path without a trailing `/` is a page even when its source URL ended in `/`; directory paths retain their trailing `/`. Literal paths and quoted globs operate only under the supplied target.
 
@@ -126,7 +126,7 @@ Useful filters: `--path`, repeatable `--glob`, repeatable `--ext`, repeatable `-
 
 `githits read <target> <path>` reads one exact target-relative file. Use `--lines 10-80`, `--start`, or `--end` for focused windows. You can also append a range to the path: `src/index.js:10-80`. `githits code read` remains a compatibility alias.
 
-`githits read '<target>#<symbol>'` or `githits read <target> --selector <name>` reads a known indexed code symbol; add an exact `<path>` to narrow resolution to one file. The backend decides whether a repository fragment identifies a code symbol or a documentation heading. Ambiguous, missing, or unsupported snapshots return recovery guidance. For repository addressing, prefer a compact repository target; `githits read --repo-url <url> [--git-ref <ref>] <path>` remains a compatibility path.
+`githits read '<target>#<symbol>'` or `githits read <target> --selector <name>` reads a known indexed code symbol; add an exact `<path>` to narrow resolution to one file. Use `--selector` for HTTPS repository symbols; a URL fragment without a selector or path selects docs. The backend decides whether a compact repository fragment identifies a code symbol or a documentation heading. Ambiguous, missing, or unsupported snapshots return recovery guidance. For repository addressing, prefer a compact repository target; `githits read --repo-url <url> [--git-ref <ref>] <path>` remains a compatibility path.
 
 ## Grep
 
@@ -134,15 +134,14 @@ Useful filters: `--path`, repeatable `--glob`, repeatable `--ext`, repeatable `-
 package, repository, and `site:` targets. Defaults: RE2 regex, case-sensitive,
 zero context, all indexed repository files, and 100 occurrences per page.
 Use `-F` for literal text, `-i` to ignore case, and `-A`/`-B`/`-C` for up to
-10 context lines. RE2 has no lookaround or backreferences; multi-file regex
-needs a literal anchor.
+10 context lines. RE2 has no lookaround or backreferences. Content-index regex needs literal text; a single exact-file route accepts anchorless regex. A path selector alone does not guarantee that route.
 
 Scope repository files with repeatable `--path`, `--path-prefix`, or quoted
 `--glob` selectors (OR), and `--corpus source|documentation|all`. These filters
 do not restrict package-selected hosted docs. File/page headers are read
 locators; copy the target and optional path and use `read --lines` for more
 context. Counts describe the returned page. Continue only when needed with
-`--cursor` and the same ordered targets, pattern, and matching controls.
+`--cursor` and the same ordered targets, pattern/type, filters, case mode, context counts, and match limit. To change them, omit the cursor and start a new request.
 `--limit` is a global page cap (1-1000), and `--wait` is a first-page
 preparation wait in milliseconds (0-300000; default 30000). Cursor
 continuation never waits; explicit `--wait 0` skips first-page preparation.
@@ -190,3 +189,37 @@ MCP tool with its own schema and documented capabilities.
 Direct repository targets accept approved full HTTPS URLs on github.com, codeberg.org, gitlab.com, code.launchpad.net, git.launchpad.net, and public *.googlesource.com hosts. Codeberg requires exactly owner/repo; GitLab allows nested namespaces. Only GitHub supports host shorthand and HTTP compatibility. Never infer a provider from bare owner/repo. Repository refs use an @ suffix and may themselves contain / and @; # is reserved for semantic fragments. Empty refs and mixed suffixes are invalid. Credentials, queries, provider web subpaths, and unsupported/self-hosted hosts are rejected. Package targets keep registry-native coordinates, including `zig:cb/owner/repo` and `swift:gitlab.com/group/project`.
 
 GitLab web paths with `/-/` or reserved routes such as `tree`, `blob`, and `raw` are rejected. Unreserved names such as `issues` can be repository path components; without a web-route marker, the client treats the complete nested path as repository identity.
+
+## Direct navigation
+
+For line reads, omit `--lines` unless the range is known for that exact file and version. Never borrow another file's line numbers.
+
+### read
+
+Read known symbols directly with `--selector`. Include only a known declaration file. Follow helpers/re-exports when their behavior matters; reuse definitions. After failed resolution, read a returned range or literal-grep the exact identifier. Bounds do not disambiguate symbols.
+
+Use `--lines N` for one line or `N-M` for a range. Cover the needed declaration/section rather than repeatedly extending small windows. Hosted docs are mutable; repository docs address snapshots. Preserve docs locators; explicit bounds override heading selection. Use list for directories.
+
+### search
+
+Discover unknown code/docs locations. Read known symbols directly. Keep queries focused on missing information, without redundant target/version terms. Use sufficient results directly; read omitted deciding code before relying on it. Follow returned read actions. Use active `search-status` continuations only when remaining results matter; do not repeat search to poll.
+
+### grep
+
+Use `-F` for exact identifiers/text. Defaults are RE2 regex, case-sensitive, zero context. Alternation is `|`; `\|` matches a pipe. Lookaround/backreferences are unsupported. Content-index regex needs literal text; a single exact-file route accepts anchorless regex. A path selector alone does not guarantee that route.
+
+Use `githits read <target> --selector <name>` for known definitions; grep for occurrences or unresolved definitions. Pass paths with `--path-prefix`; extra positional operands are targets. Context flags accept nonnegative safe integers; values above 10 are capped per side. Use read for larger sections. `--limit` is a global page cap. Use `--` before leading-dash patterns.
+
+### list
+
+Browse names and structure. Skip listing when a usable path/symbol is known. Restrict recursion and pagination to needed paths. Reuse returned target-relative locations.
+
+### resolve
+
+Resolve unclear names; use canonical targets directly. Narrow with known `--registry`, `--query`, `--prefer-kind`, or `--intent-hint`. Do not send private project details. Follow returned confidence, malicious-content, and ambiguity rules; never choose by popularity alone.
+
+### research
+
+Ask a focused question about missing information. Sources are included. Use direct reads/package commands when sufficient. Supply a package/repository target or omit it for identification; docs sites are unsupported.
+
+Reuse `--thread` and state scope changes. Cite returned sources; open them for missing details, contradictions, or required source inspection. Respect retry delays and daily resets. After failure, use a direct lookup for a specific gap.

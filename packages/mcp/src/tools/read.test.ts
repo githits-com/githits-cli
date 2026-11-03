@@ -146,11 +146,20 @@ describe("unified read contract", () => {
     expect(schema.properties?.target).toMatchObject({ type: "string" });
     expect(schema.properties?.path).toMatchObject({
       description: expect.stringContaining(
-        "relative to the supplied site: target; do not repeat its scope",
+        "target-relative file or site-page path from supplied or returned locators; do not repeat site scope",
       ),
     });
     expect(tool.schema.path?.description).toContain(
-      "from search, list, or grep",
+      "supplied or returned locators",
+    );
+    expect(tool.schema.path?.description).toContain(
+      "unless the declaration file is known, not its caller",
+    );
+    expect(tool.schema.selector?.description).toContain(
+      "Do not guess qualifications",
+    );
+    expect(tool.schema.selector?.description).toContain(
+      "Otherwise omit; never empty",
     );
     expect(schema.required).toEqual(["target"]);
     expect(tool.annotations).toEqual({

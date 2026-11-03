@@ -147,7 +147,7 @@ to included). --from/--to remain package range flags. --limit changes
 latest-mode entry count (1-50). --changes actionable|important|all limits
 statements; all is the default. --verbatim shows full original notes instead;
 --verbose is a deprecated alias. --no-body shows a version/date/URL timeline.
-JSON includes full statement evidence; --verbatim --json includes original bodies.
+JSON includes statement text and source provenance; --verbatim --json includes original bodies.
 
 Package spec: <registry>:<name>[@<version> | @<from>..<to>]. Package-only;
 repository and site targets are rejected. Supported registries:

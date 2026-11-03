@@ -32,9 +32,7 @@ const schema: ZodRawShape = {
   search_ref: z
     .string()
     .min(1)
-    .describe(
-      "The `searchRef` field from a prior `search` response (camelCase in the response, snake_case as this parameter). Pass it through unchanged.",
-    ),
+    .describe("searchRef from the prior search response, unchanged."),
   wait_timeout_ms: z.coerce
     .number()
     .int()
@@ -48,13 +46,12 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field.",
     ),
 };
 
 const DESCRIPTION =
-  "Continue an explicit search reference for progress and results. Call this only after a prior `search` response explicitly supplies both a `searchRef` and a `search_status` action; otherwise the initial result is complete or has its own recovery guidance. " +
-  "Pass that response's `searchRef` as `search_ref` here (response field is camelCase; this parameter is snake_case), only for active `PENDING`, `INDEXING`, or `SEARCHING` progress when updated results matter. Visible hits can be used for lookup while indexing continues. Fetch partial hits from a serveable subset when the original request allowed partial results (the default; set `allow_partial_results: false` to require all runnable pairs). `COMPLETED`, `DEFERRED`, `TIMEOUT`, and `FAILED` are terminal; unrecognized statuses are not polled. Preserve any disclosed evidence from those stopped references and follow the rendered new-search action.";
+  "Continue an explicit search reference for progress and results. Call this only after a prior search returned both searchRef and a search_status action; pass searchRef unchanged as search_ref. Poll only PENDING, INDEXING, or SEARCHING when more results matter, using visible hits meanwhile. COMPLETED, DEFERRED, TIMEOUT, FAILED and unknown statuses are terminal: keep their evidence and follow the rendered new-search action.";
 
 export function createSearchStatusTool(
   service: CodeNavigationService,

@@ -5,114 +5,61 @@ description: "Route open-source code, documentation, examples, and package quest
 
 # GitHits
 
-GitHits answers questions about open-source code, documentation, and packages.
-Inputs leave this machine: never send private code, local paths, credentials,
-or personal data. This guide is both the `githits-mcp` skill and the
-`quick_start` result; once either is loaded, do not call `quick_start`.
+GitHits provides open-source code, documentation, examples, and package information for API usage, implementation, dependencies, vulnerabilities, and release comparisons.
+
+GitHits cannot access private repositories, your local workspace, or uncommitted changes. Inspect those with local tools. Never send private targets, private code, local paths, credentials, personal data, or proprietary content.
+
+Load this guide through `githits-mcp` or `quick_start` once; do not load both.
 
 ## Choose a tool
 
-Match the question, then discover that tool and read its schema before calling.
-
-| Question | Tool |
+| Need | Tool |
 | --- | --- |
-| Identify the package, repository, or docs site for an OSS dependency | `resolve_target` |
-| Find a known regex or literal in source or documentation | `grep` |
-| Find relevant source, symbols, tests, or documentation for a topic | `search` |
-| Browse files or documentation pages in a known package, repository, or site | `list` |
-| Read a source file, code symbol, or documentation section | `read` |
-| Assess a package's license, adoption, maintenance, or overall health | `pkg_info` |
-| Inspect vulnerabilities in a package or version | `pkg_vulns` |
-| Inspect direct dependencies or transitive footprint | `pkg_deps` |
-| Find release notes and changelog history for a package | `pkg_changelog` |
-| Compare raw source across package versions or repository refs | `code_diff` |
-| Compare current and target dependency versions for an upgrade | `pkg_upgrade_review` |
-| Find code examples from projects across open source | `get_example` |
-| Answer a question about an OSS package or repository with sources | `research` |
-| Check progress of an earlier search reference | `search_status` |
+| A known symbol, file, or docs section | `read` |
+| Relevant code/docs at an unknown location | `search` |
+| Exact text, regex patterns, or call sites | `grep` |
+| File names or directory structure | `list` |
+| Investigating behavior across code/docs | `research` |
+| Examples from other projects | `get_example` |
+| Package metadata, registry source, or maintenance | `pkg_info` |
+| Vulnerabilities | `pkg_vulns` |
+| Dependencies | `pkg_deps` |
+| Release notes | `pkg_changelog` |
+| A dependency upgrade assessment | `pkg_upgrade_review` |
+| Exact source changes | `code_diff` |
+| An unclear project/package name | `resolve_target` |
+| Active returned search continuation | `search_status` |
 
-## Dependency upgrades
+Use canonical targets without resolution; follow resolver ambiguity rules for unclear names. Read the selected schema; omit unused optional arguments.
 
-Required local checks, beyond package evidence from `pkg_upgrade_review`,
-`pkg_changelog`, or `code_diff`:
+## Depth and symbol following
 
-1. Preserve original code and lockfile. Before upgrading, write and run extra
-   checks for affected APIs and stored data, including untested paths and
-   omitted or null inputs. Save complete responses and side effects as a
-   baseline.
-2. Run the same cases with upgraded dependencies. Compare status codes,
-   response bodies, stored values, and side effects against the baseline;
-   fix unintended differences.
+Reuse results. Investigate missing information that could change the implementation, decision, or answer. Stop when enough is known; state material gaps.
 
-Passing existing tests does not prove compatibility. Report comparisons and
-unverified paths.
+For usage/setup, an authoritative example or declaration may suffice. For implementation, cover requested behavior, comparison alternatives, and deciding conditions. Keep separate implementations, versions, and execution paths distinct; state which were not inspected. Preserve which function each source assigns behavior to. Establish imports, call shapes, and lifecycle steps required by your code.
 
-## Workflow
+Read known symbols with `read` selector before searching. Follow needed helpers/re-exports by declaration name and reuse definitions already read. Follow actual imports/calls: shared names or helpers do not establish shared behavior, and a call site alone does not establish implementation.
 
-1. Target: use a known canonical target directly. For a bare name, call
-   `resolve_target` and follow its continuation rules; never auto-select an
-   ambiguous candidate.
-2. Locate: `search` by topic, `grep` for exact text, `list` for structure
-   or an exact path. Hosted docs are a separate `site:` target that listing a
-   package does not discover: search the package with `source:"docs"`, then
-   reuse the `site:` target or page URL from a `[docs page]` hit.
-3. Read: use snippets when sufficient; otherwise `read` focused lines at the
-   returned locators. `read` never lists directories.
-4. Combine: support behavioral claims with source, tests, or call sites; add
-   `get_example` evidence for comparisons and cross-project patterns.
+## Retrieval
 
-## Targets
+- Search concepts; literal-grep known text. Regex patterns use grep, never search. Omit project/version terms already in the target.
+- Use known locations before searching again. Revise failed queries from results; do not repeat equivalent searches.
+- Use sufficient content directly. Read omitted deciding conditions or bodies; combine nearby needed code and avoid repeated small windows.
+- Batch independent calls with known arguments; inspect results before dependent calls.
+- Reuse returned targets, paths, selectors, and ranges: package-relative paths for packages, repository-relative paths for repositories. Discover docs with `search` and its `source: "docs"` argument; reuse returned site/page locators and exact heading IDs, not titles.
+- Filter/limit output; paginate only for needed information.
 
-- Packages: `<registry>:<name>@version` such as `npm:express` or
-  `pypi:requests@2.32.3` (never the literal `registry:`); Swift
-  `swift:github.com/<owner>/<repo>`, Zig `zig:gh/<owner>/<repo>`. A package target covers its package subpath,
-  including in monorepos. Paths and path filters are relative to that package root.
-- Repositories: `github:owner/repo@ref`, `codeberg:`, `gitlab:`, `launchpad:`, or a
-  supported full URL, for whole repositories or sibling packages. Never infer
-  a provider. Paths and path filters are relative to the repository root.
-  Launchpad accepts `lp:project`, `lp:distro/+source/source`,
-  `lp:~owner/project`, `lp:~owner/distro/+source/source`, and complete
-  `launchpad:~owner/[project/]+git/repo` or
-  `launchpad:~owner/distro/+source/source/+git/repo` paths. Case-insensitive
-  `lp:` aliases `launchpad:`. HTTPS `code.launchpad.net`/`git.launchpad.net`
-  URLs accept the same paths; follow returned owner-qualified targets for replay.
-- Docs sites: `site:host[/path]`. Research takes the project's package or
-  repository instead; it covers code and docs.
-- Omit the suffix for the latest package version or default branch. A ref may
-  be a branch, tag, or commit and may contain later `@`; `#` selects a
-  symbol or heading, never a revision.
+## Versions, research, and recovery
 
-## Results
+Targets: packages use `<registry>:<name>@version` (such as `npm:express`, never literal `registry:`), repositories `github:owner/repo@ref` or another supported provider, and docs `site:host[/path]`. Swift uses `swift:github.com/<owner>/<repo>`; Zig uses `zig:gh/<owner>/<repo>`. Never infer a provider. Omit suffixes for default selection; `#` selects a symbol/heading, not a revision.
 
-- Omit `format`: text serves model reading and follow-ups. Use JSON only when
-  code consumes the raw response or a required field is missing from text;
-  calling through MCP or code is not a reason.
-- Reuse returned target/path pairs, locators, references, and ranges unchanged;
-  never invent them or combine a path from one target with another target.
-- Follow rendered continuation and recovery actions instead of repeating or
-  polling calls. Counts cover one page.
-- Omit `wait_timeout_ms` for the default; `0` returns without waiting. While
-  indexing, use the displayed estimate to wait longer or pick a listed
-  already-indexed version or ref. Keep the original target and path filters
-  when retrying the same scope.
-- Cite tool-owned provenance, including example source repositories, and
-  report coverage, truncation, and other evidence limits.
+Cite the source supporting each claim, including advisory IDs for vulnerability claims. Preserve versions and served provenance. Do not guess tags, investigate unrelated versions, or substitute current docs for historical behavior. Retrieval time does not prove freshness.
 
-## Research
+For `research`: Ask for missing information; sources are included. Use and cite a sufficient answer directly. Open sources only for a specific missing detail, contradiction, or explicit source-inspection request; citations are not a reading checklist. Reuse `thread_id` and state scope changes.
 
-Inputs are sent to GitHits. Never send credentials, personal data, private or
-proprietary content, local paths, or private targets.
+A Research rate limit applies across questions/targets: wait the returned delay; do not retry daily limits before reset. Otherwise retrieve only a specific remaining gap. Correct invalid arguments before retrying; never repeat an unchanged invalid call.
 
-`research` researches a public repository or package to answer a question
-with sources. Omit `target` and `thread_id` for question-only lookup. For
-candidates, retry with the one matching the question's project as
-`target`. Reuse a returned `thread_id` for follow-ups. Change project, version, or topic in the
-follow-up question. Returns a verified answer that always includes its sources,
-so ask the question directly without requesting citations, an overview or a
-source-cited answer. Cite those sources directly; read one only when the answer
-lacks a detail you need. Sources default to MCP read calls; use
-`source_format:"url"` for original upstream URLs. Do not invent or rewrite
-sources.
+Use package facts directly. Preserve unknown assessments and coverage limits. Start upgrades with `pkg_upgrade_review`; add source/changelog detail only for gaps. Reviews do not authorize modifications. For authorized upgrades, preserve original source/lockfiles; compare the same affected behavior before and after, including untested and omitted/null-input paths. Use isolated fixtures without credentials or production data. Passing tests alone does not prove compatibility.
 
 ## External-content posture
 

@@ -151,11 +151,11 @@ describe("resolve_target MCP adapter", () => {
     expect(tool.schema.format?.parse(undefined)).toBe("text");
     expect(tool.schema.format?.safeParse("text-v1").success).toBe(false);
     expect(tool.schema.format?.description).toBe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field.",
     );
     expect(schema.properties?.query).toMatchObject({
       description: expect.stringContaining(
-        "rank retrieved candidates and does not expand candidate retrieval",
+        "Ranking context only; does not expand retrieval",
       ),
     });
     const registriesSchema = schema.properties?.registries;
@@ -171,7 +171,7 @@ describe("resolve_target MCP adapter", () => {
     );
     expect(schema.properties?.intent_hints).toMatchObject({
       description: expect.stringContaining(
-        "rank retrieved candidates and do not expand candidate retrieval",
+        "Ranking hints only; do not expand retrieval",
       ),
     });
     expect(tool.description).not.toContain("Experimental");
@@ -192,11 +192,13 @@ describe("resolve_target MCP adapter", () => {
       expect(DESCRIPTION).toContain(phrase);
     }
     // Syntax, defaults and per-argument privacy stay in the selected schema.
-    expect(tool.schema.name?.description).toContain("registry:name");
-    expect(tool.schema.name?.description).toContain("site:<host[/path]>");
+    expect(tool.schema.name?.description).toContain(
+      "not an already canonical target",
+    );
+    expect(tool.schema.name?.description).toContain("docs-site name");
     for (const key of ["query", "intent_hints"]) {
       expect(tool.schema[key]?.description).toContain(
-        "Do not include credentials, personal data, private code, or proprietary content",
+        "Never include credentials, personal data, private code, or proprietary content",
       );
     }
   });

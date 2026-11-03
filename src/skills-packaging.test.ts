@@ -86,7 +86,12 @@ describe("agent skills packaging", () => {
       read(githitsPackageReferencePath),
     ]);
 
-    for (const content of [mcpContent, codeReference]) {
+    expectContainsAll(mcpContent, [
+      "package-relative paths for packages",
+      "swift:github.com/<owner>/<repo>",
+      "zig:gh/<owner>/<repo>",
+    ]);
+    for (const content of [codeReference]) {
       expectContainsAll(content, [
         "swift:github.com/<owner>/<repo>",
         "zig:gh/<owner>/<repo>",
@@ -97,6 +102,8 @@ describe("agent skills packaging", () => {
     expectContainsAll(codeReference, ["public repository"]);
 
     expectContainsAll(packageReference, [
+      "Go exact versions accept",
+      "except Swift release tags",
       "swift:github.com/<owner>/<repo>",
       "zig:gh/<owner>/<repo>",
     ]);
@@ -309,7 +316,7 @@ describe("agent skills packaging", () => {
       "Route open-source code, documentation, examples, and package questions to GitHits tools",
       "Read this skill before searching for or selecting GitHits evidence tools",
       "it identifies the tool to discover and the scope to use",
-      "once either is loaded, do not call `quick_start`",
+      "do not load both",
     ]);
     expectNotContainsAllIgnoringWhitespace(publicContent, [
       "public OSS",
@@ -368,12 +375,13 @@ describe("agent skills packaging", () => {
       "Use `--json` only when code consumes the raw response or text omits a required field";
 
     expectContainsAllIgnoringWhitespace(codeContent, [
-      "Keep default text when the model reads results or chooses follow-ups",
+      "Use default text",
       jsonPolicy,
     ]);
     expectContainsAllIgnoringWhitespace(packageContent, [
-      "Keep default text for model-read summaries, comparisons, and counts",
-      jsonPolicy,
+      "Keep default text",
+      "`from..to` excludes from and includes to",
+      "use `--json` only when code consumes raw fields or text lacks required fields",
     ]);
     expectContainsAllIgnoringWhitespace(packageReference, [
       "Use `--json` only for code consuming raw fields or required fields absent from text.",
@@ -388,47 +396,30 @@ describe("agent skills packaging", () => {
       ]);
       expect(content, name).toContain("## External Content Posture");
 
-      for (const lineEnding of ["\n", "\r\n"] as const) {
-        const platformContent = content.replace(/\r?\n/g, lineEnding);
-        const coreCommands = platformContent.match(
-          /## Core Commands\s+```bash\r?\n([\s\S]*?)\r?\n```/,
-        );
-        const label = `${name} ${JSON.stringify(lineEnding)}`;
-        expect(coreCommands, label).not.toBeNull();
-        expect(coreCommands?.[1], label).not.toContain("--json");
-      }
+      expect(content, name).toContain("## Choose a command");
     }
   });
 
-  it("keeps code skill documentation reads aligned with headers and exact JSON actions", async () => {
-    const [content, reference] = await Promise.all([
-      read(githitsCodeSkillPath),
-      read(
-        join(root, "skills", "githits-code", "references", "code-and-docs.md"),
-      ),
-    ]);
-
-    for (const guidance of [content, reference]) {
-      expectContainsAll(guidance, [
-        "use the search snippet when sufficient; otherwise read the page target in its header",
-        "then replay its `followUp` with every supplied argument unchanged",
-        "From `docs list`, pass `docsReadTarget`",
-        "Hosted/crawled HTTP(S) targets address mutable current content",
-        "A direct HTTP(S) fragment read without explicit bounds returns its heading and full subtree through the next equal-or-higher heading",
-        "Repository docs remain snapshot-addressed and keep returned ranges",
-        "When composing a direct read, add `--lines` only to intentionally select a current page range",
-        "Use `--json` only for required range/source metadata",
-      ]);
-      expect(guidance).not.toContain("without search bounds");
-      expect(guidance).not.toContain(
-        "pass the displayed `[docs page]` target unchanged",
-      );
-    }
-    expect(content).toContain("githits read <docsReadTarget>");
-    expect(content).toContain(
-      "githits read <docsReadTarget> --selector <heading-id>",
+  it("keeps source navigation concise and detailed docs mechanics in references", async () => {
+    const content = await read(githitsCodeSkillPath);
+    const reference = await read(
+      join(root, "skills", "githits-code", "references", "code-and-docs.md"),
     );
-    expect(content).not.toContain("githits read <docsReadTarget> --lines");
+    expectContainsAll(content, [
+      "Read known symbols directly",
+      "known declaration path",
+      "literal-grep the identifier",
+      "use returned heading IDs, not titles",
+      "references/code-and-docs.md",
+    ]);
+    expectContainsAll(reference, [
+      "then replay its `followUp` with every supplied argument unchanged",
+      "From `docs list`, pass `docsReadTarget`",
+      "Hosted/crawled HTTP(S) targets address mutable current content",
+      "A direct HTTP(S) fragment read without explicit bounds returns its heading and full subtree",
+      "Repository docs remain snapshot-addressed",
+    ]);
+    expect(content.split(/\s+/).length).toBeLessThan(1100);
   });
 
   it("requires generated plugin asset validation before package creation", async () => {

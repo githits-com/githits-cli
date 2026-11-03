@@ -286,7 +286,9 @@ export function registerReadCommand(program: Command): Command {
     .command("read")
     .summary("Read an indexed file, code symbol, or docs section")
     .description(
-      "Read an exact file with <target> <path> (optionally <path>:N-M), a hosted page with <site-target> <path>, a code symbol with <target>#symbol (optional exact path), or a docs page with <target>. The resolved target determines code or docs presentation; preserve emitted docs locators. --selector selects a code symbol or docs heading by its fragment ID; do not combine it with a docs URL fragment. Hosted/crawled docs read mutable current content; repository docs are snapshot-addressed and return indexed file content. An HTTP(S) docs URL fragment selects the heading's full subtree; explicit bounds select a page-relative range instead. Output is complete for piping.",
+      `Read known symbols directly with \`--selector\`. Compact targets also support \`target#symbol\`; HTTPS URL fragments without a selector or path select docs. For code symbols, include only a known declaration file. Follow helpers/re-exports when their behavior matters; reuse definitions. After failed resolution, read a returned range or literal-grep the exact identifier. Bounds do not disambiguate symbols.
+
+Use \`--lines N\` for one line or \`N-M\` for a range. Cover the needed declaration/section rather than repeatedly extending small windows. Hosted docs are mutable; repository docs address snapshots. Preserve docs locators. Docs URL fragments select the full subtree; explicit bounds override heading selection. Use list for directories.`,
     )
     .argument(
       "[target-or-path]",

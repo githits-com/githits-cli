@@ -29,11 +29,13 @@ describe("registerUnifiedSearchCommands", () => {
 
     expect(searchHelp).toContain("site:<host[/path]>");
     expect(searchHelp).toContain(
-      "terminal recovery guidance without a searchRef",
+      "Terminal or unrecognized statuses are not polled; follow recovery guidance",
     );
-    expect(searchHelp).toContain("stale-but-serveable evidence");
+    expect(searchHelp).toContain("Use visible hits while indexing continues");
     expect(searchHelp).toContain("serveable subset");
-    expect(searchHelp).toContain("only when updated results matter");
+    expect(searchHelp).toContain(
+      "only for active progress when updated results matter",
+    );
     expect(searchHelp).not.toContain(
       "completed result with an evidence notice",
     );
@@ -64,7 +66,7 @@ describe("registerUnifiedSearchCommands", () => {
     expect(searchHelp).toContain("swift:github.com/<owner>/<repo>");
     expect(searchHelp).toContain("zig:gh/<owner>/<repo>");
     expect(searchHelp).toContain("artifact/manifest root");
-    expect(searchHelp).toContain("public repository");
+    expect(searchHelp).toContain("public repositories");
     expect(searchHelp).toContain("full repositories or sibling packages");
   });
 

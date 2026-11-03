@@ -1147,7 +1147,7 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
         commandHelp.exitCode === 0 &&
           commandHelp.stdout.includes("Usage: githits research") &&
           commandHelp.stdout.includes("[target] <question>") &&
-          commandHelp.stdout.includes("Omit the target") &&
+          /omit it for\s+identification/.test(commandHelp.stdout) &&
           commandHelp.stdout.includes("--thread <UUID>") &&
           commandHelp.stdout.includes("--source-format <format>") &&
           commandHelp.stdout.includes('choices: "cli", "url"') &&

@@ -60,7 +60,7 @@ const searchTargetSchema = z
   .string()
   .min(1)
   .describe(
-    "Compact target: `npm:react@version`, `github:facebook/react@ref`, `launchpad:~owner/+git/repo@ref` (`lp:PROJECT` also accepted), or `site:react.dev`. Omit the suffix for the latest package version or repository default branch; a ref may be a branch, tag, or commit. `#` is for semantic fragments.",
+    "Compact package, repository, or site target; see target for forms.",
   );
 
 const schema: ZodRawShape = {
@@ -68,12 +68,12 @@ const schema: ZodRawShape = {
     .string()
     .min(1)
     .describe(
-      "Focused discovery terms, API names, behaviors, or quoted phrases. Add constraints inline, for example `kind:function`, `category:callable`, `path:lib/`, `intent:production`, `name:Router`, or `lang:typescript`; qualifiers combine with terms using query boolean syntax.",
+      "Focused missing behavior, API names, or exact text; omit redundant target/version keywords. Space-separate inline qualifiers, e.g. `createApplication kind:function category:callable path:lib/ intent:production lang:javascript`; no comma separators or trailing punctuation. Use `name:Router` for a name; qualifiers support query boolean syntax.",
     ),
   target: searchTargetSchema
     .optional()
     .describe(
-      "One compact target: `npm:react@version`, `github:facebook/react@ref`, `launchpad:~owner/+git/repo@ref` (`lp:PROJECT` also accepted), or `site:react.dev`. Omit the suffix for the latest package version or repository default branch; a ref may be a branch, tag, or commit. `#` is for semantic fragments. Do not also pass `targets`.",
+      "One compact target: `npm:react@version`, `github:facebook/react@ref`, `launchpad:~owner/+git/repo@ref` (`lp:PROJECT` also accepted), or `site:react.dev`. Omit the suffix for the latest package version or repository default branch; a ref may be a branch, tag, or commit. `#` is for semantic fragments. For a docs page URL use read with that URL as target and no path; search docs with a package, repository, or site: target. Do not also pass `targets`.",
     ),
   targets: z
     .array(searchTargetSchema)
@@ -84,7 +84,7 @@ const schema: ZodRawShape = {
     .enum(["docs", "code", "symbol"])
     .optional()
     .describe(
-      "Optional result source: `docs` for guides/reference pages, `code` for source and tests, or `symbol` for APIs/entities. Omit to let GitHits select the best sources.",
+      "docs (guides/reference), code (source/tests), or symbol (APIs/entities); omit to auto-select.",
     ),
   public_only: z
     .boolean()
@@ -96,7 +96,7 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      "Default true returns a serveable subset while other target/source pairs prepare, with searchRef for continuation. Set false to keep hits atomic across runnable pairs; a complete serveable interim result may still accompany searchRef during refresh. Partial payloads support normal pagination via nextOffset.",
+      "Default true returns a serveable subset plus searchRef while other target/source pairs prepare. False requires all runnable pairs; refresh may still return complete interim hits with searchRef. Paginate with nextOffset.",
     ),
   limit: z.coerce
     .number()
@@ -126,17 +126,12 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field.",
     ),
 };
 
 const DESCRIPTION =
-  'Discover relevant docs, code, and symbols in a known public target. Start here for open-ended "how does", "where is", "find", or "locate" questions. ' +
-  "Required: `query` plus either `target` or `targets`; pass `target` or `targets`, not both. " +
-  "Target indexed dependencies and repositories, or standalone docs with `site:<host[/path]>`. " +
-  "Put search constraints in `query`; inspect warnings and `sourceStatus` for ignored or incompatible qualifiers. `public_only` filters code and symbols, not docs. " +
-  "A `search` call can return complete results directly. Use visible hits for lookup now. Follow `search_status` only if you need updated results and the response supplies both a `searchRef` and a `search_status` action; never repeat `search` to poll. Terminal or unrecognized statuses are not polled; follow the response's recovery guidance instead. If the response includes advisory `sourceStatus[].suggestedSiteTargets`, retry one explicitly; do not treat suggestions as aliases or retry automatically. " +
-  "Use hit content directly when sufficient; otherwise replay its complete emitted read action or generated `followUp` unchanged, including supplied selector and bounds. A `[docs page]` header is a page locator; its action selects the hit's section. Hosted HTTP(S) pages are mutable; repository docs address snapshots. See `read` for direct range and heading selection." +
+  "Discover relevant docs, code, and symbols in a known public target. Start here for unknown locations; read known symbols with selector instead. The target sets project/version scope; put other constraints in query and inspect warnings and sourceStatus. Use sufficient hits directly; otherwise replay a hit's complete read action or followUp, keeping its target, path, selector and bounds together. Use visible hits while indexing continues; call search_status only for a returned active action and searchRef when more results matter; never repeat search to poll. For suggestedSiteTargets, choose a site: target and retry explicitly; suggestions are not aliases. public_only filters code/symbols, not docs. Hosted docs are mutable; repository docs address snapshots." +
   `\n\n${SEARCH_GUARDRAIL}`;
 
 export function createSearchTool(

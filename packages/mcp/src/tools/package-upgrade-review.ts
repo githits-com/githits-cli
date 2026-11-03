@@ -41,17 +41,17 @@ export interface PackageUpgradeReviewArgs {
 const packageSchema = z.object({
   registry: z
     .string()
-    .describe(`Package registry. Supported: ${PKGSEER_REGISTRY_LIST}.`),
+    .describe("Registry; see top-level registry for supported values."),
   package_name: z.string().describe("Package name, scoped names ok."),
   current_version: z
     .string()
     .describe(
-      "Currently used package version. Go accepts versions with or without its canonical v prefix; tag-style v prefixes are rejected for other registries except Swift.",
+      "Current version; see top-level current_version for spelling rules.",
     ),
   target_version: z
     .string()
     .describe(
-      "Target package version. Go accepts versions with or without its canonical v prefix; tag-style v prefixes are rejected for other registries except Swift.",
+      "Target version; see top-level current_version for spelling rules.",
     ),
 });
 
@@ -76,7 +76,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Target version for single-package mode. Go accepts versions with or without its canonical v prefix; tag-style v prefixes are rejected for other registries except Swift.",
+      "Target version for single-package mode; spelling rules as current_version.",
     ),
   packages: z
     .array(packageSchema)
@@ -118,19 +118,14 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON includes selected statement pages, source positions/context and classifier provenance.",
     ),
 };
 
 const DESCRIPTION =
-  "Review a package upgrade: vulnerabilities, releases, peers, dependency changes. " +
-  "Compares current and target versions using direct vulnerability checks, changelog ranges, target deprecation metadata, peer dependency changes, and optional transitive evidence diffs. " +
-  "The tool reports facts only, including agent-classified release-note statements in backend source order, with nearby authoritative URLs and assessment coverage. JSON includes complete selected statement pages, source positions and context, and classifier provenance. It does not assign package-level risk or decide whether to accept an upgrade. Batches default to triage rows; use verbose for full per-package evidence. " +
-  "Use this instead of inferring acceptability from semver, including patch bumps. " +
-  "Use signals as a starting point to evaluate the impact of changes on the codebase. " +
-  "You can use pkg_changelog and code_diff to obtain full release-note and source-change details. " +
-  "Accepts either one package via registry/package_name/current_version/" +
-  `target_version or batch \`packages[]\` with at most ${PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES} upgrades.` +
+  "Review a package upgrade: vulnerabilities, releases, peers, dependency changes. Compares current and target versions, including target deprecation and optional transitive evidence diffs. Reports facts only: classified release-note statements in source order with nearby URLs and coverage, not package-level risk or an accept decision. Use this instead of inferring acceptability from semver, including patch bumps; start assessments here and add pkg_changelog or code_diff only for missing details. Preserve generated-from-commits labels and pending/unavailable status; generated statements are not publisher notes. Batches default to triage rows; verbose expands per-package evidence. Single mode: registry/package_name/current_version/target_version; batch: packages[] (at most " +
+  PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES +
+  ")." +
   `\n\n${PKG_UPGRADE_REVIEW_GUARDRAIL}`;
 
 export function createPackageUpgradeReviewTool(

@@ -125,13 +125,15 @@ describe("research MCP adapter", () => {
     expect(firstSentence.length).toBe(74);
     expect(DESCRIPTION.slice(0, 80)).toStartWith(firstSentence);
     expect(DESCRIPTION).toContain("If Research returns candidates");
-    expect(tool.schema.thread_id?.description).toContain("research call");
+    expect(tool.schema.thread_id?.description).toContain(
+      "returned thread UUID",
+    );
     expect(tool.schema.question?.description).toContain("research question");
     expect(DESCRIPTION).toContain(
-      "Omit target and thread_id to identify the target from the question",
+      "Omit target and thread_id for project identification",
     );
     expect(DESCRIPTION).toContain(
-      "retry with the one matching the question's project as target",
+      "retry with the one matching established context as target",
     );
     expect(
       z.object(tool.schema).parse({ question: "How does codex work?" }),
@@ -166,7 +168,7 @@ describe("research MCP adapter", () => {
     expect(tool.schema.thread_id?.safeParse("").success).toBe(false);
     expect(tool.schema.format?.safeParse("text-v1").success).toBe(false);
     expect(tool.schema.format?.description).toBe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field.",
     );
   });
 
@@ -414,9 +416,33 @@ describe("research MCP adapter", () => {
         },
       );
 
-    const minuteText = (await run(perMinute)).content[0]?.text ?? "";
+    const minuteText = ((await run(perMinute)).content[0]?.text ?? "").replace(
+      /\s+/g,
+      " ",
+    );
     expect(minuteText).toContain(AGENTIC_ASK_REQUEST_RATE_LIMIT_MESSAGE);
     expect(minuteText).toContain("Try again in 20 seconds.");
+    expect(minuteText).toContain("before any Research call");
+    expect(minuteText).toContain("other targets, questions, or threads");
+
+    const withoutDelay = new AgenticAskHttpError(
+      "RATE_LIMITED",
+      AGENTIC_ASK_REQUEST_RATE_LIMIT_MESSAGE,
+      429,
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      "request",
+    );
+    const missingDelayText = (
+      (await run(withoutDelay)).content[0]?.text ?? ""
+    ).replace(/\s+/g, " ");
+    expect(missingDelayText).toContain(
+      "pause briefly if none is given, before any Research call",
+    );
+    expect(missingDelayText).toEndWith("Try again.");
 
     const dailyResult = await run(daily);
     expect(dailyResult.isError).toBe(true);

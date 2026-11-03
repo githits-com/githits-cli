@@ -46,13 +46,13 @@ const schema: ZodRawShape = {
   name: z
     .string()
     .describe(
-      "Human-friendly package, repository, or standalone documentation-site name to resolve, including mutable Launchpad defaults such as lp:PROJECT. Do not use canonical registry:name, github:owner/repo, codeberg:owner/repo, gitlab:group/subgroup/project, launchpad:~owner/+git/repo, or site:<host[/path]> targets.",
+      "Human-friendly package, repository, or docs-site name, including lp:PROJECT defaults; not an already canonical target.",
     ),
   query: z
     .string()
     .optional()
     .describe(
-      "Optional task context used to rank retrieved candidates and does not expand candidate retrieval. Do not include credentials, personal data, private code, or proprietary content.",
+      "Ranking context only; does not expand retrieval. Never include credentials, personal data, private code, or proprietary content.",
     ),
   registries: z
     .array(z.string())
@@ -63,14 +63,12 @@ const schema: ZodRawShape = {
   preferred_kind: z
     .string()
     .optional()
-    .describe(
-      "Optional preference: package, repository, or site. An empty string means no preference; other values are rejected as invalid arguments.",
-    ),
+    .describe("package, repository, or site; empty means no preference."),
   intent_hints: z
     .array(z.string())
     .optional()
     .describe(
-      "Optional hints that rank retrieved candidates and do not expand candidate retrieval. Empty, blank, and duplicate hints are ignored. Do not include credentials, personal data, private code, or proprietary content.",
+      "Ranking hints only; do not expand retrieval. Empty, blank and duplicate hints are ignored. Never include credentials, personal data, private code, or proprietary content.",
     ),
   limit: z
     .number()
@@ -86,12 +84,11 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field.",
     ),
 };
 
-export const DESCRIPTION =
-  'Resolve OSS dependency names to canonical package, repository, or docs targets. Use known canonical targets directly. Only a non-ambiguous EXACT or HIGH best with CLEAR or NOT_APPLICABLE malicious-content status permits direct continuation; other or missing statuses are non-actionable. CLEAR is not a vulnerability-free claim. MEDIUM and LOW require narrowing or an explicit choice; never auto-select an ambiguous result. A selected `site:` is docs-only: use `list` or `search` with `source: "docs"`, then reuse returned read locators. Inputs leave this machine; open-source targets only.';
+export const DESCRIPTION = `Resolve OSS dependency names to canonical package, repository, or docs targets. Use known canonical targets directly. Narrow unclear names with known registry/context, never popularity alone. Continue only from a non-ambiguous EXACT or HIGH best with CLEAR or NOT_APPLICABLE malicious-content status. Other or missing statuses are non-actionable. MEDIUM and LOW require narrowing or an explicit choice; never auto-select an ambiguous result. CLEAR is not a vulnerability-free claim. A selected \`site:\` is docs-only: search with source: "docs" and reuse returned read locators. Inputs leave this machine; open-source targets only.`;
 
 export function createResolveTargetTool(
   service: ResolveTargetService,

@@ -57,7 +57,7 @@ const schema: ZodRawShape = {
     .max(1000)
     .optional()
     .describe(
-      "Target-relative literal paths and globs form a union for packages, repositories, and sites. Site paths with one leading `/` stay within the supplied target; `/` alone selects its root. Omit or pass `[]` to browse the root.",
+      "Omit or pass [] to browse the root; never pass blank entries. Package/repository paths are relative: do not use / for their root. Literal paths and globs form a union. Only site paths accept a leading /; / selects the site root.",
     ),
   recursive: z
     .boolean()
@@ -70,7 +70,7 @@ const schema: ZodRawShape = {
     .max(64)
     .optional()
     .describe(
-      "Source inventories only; classifications such as `source` or `doc`, case-insensitive. Select file extensions with a `paths` glob such as `lib/**/*.js`.",
+      'File classes such as source or doc, not languages or extensions. For JavaScript use languages:["javascript"] or paths:["**/*.js"], never file_types:["javascript"]. Source inventories only; case-insensitive.',
     ),
   languages: z
     .array(z.string())
@@ -112,23 +112,12 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or follows read and continuation guidance. Set `json` for exact entry kinds or actions, or when code consumes the raw response instead of the model by parsing or filtering it programmatically.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON exposes exact entry kinds/actions.",
     ),
 };
 
 const DESCRIPTION =
-  "List files and documentation paths in a known package, repository, or site. " +
-  "Use it to browse structure or find an exact path before `read`; use `search` " +
-  "for topics.\n\n" +
-  "Package targets cover one package-owned " +
-  "tree; repository targets cover the whole snapshot. Both include source and " +
-  "documentation. Hosted docs use an explicit `site:` target supplied by the " +
-  "user or a docs search result. `paths` are target-relative literals or globs for every target and " +
-  "form a union; omit them for the root. Directories show immediate children " +
-  "unless `recursive` expands them; glob depth is independent of recursion. " +
-  "In site text, a path without trailing `/` is a page even when its source URL ended in `/`. " +
-  "Keep text for model use, including read and continuation guidance; use JSON " +
-  "for exact entry kinds or actions and programmatic consumption.";
+  "List files and documentation paths in a known package, repository, or site. Use this for names and structure; skip it when a usable path or symbol is known, and avoid whole-project enumeration for narrow lookups. Package targets cover their package tree; repositories cover the snapshot; both include source and docs. Hosted docs need an explicit site target from the user or a docs search result. Reuse returned read actions; paginate only for needed paths. In site text, a path without trailing / is a page, even if its source URL ends with /.";
 
 export function createListTool(
   service: ListService,

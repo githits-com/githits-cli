@@ -53,25 +53,25 @@ export const readSchema: ReadSchema = {
   target: z
     .string()
     .describe(
-      "Pass a returned HTTP(S) page URL unchanged to read it directly. A site: target requires a separate exact page path, including / for its root. With path: use a compact package/repo target for a file; target#symbol narrows a symbol read to that file. Without path: use a docs target/page ID or compact target#symbol unchanged. Preserve emitted targets unchanged.",
+      'Docs: {"target":"https://docs.example/guide"} with no path or selector; copy returned URLs/docs IDs unchanged, never into path. site: targets need an exact page path (/ for root). Files: compact package/repo target plus relative path; target#symbol restricts to path when supplied.',
     ),
   path: z
     .string()
     .optional()
     .describe(
-      "Page path relative to the supplied site: target; do not repeat its scope. For code, use an exact package/repo-relative file path from search, list, or grep. Preserve emitted paths unchanged. Omit for other documentation targets; empty means omitted.",
+      "Exact target-relative file or site-page path from supplied or returned locators; do not repeat site scope. Omit for docs URL/ID targets, and for symbols unless the declaration file is known, not its caller. Empty means omitted.",
     ),
   selector: z
     .string()
     .optional()
     .describe(
-      "Logical docs heading ID or indexed code symbol. With a site path it selects a hosted heading; with a code path it searches exactly that file. Omit path to search a code target. Do not combine with a docs URL fragment or compact target#symbol.",
+      "Code: a known declaration name. Docs: an exact heading ID returned for this page, never its title or a guessed slug; site headings need a page path. Otherwise omit; never empty. Do not guess qualifications or combine with a URL fragment or target#symbol. A docs fragment selects its full heading subtree; either bound replaces it with a page-relative range.",
     ),
   start_line: z
     .number()
     .optional()
     .describe(
-      "Positive 1-indexed start. Either bound overrides a docs URL fragment with a page-relative range.",
+      "Positive 1-indexed start within reported length, only when known for this exact file/page version; never reuse another file's numbers. Bounds override a docs fragment and do not disambiguate symbols.",
     ),
   end_line: z
     .number()
@@ -89,19 +89,12 @@ export const readSchema: ReadSchema = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result. Use json when code consumes the raw response instead of the model or required metadata is absent from text.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field.",
     ),
 };
 
 export const DESCRIPTION_BASE: string =
-  "Read an indexed source file, code symbol, or documentation section. " +
-  "Pass target and path for a file or site page; use compact target#symbol or selector for a code symbol, and selector for a docs heading. " +
-  "Preserve emitted documentation targets; the resolved result determines code or docs. " +
-  "Hosted/crawled HTTP(S) docs targets read mutable current content; repository-doc targets address snapshots. " +
-  "A docs URL fragment needs no bounds and returns its heading with the full subtree through the next equal-or-higher heading; either bound replaces it with a page-relative range. " +
-  "Use emitted locators to preserve exact revisions. It does not list directories: use list. " +
-  "Read focused windows from search/grep; follow returned continuation and error actions. " +
-  "On INDEXING retry the same target/path with wait_timeout_ms; no content is available yet.";
+  "Read an indexed source file, code symbol, or documentation section. Pass target without path for a returned docs URL; preserve returned line bounds. Files and site pages take target plus path; selector reads a known declaration or returned heading ID. Read known declarations before searching. On resolution failure, use a returned declaration range or literal grep; bounds do not disambiguate. If a heading is missing, do not retry it: read its page without selector/fragment; if the page is unavailable, find an indexed page with search and its source argument set to docs. Hosted docs are mutable; repository docs address snapshots. Use list for directories. On INDEXING follow recovery for the same target/path.";
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${CODE_READ_GUARDRAIL}`;
 
 /** One advertised reader; source-specific selection and error contracts stay intact. */

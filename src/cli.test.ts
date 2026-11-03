@@ -463,11 +463,11 @@ describe("CLI help surface", () => {
     const search = program.commands.find(
       (command) => command.name() === "search",
     );
-    expect(search?.helpInformation()).toContain(
-      "Hosted/crawled [docs page] HTTP(S) targets address mutable current content",
+    expect(search?.helpInformation().replace(/\s+/g, " ")).toContain(
+      "Hosted docs are mutable",
     );
-    expect(search?.helpInformation()).toContain(
-      "Repository docs are snapshot-addressed",
+    expect(search?.helpInformation().replace(/\s+/g, " ")).toContain(
+      "repository docs address snapshots",
     );
   });
 });

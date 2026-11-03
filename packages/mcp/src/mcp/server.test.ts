@@ -78,9 +78,9 @@ const DESCRIPTION_ROUTING: Record<
       "Research a public repository or package to answer a question with sources. Omit ",
     body: [
       "Omit target and thread_id",
-      "returned thread_id",
-      "verified answer that always includes its sources",
-      "source_format=url",
+      "Reuse thread_id",
+      "sources are included",
+      "Open sources only for a specific missing detail, contradiction, or explicit source-inspection request",
     ],
     absent: ["Experimental"],
   },
@@ -119,18 +119,18 @@ const DESCRIPTION_ROUTING: Record<
     prefix:
       /^Discover relevant docs, code, and symbols in a known public target\./,
     body: [
-      "Start here for open-ended",
-      "`query` plus either `target` or `targets`",
-      "`search_status`",
-      "complete emitted read action",
+      "Start here for unknown locations",
+      "The target sets project/version scope",
+      "search_status",
+      "complete read action",
     ],
   },
   search_status: {
     prefix: /^Continue an explicit search reference for progress and results\./,
     body: [
-      "only after a prior `search` response explicitly supplies",
-      "`searchRef`",
-      "`search_status`",
+      "only after a prior search returned both",
+      "searchRef",
+      "search_status",
     ],
   },
   list: {
@@ -139,16 +139,12 @@ const DESCRIPTION_ROUTING: Record<
     exactPrefix:
       "List files and documentation paths in a known package, repository, or site. Use ",
     body: [
-      "find an exact path before `read`",
-      "use `search` for topics",
-      "one package-owned tree",
-      "whole snapshot",
-      "Both include source and documentation",
-      "explicit `site:` target",
-      "target-relative literals or globs",
-      "glob depth is independent",
-      "read and continuation guidance",
-      "use JSON for exact entry kinds or actions",
+      "skip it when a usable path or symbol is known",
+      "their package tree",
+      "the snapshot",
+      "both include source and docs",
+      "explicit site target",
+      "Reuse returned read actions; paginate only for needed paths",
     ],
   },
   read: {
@@ -157,19 +153,16 @@ const DESCRIPTION_ROUTING: Record<
     exactPrefix:
       "Read an indexed source file, code symbol, or documentation section. Pass target ",
     body: [
-      "use list",
-      "search/grep",
-      "target and path for a file or site page; use compact target#symbol or selector for a code symbol",
-      "resolved result determines code or docs",
-      "Hosted/crawled HTTP(S) docs targets read mutable current content",
-      "repository-doc targets address snapshots",
-      "A docs URL fragment needs no bounds",
-      "full subtree through the next equal-or-higher heading",
-      "either bound replaces it with a page-relative range",
-      "exact revisions",
-      "does not list directories",
-      "returned continuation and error actions",
-      "INDEXING retry",
+      "selector reads a known declaration or returned heading ID",
+      "Read known declarations before searching",
+      "returned declaration range or literal grep",
+      "bounds do not disambiguate",
+      "If a heading is missing",
+      "if the page is unavailable",
+      "Hosted docs are mutable",
+      "repository docs address snapshots",
+      "Use list for directories",
+      "On INDEXING follow recovery for the same target/path",
     ],
   },
   grep: {
@@ -199,8 +192,7 @@ const DESCRIPTION_ROUTING: Record<
       '`advisory_scope:"all"`',
       '`{"target":"npm:next","advisory_scope":"all"}`',
       "unpinned target",
-      "identifiers and aliases, including CVEs when available",
-      "identifier aliases (including CVEs)",
+      "identifiers/aliases (CVEs when available)",
       "Transitive evidence is opt-in",
     ],
   },
@@ -218,10 +210,10 @@ const DESCRIPTION_ROUTING: Record<
     exactPrefix:
       "Find release notes and changelog history for a package. Default latest mode retu",
     body: [
-      "`registry:name@version`",
-      "one selected release",
-      "Empty latest or range selections succeed",
-      "from excluded, to included",
+      "registry:name@version",
+      "one release",
+      "empty selections return no entries",
+      "releases after from through to",
     ],
     absent: [
       "newest-first",
@@ -237,12 +229,12 @@ const DESCRIPTION_ROUTING: Record<
       "Review a package upgrade: vulnerabilities, releases, peers, dependency changes. ",
     body: [
       "facts only",
-      "does not assign package-level risk",
-      "agent-classified",
+      "not package-level risk or an accept decision",
+      "classified release-note statements",
       "triage rows",
-      "at most 30 upgrades",
-      "Use signals as a starting point",
-      "pkg_changelog and code_diff",
+      "at most 30",
+      "start assessments here",
+      "pkg_changelog or code_diff",
     ],
   },
 };
@@ -432,7 +424,7 @@ describe("MCP tool description catalog", () => {
     const querySchema = searchSchema.properties?.query;
     const queryDescription =
       (querySchema as { description?: string } | undefined)?.description ?? "";
-    expect(queryDescription).toContain("Focused discovery terms");
+    expect(queryDescription).toContain("Focused missing behavior");
     expect(queryDescription).not.toContain("use terms such as");
   });
 });
@@ -460,10 +452,10 @@ describe("MCP output format", () => {
         );
       } else {
         expect(JSON.stringify(formatSchema), descriptor.name).toContain(
-          "Omit `format` to use token-efficient text when the model reads the result",
+          "Omit for text",
         );
         expect(JSON.stringify(formatSchema), descriptor.name).toContain(
-          "code consumes the raw response instead of the model",
+          "code consumes raw fields",
         );
       }
       expect(descriptor.schema.format?.parse(undefined)).toBe("text");

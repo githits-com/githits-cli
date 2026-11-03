@@ -46,19 +46,19 @@ const schema: ZodRawShape = {
     .union([z.string(), z.array(z.string())])
     .optional()
     .describe(
-      "Lifecycle breadth. Omit for runtime-only. Use `runtime` for explicit runtime-only, a concrete non-runtime lifecycle (`development`, `build`, `peer`, `optional`) for runtime plus matching groups, or `all` for runtime plus all available groups. Accepts a single value, a comma-separated string, or an array; `all` cannot be combined with other values. Uppercase is tolerated.",
+      "Omit for runtime only. runtime, development, build, peer, optional (each adds that group to runtime), or all; one value, a comma list, or an array. all stands alone; case-insensitive.",
     ),
   include_importers: z
     .boolean()
     .optional()
     .describe(
-      "When true, each entry in `transitive.packages[]` also carries an `importers` array — every upstream package that pulls it in, with that importer's own resolved version and the constraint it declared. Off by default because adding provenance roughly quadruples the envelope size on heavy graphs. If `max_depth` is omitted, this also requests the full transitive block.",
+      "Add importers (upstream package, its resolved version, declared constraint) to each transitive.packages[] entry. Default false; can quadruple large graphs. Requests the full transitive block unless max_depth bounds it.",
     ),
   include_issues: z
     .boolean()
     .optional()
     .describe(
-      "When true, computes deprecated, outdated, duplicate, and conflict analysis across the resolved dependency graph. Without `max_depth`, this traverses the full graph; set `max_depth` to bound analysis cost and scope. Off by default; JSON exposes complete issue rows for direct code consumption.",
+      "Analyze deprecated, outdated, duplicate and conflicting packages. Default false; scans the full graph unless max_depth bounds it. JSON includes complete issue rows.",
     ),
   max_depth: z
     .number()
@@ -73,14 +73,14 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text. JSON includes complete issue rows.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON includes complete issue rows.",
     ),
 };
 
 const DESCRIPTION =
   "Inspect what a package depends on, directly or transitively. Lists direct runtime " +
   "dependencies with resolved versions; non-runtime groups are omitted by default. " +
-  "Opt into transitive footprint, per-package provenance, or issue analysis with " +
+  "Expand transitive footprint, provenance, or issue analysis only when needed, with " +
   "the corresponding fields; full-graph analysis is not local application lockfile " +
   "or reachability evidence. Supports " +
   `${SUPPORTED_DEPS_REGISTRIES_LIST}.`;

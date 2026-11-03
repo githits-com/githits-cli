@@ -17,13 +17,11 @@ describe("createPackageChangelogTool — metadata", () => {
     );
     expect(tool.name).toBe("pkg_changelog");
     expect(tool.description).toContain("latest mode");
-    expect(tool.description).toContain("one selected release");
-    expect(tool.description).toContain("`registry:name@from..to`");
-    expect(tool.description).toContain("from excluded, to included");
+    expect(tool.description).toContain("one release");
+    expect(tool.description).toContain("@from..to");
+    expect(tool.description).toContain("releases after from through to");
     expect(tool.description).not.toContain("closed interval");
-    expect(tool.description).toContain(
-      "`verbatim:true` shows original full notes",
-    );
+    expect(tool.description).toContain("verbatim:true shows original notes");
     expect(tool.schema.body_lines?.description).toContain(
       "original-note preview",
     );
@@ -32,7 +30,7 @@ describe("createPackageChangelogTool — metadata", () => {
     expect(tool.description).not.toContain("repo_url");
     expect(tool.description).not.toContain("from_version");
     expect(tool.schema.target?.description).toContain(
-      "registry:name[@version|@from..to]",
+      "Latest: npm:express (no @ suffix)",
     );
     expect(tool.schema.target?.description).toContain("Package-only");
     expect(tool.schema.target?.description).toContain(
@@ -42,10 +40,10 @@ describe("createPackageChangelogTool — metadata", () => {
       "Use @from alone for the starting release's own notes",
     );
     expect(tool.schema.limit?.description).toContain(
-      "Do not pass with exact `@version` or lower-bound range targets (`@from..to`, `@from..`)",
+      "Do not send limit with @version, @from..to or @from..",
     );
     expect(tool.schema.format?.description).toContain(
-      "Set `json` only when code consumes",
+      "Use json only when code consumes raw fields",
     );
     expect(tool.schema.verbose?.description).toContain(
       "cannot combine with omit_bodies:true",

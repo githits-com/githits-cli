@@ -140,23 +140,21 @@ describe("searchStatusTool", () => {
     expect(tool.description).toStartWith(
       "Continue an explicit search reference for progress and results.",
     );
-    expect(tool.description).toContain("partial hits");
-    expect(tool.description).toContain("serveable subset");
-    expect(tool.description).toContain("allow_partial_results");
-    expect(tool.description).toContain("`PENDING`, `INDEXING`, or `SEARCHING`");
+    expect(tool.description).toContain("using visible hits meanwhile");
+    expect(tool.description).toContain("PENDING, INDEXING, or SEARCHING");
     expect(tool.description).not.toContain(
       "a completed result with an evidence notice",
     );
-    expect(tool.description).toContain("`DEFERRED`, `TIMEOUT`, and `FAILED`");
-    expect(tool.description).toContain("unrecognized statuses are not polled");
+    expect(tool.description).toContain("DEFERRED, TIMEOUT, FAILED");
+    expect(tool.description).toContain("unknown statuses are terminal");
     expect(tool.description).toContain("rendered new-search action");
   });
 
   it("keeps completed evidence out of continuation guidance", () => {
     const tool = createSearchStatusTool(createMockCodeNavigationService());
-    expect(tool.description).toContain("when updated results matter");
+    expect(tool.description).toContain("when more results matter");
     expect(tool.description).toContain(
-      "`COMPLETED`, `DEFERRED`, `TIMEOUT`, and `FAILED` are terminal",
+      "COMPLETED, DEFERRED, TIMEOUT, FAILED and unknown statuses are terminal",
     );
     expect(tool.description).not.toContain(
       "completed result with an evidence notice",

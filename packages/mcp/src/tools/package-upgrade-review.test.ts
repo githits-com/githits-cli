@@ -31,11 +31,9 @@ describe("createPackageUpgradeReviewTool", () => {
     );
 
     expect(tool.name).toBe("pkg_upgrade_review");
-    expect(tool.description).toContain("reports facts only");
-    expect(tool.description).toContain(
-      "Use signals as a starting point to evaluate the impact of changes on the codebase",
-    );
-    expect(tool.description).toContain("pkg_changelog and code_diff");
+    expect(tool.description).toContain("Reports facts only");
+    expect(tool.description).toContain("start assessments here");
+    expect(tool.description).toContain("pkg_changelog or code_diff");
     expect(tool.annotations?.readOnlyHint).toBe(true);
     expect(Object.keys(tool.schema).sort()).toEqual([
       "changes",
@@ -56,7 +54,7 @@ describe("createPackageUpgradeReviewTool", () => {
       description: expect.stringContaining("at most 30 upgrades"),
     });
     expect(inputSchema.properties?.packages).not.toHaveProperty("maxItems");
-    expect(tool.description).toContain("at most 30 upgrades");
+    expect(tool.description).toContain("at most 30");
   });
 
   it.each([

@@ -47,7 +47,7 @@ Use `--depth` to request capped transitive output. Without it, output is direct 
 
 ## Changelog
 
-`githits pkg changelog <registry:name[@version|@from..to]>` returns release notes for a package. Bare targets use latest mode. Pin `@version` for one selected release. Use `@from..to`, `@from..`, or `@..to` for interval and upper-cap forms.
+`githits pkg changelog <registry:name[@version|@from..to]>` returns release notes for a package. Latest uses an unversioned target such as `npm:express`, with no trailing `@`. Pin `@version` for one selected release. Use `@from..to`, `@from..`, or `@..to` for interval and upper-cap forms.
 
 Ranges exclude `from` and include `to`: `npm:express@4.21.2..5.2.1` returns releases after 4.21.2 through 5.2.1, including 5.2.1 but excluding 4.21.2. Use `npm:express@4.21.2` to read the starting release itself. `@from..` excludes `from` and continues through latest; `@..to` includes `to` and remains capped by `--limit`.
 
@@ -63,12 +63,13 @@ statement pagination; `all` is the default.
 `--verbatim` shows full original notes instead of statements; `--verbose` is its
 deprecated alias in text and JSON. `--no-body` shows a version/date/URL timeline
 and skips parsing/classification; it cannot be combined with verbatim or verbose.
-`--changes` is ignored outside statement views. Default JSON contains selected statement evidence rather than raw entry bodies or the old risk-only fields;
+`--changes` is ignored outside statement views. Default JSON contains
+statement text and provenance rather than raw entry bodies or the old risk-only fields;
 use `--verbatim --json` for original bodies.
 
-`--from` (excluded) and `--to` (included) remain package range flags on a bare spec. Inline single-release targets reject those flags and `--limit`. Repository and site targets are not supported.
+`--from` (excluded) and `--to` (included) remain package range flags on a bare spec. Inline single-release targets reject those flags. Omit `--limit` for exact versions or ranges with a starting version; only latest and upper-cap `@..to` / `--to` accept it. Repository and site targets are not supported.
 
-Generated statements follow original notes and are marked `(generated from commits)`. Generation status/reason remains distinct from classification coverage. Pending or unavailable generation and missing/unparseable original notes remain explicit evidence limits; generated-empty output does not prove no changes. JSON uses `source: "generated"`, omits duplicate text/fullText and boilerplate notices, and retains one commit locator plus `commitsOmitted` for additional citations.
+Generated statements are not publisher-written notes. They follow original notes and are marked `(generated from commits)`. Generation status/reason remains distinct from classification coverage. Pending or unavailable generation and missing/unparseable original notes remain explicit evidence limits; generated-empty output does not prove no changes. JSON uses `source: "generated"`, omits duplicate text/fullText and boilerplate notices, and retains one commit locator plus `commitsOmitted` for additional citations.
 
 ## Upgrade Review
 
@@ -120,3 +121,11 @@ nor a patch version establishes compatibility.
 - `githits pkg deps` maps to MCP `pkg_deps`.
 - `githits pkg changelog` maps to MCP `pkg_changelog`; `--changes`, `--verbatim`, `--no-body`, and `--json` map to `changes`, `verbatim:true`, `omit_bodies:true`, and `format:"json"`.
 - `githits pkg upgrade-review` maps to MCP `pkg_upgrade_review`; `--changes <view>` maps to `changes:"<view>"`.
+
+## Investigation scope
+
+Use package results directly. Start upgrade comparisons with `pkg upgrade-review`; add source or changelog details only for a missing fact that could affect the task. Public graphs do not establish a local lockfile or application reachability. Stop when enough is known to continue.
+
+## Version spelling
+
+Go exact versions accept `v1.2.3` or `1.2.3`, including pseudo versions; requests use canonical `v`-prefixed form. Other changelog range inputs omit a leading `v`, except Swift release tags.

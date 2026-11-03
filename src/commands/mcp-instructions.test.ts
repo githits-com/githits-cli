@@ -123,16 +123,18 @@ describe("buildMcpQuickStart", () => {
       expect(description("code_diff")).toContain(phrase);
     }
     expect(description("search")).toContain(
-      "replay its complete emitted read action or generated `followUp` unchanged",
+      "replay a hit's complete read action or followUp",
     );
     expect(description("list")).toContain(
-      "a path without trailing `/` is a page",
+      "a path without trailing / is a page",
     );
-    expect(description("read")).toContain("It does not list directories");
-    expect(description("read")).toContain(
-      "A docs URL fragment needs no bounds",
+    expect(description("read")).toContain("Use list for directories");
+    expect(tools.get("read")?.schema.selector?.description).toContain(
+      "A docs fragment selects its full heading subtree",
     );
-    expect(description("read")).toContain("page-relative range");
+    expect(tools.get("read")?.schema.selector?.description).toContain(
+      "page-relative range",
+    );
     expect(description("grep")).toContain("read locators");
     expect(tools.get("read")?.schema.wait_timeout_ms?.description).toContain(
       "backend applies it when relevant",

@@ -27,129 +27,62 @@ function normalized(text: string): string {
 }
 
 describe("buildMcpQuickStart", () => {
-  it("orders guide sections from routing to shared conventions", () => {
+  it("keeps the task guide compact and routes before navigation", () => {
     const guide = buildMcpQuickStart();
-    const headings = guide.match(/^#{1,2} .+$/gm);
-
-    expect(headings).toEqual([
-      "# GitHits",
-      "## Choose a tool",
-      "## Dependency upgrades",
-      "## Workflow",
-      "## Targets",
-      "## Results",
-      "## Research",
-      "## External-content posture",
-    ]);
-    expect(guide).not.toMatch(/public OSS/i);
-    expect(guide).not.toMatch(/^\*\*.+\*\*$/m);
-  });
-
-  it("documents canonical target conventions shared by every tool", () => {
-    const guide = normalized(buildMcpQuickStart());
-
+    expect(guide.split(/\s+/).length).toBeLessThan(950);
+    expect(guide.indexOf("## Choose a tool")).toBeLessThan(
+      guide.indexOf("## Depth and symbol following"),
+    );
     for (const phrase of [
-      "`<registry>:<name>@version` such as `npm:express`",
-      "`github:owner/repo@ref`",
-      "`site:host[/path]`",
-      "swift:github.com/<owner>/<repo>",
-      "zig:gh/<owner>/<repo>",
-      "covers its package subpath, including in monorepos",
-      "Paths and path filters are relative to that package root",
-      "Paths and path filters are relative to the repository root",
-      "Reuse returned target/path pairs",
-      "Keep the original target and path filters when retrying the same scope",
-      "whole repositories or sibling packages",
+      "open-source code",
+      "cannot access private repositories, your local workspace, or uncommitted changes",
+      "Never send private targets, private code, local paths, credentials, personal data, or proprietary content",
+      "do not load both",
+    ])
+      expect(guide).toContain(phrase);
+  });
+  it("uses direct symbols, sufficient evidence and task-based stopping", () => {
+    const guide = normalized(buildMcpQuickStart());
+    for (const phrase of [
+      "Use canonical targets without resolution",
+      "follow resolver ambiguity rules",
+      "Stop when enough is known; state material gaps",
+      "Read known symbols with `read` selector before searching",
+      "reuse definitions already read",
+      "a call site alone does not establish",
+      "Read omitted deciding conditions or bodies",
+      "avoid repeated small windows",
+      "Batch independent calls",
+    ])
+      expect(guide).toContain(phrase);
+  });
+  it("preserves target, version, output and recovery boundaries", () => {
+    const guide = normalized(buildMcpQuickStart());
+    for (const phrase of [
+      "package-relative paths",
+      "repository-relative paths",
+      "returned site/page locators",
+      "never literal `registry:`",
       "Never infer a provider",
-      "Omit the suffix for the latest package version or default branch",
-      "`#` selects a symbol or heading, never a revision",
-    ]) {
+      "not a revision",
+      "Do not guess tags",
+      "Filter/limit output; paginate only for needed information",
+      "rate limit applies across questions/targets",
+      "omit unused optional arguments",
+      "exact heading IDs, not titles",
+      "do not retry daily limits before reset",
+      "Preserve unknown assessments and coverage limits",
+      "Reviews do not authorize modifications",
+      "compare the same affected behavior before and after",
+    ])
       expect(guide).toContain(phrase);
-    }
-    expect(guide).not.toContain("[@version]");
-    expect(guide).not.toContain("[@ref]");
   });
-
-  it("describes the cross-tool workflow without repeating tool mechanics", () => {
+  it("shares research answer handling without mandatory rereads", () => {
     const guide = normalized(buildMcpQuickStart());
-
-    for (const phrase of [
-      "use a known canonical target directly",
-      "call `resolve_target` and follow its continuation rules; never auto-select an ambiguous candidate",
-      "`search` by topic, `grep` for exact text, `list` for structure or an exact path",
-      'search the package with `source:"docs"`',
-      "`site:` target or page URL from a `[docs page]` hit",
-      "`read` never lists directories",
-      "support behavioral claims with source, tests, or call sites",
-      "Required local checks, beyond package evidence",
-      "Passing existing tests does not prove compatibility",
-    ]) {
+    expect(guide).toContain(RESEARCH_VERIFIED_ANSWER_GUIDANCE);
+    for (const phrase of ["Reuse `thread_id` and state scope changes"])
       expect(guide).toContain(phrase);
-    }
-    // Per-tool mechanics belong to the selected tool's description.
-    for (const phrase of [
-      "EXACT/HIGH",
-      "name-status",
-      "followUp",
-      "selector",
-    ]) {
-      expect(guide).not.toContain(phrase);
-    }
-  });
-
-  it("keeps result conventions common to every tool", () => {
-    const guide = normalized(buildMcpQuickStart());
-
-    for (const phrase of [
-      "Omit `format`",
-      "Use JSON only when code consumes the raw response or a required field is missing from text",
-      "Reuse returned target/path pairs, locators, references, and ranges unchanged; never invent them",
-      "Follow rendered continuation and recovery actions instead of repeating or polling calls",
-      "Omit `wait_timeout_ms` for the default; `0` returns without waiting",
-      "Cite tool-owned provenance, including example source repositories",
-      "report coverage, truncation, and other evidence limits",
-    ]) {
-      expect(guide).toContain(phrase);
-    }
-  });
-
-  it("routes research on the stable guide with its contract", () => {
-    const raw = buildMcpQuickStart();
-    const guide = normalized(raw);
-
-    expect(raw).toContain(
-      "| Answer a question about an OSS package or repository with sources | `research` |",
-    );
-    for (const phrase of [
-      "Inputs are sent to GitHits. Never send credentials, personal data, private or proprietary content, local paths, or private targets.",
-      "`research` researches a public repository or package to answer a question with sources",
-      "Omit `target` and `thread_id` for question-only lookup",
-      "For candidates, retry with the one matching the question's project as `target`",
-      "Reuse a returned `thread_id` for follow-ups",
-      "Change project, version, or topic in the follow-up question",
-      RESEARCH_VERIFIED_ANSWER_GUIDANCE,
-      'Sources default to MCP read calls; use `source_format:"url"` for original upstream URLs',
-      "Do not invent or rewrite sources",
-      "Research takes the project's package or repository instead; it covers code and docs",
-    ]) {
-      expect(guide).toContain(phrase);
-    }
-    // The privacy sentence stays attached to the research guidance.
-    expect(raw.split("## Research")[1]).toContain(
-      "Inputs are sent to GitHits.",
-    );
-    expect(raw).not.toContain("Local experimental tools");
-  });
-
-  it("states the private-input boundary and skill/quick_start equivalence", () => {
-    const guide = normalized(buildMcpQuickStart());
-
-    expect(guide).toContain(
-      "never send private code, local paths, credentials, or personal data",
-    );
-    expect(guide).toContain(
-      "This guide is both the `githits-mcp` skill and the `quick_start` result; once either is loaded, do not call `quick_start`",
-    );
+    expect(guide).not.toContain("Local experimental tools");
   });
 });
 

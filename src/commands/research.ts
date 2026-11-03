@@ -273,14 +273,9 @@ export function validateResearchCommandBeforeAction(command: Command): void {
   resolveResearchSubject(input.target, options.thread);
 }
 
-const DESCRIPTION = `Research a public repository or package to answer a question with cited sources.
-${RESEARCH_VERIFIED_ANSWER_GUIDANCE}
+const DESCRIPTION = `Answer a question about an open-source package or repository. Quote multi-word questions. ${RESEARCH_VERIFIED_ANSWER_GUIDANCE} Use direct reads/package commands when sufficient. Supply a package/repository target or omit it for identification; docs sites are unsupported.
 
-Omit the target to let GitHits infer one public repository or package from your
-question. Quote multi-word questions. An explicit target keeps the search scoped.
-
-Use a returned thread ID with --thread for follow-ups. Name a new project,
-version, or topic in the question to change scope.`;
+If candidates return, retry with the matching project as target; never guess. Reuse \`--thread\` and state scope changes. Respect retry delays and daily resets. After failure, use a direct lookup for a specific gap.`;
 
 export function registerResearchCommand(program: Command): Command {
   return program

@@ -180,7 +180,7 @@ async function assertStableMcpSession(
       quickStart.includes("`grep`") &&
       quickStart.includes("`code_diff`") &&
       quickStart.includes("`research`") &&
-      quickStart.includes("private or") &&
+      quickStart.includes("cannot access private repositories") &&
       !quickStart.includes("## Local experimental tools"),
     `${context}: quick_start missing stable routing or research guidance`,
   );

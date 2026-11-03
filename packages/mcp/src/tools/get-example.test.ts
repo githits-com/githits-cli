@@ -66,7 +66,7 @@ describe("getExampleTool", () => {
     expect(tool.description).toContain("source repository provenance");
     expect(tool.description).toContain("generated references");
     expect(tool.schema.format?.description).toBe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field.",
     );
     expect(tool.schema.license_mode?.description).toContain(
       "`yolo` disables filtering",

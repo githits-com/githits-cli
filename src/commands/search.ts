@@ -157,51 +157,20 @@ export async function searchStatusAction(
 
 const SEARCH_DESCRIPTION = `Search code, docs, and symbols across indexed dependencies, repositories, and documentation sites.
 
-Repeatable --in targets accept explicit package form (registry:name[@version],
-for example npm:express[@version]). Package targets inspect an indexed
-artifact/manifest root, not a full repository. Swift packages use
-swift:github.com/<owner>/<repo> or swift:gitlab.com/<group>/<project>;
-Zig packages use zig:gh/<owner>/<repo> or zig:cb/<owner>/<repo>.
-Use public repository targets for full repositories or sibling packages.
-Repository targets use github:org/repo[@ref], codeberg:owner/repo[@ref], gitlab:group[/subgroup...]/project[@ref],
-launchpad:~owner/+git/repo[@ref], launchpad:~owner/project/+git/repo[@ref],
-or launchpad:~owner/distro/+source/source/+git/repo[@ref] (lp:PROJECT also accepted).
-Full HTTPS repository URLs are accepted on github.com, codeberg.org, gitlab.com, git.launchpad.net, code.launchpad.net or public *.googlesource.com hosts.
-Googlesource uses full HTTPS targets only; project case is preserved and ports are rejected.
-Launchpad also accepts lp:PROJECT and owner-scoped or distribution-source defaults.
-HTTPS code.launchpad.net and git.launchpad.net accept the same paths;
-git://git.launchpad.net requires a complete owner-qualified path.
-GitHub also accepts github.com/org/repo and HTTP.
-Exact documentation sites use site:<host[/path]>. Missing or
-ambiguous sites may return advisory site targets to retry explicitly.
-Output uses canonical provider:path@ref formatting. Structured flags are
-AND-combined with the query. Search all runnable target/source pairs by default.
-Active PENDING, INDEXING, or SEARCHING progress returns a searchRef. Active
-progress may include stale-but-serveable evidence. Follow an explicit
-\`githits search-status\` action emitted for that active reference only when
-updated results matter. Use visible hits for lookup now. COMPLETED, DEFERRED,
-TIMEOUT, and FAILED are terminal; unrecognized statuses are not polled. Preserve
-any disclosed evidence and follow the rendered new-search action. Missing or
-ambiguous sites instead provide terminal recovery guidance without a searchRef.
-Use \`githits example\` for code examples from projects across open source; \`--source symbol\`
-here returns symbol-shaped hits.
+Read known symbols with githits read <target> --selector <name>. Search for missing locations; omit redundant target/version terms. Use sufficient results directly; otherwise replay the returned read action, including selector and bounds. Use a known location before repeating discovery.
 
-Hosted/crawled [docs page] HTTP(S) targets address mutable current content.
-Pass the displayed URL or fragment unchanged to githits read; automatic
-follow-ups omit search line coordinates. Repository docs are snapshot-addressed
-and keep their returned ranges. Add --lines only for an intentional page range.
+Repeat --in for multiple targets. Packages use registry:name[@version] (for example npm:express); public repositories use github:owner/repo[@ref], another supported provider, or a supported repository URL. Swift: swift:github.com/<owner>/<repo>; Zig: zig:gh/<owner>/<repo>. Also Launchpad (lp:PROJECT, launchpad:~owner/+git/repo) and full HTTPS *.googlesource.com URLs. Packages cover an artifact/manifest root, not full repositories or sibling packages. Use site:<host[/path]> for hosted docs; suggested sites require an explicit choice. Repository refs use @; # selects a symbol/heading.
 
-The query supports implicit AND, uppercase OR, parens, unary -, "phrases",
-and qualifiers (kind:, category:, path:, lang:, name:, intent:, registry:,
-package:, version:, repo:).
+Use visible hits while indexing continues. Follow an emitted search-status action only for active progress when updated results matter; do not repeat search to poll. Terminal or unrecognized statuses are not polled; follow recovery guidance.
+
+Preserve docs locators. Hosted docs are mutable; repository docs address snapshots. On githits read, --lines overrides heading selection with a page-relative range. Use githits example for examples from other projects.
+
+Queries support implicit AND, uppercase OR, parens, unary -, "phrases", and qualifiers (kind:, category:, path:, lang:, name:, intent:, registry:, package:, version:, repo:). Structured flags are AND-combined with the query; inspect qualifier warnings.
 
 Examples:
   githits search "router middleware" --in npm:express
   githits search "routing" --in site:expressjs.com --source docs
-  githits search '"body parser" OR multer' --in npm:express --source docs
-  githits search "compose" --in npm:lodash --source code --kind function
-  githits search "debounce" --in npm:lodash --source symbol
-  githits search "composeArgs" --in npm:lodash --name composeArgs`;
+  githits search "composeArgs" --in npm:lodash --source symbol`;
 
 const SEARCH_STATUS_DESCRIPTION = `Check the status of a unified search started earlier.
 

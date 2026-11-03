@@ -114,9 +114,7 @@ describe("code_diff MCP adapter", () => {
     });
     expect(tool.schema.format?.parse(undefined)).toBe("text");
     expect(tool.schema.format?.safeParse("text-v1").success).toBe(false);
-    expect(tool.schema.format?.description).toContain(
-      "Omit `format` to use token-efficient text when the model reads the result",
-    );
+    expect(tool.schema.format?.description).toContain("Omit for text");
     expect(tool.schema.format?.description).not.toContain(
       "parse responses in code",
     );
@@ -139,7 +137,7 @@ describe("code_diff MCP adapter", () => {
       description?: string;
     };
     expect(pathGlobSchema.description).toContain(
-      "no braces, character classes, `!`, or Git pathspec magic",
+      "no braces, character classes, ! or Git pathspec magic",
     );
     expect(pathGlobSchema.description).toContain("non-empty");
     expect(schema.properties?.target).toMatchObject({ type: "string" });

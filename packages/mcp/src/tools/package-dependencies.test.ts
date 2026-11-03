@@ -161,10 +161,10 @@ describe("createPackageDependenciesTool — metadata", () => {
       "Inspect what a package depends on, directly or transitively",
     );
     expect(tool.schema.include_issues?.description).toContain(
-      "deprecated, outdated, duplicate, and conflict analysis",
+      "deprecated, outdated, duplicate and conflicting packages",
     );
     expect(tool.schema.include_issues?.description).toContain(
-      "this traverses the full graph",
+      "scans the full graph",
     );
     expect(tool.schema.max_depth?.description).toContain(
       "unless `include_importers` is true",
@@ -190,7 +190,7 @@ describe("createPackageDependenciesTool — metadata", () => {
     const issueSchema = schema.properties?.include_issues;
     if (!issueSchema) throw new Error("expected include_issues schema");
     expect((issueSchema as { description?: string }).description).toContain(
-      "Without `max_depth`, this traverses the full graph",
+      "scans the full graph unless max_depth bounds it",
     );
     expect(tool.annotations?.readOnlyHint).toBe(true);
   });

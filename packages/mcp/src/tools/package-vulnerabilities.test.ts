@@ -73,9 +73,8 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
       '`{"target":"npm:next","advisory_scope":"all"}`',
     );
     expect(tool.description).toContain(
-      "identifiers and aliases, including CVEs when available",
+      "identifiers/aliases (CVEs when available)",
     );
-    expect(tool.description).toContain("identifier aliases (including CVEs)");
     expect(tool.schema.include_transitive?.description).toContain(
       "dependency vulnerability evidence for the resolved graph",
     );

@@ -7,11 +7,10 @@ import {
 
 const schema: ZodRawShape = {};
 
-export const DESCRIPTION =
-  "Call quick_start first to choose tools and load untrusted-content rules. Call once per session before discovering evidence tools, unless the loaded githits-mcp skill already contains this guide. Covers tool choice, workflow, target conventions, result conventions, and upgrade checks.";
+export const DESCRIPTION = `Call quick_start first to choose tools and load untrusted-content rules. Call once per session before discovering evidence tools, unless the loaded githits-mcp skill already contains this guide. Do not load both.`;
 
 export const QUICK_START_PREREQUISITE =
-  "Before using this tool, call `quick_start` once per session unless the `githits-mcp` skill is loaded.";
+  "Load the GitHits guide once per session first (`quick_start` or the `githits-mcp` skill).";
 
 export function createQuickStartTool(
   guide: string,

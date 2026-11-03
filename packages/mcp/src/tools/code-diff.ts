@@ -51,7 +51,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Optional single non-empty repository-relative glob. Supports literals, `*`, `?`, whole-component `**`, and backslash escapes (for example `lib/**/*.js`); no braces, character classes, `!`, or Git pathspec magic.",
+      "Omit for all paths. Otherwise one non-empty repository-relative literal or glob. For several files use one shared glob such as **/*.js or lib/**/*.js; for unrelated named paths call once per path. Supports *, ?, whole-component ** and backslash escapes; no braces, character classes, ! or Git pathspec magic.",
     ),
   max_files: z
     .number()
@@ -75,7 +75,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, fields are absent from text, or the full returned patch is required. Text patch previews are bounded at 320 UTF-8 bytes; JSON remains subject to backend limits and content coverage.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON includes the full returned patch.",
     ),
 };
 

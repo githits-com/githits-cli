@@ -44,13 +44,13 @@ const schema: ZodRawShape = {
     .min(1)
     .optional()
     .describe(
-      "Thread UUID returned by an earlier research call. Cannot be combined with target. Reuse it for follow-ups; name a new project or version in the question to change scope.",
+      "Omit when no thread was returned; never pass an empty string. Otherwise reuse the returned thread UUID for follow-ups, without target; name scope changes in the question.",
     ),
   question: z
     .string()
     .min(1)
     .describe(
-      "One research question to answer from indexed public evidence, asked directly; sources are always included. Do not include credentials, personal data, private code, or proprietary content.",
+      "Focused research question about missing information for the task. Sources are included. Do not include credentials, personal data, private code, or proprietary content.",
     ),
   source_format: z
     .enum(["mcp", "url"])
@@ -62,11 +62,11 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field.",
     ),
 };
 
-export const DESCRIPTION: string = `Research a public repository or package to answer a question with sources. Omit target and thread_id to identify the target from the question. If Research returns candidates, retry with the one matching the question's project as target. Supply at most one of target or thread_id. Continue a prior thread by its returned thread_id. Follow-ups can change project, version, or topic; state changes in the question. ${RESEARCH_VERIFIED_ANSWER_GUIDANCE} Sources default to MCP read calls; request source_format=url for original upstream URLs.`;
+export const DESCRIPTION: string = `Research a public repository or package to answer a question with sources. Omit target and thread_id for project identification. If Research returns candidates, retry with the one matching established context as target; never guess. Use pkg_info for registry metadata or repository URLs, package tools for assessments, and read for known symbols. Reuse thread_id for follow-ups; state scope changes. ${RESEARCH_VERIFIED_ANSWER_GUIDANCE} Request an overview only when needed. A rate limit covers all Research questions/targets: wait the returned delay, or use direct retrieval for a specific gap; daily limits wait until reset.`;
 
 export function createResearchTool(
   service: AgenticAskService,
