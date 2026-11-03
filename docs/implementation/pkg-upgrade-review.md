@@ -211,10 +211,12 @@ interface UpgradeStatements {
     heading?: string;
     source?: string;
     url?: string;
+    commits?: string[];     // at most one URL, or full SHA when URL is unavailable
+    commitsOmitted?: number;
     text: string;
     textTruncated: boolean;
-    fullText: string;
-    context?: { heading?: string; text: string; textTruncated: boolean; fullText: string };
+    fullText?: string;      // omitted when identical to text
+    context?: { heading?: string; text: string; textTruncated: boolean; fullText?: string };
     classification: null | {
       tier: "must_act" | "should_know" | "no_impact" | "unclassified";
       ambiguous: boolean;
@@ -233,6 +235,7 @@ interface UpgradeStatements {
     statementsNotAssessed: number;
     statementsNoImpact: number;
     statementsUnclassified: number;
+    generation?: { status: "generated" | "pending" | "not_generated"; reason?: string };
   }>;
 }
 ```
@@ -240,6 +243,11 @@ interface UpgradeStatements {
 JSON selects fullText and sourcePosition, including complete context text, and
 requires confidence/model/formulation fields on non-null classifications before
 normalization. Per-item provenance is not collapsed to one formulation per review.
+The shared response adapter omits identical text/fullText copies and boilerplate
+notices. Commit evidence is one authoritative locator with an omitted citation
+count; generation is a compact status/reason object. CLI and MCP smoke validation
+requires statement text and accepts optional string fullText. See
+[the shared changelog JSON contract](pkg-changelog.md#json-compatibility).
 
 `riskCoverage` retains versionsClassified, versionsNotAssessed,
 versionsWithoutNotes, versionsUnparseable, unitsNoImpact, itemsMustActConfident,

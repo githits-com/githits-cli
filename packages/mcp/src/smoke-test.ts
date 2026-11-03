@@ -1669,8 +1669,12 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   for (const item of upgradeStatements.items) {
     assertRecord(item, "pkg_upgrade_review statement item");
     assert(
-      typeof item.fullText === "string",
-      "pkg_upgrade_review missing statement fullText",
+      typeof item.text === "string",
+      "pkg_upgrade_review missing statement text",
+    );
+    assert(
+      item.fullText === undefined || typeof item.fullText === "string",
+      "pkg_upgrade_review invalid statement fullText",
     );
     assert(
       typeof item.sourcePosition === "number",
