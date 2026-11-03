@@ -19,6 +19,7 @@ function statement(position: number, tier = "MUST_ACT", ambiguous = false) {
     version: "1.0.0",
     position,
     sourceIndex: 0,
+    commits: null,
     sourcePosition: position + 1,
     heading: null,
     source: "RELEASES",
@@ -43,6 +44,7 @@ function coverage(total: number) {
     {
       version: "1.0.0",
       status: "CLASSIFIED",
+      generation: null,
       statementsTotal: total,
       statementsAssessed: total,
       statementsNotAssessed: 0,
@@ -198,6 +200,56 @@ function setup(
 }
 
 describe("complete upgrade statement retrieval", () => {
+  for (const filtered of [false, true]) {
+    it(`accepts generated statements with matching counters, filtered=${filtered}`, async () => {
+      const body = initial([review(page(1))]);
+      const r = body.data.packageUpgradeReview.reviews[0]!;
+      const item = r.changelog.statements.items[0]!;
+      Object.assign(item, {
+        source: "GENERATED",
+        url: null,
+        heading: null,
+        commits: [
+          {
+            sha: "abcdef0123456789",
+            url: "https://example.com/commit/abcdef0123456789",
+          },
+        ],
+      });
+      Reflect.set(item.classification, "tierConfidence", null);
+      const generation = {
+        status: "GENERATED",
+        reason: null,
+      };
+      Object.assign(r.changelog.statements.coverage[0]!, {
+        status: "WITHOUT_NOTES",
+        generation,
+      });
+      Object.assign(r.changelog.riskCoverage, {
+        versionsClassified: 0,
+        versionsWithoutNotes: 1,
+      });
+      const changes = {
+        statementTiers: filtered ? ["MUST_ACT" as const] : undefined,
+      };
+      const result = await setup([body], changes).run();
+      expect(
+        result.reviews[0]?.changelog.statements?.coverage[0],
+      ).toMatchObject({
+        status: "WITHOUT_NOTES",
+        generation,
+      });
+      expect(result.reviews[0]?.changelog.statements?.items[0]).toMatchObject({
+        source: "GENERATED",
+        commits: Reflect.get(item, "commits"),
+        classification: { ambiguous: false },
+      });
+      r.changelog.riskCoverage.itemsMustActConfident = 0;
+      await expect(setup([body], changes).run()).rejects.toThrow(
+        "disagrees with whole-range counters",
+      );
+    });
+  }
   for (const enabled of [true, false])
     it(`preserves initial security variables and minimal projection when enabled=${enabled}`, async () => {
       const { run, requests } = setup([initial([review(page(1))])], {
@@ -617,6 +669,11 @@ describe("upgrade statement projections", () => {
       expect(query).not.toContain("riskItems");
       expect(query).not.toContain("itemsOmitted");
       expect(query.includes("statements(")).toBe(view !== "triage");
+      expect(query.includes("commits { sha url }")).toBe(view === "json");
+      expect(query.includes("generation { status reason notice }")).toBe(false);
+      expect(query.includes("generation { status reason }")).toBe(
+        view !== "triage",
+      );
       expect(query.includes("fullText")).toBe(view === "json");
       expect(query.includes("tierConfidence")).toBe(view === "json");
       expect(query.includes("sourcePosition")).toBe(view === "json");

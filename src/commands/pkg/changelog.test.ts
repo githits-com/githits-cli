@@ -126,19 +126,22 @@ describe("pkgChangelogAction", () => {
 
   it("emits the JSON envelope when --json is set", async () => {
     const logSpy = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await pkgChangelogAction("npm:express", { json: true }, createDeps());
 
-    await pkgChangelogAction("npm:express", { json: true }, createDeps());
-
-    const output = logSpy.mock.calls[0]?.[0] as string;
-    const payload = JSON.parse(output);
-    expect(payload.registry).toBe("npm");
-    expect(payload.name).toBe("express");
-    expect(payload.source).toBe("releases");
-    expect(payload.mode).toBe("latest");
-    expect(payload.entries.count).toBe(2);
-    expect(payload.entries.items[0].body).toBeUndefined();
-    expect(payload.statements.items[0].fullText).toBe("- fixed a thing");
-    logSpy.mockRestore();
+      const output = logSpy.mock.calls[0]?.[0] as string;
+      const payload = JSON.parse(output);
+      expect(payload.registry).toBe("npm");
+      expect(payload.name).toBe("express");
+      expect(payload.source).toBe("releases");
+      expect(payload.mode).toBe("latest");
+      expect(payload.entries.count).toBe(2);
+      expect(payload.entries.items[0].body).toBeUndefined();
+      expect(payload.statements.items[0].text).toBe("- fixed a thing");
+      expect(payload.statements.items[0].fullText).toBeUndefined();
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 
   it("emits JSON version entries without source when no changelog source is available", async () => {

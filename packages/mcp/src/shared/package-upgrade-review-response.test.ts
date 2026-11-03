@@ -805,6 +805,69 @@ function unit(
 }
 
 describe("complete upgrade statement presentation", () => {
+  it.each(["generated", "pending", "not_generated"] as const)(
+    "shows generation evidence for empty upgrade release: %s",
+    (status) => {
+      const review = statementReview([]);
+      const coverage = review.changelog.statements!.coverage[0]!;
+      coverage.status = "without_notes";
+      coverage.generation = {
+        status,
+        ...(status === "generated" ? {} : { reason: "budget" }),
+      };
+      review.changelog.riskCoverage.versionsWithoutNotes = 1;
+      const text = formatPackageUpgradeReviewTerminal(
+        formatterResponse([review]),
+      ).replace(/\s+/g, " ");
+      expect(text).toContain(
+        status === "generated"
+          ? "No actionable statements (generated from commits)."
+          : status === "pending"
+            ? "Generation pending"
+            : "Generation unavailable",
+      );
+      expect(text).toContain("not evidence of no risk");
+      if (status === "generated")
+        expect(text).not.toContain("Server empty notice");
+      else {
+        expect(text).toContain("(budget)");
+        expect(text).toContain("No release notes available.");
+        expect(text).not.toContain("No statements match this filter");
+        coverage.status = "unparseable";
+        review.changelog.riskCoverage.versionsWithoutNotes = 0;
+        review.changelog.riskCoverage.versionsUnparseable = 1;
+        const unparseable = formatPackageUpgradeReviewTerminal(
+          formatterResponse([review]),
+        );
+        expect(unparseable).toContain("Notes contain no parsed statements.");
+        expect(unparseable).not.toContain("No statements match this filter");
+      }
+    },
+  );
+  it("keeps generated upgrade text compact, including when a filter hides statements", () => {
+    const item = {
+      ...unit(),
+      source: "generated",
+      url: undefined,
+      heading: undefined,
+      commits: ["https://example.com/commit/abcdef0"],
+    };
+    const review = statementReview([item]);
+    review.changelog.statements!.coverage[0]!.generation = {
+      status: "generated",
+    };
+    let text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    ).replace(/\s+/g, " ");
+    expect(text).toContain("(generated from commits)");
+    expect(text).not.toContain("abcdef0");
+    expect(text).not.toContain("Server notice");
+    review.changelog.statements!.items = [];
+    text = formatPackageUpgradeReviewTerminal(formatterResponse([review]));
+    expect(text).toContain("No statements match this filter.");
+    expect(text).not.toContain("(generated from commits)");
+    expect(text).not.toContain("No actionable statements");
+  });
   it("renders captured complete Express evidence with source order and whole-range counts", () => {
     const review = formatterReview({
       changelog: expressChangelog as UpgradeChangelog,
@@ -1089,6 +1152,7 @@ describe("complete upgrade statement presentation", () => {
       items: [
         {
           ...unit(),
+          commits: undefined,
           classification: {
             tier: "MUST_ACT",
             ambiguous: false,
@@ -1098,7 +1162,7 @@ describe("complete upgrade statement presentation", () => {
             formulation: "v2",
           },
         },
-        { ...unit(1), classification: null },
+        { ...unit(1), commits: undefined, classification: null },
       ],
       coverage: [],
     };

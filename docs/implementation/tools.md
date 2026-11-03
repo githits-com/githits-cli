@@ -628,7 +628,7 @@ and unknowns. Upgrade changelog JSON replaces `changelog.riskItems` with the
 paginated `changelog.statements` collection, including `count`, `totalCount`,
 `matchingCount`, `selection`, `items`, and `coverage`; detailed results always
 include the effective `selection`. Statement items retain source positions,
-context, uncut `fullText`, and nullable classification with provenance. The
+context, uncut `fullText` when distinct from text, and nullable classification with provenance. The
 whole-range `riskCoverage` counters remain, except `itemsOmitted`, which is
 removed. CLI `--json` and MCP `format: "json"` use this same envelope and are
 compared by the package-upgrade-review parity test. `text-v1` evolves in place
@@ -661,7 +661,7 @@ fully. Detailed `Changes` renders all matching statements from their paginated
 pages as source-ordered bullets with nearby source links and context, without
 tier headings, global numbered references, or duplicate sampled-note previews.
 `verbose` expands quotes only to backend-bounded text and adds full batch,
-security, and dependency detail; JSON alone contains uncut `fullText` and
+security, and dependency detail; JSON contains uncut `fullText` when distinct from text and
 classification provenance. Filters never change whole-range counters or
 package ranking. See [Upgrade review](pkg-upgrade-review.md) for the complete
 shared CLI/MCP behavior and JSON contract.
