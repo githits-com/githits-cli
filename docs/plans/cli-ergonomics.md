@@ -2,7 +2,7 @@
 
 ## Status and expected outcome
 
-- Overall: **IN PROGRESS**; Phase 1 implementation is under verification.
+- Overall: **IN PROGRESS**; Phase 1 is complete pending merge; Phase 2 needs reorientation.
 - Owner: this CLI worktree; backend investigations have separate child worktrees.
 - User direction, 2026-11-03: improve CLI ergonomics from the supplied feedback;
   exclude all skill changes because OP is reviewing those separately. Dispatch
@@ -105,101 +105,54 @@ formatting alone. Obtain approval before introducing infrastructure.
 
 | Phase | Status | Observable outcome | Dependencies |
 | --- | --- | --- | --- |
-| 1 — tolerate common arguments | IN PROGRESS | `--lines N` selects one line; excessive valid context becomes 10 with a visible notice; path flags are clear in help. | Existing read/grep paths only. |
+| 1 — tolerate common arguments | COMPLETE; pending merge | `--lines N` selects one line; excessive valid context becomes 10 with a visible notice; path flags are clear in help. | Existing read/grep paths only. |
 | 2 — actionable failure recovery | PLANNED | Daily Research exhaustion offers one usable scoped discovery command where possible; verified path-operand failures explain the correct flags. | Phase 1; inspect exact failure/operand contracts before final detail. |
 | 3 — bounded readable output | NEEDS DESIGN at phase boundary | Opt-in text budgets preserve trust facts and provide honest access to omitted evidence. | Phase 2; representative output and replay evidence. |
 | 4 — backend-assisted grep context | WAITING ON BACKEND PLANS | Unified grep can provide requested enclosing blocks with authoritative ranges; regex diagnostics clarify intent without rewriting patterns. | Backend evidence, user-settled contracts and backend availability. |
 
 ### Phase 1 — tolerate common arguments
 
-Status: **IN PROGRESS**. Outcome: fewer failed invocations for valid
-human/agent intent, with unchanged backend payload contracts.
+Status: **COMPLETE; pending merge**. Outcome: exact single-line selections and
+excessive valid grep context are accepted across the planned CLI paths.
 
-Assumptions: those listed above. Unknowns/product decisions: **none**.
-Dependencies: no backend work; no skill or instruction changes.
+Assumptions verified: existing read and grep operations support the normalized
+controls; the backend context ceiling remains 10. Unknowns/product decisions:
+**none for this increment**. Dependencies: no backend or skill changes.
 
-Implementation order and likely files:
+Completed contracts:
 
-1. Extend `shared/parse-lines-option.ts` so a positive safe integer N becomes
-   `{startLine: N, endLine: N}`. Retain `N-M`, `N-`, `-M` and conflict checks.
-   Reject zero, negatives, decimals, overflow, commas, reversed ranges and blank
-   values. Bound all parser forms to GraphQL Int's positive ceiling
-   (2,147,483,647), not merely JavaScript's safe-integer ceiling. Use the same
-   ceiling for explicit CLI `--start`/`--end` and parsed path-suffix bounds;
-   this changes numeric validation, not suffix interpretation. Update help in
-   `src/commands/read.ts`, `code/read.ts` and `docs/read.ts`.
-2. Factor/reuse the existing legacy nonnegative-safe-integer clamp and reduction
-   metadata. In `src/commands/grep.ts`, clamp only syntactically valid context
-   values; negative, fractional, nonnumeric and unsafe values still fail.
-   Validate every repeated `-A/-B/-C`, then retain last-value and explicit-side
-   precedence. Pass effective values to the strict shared grep builder.
-   Derive reduction metadata after that precedence, so an overridden excessive
-   value produces no notice when neither effective side needs reduction.
-   Invalid-value errors name CLI flags, not snake_case backend fields, and say
-   nonnegative safe integers are required; values above 10 are capped. Update
-   `-A/-B/-C` help so it no longer advertises 10 as an input-validation ceiling.
-3. In text mode, show one ASCII notice with requested versus effective context
-   on stderr once effective controls are known and an operation is attempted.
-   In successful JSON mode, add the existing legacy-shaped `contextClamping`
-   metadata to the CLI page only when clamping occurred; emit no prose on stderr.
-   This explicit additive CLI field avoids silent clamping and does not change
-   backend or MCP result types. A JSON failure remains exactly one existing error
-   envelope on stderr, with no preceding notice. Ordinary nonclamped CLI/MCP JSON
-   parity remains exact; capped CLI requests deliberately add local normalization
-   metadata. Earlier argument failures emit no clamping notice.
-   Reuse the existing `buildGrepContextClampingNotice` wording by extracting its
-   small pure text builder to accept `GrepContextClamping` rather than a legacy
-   envelope. Both CLI routes must retain one notice and the `githits read` action
-   for larger windows; do not introduce competing notice text.
-4. Expand grep help with an exact-file `--path` example and directory
-   `--path-prefix` example alongside the positional-target grammar. Do not
-   reinterpret or reject an operand because it resembles a local path.
-5. Update `docs/implementation/cli-commands.md`, `unified-grep.md` and
-   `unified-read.md` with the
-   CLI-only tolerance, strict MCP controls, text notice, optional CLI JSON
-   `contextClamping` metadata and new one-line form.
-   Add an independent release fragment: `githits: patch`, `@githits/mcp: none`
-   while MCP behavior/public APIs remain unchanged; reassess actual package
-   exports if implementation broadens that boundary.
+- `--lines N` sends N as both bounds in top-level source/docs/symbol reads and
+  legacy `code read`/`docs read`. Existing closed/open range forms and conflict
+  checks remain. All written CLI bounds, including explicit flags and numeric
+  suffixes, are positive integers at most 2,147,483,647. Empty and malformed
+  explicit values fail before a service call. Numeric errors retain the original
+  argument text, including oversized values.
+- Every supplied CLI grep context value is validated as a nonnegative safe
+  integer before repeated-flag and explicit-side precedence. Effective sides
+  are then capped at 10 using the policy shared with legacy grep. Overridden
+  excessive values produce no notice when neither effective side is reduced.
+- Text reports one reduction notice on stderr with the larger-read action.
+  Successful capped CLI JSON adds `contextClamping` with requested/effective
+  sides; ordinary JSON parity is unchanged. JSON failures remain one stderr
+  error envelope. MCP context schemas remain strict and unchanged.
+- Grep help explains that positional operands are targets and gives exact-file
+  `--path` and directory `--path-prefix` examples. It does not infer caller intent
+  or change multi-target semantics.
+- Disposable scoped smoke homes default to file storage and preserve explicit
+  overrides, including differently cased environment keys. They do not copy host
+  file credentials or depend on the host's default Keychain configuration.
 
-Tests and verification:
+Acceptance is covered by the parser/context helper suites, reader/grep command
+tests, existing CLI/MCP parity tests, smoke assertions, and bounded dev read/grep
+checks. Execution commands, outputs and review records belong on the implementing
+PR. The accepted Phase 1 scope requires no agent eval because MCP behavior,
+descriptors and instructions did not change.
 
-- Pure line-parser cases and existing command tests prove N maps to N/N in
-  top-level source/docs/symbol and both legacy routes, existing open ranges and
-  mixed-form rejection remain intact, and values above GraphQL Int fail across
-  line forms and explicit CLI bounds before reaching a service.
-- Context tests prove 0/10 are unchanged, 11/20 reduce with one notice, every
-  repeated invalid value fails, explicit sides beat symmetric context, service
-  params contain only effective values, JSON success remains one valid page
-  with optional structured clamping facts, and a clamped request followed by a
-  service failure still emits exactly one parseable stderr JSON error envelope.
-  Assert notice parity with legacy `code grep`, the larger-window action, and
-  CLI-native invalid-value messages that agree with the updated help.
-- Retain existing mixed-target order, duplicate operands, selectors, leading-dash
-  patterns and case-cluster tests; help assertions cover the path examples.
-- Run affected `bun test` files: `src/commands/{grep,read}.test.ts`,
-  `src/commands/code/{grep,read}.test.ts`, `src/commands/docs/read.test.ts`,
-  `packages/mcp/src/shared/{grep-request,grep-repo-request}.test.ts`, plus the
-  new parser/clamp tests. Then `bun run typecheck`, `bun run lint`,
-  `bun run format:check`, `bun run build`, `bun run smoke:cli` and
-  `bun run smoke:mcp`. Unauthenticated smokes must validate auth handling;
-  authenticated runs may deepen coverage without printing credentials.
-- Add structural smoke assertions for the new help/flags and a live one-line
-  read when authenticated. Phase 1 needs no agent eval: it accepts previously
-  failing CLI inputs without changing MCP behavior, descriptors or instructions;
-  unit and smoke assertions directly prove the input/output contract. If that
-  boundary changes during implementation, revise the plan and select the affected
-  workload from `eval/agentic/README.md` per repository guidance.
-- Keep disposable smoke homes independent of host Keychain defaults: the scoped
-  environment helper defaults to file storage unless explicitly overridden.
-  This verified test-harness correction is part of Phase 1's validation path;
-  it does not change application authentication or copy host file credentials.
+Durable contracts live in `docs/implementation/cli-commands.md`,
+`unified-read.md`, `unified-grep.md`, and the Testing guide. Release fragments
+record a CLI patch and a separate repository-only smoke correction. Phase 2 must
+reorient after merge before its tactical detail or readiness changes.
 
-Acceptance: all three reader routes accept exact single-line requests; every
-valid excessive CLI context value reaches the backend capped at 10 with one
-honest text notice or structured JSON facts; invalid values still fail;
-strict MCP controls, ordinary JSON parity,
-locators and valid multi-target requests are unchanged; docs and checks agree.
 
 ### Phase 2 — actionable failure recovery
 
