@@ -10,7 +10,7 @@ import {
 
 const PROBE_TOOL: LocalExperimentalToolGuidance = {
   name: "probe",
-  guidance: "- `probe` — probe one experimental contract.",
+  guidance: "- `probe` â€” probe one experimental contract.",
 };
 const EXPERIMENTAL_TOOLS = [PROBE_TOOL] as const;
 
@@ -29,15 +29,15 @@ function normalized(text: string): string {
 describe("buildMcpQuickStart", () => {
   it("keeps the task guide compact and routes before navigation", () => {
     const guide = buildMcpQuickStart();
-    expect(guide.split(/\s+/).length).toBeLessThan(1000);
+    expect(guide.split(/\s+/).length).toBeLessThan(900);
     expect(guide.indexOf("## Choose a tool")).toBeLessThan(
       guide.indexOf("## Depth and symbol following"),
     );
     for (const phrase of [
-      "open-source projects",
+      "open-source code",
       "cannot access private repositories, your local workspace, or uncommitted changes",
       "Never send private targets, private code, local paths, credentials, personal data, or proprietary content",
-      "once either is loaded, do not call `quick_start`",
+      "do not load both",
     ])
       expect(guide).toContain(phrase);
   });
@@ -48,9 +48,10 @@ describe("buildMcpQuickStart", () => {
       "follow resolver ambiguity rules",
       "Stop when enough is known; state material gaps",
       "Read known symbols directly",
-      "do not guess qualifications from the caller",
+      "Never guess qualifications",
       "Reuse definitions already read",
       "literal grep",
+      "before searching or grepping",
       "A call site alone does not establish",
       "Read omitted deciding conditions or bodies",
       "avoid repeated small windows",
@@ -72,9 +73,12 @@ describe("buildMcpQuickStart", () => {
       "Use JSON only when code consumes raw fields or text omits a required field",
       "active returned continuation",
       "Do not repeat search to poll",
+      "rate limit applies across questions/targets",
+      "omit unused optional arguments",
+      "exact heading IDs, not titles",
       "do not retry daily limits before reset",
       "Preserve unknown assessments and coverage limits",
-      "retry with the one matching established context as target",
+      "retry returned candidates only with an established match",
       "Reviews do not authorize modifications",
       "compare the same affected behavior before and after",
     ])
@@ -87,7 +91,7 @@ describe("buildMcpQuickStart", () => {
       "Reuse `thread_id` and state scope changes",
       "Research takes packages/repositories, not docs sites",
       "Omit target and thread_id for project identification",
-      "retry with the one matching established context as target; never guess",
+      "retry returned candidates only with an established match",
     ])
       expect(guide).toContain(phrase);
     expect(guide).not.toContain("Local experimental tools");

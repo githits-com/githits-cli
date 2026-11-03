@@ -35,7 +35,7 @@ describe("searchTool", () => {
     );
     expect(descriptor?.description).toContain("Hosted docs are mutable");
     expect(descriptor?.description).toContain(
-      "replay its complete emitted read action or generated `followUp` unchanged, including selector and bounds",
+      "replay the complete read action or `followUp`, including selector/bounds",
     );
     expect(descriptor?.description).toContain(
       "repository docs address snapshots",
@@ -61,7 +61,7 @@ describe("searchTool", () => {
   it("keeps the common path simple and delegates continuation details", () => {
     const tool = createSearchTool(createMockCodeNavigationService());
 
-    expect(tool.description).toContain("Use sufficient hit content directly");
+    expect(tool.description).toContain("Use sufficient hits directly");
     expect(tool.description).toContain(
       "an active action and searchRef are returned",
     );
@@ -119,20 +119,23 @@ describe("searchTool", () => {
     }
 
     const queryDescription = tool.schema.query?.description ?? "";
+    expect(queryDescription).toContain(
+      "no comma separators or trailing punctuation",
+    );
     for (const qualifier of [
       "kind:function",
       "category:callable",
       "path:lib/",
       "intent:production",
       "name:Router",
-      "lang:typescript",
+      "lang:javascript",
     ]) {
       expect(
         queryDescription.match(new RegExp(qualifier, "g")),
         qualifier,
       ).toHaveLength(1);
     }
-    expect(tool.description).toContain("Put search constraints in `query`");
+    expect(tool.description).toContain("Put constraints in `query`");
     expect(tool.description).toContain("warnings");
     expect(tool.description).toContain("`sourceStatus`");
   });
@@ -240,7 +243,7 @@ describe("searchTool", () => {
     await tool.handler(
       {
         query:
-          "  handler kind:function category:callable path:lib/ intent:production name:Router lang:typescript  ",
+          "  handler kind:function category:callable path:lib/ intent:production name:Router lang:javascript  ",
         target: "npm:express",
         public_only: true,
         allow_partial_results: true,
@@ -251,7 +254,7 @@ describe("searchTool", () => {
     expect(search).toHaveBeenCalledWith(
       expect.objectContaining({
         query:
-          "handler kind:function category:callable path:lib/ intent:production name:Router lang:typescript",
+          "handler kind:function category:callable path:lib/ intent:production name:Router lang:javascript",
         allowPartialResults: true,
         filters: { publicOnly: true },
       }),

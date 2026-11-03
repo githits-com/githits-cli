@@ -151,7 +151,7 @@ describe("resolve_target MCP adapter", () => {
     expect(tool.schema.format?.parse(undefined)).toBe("text");
     expect(tool.schema.format?.safeParse("text-v1").success).toBe(false);
     expect(tool.schema.format?.description).toBe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
+      "Default text is for reading. Use json only when code consumes raw fields or text lacks required fields.",
     );
     expect(schema.properties?.query).toMatchObject({
       description: expect.stringContaining(

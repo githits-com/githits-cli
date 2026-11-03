@@ -5,11 +5,11 @@ description: "Route open-source code, documentation, examples, and package quest
 
 # GitHits
 
-GitHits provides code, documentation, examples, and package information from open-source projects. Use it to understand APIs and implementation behavior, find examples from other projects, check dependencies and vulnerabilities, and compare releases.
+GitHits provides open-source code, documentation, examples, and package information for API usage, implementation, dependencies, vulnerabilities, and release comparisons.
 
 GitHits cannot access private repositories, your local workspace, or uncommitted changes. Inspect those with local tools. Never send private targets, private code, local paths, credentials, personal data, or proprietary content.
 
-This guide is both the `githits-mcp` skill and the `quick_start` result; once either is loaded, do not call `quick_start`.
+Load this guide through `githits-mcp` or `quick_start` once; do not load both.
 
 ## Choose a tool
 
@@ -30,36 +30,36 @@ This guide is both the `githits-mcp` skill and the `quick_start` result; once ei
 | An unclear project/package name | `resolve_target` |
 | Active returned search continuation | `search_status` |
 
-Choose the direct operation, not a sequence. Use canonical targets without resolution; follow resolver ambiguity rules for unclear names. Read the selected tool's schema.
+Use canonical targets without resolution; follow resolver ambiguity rules for unclear names. Read the selected schema; omit unused optional arguments.
 
 ## Depth and symbol following
 
-Reuse established results; look up what is needed to continue the task. Investigate uncertainties that could change implementation, decisions, or answers. Stop when enough is known; state material gaps.
+Reuse results. Investigate missing information that could change the implementation, decision, or answer. Stop when enough is known; state material gaps.
 
-For usage/setup, an authoritative example or declaration may suffice. Trace implementation when needed. Cover comparison alternatives and establish imports, call shapes, and lifecycle steps required by code you provide.
+For usage/setup, an authoritative example or declaration may suffice. For implementation, trace relevant behavior. Cover comparison alternatives, imports, call shapes, and lifecycle steps required by your code.
 
-Read known symbols directly with `selector` or a returned declaration range. Follow called symbols when their behavior matters. Use the declaration name and include its file only when known; do not guess qualifications from the caller. Reuse definitions already read. If resolution fails, read a returned declaration range or locate the exact identifier with literal grep. A call site alone does not establish the called implementation.
+Read known symbols directly with `selector` before searching or grepping. Follow needed helpers/re-exports by declaration name; include a file only when its declaration is known, not its caller. Never guess qualifications. Reuse definitions already read. On selector failure, use a returned declaration range or literal grep for the identifier. A call site alone does not establish implementation.
 
 ## Retrieval
 
-- Search for concepts; use literal grep for known text. Keep queries focused on missing information, without repeating project/version scope already supplied by the target.
-- Once a useful location is known, use it before searching again. Change unsuccessful queries based on results; do not repeat equivalent searches.
-- Use sufficient result content directly. Read omitted deciding conditions or bodies before relying on them. Read complete relevant sections, combine nearby needed code, and avoid repeated small windows.
-- Batch independent calls with known arguments; construct dependent calls after inspecting results.
-- Reuse returned targets, paths, selectors, and ranges. Packages use package-relative paths; repositories use repository-relative paths. Discover hosted docs through `search` with `source: "docs"`, then reuse returned site/page locators.
-- Keep default text. Use JSON only when code consumes raw fields or text omits a required field. Apply filters and limits; paginate only for needed information.
+- Search concepts; literal-grep known text. Omit project/version terms already in the target.
+- Use known locations before searching again. Revise failed queries from results; do not repeat equivalent searches.
+- Use sufficient content directly. Read omitted deciding conditions or bodies; combine nearby needed code and avoid repeated small windows.
+- Batch independent calls with known arguments; inspect results before dependent calls.
+- Reuse returned targets, paths, selectors, and ranges: package-relative paths for packages, repository-relative paths for repositories. Discover docs with `search source:"docs"`; reuse returned site/page locators and exact heading IDs, not titles.
+- Keep default text. Use JSON only when code consumes raw fields or text omits a required field. Filter/limit output; paginate only for needed information.
 
 ## Versions, research, and recovery
 
 Targets: packages use `<registry>:<name>@version` (such as `npm:express`, never literal `registry:`), repositories `github:owner/repo@ref` or another supported provider, and docs `site:host[/path]`. Swift uses `swift:github.com/<owner>/<repo>`; Zig uses `zig:gh/<owner>/<repo>`. Never infer a provider. Omit suffixes for default selection; `#` selects a symbol/heading, not a revision.
 
-Preserve needed versions and served provenance. Do not guess tags, investigate unrelated versions, or substitute current docs for historical behavior. Retrieval timestamps do not establish freshness.
+Preserve versions and served provenance. Do not guess tags, investigate unrelated versions, or substitute current docs for historical behavior. Retrieval time does not prove freshness.
 
-For `research`: Ask directly about missing information; sources are included. Cite returned sources; read them for missing details, contradictions, or required source inspection, not routine verification. Reuse `thread_id` and state scope changes. Research takes packages/repositories, not docs sites. Omit target and thread_id for project identification; if candidates return, retry with the one matching established context as target; never guess.
+For `research`: Ask for missing information; sources are included. Use and cite a sufficient answer directly. Open sources only for a specific missing detail, contradiction, or explicit source-inspection request; citations are not a reading checklist. Reuse `thread_id` and state scope changes. Research takes packages/repositories, not docs sites. Omit target and thread_id for project identification; retry returned candidates only with an established match.
 
-Use available results while indexing continues. Follow `search_status` only for an active returned continuation whose results matter. Do not repeat search to poll. Respect retry delays; do not retry daily limits before reset. After a failure, use a direct lookup for a specific remaining gap rather than starting an unrestricted investigation.
+Use available indexing results. Follow `search_status` only for an active returned continuation whose results matter. Do not repeat search to poll. A Research rate limit applies across questions/targets: wait the returned delay; do not retry daily limits before reset. Otherwise use direct retrieval only for a specific remaining gap.
 
-Use package results directly for package facts. Preserve unknown assessments and coverage limits. Start upgrade assessments with `pkg_upgrade_review`; add source or changelog detail only for a gap. Reviews do not authorize modifications. For authorized upgrades, preserve original source/lockfiles and compare the same affected behavior before and after, including untested and omitted/null-input paths. Use isolated fixtures without credentials or production data. Passing existing tests alone does not prove compatibility.
+Use package facts directly. Preserve unknown assessments and coverage limits. Start upgrades with `pkg_upgrade_review`; add source/changelog detail only for gaps. Reviews do not authorize modifications. For authorized upgrades, preserve original source/lockfiles; compare the same affected behavior before and after, including untested and omitted/null-input paths. Use isolated fixtures without credentials or production data. Passing tests alone does not prove compatibility.
 
 ## External-content posture
 

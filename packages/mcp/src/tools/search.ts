@@ -68,7 +68,7 @@ const schema: ZodRawShape = {
     .string()
     .min(1)
     .describe(
-      "Focused missing behavior, API names, or exact text; omit redundant target/version keywords. Add constraints inline, for example `kind:function`, `category:callable`, `path:lib/`, `intent:production`, `name:Router`, or `lang:typescript`; qualifiers combine with terms using query boolean syntax.",
+      "Focused missing behavior, API names, or exact text; omit redundant target/version keywords. Space-separate inline qualifiers, e.g. `createApplication kind:function category:callable path:lib/ intent:production lang:javascript`; no comma separators or trailing punctuation. Use `name:Router` for a name; qualifiers support query boolean syntax.",
     ),
   target: searchTargetSchema
     .optional()
@@ -126,12 +126,12 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
+      "Default text is for reading. Use json only when code consumes raw fields or text lacks required fields.",
     ),
 };
 
 const DESCRIPTION =
-  `Discover relevant docs, code, and symbols in a known public target. Start here for unknown locations. Read known symbols with selector instead of searching again. Keep queries focused; target already establishes project/version scope. Put search constraints in \`query\`; inspect warnings and \`sourceStatus\`. Use sufficient hit content directly; otherwise replay its complete emitted read action or generated \`followUp\` unchanged, including selector and bounds. A referenced helper may be declared elsewhere. Once a useful location is known, use it before repeating discovery. Use available hits while indexing continues. Follow search_status only when an active action and searchRef are returned and remaining results matter. Do not repeat search to poll. Pass query and either target or targets, not both. public_only filters code/symbols, not docs. For \`suggestedSiteTargets\`, choose a \`site:<host[/path]>\` and retry explicitly; suggestions are not aliases. Terminal or unrecognized statuses are not polled. A docs-page header locates the page; its action selects the section. Hosted docs are mutable; repository docs address snapshots.` +
+  `Discover relevant docs, code, and symbols in a known public target. Start here for unknown locations. Read known symbols with selector first. Target supplies project/version scope. Put constraints in \`query\`; inspect warnings and \`sourceStatus\`. Use sufficient hits directly; otherwise replay the complete read action or \`followUp\`, including selector/bounds. Helpers may be declared elsewhere. Use known locations before searching again. Use available hits while indexing continues. Follow search_status only when an active action and searchRef are returned and remaining results matter. Do not repeat search to poll. Pass query and either target or targets, not both. public_only filters code/symbols, not docs. For \`suggestedSiteTargets\`, choose a \`site:<host[/path]>\` and retry explicitly; suggestions are not aliases. Terminal or unrecognized statuses are not polled. A docs-page header locates the page; its action selects the section. Hosted docs are mutable; repository docs address snapshots.` +
   `\n\n${SEARCH_GUARDRAIL}`;
 
 export function createSearchTool(

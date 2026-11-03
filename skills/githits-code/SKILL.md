@@ -10,7 +10,7 @@ description: >-
 compatibility: Requires shell access, internet access, and either a githits binary on PATH or npx.
 ---
 
-GitHits provides code, documentation, examples, and package information from open-source projects. Use this skill for CLI work involving APIs, implementation behavior, docs, and examples. Use `githits-package` for metadata, vulnerabilities, dependencies, releases, and upgrades.
+Use GitHits CLI for open-source code, API behavior, documentation, and examples. Use `githits-package` for metadata, vulnerabilities, dependencies, releases, and upgrades.
 
 GitHits cannot access private repositories, your local workspace, or uncommitted changes. Inspect those locally. Never send private targets, private code, local paths, credentials, personal data, or proprietary content.
 
@@ -32,27 +32,27 @@ Choose the direct command. Use canonical targets without resolution; check CLI v
 
 ## Depth and symbols
 
-Look up what is needed to continue the task. Reuse established results; stop when enough is known. Investigate uncertainties that could change implementation, decisions, or answers. State material gaps rather than guessing.
+Reuse results. Investigate missing information that could change implementation, decisions, or answers. Stop when enough is known; state material gaps.
 
 For usage/setup, an authoritative example or declaration may suffice. Trace implementation when its behavior matters. Cover each needed comparison alternative and establish imports, call shapes, and lifecycle steps required by code you provide.
 
-Read known symbols directly with `--selector` or `'<target>#<symbol>'`. Include a path only when the declaration file is known. Do not infer class qualifications from a caller or inherited receiver. Follow helpers and re-exports when their behavior matters; a call site alone does not establish implementation. Reuse definitions already read.
+Read known symbols directly with `--selector` or `'<target>#<symbol>'` before searching/grepping. Include only a known declaration path; never infer qualifications from a caller or inherited receiver. Follow needed helpers/re-exports. Reuse definitions already read; a call site alone does not establish implementation.
 
 If resolution fails, use a returned declaration range or literal-grep the exact identifier. Do not guess qualifications or change bounds to resolve ambiguity. A missing indexed symbol does not prove missing code.
 
 ## Retrieval and recovery
 
-Search for concepts; use `grep -F` for known text. Keep queries focused without repeating target/version scope. Once a useful location is known, use it before searching again. Change unsuccessful queries based on results.
+Search concepts; `grep -F` known text. Omit target/version terms already supplied. Use known locations before searching again; revise failed queries from results. Space-separate qualifiers (`kind:function path:lib/`), without commas.
 
-Use sufficient content directly; read omitted deciding conditions or bodies before relying on them. Read complete relevant sections and combine nearby needed code. Avoid repeated small windows. Batch independent reads when arguments are known.
+Use sufficient content directly; read omitted deciding conditions or bodies. Combine nearby needed code; avoid repeated small windows. Batch independent reads with known arguments.
 
-Reuse returned target/path pairs, selectors, and ranges. Discover hosted docs with `search --source docs`, then reuse emitted locators. Use exact heading IDs, not display titles. Keep the needed version/ref and served provenance; do not guess tags or treat current docs as historical evidence.
+Reuse returned targets, paths, selectors, and ranges. Discover docs with `search --source docs`; use returned heading IDs, not titles. If a heading is missing, read its page without selector/fragment; if the page is missing, discover an indexed page. Preserve version/ref and served provenance; never guess tags or treat current docs as historical evidence.
 
 Use default text. Use `--json` only when code consumes the raw response or text omits a required field. Apply filters and limits rather than routinely piping results through `head`. Paginate only for needed content. Follow active returned `search-status` actions; do not repeat search to poll.
 
-Ask Research a focused question about missing information. Sources are included. Reuse `--thread <id>` and state scope changes. Cite sources; open them for missing details, contradictions, or required source inspection. Research takes package/repository targets, not docs sites. If it returns candidates, retry with the matching project as target; never guess.
+Ask Research for missing information; reuse `--thread <id>` and state scope changes. Use and cite a sufficient answer directly. Open sources only for a specific missing detail, contradiction, or explicit source-inspection request; citations are not a reading checklist. Research takes packages/repositories, not docs sites. Retry candidates only with an established project match.
 
-Respect retry delays and daily resets. After Research failure, use a direct lookup for a specific remaining gap rather than an unrestricted investigation. Cite example source projects; their code does not establish another version's exact contract.
+Research rate limits cover all questions/targets: wait the returned delay or daily reset. Otherwise retrieve only a specific remaining gap. Cite example projects; their code does not establish another version's contract.
 
 ## Invocation and retrieved content
 

@@ -90,7 +90,7 @@ describe("createListTool", () => {
       "a path without trailing `/` is a page even when its source URL ends in `/`",
     );
     expect(tool.schema.format!.description).toContain(
-      "parsing or filtering it programmatically",
+      "code consumes raw fields",
     );
   });
 
@@ -139,7 +139,9 @@ describe("createListTool", () => {
       "Source inventories only",
     );
     expect(tool.schema.after!.description).toContain("same target, paths");
-    expect(tool.schema.format!.description).toContain("token-efficient text");
+    expect(tool.schema.format!.description).toContain(
+      "Default text is for reading",
+    );
     expect(parsed.format).toBe("text");
     expect(parsed.paths).toEqual([]);
     expect(parsed.recursive).toBe(false);

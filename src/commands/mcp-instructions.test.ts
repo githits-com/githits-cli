@@ -123,7 +123,7 @@ describe("buildMcpQuickStart", () => {
       expect(description("code_diff")).toContain(phrase);
     }
     expect(description("search")).toContain(
-      "replay its complete emitted read action or generated `followUp` unchanged",
+      "replay the complete read action or `followUp`",
     );
     expect(description("list")).toContain(
       "a path without trailing `/` is a page",

@@ -47,7 +47,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text. JSON includes `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`.",
+      "Default text is for reading. Use json only when code consumes raw fields or text lacks required fields. JSON includes `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`.",
     ),
 };
 

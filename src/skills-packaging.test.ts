@@ -87,7 +87,7 @@ describe("agent skills packaging", () => {
     ]);
 
     expectContainsAll(mcpContent, [
-      "Packages use package-relative paths",
+      "package-relative paths for packages",
       "swift:github.com/<owner>/<repo>",
       "zig:gh/<owner>/<repo>",
     ]);
@@ -316,7 +316,7 @@ describe("agent skills packaging", () => {
       "Route open-source code, documentation, examples, and package questions to GitHits tools",
       "Read this skill before searching for or selecting GitHits evidence tools",
       "it identifies the tool to discover and the scope to use",
-      "once either is loaded, do not call `quick_start`",
+      "do not load both",
     ]);
     expectNotContainsAllIgnoringWhitespace(publicContent, [
       "public OSS",
@@ -381,7 +381,7 @@ describe("agent skills packaging", () => {
     expectContainsAllIgnoringWhitespace(packageContent, [
       "Keep default text",
       "`from..to` excludes from and includes to",
-      jsonPolicy,
+      "use `--json` only when code consumes raw fields or text lacks required fields",
     ]);
     expectContainsAllIgnoringWhitespace(packageReference, [
       "Use `--json` only for code consuming raw fields or required fields absent from text.",
@@ -407,9 +407,9 @@ describe("agent skills packaging", () => {
     );
     expectContainsAll(content, [
       "Read known symbols directly",
-      "declaration file is known",
+      "known declaration path",
       "literal-grep the exact identifier",
-      "Use exact heading IDs, not display titles",
+      "use returned heading IDs, not titles",
       "references/code-and-docs.md",
     ]);
     expectContainsAll(reference, [

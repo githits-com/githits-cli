@@ -45,7 +45,7 @@ describe("createPackageChangelogTool — metadata", () => {
       "Do not pass with exact `@version` or lower-bound range targets (`@from..to`, `@from..`)",
     );
     expect(tool.schema.format?.description).toContain(
-      "Set `json` only when code consumes",
+      "Use json only when code consumes raw fields",
     );
     expect(tool.schema.verbose?.description).toContain(
       "cannot combine with omit_bodies:true",

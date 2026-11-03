@@ -115,7 +115,7 @@ describe("code_diff MCP adapter", () => {
     expect(tool.schema.format?.parse(undefined)).toBe("text");
     expect(tool.schema.format?.safeParse("text-v1").success).toBe(false);
     expect(tool.schema.format?.description).toContain(
-      "Omit `format` to use token-efficient text when the model reads the result",
+      "Default text is for reading",
     );
     expect(tool.schema.format?.description).not.toContain(
       "parse responses in code",

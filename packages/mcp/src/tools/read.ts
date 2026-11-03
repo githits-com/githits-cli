@@ -53,7 +53,7 @@ export const readSchema: ReadSchema = {
   target: z
     .string()
     .describe(
-      "Pass a returned HTTP(S) page URL unchanged to read it directly. A site: target requires a separate exact page path, including / for its root. With path: use a compact package/repo target for a file; target#symbol narrows a symbol read to that file. Without path: use a docs target/page ID or compact target#symbol unchanged. Preserve emitted targets unchanged.",
+      "Reuse returned HTTP(S) page URLs or docs IDs unchanged. A site: target requires path (/ for root). Files take compact package/repo target plus path; target#symbol reads a declaration, restricted to path when supplied.",
     ),
   path: z
     .string()
@@ -65,7 +65,7 @@ export const readSchema: ReadSchema = {
     .string()
     .optional()
     .describe(
-      "Known code declaration name or exact docs heading ID. For code symbols, include only a known declaration path; otherwise omit path. Site headings require a page path. Do not guess class qualifications or combine with a docs URL fragment or compact target#symbol. A docs URL fragment needs no bounds and selects the full subtree through the next equal-or-higher heading; either bound overrides it with a page-relative range.",
+      "Omit unless selecting a known code declaration name or exact docs heading ID (not its display title); never pass an empty string. For code symbols, include only a known declaration path; otherwise omit path. Site headings require a page path. Do not guess class qualifications or combine with a docs URL fragment or compact target#symbol. A docs URL fragment needs no bounds and selects the full subtree through the next equal-or-higher heading; either bound overrides it with a page-relative range.",
     ),
   start_line: z
     .number()
@@ -89,11 +89,11 @@ export const readSchema: ReadSchema = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit `format` to use token-efficient text when the model reads the result. Use json when code consumes the raw response instead of the model or required metadata is absent from text.",
+      "Default text is for reading. Use json only when code consumes raw fields or text lacks required fields.",
     ),
 };
 
-export const DESCRIPTION_BASE: string = `Read an indexed source file, code symbol, or documentation section. Pass target and path for files/site pages; selector reads code symbols/docs headings. Read known code declarations directly; include only a known declaration path, never inferred caller qualifications. Follow helpers when their behavior matters; reuse definitions. On resolution failure, use a returned declaration range or literal grep; bounds do not disambiguate. Preserve emitted docs actions. Hosted docs are mutable; repository docs address snapshots. Read needed sections; continue only for missing content. Use list for directories. On INDEXING follow recovery for the same target/path.`;
+export const DESCRIPTION_BASE: string = `Read an indexed source file, code symbol, or documentation section. Pass target and path for files/site pages; selector reads code symbols/docs headings. Read known code declarations with selector before searching/grepping; include only a known declaration path, never inferred caller qualifications. Follow helpers when their behavior matters; reuse definitions. On resolution failure, use a returned declaration range or literal grep; bounds do not disambiguate. Preserve emitted docs actions. If a heading is missing, read its page without selector/fragment or use page-relative lines. If the page is unavailable, discover an indexed page with search source:docs. Hosted docs are mutable; repository docs address snapshots. Read needed sections; continue only for missing content. Use list for directories. On INDEXING follow recovery for the same target/path.`;
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${CODE_READ_GUARDRAIL}`;
 
 /** One advertised reader; source-specific selection and error contracts stay intact. */

@@ -26,13 +26,13 @@ Use canonical coordinates directly. Resolve only unclear identities with known r
 
 ## Use package facts directly
 
-Before another call, identify what is missing and how it affects the task. Use returned metadata and assessments directly. Inspect code for behavior or vulnerability mechanisms, not merely to restate package facts. Stop when enough is known to continue; report material gaps.
+Use metadata and assessments directly. Inspect code for missing behavior or vulnerability mechanisms, not to restate package facts. Stop when enough is known; report material gaps.
 
-Start upgrades with `pkg upgrade-review`. Add changelog/source detail for a specific gap rather than repeating all checks. Use direct dependencies unless transitive structure matters. Expand depth, lifecycle scope, or `--transitive` only when needed. Public graphs do not establish local lockfiles or application reachability.
+Start upgrades with `pkg upgrade-review`; add changelog/source detail only for gaps. Expand dependency depth, lifecycle scope, or `--transitive` only when needed. Public graphs do not establish local lockfiles or application reachability.
 
-Use parsed release notes when sufficient, `--verbatim` for original wording, and `--no-body` for timelines. Limit releases to the needed range: `from..to` excludes from and includes to. Neither release notes nor patches alone establish application compatibility.
+Use parsed notes when sufficient, `--verbatim` for original wording, `--no-body` for timelines. `from..to` excludes from and includes to; `--limit` is only for latest or `@..to`. Notes or patches alone do not establish compatibility.
 
-Keep default text. Use `--json` only when code consumes the raw response or text omits a required field. Apply filters/limits instead of discarding broad output through `head`.
+Keep default text; use `--json` only when code consumes raw fields or text lacks required fields. Filter/limit output instead of piping through `head`.
 
 ## Versions, uncertainty, and upgrades
 

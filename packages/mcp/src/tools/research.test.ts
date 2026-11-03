@@ -131,7 +131,7 @@ describe("research MCP adapter", () => {
       "Omit target and thread_id for project identification",
     );
     expect(DESCRIPTION).toContain(
-      "retry with the one matching established context as target; never guess",
+      "retry with the one matching established context as target",
     );
     expect(
       z.object(tool.schema).parse({ question: "How does codex work?" }),
@@ -166,7 +166,7 @@ describe("research MCP adapter", () => {
     expect(tool.schema.thread_id?.safeParse("").success).toBe(false);
     expect(tool.schema.format?.safeParse("text-v1").success).toBe(false);
     expect(tool.schema.format?.description).toBe(
-      "Omit `format` to use token-efficient text when the model reads the result or chooses follow-up tools. Set `json` only when code consumes the raw response instead of the model, or a required field is absent from text.",
+      "Default text is for reading. Use json only when code consumes raw fields or text lacks required fields.",
     );
   });
 

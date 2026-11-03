@@ -80,7 +80,7 @@ const DESCRIPTION_ROUTING: Record<
       "Omit target and thread_id",
       "Reuse thread_id",
       "sources are included",
-      "read them for missing details, contradictions, or required source inspection",
+      "Open sources only for a specific missing detail, contradiction, or explicit source-inspection request",
     ],
     absent: ["Experimental"],
   },
@@ -122,7 +122,7 @@ const DESCRIPTION_ROUTING: Record<
       "Start here for unknown locations",
       "Pass query and either target or targets, not both",
       "search_status",
-      "complete emitted read action",
+      "complete read action",
     ],
   },
   search_status: {
@@ -157,11 +157,13 @@ const DESCRIPTION_ROUTING: Record<
       "Read an indexed source file, code symbol, or documentation section. Pass target ",
     body: [
       "selector reads code symbols/docs headings",
-      "Read known code declarations directly",
+      "Read known code declarations with selector before searching/grepping",
       "known declaration path",
       "Follow helpers when their behavior matters",
       "returned declaration range or literal grep",
       "bounds do not disambiguate",
+      "If a heading is missing",
+      "If the page is unavailable",
       "Hosted docs are mutable",
       "repository docs address snapshots",
       "Use list for directories",
@@ -251,7 +253,7 @@ function renderDeferredCatalogSummary(description: string): string {
     );
   }
 
-  return sentence.length > 79 ? `${sentence.slice(0, 79)}…` : sentence;
+  return sentence.length > 79 ? `${sentence.slice(0, 79)}â€¦` : sentence;
 }
 
 describe("MCP tool annotations", () => {
@@ -339,12 +341,12 @@ describe("MCP tool description catalog", () => {
         descriptor.description.split(".")[0]!.length + 1,
         descriptor.name,
       ).toBeLessThanOrEqual(79);
-      expect(catalogSummary, descriptor.name).not.toEndWith("…");
+      expect(catalogSummary, descriptor.name).not.toEndWith("â€¦");
       if (descriptor.name === "quick_start") {
         expect(catalogSummary).toContain("Call quick_start first");
         expect(catalogSummary).toContain("untrusted-content rules");
         expect(catalogSummary).not.toContain("githits-mcp");
-        expect(catalogSummary).not.toEndWith("…");
+        expect(catalogSummary).not.toEndWith("â€¦");
         expect(catalogPrefix).not.toContain("githits-mcp");
       }
       expect(catalogPrefix, descriptor.name).not.toMatch(
@@ -456,10 +458,10 @@ describe("MCP output format", () => {
         );
       } else {
         expect(JSON.stringify(formatSchema), descriptor.name).toContain(
-          "Omit `format` to use token-efficient text when the model reads the result",
+          "Default text is for reading",
         );
         expect(JSON.stringify(formatSchema), descriptor.name).toContain(
-          "code consumes the raw response instead of the model",
+          "code consumes raw fields",
         );
       }
       expect(descriptor.schema.format?.parse(undefined)).toBe("text");

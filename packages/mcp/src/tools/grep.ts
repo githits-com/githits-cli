@@ -137,7 +137,7 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  `Find regex or literal matches across source and documentation. Search ordered package, repository, and site targets for occurrences and call sites. Read known definitions with selector first; use literal grep for unresolved identifiers, search for concepts. Once located, read missing context instead of grepping again. Package targets include selected hosted docs independently of source filters. Text includes read locators; counts cover one page. Preserve ordered targets, matching controls, and coverage limits when continuing.` +
+  `Find regex or literal matches across source and documentation. Search ordered package, repository, and site targets for occurrences and call sites. Read known definitions with selector first; use literal grep for unresolved identifiers, search for concepts. Context is capped at 10 lines per side; read for larger sections once located. Package targets include selected hosted docs independently of source filters. Text includes read locators; counts cover one page. Preserve ordered targets, matching controls, and coverage limits when continuing.` +
   `\n\n${CODE_GREP_GUARDRAIL}`;
 
 /** One mixed-source MCP page using the same semantics as the top-level CLI. */
