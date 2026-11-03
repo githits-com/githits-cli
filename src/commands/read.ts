@@ -302,10 +302,7 @@ export function registerReadCommand(program: Command): Command {
       "--selector <name>",
       "Code symbol or logical documentation heading ID",
     )
-    .option(
-      "--lines <range>",
-      "One line or inclusive range, e.g. 10, 10-40, 10-, or -40",
-    )
+    .option("--lines <range>", "N, N-M, N-, or -M (1-based, inclusive)")
     .option("--start <n>", "Starting line (alternative to --lines)")
     .option("--end <n>", "Ending line (alternative to --lines)")
     .option(

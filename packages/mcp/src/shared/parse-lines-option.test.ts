@@ -118,7 +118,7 @@ describe("parsePositiveReadLine", () => {
     expect(() =>
       parsePositiveReadLine("100000000000000000000", "path range start"),
     ).toThrow(
-      "path range start must be at most 2147483647 (the maximum GraphQL Int). Got '100000000000000000000'.",
+      "path range start: maximum 2147483647. Got '100000000000000000000'.",
     );
   });
 });

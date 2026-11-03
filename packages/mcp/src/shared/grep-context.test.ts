@@ -48,10 +48,10 @@ describe("grep context normalization", () => {
       },
     });
     expect(buildGrepContextClampingNotice(context.contextClamping, "cli")).toBe(
-      "Context limited to 10 before / 3 after (requested 20 / 3; maximum 10 per side). Use githits read for a larger window.",
+      "Context capped (before/after): 20/3 -> 10/3. More: githits read.",
     );
     expect(
       buildGrepContextClampingNotice(context.contextClamping, "mcp"),
-    ).toContain("Use read for a larger window.");
+    ).toContain("More: read.");
   });
 });

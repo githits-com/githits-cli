@@ -311,7 +311,7 @@ Default output is the raw file content — pipe-friendly for
 downstream tools (\`code read … | grep …\`). Pass --verbose for a
 header and a line-number gutter.
 
-Use --lines for one line (e.g. \`--lines 10\`) or a bounded range (e.g. \`--lines 10-40\`), or append a range directly to the path (e.g. \`src/index.js:10-40\`). The \`path\` comes directly from \`githits code files\`.
+Use indexed paths from \`githits code files\`; optional suffix: \`:N-M\`.
 
 Addressing: <target> accepts registry:name[@version], github:org/repo[@ref], codeberg:owner/repo[@ref], gitlab:group[/subgroup...]/project[@ref],
 launchpad:~owner/+git/repo[@ref], launchpad:~owner/project/+git/repo[@ref],
@@ -353,10 +353,7 @@ export function registerCodeReadCommand(pkgCommand: Command): Command {
       "--git-ref <ref>",
       "Optional tag, commit, branch, or HEAD for --repo-url.",
     )
-    .option(
-      "--lines <range>",
-      "One line or inclusive range (e.g. `10`, `10-40`, `10-`, or `-40`)",
-    )
+    .option("--lines <range>", "N, N-M, N-, or -M (1-based, inclusive)")
     .option("--start <n>", "Starting line (1-indexed). Alternative to --lines.")
     .option("--end <n>", "Ending line (inclusive). Alternative to --lines.")
     .option(

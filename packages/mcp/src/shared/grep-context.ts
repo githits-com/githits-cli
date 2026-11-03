@@ -25,7 +25,7 @@ export function normalizeGrepContextValue(
   if (value === undefined) return undefined;
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new InvalidPackageSpecError(
-      `\`${field}\` must be a nonnegative safe integer; values above ${GREP_CONTEXT_MAX} are capped. Got ${displayValue}.`,
+      `${field}: nonnegative safe integer required. Got ${displayValue}.`,
     );
   }
   return value;
@@ -62,5 +62,5 @@ export function buildGrepContextClampingNotice(
 ): string | undefined {
   if (!adjustment) return undefined;
   const read = surface === "cli" ? "githits read" : "read";
-  return `Context limited to ${adjustment.effectiveBefore} before / ${adjustment.effectiveAfter} after (requested ${adjustment.requestedBefore} / ${adjustment.requestedAfter}; maximum ${GREP_CONTEXT_MAX} per side). Use ${read} for a larger window.`;
+  return `Context capped (before/after): ${adjustment.requestedBefore}/${adjustment.requestedAfter} -> ${adjustment.effectiveBefore}/${adjustment.effectiveAfter}. More: ${read}.`;
 }

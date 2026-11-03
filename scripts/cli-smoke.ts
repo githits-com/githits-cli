@@ -1310,7 +1310,7 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
     const readHelp = await runCliWithEnv(["read", "--help"], env);
     assert(
       readHelp.exitCode === 0 &&
-        readHelp.stdout.includes("One line or inclusive range"),
+        readHelp.stdout.includes("N, N-M, N-, or -M (1-based, inclusive)"),
       "read help must expose exact single-line selections",
     );
     for (const group of ["code", "docs"]) {

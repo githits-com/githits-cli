@@ -16,7 +16,7 @@ export function parseLinesOption(raw: string): LineRange {
   const trimmed = raw.trim();
   if (trimmed.length === 0) {
     throw new InvalidPackageSpecError(
-      "--lines requires a positive line number or range like `42`, `10-40`, `10-`, or `-40`.",
+      "--lines: use N, N-M, N-, or -M (positive integers).",
     );
   }
 
@@ -31,7 +31,7 @@ export function parseLinesOption(raw: string): LineRange {
 
   if (startRaw.length === 0 && endRaw.length === 0) {
     throw new InvalidPackageSpecError(
-      "--lines requires at least one bound. Use `10-40`, `10-` for open end, or `-40` for open start.",
+      "--lines: use N, N-M, N-, or -M (positive integers).",
     );
   }
 
@@ -57,18 +57,16 @@ export function parseLinesOption(raw: string): LineRange {
 export function parsePositiveReadLine(raw: string, label: string): number {
   if (!/^\d+$/.test(raw)) {
     throw new InvalidPackageSpecError(
-      `${label} must be a positive integer. Got '${raw}'.`,
+      `${label}: positive integer required. Got '${raw}'.`,
     );
   }
   const parsed = Number.parseInt(raw, 10);
   if (parsed < 1) {
-    throw new InvalidPackageSpecError(
-      `${label} must be ≥ 1 (lines are 1-indexed). Got ${parsed}.`,
-    );
+    throw new InvalidPackageSpecError(`${label}: minimum 1. Got '${raw}'.`);
   }
   if (parsed > MAX_READ_LINE) {
     throw new InvalidPackageSpecError(
-      `${label} must be at most ${MAX_READ_LINE} (the maximum GraphQL Int). Got '${raw}'.`,
+      `${label}: maximum ${MAX_READ_LINE}. Got '${raw}'.`,
     );
   }
   return parsed;

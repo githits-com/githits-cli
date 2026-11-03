@@ -681,7 +681,7 @@ describe("top-level read", () => {
     expect(docsReadHelp).toContain("Deprecated: use githits read");
     expect(docsReadHelp).toMatch(/mutable\s+current\s+content/);
     expect(docsReadHelp).toMatch(/repository\s+docs are snapshot-addressed/);
-    expect(docsReadHelp).toContain("full subtree");
+    expect(docsReadHelp).toContain("heading subtrees");
   });
 
   it.each([

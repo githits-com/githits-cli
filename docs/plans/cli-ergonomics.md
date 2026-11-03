@@ -137,7 +137,9 @@ Completed contracts:
   error envelope. MCP context schemas remain strict and unchanged.
 - Grep help explains that positional operands are targets and gives exact-file
   `--path` and directory `--path-prefix` examples. It does not infer caller intent
-  or change multi-target semantics.
+  or change multi-target semantics. Context policy is stated once per help page;
+  read options share compact range notation, and diagnostics retain limits,
+  requested/effective context, raw invalid values and the larger-read action.
 - Disposable scoped smoke homes default to file storage and preserve explicit
   overrides, including differently cased environment keys. They do not copy host
   file credentials or depend on the host's default Keychain configuration.

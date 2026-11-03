@@ -51,7 +51,7 @@ describe("unified grep CLI", () => {
     expect(help).toContain("capped at 10");
     expect(help).toContain("--path lib/express.js");
     expect(help).toContain("--path-prefix lib/");
-    expect(help).toContain("targets, not file paths");
+    expect(help).toContain("Targets, not file paths");
   });
   it("parses ordered mixed operands and interleaved selectors with explicit defaults", async () => {
     const grep = mock((_params: GrepParams) =>
@@ -335,10 +335,10 @@ describe("unified grep CLI", () => {
       );
       expect(error).toHaveBeenCalledTimes(1);
       expect(error.mock.calls[0]?.[0]).toBe(
-        "Context limited to 10 before / 3 after (requested 20 / 3; maximum 10 per side). Use githits read for a larger window.",
+        "Context capped (before/after): 20/3 -> 10/3. More: githits read.",
       );
       expect(write).toHaveBeenCalledTimes(1);
-      expect(String(write.mock.calls[0]?.[0])).not.toContain("Context limited");
+      expect(String(write.mock.calls[0]?.[0])).not.toContain("Context capped");
     } finally {
       write.mockRestore();
       error.mockRestore();
@@ -428,7 +428,7 @@ describe("unified grep CLI", () => {
       ).rejects.toThrow("exit");
       expect(d.grepService.grep).not.toHaveBeenCalled();
       expect(error).toHaveBeenCalledTimes(1);
-      expect(String(error.mock.calls[0]?.[0])).not.toContain("Context limited");
+      expect(String(error.mock.calls[0]?.[0])).not.toContain("Context capped");
     } finally {
       error.mockRestore();
       exit.mockRestore();
@@ -436,7 +436,7 @@ describe("unified grep CLI", () => {
   });
 
   it.each(["-1", "1.2", "abc", "9007199254740992"])(
-    "reports invalid CLI context %s with native flag and cap advice",
+    "reports invalid CLI context %s with native flag and raw value",
     async (value) => {
       const d = deps();
       const error = spyOn(console, "error").mockImplementation(() => {});
@@ -456,7 +456,6 @@ describe("unified grep CLI", () => {
         expect(payload.code).toBe("INVALID_ARGUMENT");
         expect(payload.error).toContain("--before-context");
         expect(payload.error).toContain("nonnegative safe integer");
-        expect(payload.error).toContain("above 10 are capped");
         expect(payload.error).toContain(`Got ${JSON.stringify(value)}.`);
         expect(d.grepService.grep).not.toHaveBeenCalled();
       } finally {

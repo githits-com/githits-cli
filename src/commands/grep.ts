@@ -193,29 +193,21 @@ export function registerGrepCommand(
     .command("grep")
     .summary("Find regex or literal matches across source and documentation")
     .description(
-      "Search ordered package, repository, and site: targets. Defaults: RE2 regex, case-sensitive, zero context, and all indexed repository files. Package targets also include selected hosted documentation independently of --corpus and path filters. Matching uses indexed content, not local files. Regex supports RE2 and backend anchoring requirements; unsupported or anchorless expressions fail explicitly. -s follows rg (case-sensitive); grep uses -s to suppress errors. Unlike grep/rg -m, --limit is a global page cap. Partial results and exact read actions remain visible. Use -- before a leading-dash pattern. Positional operands after the pattern are targets, not file paths. For an exact file: githits grep router npm:express --path lib/express.js. For a directory: githits grep router npm:express --path-prefix lib/.",
+      "Search ordered package, repository, and site: targets. Defaults: RE2 regex, case-sensitive, zero context, and all indexed repository files. Package targets also include selected hosted documentation independently of --corpus and path filters. Matching uses indexed content, not local files. Regex supports RE2 and backend anchoring requirements; unsupported or anchorless expressions fail explicitly. -s follows rg (case-sensitive); grep uses -s to suppress errors. Unlike grep/rg -m, --limit is a global page cap. Partial results and exact read actions remain visible. Use -- before a leading-dash pattern.\n\nContext: nonnegative safe integers; capped at 10 per side.\n\nFile: --path lib/express.js; directory: --path-prefix lib/.",
     )
     .argument("<pattern>", "RE2 regex, or literal with -F")
-    .argument("<targets...>", "Ordered package, repository, or site: operands")
+    .argument("<targets...>", "Targets, not file paths")
     .option("-F, --fixed-strings", "Match a literal string")
     .option("-i, --ignore-case", "Ignore case (Unicode folding)")
     .option(
       "-s, --case-sensitive",
       "Match case sensitively (rg convention; last case flag wins)",
     )
-    .option(
-      "-A, --after-context <n>",
-      "Trailing context lines (nonnegative safe integer; capped at 10)",
-      collect,
-    )
-    .option(
-      "-B, --before-context <n>",
-      "Leading context lines (nonnegative safe integer; capped at 10)",
-      collect,
-    )
+    .option("-A, --after-context <n>", "Lines after each match", collect)
+    .option("-B, --before-context <n>", "Lines before each match", collect)
     .option(
       "-C, --context <n>",
-      "Context on both sides (nonnegative safe integer; capped at 10); -A/-B override their side",
+      "Lines on both sides; -A/-B override their side",
       collect,
     )
     .option(
