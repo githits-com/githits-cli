@@ -44,7 +44,9 @@ are not grouped: a display fallback cannot establish equal underlying evidence.
 `osv-invalid:` expressions render as `(unevaluable source range)`; JSON retains
 the source expression. Empty arrays say `none reported`; null says `unknown`.
 Source fixes are not verified releases or safe upgrades. Missing evidence never
-establishes safety. Numeric source severity is emitted only for CVSS_V2, CVSS_V3
+establishes safety. Literal placeholder summaries are omitted from text and JSON using the existing
+shared package-vulnerability summary policy. Explanation paragraphs keep uniform
+indentation. Numeric source severity is emitted only for CVSS_V2, CVSS_V3
 and CVSS_V4. SEVERITY_LABEL and untyped/unknown numeric scores are omitted from
 text and JSON. The CLI does not calculate CVSS scores or infer severity labels
 from numbers.
@@ -117,8 +119,10 @@ outcomes. This replaces the initial **unreleased** raw `lookup` envelope.
   `ranges`, `totalCount`, and `truncated`. A truncated fallback is never silently
   presented as complete evidence. When known ranges exceed the display bound,
   affectedTruncated and affectedTotal describe the omitted spans. Verbose evidence
-  detail retains rawAffected when it differs from the normalized view; no client
-  range evaluator compresses the expressions.
+  detail retains rawAffected when normalization is missing/truncated or the registry
+  is unsupported. A nonempty, complete backend display already represents the
+  named-package constraints, so verbose text/JSON omit its redundant raw inventory.
+  No client range evaluator compresses the expressions.
 - `target` is a registry:name package locator. Append the installed version for
   `githits pkg vulns '<target>@<installed-version>'`. An exceptional `assessment`
   field describes what needs resolving first: `module_or_toolchain` for Go,
@@ -153,7 +157,23 @@ curated detail fields: advisory explanation, aliases, dates, severity vectors,
 references, original affected/Git events and normalization changes. Null event
 properties are omitted while event order and string timestamp precision survive.
 Limit/lastAffected boundaries are never described as fixes; CVSS vectors are not
-converted to numbers.
+converted to numbers. Text names the detailed advisory and labels CVSS vectors
+explicitly. Displayed affected spans (including retained raw expressions),
+explicit version/tag labels and source fix lists use numeric-aware natural
+display order on copied arrays, not ecosystem precedence or upgrade
+recommendations. JSON arrays and Git event sequences retain source order.
+
+Verbose text omits alias IDs already identified by headings/source rows, an
+update date equal to publication, exact same-record alias/date metadata already
+shown under the root detail, and repeated per-event qualifiers. References are
+grouped by type and exact duplicates omitted from text; JSON preserves their
+original sequence, repeated entries and null URLs. Same-record package entries
+already contained in the root advisory are omitted from package text; differing
+observations remain visible. Consecutive original entries for the same nonnull
+package share a heading/PURL; package-less entries keep separate headings, and
+non-Git events are compact ordered lines. Git events keep their per-event
+layout. JSON retains every source's original evidence without cross-record
+merging.
 
 Source-wide aliases/dates belong to `sources`. Package-scoped original affected
 entries, normalization changes and differing reported package identity belong to

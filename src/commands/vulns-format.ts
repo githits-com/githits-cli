@@ -13,6 +13,18 @@ import {
 
 export type { VulnsError, VulnsResult } from "./vulns-response.js";
 
+const versionLabelOrder = new Intl.Collator("en", { numeric: true });
+
+/** Presentation order only; never use for ecosystem precedence or vulnerability assessment. */
+function orderedVersionLabels(values: readonly string[]): string[] {
+  return [...values].sort(versionLabelOrder.compare);
+}
+
+function originalSeverity(type: string, score: string): string {
+  const label = type.replace(/^CVSS_V([234])$/, "CVSS v$1");
+  return `${label}${score.startsWith("CVSS:") ? " vector" : ""}: ${score}`;
+}
+
 /** One projected contract for human text and JSON; source metadata is printed once. */
 export function formatVulns(
   results: VulnsResult[],
@@ -50,6 +62,17 @@ export function formatVulns(
   for (const report of reports) {
     if (lines.length) add();
     const advisory = report.advisory;
+    const identifiedIds = new Set(
+      advisory
+        ? [
+            report.inputId.trim(),
+            advisory.id,
+            ...(report.sources
+              ?.filter(isEquivalentSource)
+              .flatMap((source) => (source.id ? [source.id] : [])) ?? []),
+          ]
+        : [],
+    );
     const singleSource =
       report.sources?.length === 1 ? report.sources[0] : undefined;
     const equivalentSource = isEquivalentSource(singleSource);
@@ -100,7 +123,31 @@ export function formatVulns(
       if (source.url !== advisory?.url) add(`${indent}${source.url}`);
       if (source.withdrawnAt && source.withdrawnAt !== advisory?.withdrawnAt)
         add(`${indent}Withdrawn: ${source.withdrawnAt}`);
-      if (options.verbose) renderDetail(source, add, indent);
+      if (options.verbose) {
+        const metadata =
+          source.relationship === "advisory"
+            ? {
+                ...source,
+                aliases: source.aliases?.filter(
+                  (id) => !advisory?.aliases?.includes(id),
+                ),
+                publishedAt:
+                  source.publishedAt === advisory?.publishedAt
+                    ? undefined
+                    : source.publishedAt,
+                modifiedAt:
+                  source.modifiedAt === advisory?.modifiedAt
+                    ? undefined
+                    : source.modifiedAt,
+              }
+            : source;
+        renderDetail(
+          metadata,
+          add,
+          indent,
+          isEquivalentSource(source) ? identifiedIds : undefined,
+        );
+      }
     };
     const input = report.inputId.trim() || "(empty ID)";
     const count = report.coverage
@@ -217,10 +264,11 @@ export function formatVulns(
         if (ranges?.length)
           addItems(
             `    Affected${attribution}: `,
-            ranges.map((range) =>
-              range.startsWith("osv-invalid:")
-                ? "(unevaluable source range)"
-                : range,
+            (options.verbose ? orderedVersionLabels(ranges) : ranges).map(
+              (range) =>
+                range.startsWith("osv-invalid:")
+                  ? "(unevaluable source range)"
+                  : range,
             ),
             ";",
           );
@@ -234,24 +282,55 @@ export function formatVulns(
             `    Display: ${evidence.affectedDisplay.ranges.length} of ${evidence.affectedDisplay.totalCount} spans; truncated display-only evidence.`,
           );
         if (evidence.fixed?.length)
-          addItems("    Source fixes: ", evidence.fixed, ",");
+          addItems(
+            "    Source fixes: ",
+            options.verbose
+              ? orderedVersionLabels(evidence.fixed)
+              : evidence.fixed,
+            ",",
+          );
         else
           add(
             `    Source fixes: ${evidence.fixed === null ? "unknown" : "none reported"}`,
           );
         for (const detail of evidence.details ?? []) {
+          const sharedOriginal =
+            detail.originalAffected &&
+            report.sources?.[detail.sourceIndex]?.id === advisory?.id &&
+            detail.originalAffected.every((entry) =>
+              advisory?.originalAffected?.some(
+                (root) => JSON.stringify(entry) === JSON.stringify(root),
+              ),
+            );
+          if (
+            sharedOriginal &&
+            !detail.reportedPackage &&
+            detail.rawAffected === undefined &&
+            !detail.normalization
+          )
+            continue;
           add(`    Original package evidence [${detail.sourceIndex + 1}]:`);
           if (detail.reportedPackage)
             add(
               `      Source package: ${detail.reportedPackage.registry ?? "unknown registry"}:${detail.reportedPackage.name ?? "unknown name"}`,
             );
           if (detail.rawAffected?.length)
-            addItems("      Raw affected: ", detail.rawAffected, ";");
+            addItems(
+              "      Raw affected: ",
+              orderedVersionLabels(detail.rawAffected),
+              ";",
+            );
           else if (detail.rawAffected !== undefined)
             add(
               `      Raw affected: ${detail.rawAffected === null ? "unknown" : "none reported"}`,
             );
-          renderDetail(detail, add, "      ");
+          renderDetail(
+            sharedOriginal
+              ? { ...detail, originalAffected: undefined }
+              : detail,
+            add,
+            "      ",
+          );
         }
       }
     }
@@ -262,19 +341,26 @@ export function formatVulns(
     }
     if (advisory && options.verbose) {
       add();
-      add("Original source:");
+      add(`Details: ${advisory.id}`);
       if (advisory.explanation)
         for (const line of advisory.explanation.split("\n"))
-          add(line.trim() ? `  ${line}` : "");
+          add(line.trim() ? `  ${line}` : "", "  ");
       for (const severity of advisory.severity ?? [])
         add(
-          `  Severity: ${severity.type} ${severity.score}${severity.source ? ` (${severity.source})` : ""}`,
+          `  ${originalSeverity(severity.type, severity.score)}${severity.source ? ` (${severity.source})` : ""}`,
         );
-      renderDetail(advisory, add, "  ");
-      for (const reference of advisory.references ?? [])
-        add(
-          `  Reference ${reference.type}: ${reference.url || "URL unavailable"}`,
-        );
+      renderDetail(advisory, add, "  ", identifiedIds);
+      const references = new Map<string, Set<string | null>>();
+      for (const reference of advisory.references ?? []) {
+        const urls = references.get(reference.type) ?? new Set<string | null>();
+        urls.add(reference.url);
+        references.set(reference.type, urls);
+      }
+      if (references.size) add("  References:");
+      for (const [type, urls] of references) {
+        add(`    ${type}:`);
+        for (const url of urls) add(`      ${url || "URL unavailable"}`);
+      }
     }
   }
   return `${lines.map(sanitizeTerminalText).join("\n")}\n`;
@@ -294,13 +380,28 @@ function renderDetail(
   detail: VulnsSourceDetail,
   add: (line?: string) => void,
   indent: string,
+  identifiedIds?: ReadonlySet<string>,
 ): void {
-  if (detail.aliases?.length)
-    add(`${indent}Aliases: ${detail.aliases.join(", ")}`);
+  const aliases = detail.aliases?.filter((id) => !identifiedIds?.has(id));
+  if (aliases?.length) add(`${indent}Aliases: ${aliases.join(", ")}`);
   if (detail.publishedAt) add(`${indent}Published: ${detail.publishedAt}`);
-  if (detail.modifiedAt) add(`${indent}Revision: ${detail.modifiedAt}`);
-  for (const entry of detail.originalAffected ?? [])
-    renderAffected(entry, add, indent);
+  if (detail.modifiedAt && detail.modifiedAt !== detail.publishedAt)
+    add(`${indent}Updated: ${detail.modifiedAt}`);
+  let previousPackage: string | undefined;
+  const shownEntries = new Set<string>();
+  for (const entry of detail.originalAffected ?? []) {
+    const key = JSON.stringify(entry);
+    if (shownEntries.has(key)) continue;
+    shownEntries.add(key);
+    const identity = JSON.stringify(entry.package ?? null);
+    renderAffected(
+      entry,
+      add,
+      indent,
+      !entry.package || identity !== previousPackage,
+    );
+    previousPackage = identity;
+  }
   if (detail.normalization)
     add(
       `${indent}Content normalization: ${detail.normalization.filtered ? "modified" : "unchanged"}${detail.normalization.modifications.length ? ` (${detail.normalization.modifications.join(", ")})` : ""}`,
@@ -310,23 +411,42 @@ function renderAffected(
   entry: VulnsOriginalAffected,
   add: (line?: string) => void,
   indent: string,
+  showHeading: boolean,
 ): void {
-  add(
-    `${indent}Original affected: ${entry.package ? `${entry.package.ecosystem}:${entry.package.name}` : "package-less repository/commit evidence"}`,
-  );
-  if (entry.package?.purl) add(`${indent}  Purl: ${entry.package.purl}`);
+  if (showHeading) {
+    add(
+      `${indent}Original affected: ${entry.package ? `${entry.package.ecosystem}:${entry.package.name}` : entry.ranges?.some((range) => range.type === "GIT") ? "Repository evidence" : "Unmapped evidence"}`,
+    );
+    if (entry.package?.purl) add(`${indent}  Purl: ${entry.package.purl}`);
+  }
   for (const severity of entry.severity ?? [])
     add(
-      `${indent}  Entry severity: ${severity.type} ${severity.score}${severity.source ? ` (${severity.source})` : ""}`,
+      `${indent}  ${originalSeverity(severity.type, severity.score)}${severity.source ? ` (${severity.source})` : ""}`,
     );
   if (entry.versions?.length)
-    add(`${indent}  Explicit affected versions: ${entry.versions.join(", ")}`);
+    add(
+      `${indent}  Affected versions/tags: ${orderedVersionLabels(entry.versions).join(", ")}`,
+    );
   for (const range of entry.ranges ?? []) {
+    if (range.type !== "GIT") {
+      const events = range.events
+        .flatMap((event) =>
+          Object.entries(event).map(
+            ([key, value]) =>
+              `${key === "lastAffected" ? "last affected" : key}: ${value}`,
+          ),
+        )
+        .join("; ");
+      add(
+        `${indent}  ${range.type}${range.repo ? ` ${range.repo}` : ""}${events ? `: ${events}` : ""}`,
+      );
+      continue;
+    }
     add(`${indent}  ${range.type}${range.repo ? ` ${range.repo}` : ""}`);
     for (const event of range.events)
       for (const [key, value] of Object.entries(event))
         add(
-          `${indent}    ${key}: ${value}${key === "fixed" ? " (source fix event)" : key === "limit" || key === "lastAffected" ? " (boundary, not a fix)" : ""}`,
+          `${indent}    ${key === "lastAffected" ? "last affected" : key}: ${value}`,
         );
   }
   if (!entry.ranges?.length && !entry.versions?.length)

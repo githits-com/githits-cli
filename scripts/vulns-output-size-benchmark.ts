@@ -25,14 +25,17 @@ for (const count of [1, 13]) {
       packagePagination: { complete: true, pagesRead: 1 },
     },
   ];
-  const text = formatVulns(results, { width: 80 });
-  const json = JSON.stringify(buildVulnsResponse(results));
-  console.log(
-    JSON.stringify({
-      packages: count,
-      textBytes: Buffer.byteLength(text),
-      textLines: text.trimEnd().split("\n").length,
-      jsonBytes: Buffer.byteLength(json),
-    }),
-  );
+  for (const verbose of [false, true]) {
+    const text = formatVulns(results, { width: 80, verbose });
+    const json = JSON.stringify(buildVulnsResponse(results, { verbose }));
+    console.log(
+      JSON.stringify({
+        packages: count,
+        verbose,
+        textBytes: Buffer.byteLength(text),
+        textLines: text.trimEnd().split("\n").length,
+        jsonBytes: Buffer.byteLength(json),
+      }),
+    );
+  }
 }

@@ -6,7 +6,10 @@ import {
   parsePkgseerRegistryArg,
   toPkgseerRegistry,
 } from "@githits/core-internal";
-import { supportsVulnerabilitiesRegistry } from "@githits/mcp/internal";
+import {
+  isPlaceholderSummary,
+  supportsVulnerabilitiesRegistry,
+} from "@githits/mcp/internal";
 
 export interface VulnsError {
   error: string;
@@ -155,7 +158,9 @@ function buildReport(result: VulnsResult, verbose: boolean): VulnsReport {
     report.advisory = {
       id: advisory.osvId,
       url: advisory.sourceUrl,
-      ...(advisory.summary ? { summary: advisory.summary } : {}),
+      ...(advisory.summary && !isPlaceholderSummary(advisory.summary)
+        ? { summary: advisory.summary }
+        : {}),
       ...(advisory.withdrawnAt !== null
         ? { withdrawnAt: advisory.withdrawnAt }
         : {}),
@@ -239,6 +244,7 @@ function buildReport(result: VulnsResult, verbose: boolean): VulnsReport {
           url: row.sourceUrl,
           ...("summary" in row &&
           row.summary &&
+          !isPlaceholderSummary(row.summary) &&
           row.summary !== advisory?.summary
             ? { summary: row.summary }
             : {}),
@@ -263,6 +269,11 @@ function buildReport(result: VulnsResult, verbose: boolean): VulnsReport {
         const index = intern(source);
         const rawAffected = row.affectedVersionRanges;
         const display = row.affectedVersionDisplay;
+        const completeDisplay = Boolean(
+          display?.ranges.length &&
+            !display.truncated &&
+            pkg.assessment !== "unsupported_registry",
+        );
         const affected =
           rawAffected === null
             ? null
@@ -298,6 +309,7 @@ function buildReport(result: VulnsResult, verbose: boolean): VulnsReport {
         const detail = {
           ...content,
           ...(verbose &&
+          !completeDisplay &&
           JSON.stringify(affected) !== JSON.stringify(rawAffected)
             ? { rawAffected }
             : {}),

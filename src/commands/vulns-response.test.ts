@@ -16,6 +16,20 @@ function report(item = result(), verbose = false) {
 }
 
 describe("vulns response", () => {
+  it.each(["No summary available", "  NO SUMMARY AVAILABLE  "])(
+    "omits placeholder summaries from text/JSON projections (%s)",
+    (summary) => {
+      const item = result();
+      item.lookup!.advisory!.summary = summary;
+      item.lookup!.affectedPackages!.entries[0]!.advisories[0]!.summary =
+        summary;
+      for (const verbose of [false, true]) {
+        const output = report(item, verbose);
+        expect(output.advisory!.summary).toBeUndefined();
+        expect(output.sources![0]!.summary).toBeUndefined();
+      }
+    },
+  );
   it("projects actionable package evidence without transport or original source dumps", () => {
     const output = report();
     expect(output).toMatchObject({
@@ -256,6 +270,17 @@ describe("vulns response", () => {
       truncated: false,
     };
     expect(report(item).packages![0]!.evidence[0]!.affected).toEqual(["<2"]);
+    expect(
+      report(item, true).packages![0]!.evidence[0]!.details,
+    ).toBeUndefined();
+    local.affectedVersionDisplay.truncated = true;
+    local.affectedVersionDisplay.totalCount = 2;
+    expect(
+      report(item, true).packages![0]!.evidence[0]!.details![0]!.rawAffected,
+    ).toEqual(local.affectedVersionRanges);
+    local.affectedVersionDisplay.truncated = false;
+    local.affectedVersionDisplay.totalCount = 1;
+    item.lookup!.affectedPackages!.entries[0]!.package.registry = null;
     expect(
       report(item, true).packages![0]!.evidence[0]!.details![0]!.rawAffected,
     ).toEqual(local.affectedVersionRanges);

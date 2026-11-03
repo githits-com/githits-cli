@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { defaultAdvisoryLookup } from "../../packages/core-internal/src/services/advisory-test-helpers.js";
 import { formatVulns, type VulnsResult } from "./vulns-format.js";
+import { buildVulnsResponse } from "./vulns-response.js";
 
 function result(): VulnsResult {
   const lookup = structuredClone(defaultAdvisoryLookup);
@@ -49,19 +50,197 @@ describe("vulns formatter", () => {
 
   it("verbose retains original Git event order, raw vectors, revisions and normalization", () => {
     const output = formatVulns([result()], { verbose: true, width: 120 });
-    expect(output).toContain("package-less repository/commit evidence");
+    expect(output).toContain("Repository evidence");
     expect(output.indexOf("introduced: ffff")).toBeLessThan(
       output.indexOf("fixed: aaaa"),
     );
-    expect(output).toContain("fixed: aaaa (source fix event)");
-    expect(output).toContain("lastAffected: zzzz (boundary, not a fix)");
-    expect(output).toContain("limit: * (boundary, not a fix)");
+    expect(output).toContain("fixed: aaaa");
+    expect(output).toContain("last affected: zzzz");
+    expect(output).toContain("limit: *");
+    expect(output).not.toContain("(source fix event)");
+    expect(output).toContain("CVSS v4 vector:");
     expect(output).toContain("CVSS:4.0/AV:N/AC:L");
     expect(output).toContain("2026-11-03T12:34:56.123456789Z");
     expect(output).toContain("UNSAFE_LINKS_NEUTRALIZED");
     expect(output).toContain("Full source explanation.\n\n  Second paragraph.");
-    expect(output).toContain("FUTURE_REFERENCE: URL unavailable");
+    expect(output).toContain("FUTURE_REFERENCE:\n      URL unavailable");
     expect(output).not.toContain("add --verbose");
+  });
+
+  it("sorts copied verbose version labels naturally while retaining JSON and compact source order", () => {
+    const item = result();
+    const versions = ["v10.0.0", "v2.0.0", "release10", "release2"];
+    const fixes = ["10.0.0", "2.0.0"];
+    item.lookup!.advisory!.affected![0]!.versions = [...versions];
+    item.lookup!.affectedPackages!.entries[0]!.advisories[0]!.fixedInVersions =
+      [...fixes];
+    const row = item.lookup!.affectedPackages!.entries[0]!.advisories[0]!;
+    row.affectedVersionRanges = [">=10.0.0 <11.0.0", ">=2.0.0 <3.0.0"];
+    row.affectedVersionDisplay = null;
+    const output = formatVulns([item], { verbose: true, width: 120 });
+    expect(output).toContain(
+      "Affected versions/tags: release2, release10, v2.0.0, v10.0.0",
+    );
+    expect(output).toContain("Source fixes: 2.0.0, 10.0.0");
+    expect(output).toContain("Affected [1]: >=2.0.0 <3.0.0; >=10.0.0 <11.0.0");
+    expect(formatVulns([item])).toContain("Source fixes: 10.0.0, 2.0.0");
+    const json = buildVulnsResponse([item], { verbose: true }).results[0]!;
+    expect(json.advisory!.originalAffected![0]!.versions).toEqual(versions);
+    expect(json.packages![0]!.evidence[0]!.fixed).toEqual(fixes);
+    expect(json.packages![0]!.evidence[0]!.affected).toEqual(
+      row.affectedVersionRanges!,
+    );
+  });
+
+  it("avoids repeated aliases, same-time dates and reference scaffolding in verbose text only", () => {
+    const item = result();
+    const advisory = item.lookup!.advisory!;
+    advisory.aliases!.push("EXTRA-alias");
+    advisory.publishedAt = advisory.modifiedAt;
+    advisory.references = [
+      { type: "ADVISORY", url: "https://example.com/one" },
+      { type: "FIX", url: "https://example.com/fix" },
+      { type: "ADVISORY", url: "https://example.com/one" },
+      { type: "ADVISORY", url: "https://example.com/two" },
+    ];
+    const output = formatVulns([item], { verbose: true });
+    expect(output).toContain("Details: OSV-example");
+    expect(output).toContain("Aliases: EXTRA-alias");
+    expect(output).not.toMatch(/Aliases:.*(?:CVE-example|GHSA-example)/);
+    expect(output.match(/https:\/\/example.com\/one/g)).toHaveLength(1);
+    expect(output.match(/ {4}ADVISORY:/g)).toHaveLength(1);
+    expect(output).not.toContain(`Updated: ${advisory.modifiedAt}`);
+    const json = buildVulnsResponse([item], { verbose: true }).results[0]!
+      .advisory!;
+    expect(json.aliases).toEqual(advisory.aliases!);
+    expect(json.references).toEqual(advisory.references!);
+    expect(json.modifiedAt).toBe(advisory.modifiedAt!);
+    advisory.aliases = [];
+    expect(formatVulns([item], { verbose: true })).toContain(
+      "Aliases: CVE-example",
+    );
+    item.lookup!.advisory = null;
+    expect(formatVulns([item], { verbose: true })).toContain(
+      "Aliases: CVE-example",
+    );
+  });
+
+  it("omits repeated same-record original detail from text, retaining JSON and differing observations", () => {
+    const item = result();
+    const group = item.lookup!.affectedPackages!.entries[0]!;
+    const row = group.advisories[0]!;
+    group.sourceEvidence = {
+      osvId: item.lookup!.advisory!.osvId,
+      sourceUrl: item.lookup!.advisory!.sourceUrl,
+      withdrawnAt: null,
+      affectedVersionRanges: row.affectedVersionRanges,
+      fixedInVersions: row.fixedInVersions!,
+      affectedVersionDisplay: row.affectedVersionDisplay,
+      affected: structuredClone(item.lookup!.advisory!.affected!),
+    };
+    const output = formatVulns([item], { verbose: true });
+    expect(output.match(/introduced: ffff/g)).toHaveLength(1);
+    expect(output).not.toContain("Original package evidence");
+    const json = buildVulnsResponse([item], { verbose: true }).results[0]!;
+    expect(
+      json.packages![0]!.evidence[0]!.details![0]!.originalAffected,
+    ).toEqual(json.advisory!.originalAffected!);
+    const other = structuredClone(item.lookup!.advisory!.affected![0]!);
+    other.versions = ["other-observation"];
+    item.lookup!.advisory!.affected!.push(other);
+    expect(formatVulns([item], { verbose: true })).not.toContain(
+      "Original package evidence",
+    );
+    group.sourceEvidence.affected![0]!.ranges[0]!.events[0]!.introduced =
+      "package-only";
+    const different = formatVulns([item], { verbose: true });
+    expect(different).toContain("introduced: package-only");
+    expect(different).toContain("introduced: ffff");
+  });
+
+  it("groups consecutive same-package original entries and condenses non-Git event lines", () => {
+    const item = result();
+    const first = item.lookup!.advisory!.affected![0]!;
+    first.package = {
+      name: "minimatch",
+      ecosystem: "npm",
+      purl: "pkg:npm/minimatch",
+    };
+    first.ranges[0]!.type = "SEMVER";
+    first.ranges[0]!.repo = null;
+    const second = structuredClone(first);
+    second.ranges[0]!.events[0]!.introduced = "next-branch";
+    item.lookup!.advisory!.affected!.push(second);
+    item.lookup!.advisory!.affected!.push(structuredClone(first));
+    const output = formatVulns([item], { verbose: true, width: 160 });
+    expect(output.match(/Original affected: npm:minimatch/g)).toHaveLength(1);
+    expect(output.match(/Purl: pkg:npm\/minimatch/g)).toHaveLength(1);
+    expect(output).toContain(
+      "SEMVER: introduced: ffff; fixed: aaaa; last affected: zzzz; limit: *",
+    );
+    expect(output).toContain("SEMVER: introduced: next-branch;");
+    expect(output.match(/SEMVER: introduced: ffff/g)).toHaveLength(1);
+    expect(
+      buildVulnsResponse([item], { verbose: true }).results[0]!.advisory!
+        .originalAffected,
+    ).toHaveLength(3);
+  });
+
+  it("keeps wrapped source paragraphs at a uniform indent", () => {
+    const item = result();
+    item.lookup!.advisory!.details =
+      "A long source explanation that should remain one paragraph. ".repeat(6);
+    const output = formatVulns([item], { verbose: true, width: 48 });
+    const prose = output
+      .split("Details: OSV-example\n")[1]!
+      .split("  CVSS v4 vector:")[0]!;
+    expect(
+      prose
+        .trimEnd()
+        .split("\n")
+        .every((line) => /^ {2}\S/.test(line)),
+    ).toBe(true);
+  });
+
+  it("prints same-record alias/date metadata once without changing source JSON or hiding different revisions", () => {
+    const item = result();
+    const root = item.lookup!.advisory!;
+    root.publishedAt = "2020-01-01T00:00:00Z";
+    const row = item.lookup!.affectedPackages!.entries[0]!.advisories[0]!;
+    row.osvId = root.osvId;
+    row.sourceUrl = root.sourceUrl;
+    row.aliases = [...root.aliases!];
+    row.publishedAt = root.publishedAt;
+    row.modifiedAt = root.modifiedAt;
+    const output = formatVulns([item], { verbose: true });
+    expect(output.match(/Aliases: GHSA-example/g)).toHaveLength(1);
+    expect(output.match(/Published: 2020-01-01/g)).toHaveLength(1);
+    expect(output.match(/Updated: 2026-11-03T12:34:56/g)).toHaveLength(1);
+    const source = buildVulnsResponse([item], { verbose: true }).results[0]!
+      .sources![0]!;
+    expect(source.aliases).toEqual(row.aliases);
+    expect(source.modifiedAt).toBe(row.modifiedAt!);
+    row.modifiedAt = "different-source-revision";
+    expect(formatVulns([item], { verbose: true })).toContain(
+      "Updated: different-source-revision",
+    );
+  });
+
+  it("keeps package-less Git and ecosystem evidence under their own headings", () => {
+    for (const reverse of [false, true]) {
+      const item = result();
+      const git = item.lookup!.advisory!.affected![0]!;
+      const ecosystem = structuredClone(git);
+      ecosystem.ranges[0]!.type = "ECOSYSTEM";
+      ecosystem.ranges[0]!.repo = null;
+      item.lookup!.advisory!.affected = reverse
+        ? [ecosystem, git]
+        : [git, ecosystem];
+      const output = formatVulns([item], { verbose: true });
+      expect(output).toContain("Original affected: Repository evidence");
+      expect(output).toContain("Original affected: Unmapped evidence");
+      expect(output.match(/Original affected:/g)).toHaveLength(2);
+    }
   });
 
   it("marks withdrawn/malicious evidence next to its package reference without synthetic scores", () => {
@@ -124,12 +303,17 @@ describe("vulns formatter", () => {
     const local = item.lookup!.affectedPackages!.entries[0]!.advisories[0]!;
     local.affectedVersionRanges = Array.from(
       { length: 20 },
-      (_, index) => `==${index}`,
+      (_, index) => `==${19 - index}`,
     );
     local.affectedVersionDisplay = null;
     const output = formatVulns([item], { verbose: true });
     expect(output).toContain("raw evidence follows");
     expect(output).toContain("==19");
+    expect(output).toContain("Raw affected: ==0; ==1; ==2;");
+    expect(
+      buildVulnsResponse([item], { verbose: true }).results[0]!.packages![0]!
+        .evidence[0]!.details![0]!.rawAffected,
+    ).toEqual(local.affectedVersionRanges);
     expect(output).not.toContain("--verbose");
   });
 

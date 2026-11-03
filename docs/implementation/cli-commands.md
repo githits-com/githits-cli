@@ -653,6 +653,11 @@ coverage and ordered diagnostics/recovery actions. It omits source prose, transp
 objects and cursors by default. This replaces the initial unreleased raw lookup
 shape. `--verbose` adds original source detail to either text or JSON: aliases,
 dates, vectors, references, normalization changes and original affected/Git events.
+Verbose text orders affected spans (including retained raw expressions),
+explicit version/tag labels and fix lists naturally without changing JSON or Git
+event order. Complete backend-normalized package ranges replace redundant
+raw-expression inventories; missing/truncated/unsupported evidence retains its
+raw detail.
 It never sorts commit hashes, calls a limit/lastAffected boundary a fix, or converts
 a CVSS vector into a score. Source fixes remain unverified. Use
 `githits pkg vulns '<target>@<installed-version>'` for known package targets; Go
