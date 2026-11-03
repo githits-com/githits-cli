@@ -5,6 +5,44 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.38.0] - 2026-11-03
+
+### Added
+
+- **Generated release-note evidence** - Changelog and upgrade review use compact generated-source and status markers. JSON omits boilerplate notices and duplicate text, and bounds commit evidence to one locator with an omitted-count.
+- **Googlesource HTTPS targets** - Search, read, list, grep and diff accept public `*.googlesource.com` project URLs with refs and HTTPS replay pointers. HTTPS-only parsing rejects all ports, preserves project case and normalizes one terminal `.git`/slash; resolver replay uses HTTPS addresses, and hosted MCP requires package adoption and deployment.
+- **Pub package addresses** - Accept `pub:` package targets across CLI and MCP package analysis, resolution, and source/docs requests while preserving backend evidence and errors. The package Agent Skill lists Pub registry guidance with this release.
+
+### Changed
+
+- **CLI regex guidance** - Clarify alternation versus literal pipes and route-specific literal-text requirements in both grep help surfaces without expanding help output.
+
+### Fixed
+
+- **CLI argument tolerance** - Accept exact single-line `--lines N` reads, reject line coordinates outside GraphQL's integer range, and cap excessive valid grep context at 10 with text or structured JSON reporting. Clarify file/directory selectors in grep help; MCP context limits and public skills remain unchanged.
+- **Dependency source identity** - Preserve graph registry namespaces in transitive package and importer JSON, distinguish SDK sources in text, and display MCP importer provenance when requested.
+- **Replayable resolver targets** - Use the backend's required `searchTarget` for CLI/MCP follow-ups and retain a differing `canonicalKey` in candidate JSON. Googlesource HTTPS and scoped site addresses now replay correctly; custom resolver service implementations must supply `searchTarget` on results and references.
+- **Smoke auth isolation** - Default disposable live-smoke homes to file storage while preserving explicit storage overrides, so unauthenticated probes return auth guidance without depending on host Keychain configuration.
+- **Sign-in recovery** - Example search and Research provide a sign-in link when needed. Interactive CLI and local MCP can open the page automatically. Finish signing in, then retry the request.
+
+## [@githits/mcp 0.38.0] - 2026-11-03
+
+Custom resolver service implementations must supply `searchTarget` on results
+and references. Hosted clients receive these changes after the released package
+is adopted and deployed by `remote-mcp`.
+
+### Added
+
+- **Generated release-note evidence** - Changelog and upgrade review use compact generated-source and status markers. JSON omits boilerplate notices and duplicate text, and bounds commit evidence to one locator with an omitted-count.
+- **Googlesource HTTPS targets** - Search, read, list, grep and diff accept public `*.googlesource.com` project URLs with refs and HTTPS replay pointers. HTTPS-only parsing rejects all ports, preserves project case and normalizes one terminal `.git`/slash; resolver replay uses HTTPS addresses, and hosted MCP requires package adoption and deployment.
+- **Pub package addresses** - Accept `pub:` package targets across MCP package analysis, resolution, and source/docs requests while preserving backend evidence and errors.
+
+### Fixed
+
+- **Dependency source identity** - Preserve graph registry namespaces in transitive package and importer JSON, distinguish SDK sources in text, and display MCP importer provenance when requested.
+- **Replayable resolver targets** - Use the backend's required `searchTarget` for MCP follow-ups and retain a differing `canonicalKey` in candidate JSON. Googlesource HTTPS and scoped site addresses now replay correctly; custom resolver service implementations must supply `searchTarget` on results and references.
+- **Sign-in recovery** - `get_example` and `research` provide a sign-in link when needed. Local MCP can open the page automatically. Finish signing in, then retry the request.
+
 ## [githits 0.37.0] - 2026-10-29
 
 ### Added

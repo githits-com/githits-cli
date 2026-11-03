@@ -22,6 +22,8 @@ Use this skill for CLI work. With an available hosted GitHits connector, use `gi
 | Upgrade assessment | `githits pkg upgrade-review <registry:name@current> --to <target>` |
 | Source changes | `githits code diff <registry:name> <from>..<to>` with `githits-code` |
 
+Pub packages use `pub:<name>[@<version>]`, e.g. `pub:http`; SDK graph namespaces such as `flutter_sdk` are source identities, not registry inputs.
+
 Use canonical coordinates directly. Resolve only unclear identities with known registry/context; follow confidence and ambiguity rules. Do not run resolve or CLI-version checks routinely.
 
 ## Use package facts directly
@@ -30,7 +32,7 @@ Use metadata and assessments directly. Inspect code for missing behavior or vuln
 
 Start upgrades with `pkg upgrade-review`; add changelog/source detail only for gaps. Expand dependency depth, lifecycle scope, or `--transitive` only when needed. Public graphs do not establish local lockfiles or application reachability.
 
-Use parsed notes when sufficient, `--verbatim` for original wording, `--no-body` for timelines. `from..to` excludes from and includes to; `--limit` is only for latest or an upper cap (`@..to` / `--to`). Preserve generated-from-commits labels and pending/unavailable status; generated statements are not publisher-written notes. Notes or patches alone do not establish compatibility.
+Use parsed notes when sufficient, `--verbatim` for original wording, `--no-body` for timelines. `from..to` excludes from and includes to; `--limit` is only for latest or an upper cap (`@..to` / `--to`). Preserve generated-from-commits labels and pending/unavailable status; generated statements are not publisher-written notes. Missing or empty notes do not prove no changes. Notes or patches alone do not establish compatibility.
 
 Keep default text; use `--json` only when code consumes raw fields or text lacks required fields. Filter/limit output instead of piping through `head`.
 
