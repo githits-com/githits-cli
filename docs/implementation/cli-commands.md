@@ -830,11 +830,11 @@ unparseable totals, plus rerun guidance for pending classification. Quotes are
 evidence, not a compatibility verdict.
 
 `--verbose` expands quotes to their backend-bounded text and adds full batch,
-security, and dependency detail. JSON alone includes uncut `fullText`, source
+security, and dependency detail. JSON includes uncut `fullText` when distinct from text, source
 positions, and classification provenance. Upgrade JSON replaces `changelog.riskItems` with
 `changelog.statements`, including the effective `selection` in detailed
 results; `riskCoverage.itemsOmitted` is removed. `--json` and MCP
-`format: "json"` share this lossless machine surface. `text-v1` remains an
+`format: "json"` share this compact machine surface. `text-v1` remains an
 in-place evolving presentation, not a byte-stable prose contract. See
 [Upgrade review](pkg-upgrade-review.md) for evidence.
 
