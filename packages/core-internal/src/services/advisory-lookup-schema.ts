@@ -10,7 +10,7 @@ const packageSchema = z.object({
   ecosystem: z.string(),
   purl: z.string().nullable().optional(),
 });
-export const advisorySchema = z.object({
+const advisorySchema = z.object({
   osvId: z.string(),
   aliases: z.array(z.string()),
   summary: z.string().nullable(),
@@ -49,7 +49,7 @@ export const advisorySchema = z.object({
     modifications: z.array(z.string()),
   }),
 });
-export const fullAdvisorySchema = advisorySchema
+const fullAdvisorySchema = advisorySchema
   .required({ details: true, references: true })
   .extend({
     affected: z.array(
@@ -58,9 +58,6 @@ export const fullAdvisorySchema = advisorySchema
       }),
     ),
   });
-
-/** All typed source evidence; only full-selection fields can be absent in compact mode. */
-export interface AdvisoryDetails extends z.infer<typeof fullAdvisorySchema> {}
 
 const strings = z.array(z.string());
 const safety = advisorySchema.shape.contentSafety;
@@ -106,7 +103,7 @@ const compactAdvisory = advisorySchema.pick({
   sourceUrl: true,
   withdrawnAt: true,
 });
-export const lookupUnknownSchema = z.object({
+const lookupUnknownSchema = z.object({
   section: z.string(),
   code: z.string(),
   message: z.string(),
@@ -133,7 +130,7 @@ const connection = z.object({
   }),
   coverage: z.object({ sourceStatus: z.string(), localStatus: z.string() }),
 });
-export const lookupSchema = z.object({
+const lookupSchema = z.object({
   requestedId: z.string(),
   advisory: compactAdvisory
     .extend({
@@ -151,7 +148,7 @@ export const lookupSchema = z.object({
   affectedPackages: connection.nullable(),
   unknownDetails: z.array(lookupUnknownSchema),
 });
-export const detailedLookupSchema = lookupSchema.extend({
+const detailedLookupSchema = lookupSchema.extend({
   advisory: fullAdvisorySchema.nullable().optional(),
   affectedPackages: connection
     .extend({
@@ -177,10 +174,146 @@ export const detailedLookupSchema = lookupSchema.extend({
     .nullable(),
 });
 
-/** Evidence is kept in producer order, including unfamiliar vocabularies. */
-export interface AdvisoryLookup extends z.infer<typeof lookupSchema> {}
-export interface LookupUnknown extends z.infer<typeof lookupUnknownSchema> {
-  /** Operation-local sanitized optional-field diagnostic; absent for typed producer outcomes. */
+/** Validate only the selected projection; no Zod schema leaks into declaration consumers. */
+export function parseAdvisoryLookups(
+  data: unknown,
+  detailed: boolean,
+  continuation: boolean,
+): AdvisoryLookup[] | undefined {
+  const shape = detailed
+    ? continuation
+      ? detailedLookupSchema.omit({ advisory: true })
+      : detailedLookupSchema.required({ advisory: true })
+    : continuation
+      ? lookupSchema.omit({ advisory: true })
+      : lookupSchema.required({ advisory: true });
+  const parsed = z.array(shape).safeParse(data);
+  return parsed.success ? parsed.data : undefined;
+}
+
+export interface AdvisorySeverity {
+  type: string;
+  score: string;
+  source: string | null;
+}
+export interface AdvisoryReference {
+  type: string;
+  url: string | null;
+}
+export interface AdvisoryPackage {
+  name: string;
+  ecosystem: string;
+  purl: string | null;
+}
+export interface AdvisoryRangeEvent {
+  introduced: string | null;
+  fixed: string | null;
+  lastAffected: string | null;
+  limit: string | null;
+}
+export interface AdvisoryRange {
+  type: string;
+  repo: string | null;
+  events: AdvisoryRangeEvent[];
+}
+export interface AdvisoryAffected {
+  package: AdvisoryPackage | null;
+  severity: AdvisorySeverity[];
+  versions: string[];
+  ranges: AdvisoryRange[];
+}
+export interface AdvisorySafety {
+  filtered: boolean;
+  modifications: string[];
+}
+export interface AdvisoryDisplay {
+  ranges: string[];
+  totalCount: number;
+  truncated: boolean;
+}
+
+/** Compact source identity; detail-only fields remain optional until selected. */
+export interface AdvisorySummary {
+  osvId: string;
+  summary: string | null;
+  sourceUrl: string;
+  withdrawnAt: string | null;
+  aliases?: string[];
+  details?: string | null;
+  publishedAt?: string | null;
+  modifiedAt?: string;
+  severity?: AdvisorySeverity[];
+  references?: AdvisoryReference[];
+  affected?: AdvisoryAffected[];
+  contentSafety?: AdvisorySafety;
+}
+export interface AdvisoryDetails extends AdvisorySummary {
+  aliases: string[];
+  details: string | null;
+  publishedAt: string | null;
+  modifiedAt: string;
+  severity: AdvisorySeverity[];
+  references: AdvisoryReference[];
+  affected: AdvisoryAffected[];
+  contentSafety: AdvisorySafety;
+}
+export interface LookupUnknown {
+  section: string;
+  code: string;
+  message: string;
+  retryable: boolean;
+  candidateIds: string[] | null;
+  candidateIdsTruncated: boolean | null;
+  /** Optional display-error locator into the retained result; absent for typed backend outcomes. */
   path?: Array<string | number>;
 }
-export interface LookupPackage extends z.infer<typeof group> {}
+export interface LookupSourceEvidence {
+  osvId: string;
+  sourceUrl: string;
+  modifiedAt: string;
+  withdrawnAt: string | null;
+  affectedVersionRanges: string[] | null;
+  fixedInVersions: string[];
+  affectedVersionDisplay: AdvisoryDisplay | null;
+  affected?: AdvisoryAffected[];
+  contentSafety?: AdvisorySafety;
+}
+export interface LookupLocalAdvisory {
+  osvId: string | null;
+  sourceUrl: string;
+  summary: string | null;
+  severityScore: number | null;
+  severityType: string | null;
+  withdrawnAt: string | null;
+  affectedVersionRanges: string[] | null;
+  fixedInVersions: string[] | null;
+  affectedVersionDisplay: AdvisoryDisplay | null;
+  registry?: string | null;
+  packageName?: string | null;
+  publishedAt?: string | null;
+  modifiedAt?: string | null;
+  aliases?: string[];
+  isMalicious?: boolean | null;
+  contentSafety?: AdvisorySafety;
+}
+export interface LookupPackage {
+  package: { name: string; registry: string | null; ecosystem: string | null };
+  sourceEvidence: LookupSourceEvidence | null;
+  advisories: LookupLocalAdvisory[];
+}
+export interface LookupPackageConnection {
+  entries: LookupPackage[];
+  pageInfo: {
+    totalCount: number;
+    hasNextPage: boolean;
+    endCursor: string | null;
+  };
+  coverage: { sourceStatus: string; localStatus: string };
+}
+/** Evidence remains ordered and producer vocabularies remain open. */
+export interface AdvisoryLookup {
+  requestedId: string;
+  advisory?: AdvisorySummary | null;
+  affectedPackages: LookupPackageConnection | null;
+  unknownDetails: LookupUnknown[];
+}

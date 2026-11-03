@@ -11,8 +11,7 @@ import { createTermsAcceptanceError } from "../shared/terms-acceptance.js";
 import { buildAdvisoryLookupQuery } from "./advisory-lookup-query.js";
 import {
   type AdvisoryLookup,
-  detailedLookupSchema,
-  lookupSchema,
+  parseAdvisoryLookups,
 } from "./advisory-lookup-schema.js";
 import { executeWithTokenRefresh } from "./execute-with-token-refresh.js";
 import {
@@ -49,7 +48,7 @@ export class AdvisoryLookupError extends Error {
     readonly code: string,
     message: string,
     readonly retryable: boolean = false,
-    readonly details?: Record<string, unknown>,
+    readonly details: Record<string, unknown> | undefined = undefined,
   ) {
     super(message);
     this.name = "AdvisoryLookupError";
@@ -182,22 +181,15 @@ export class AdvisoryServiceImpl implements AdvisoryService {
         { status: response.status },
       );
     }
-    const shape = detailed
-      ? after === undefined
-        ? detailedLookupSchema.required({ advisory: true })
-        : detailedLookupSchema.omit({ advisory: true })
-      : after === undefined
-        ? lookupSchema.required({ advisory: true })
-        : lookupSchema.omit({ advisory: true });
-    const parsed = z
-      .array(shape)
-      .safeParse(
-        envelope.success ? envelope.data.data?.vulnerabilityLookup : undefined,
-      );
+    const items = parseAdvisoryLookups(
+      envelope.success ? envelope.data.data?.vulnerabilityLookup : undefined,
+      detailed,
+      after !== undefined,
+    );
     if (
-      !parsed.success ||
-      parsed.data.length !== ids.length ||
-      parsed.data.some((item, i) => item.requestedId !== ids[i])
+      !items ||
+      items.length !== ids.length ||
+      items.some((item, i) => item.requestedId !== ids[i])
     ) {
       if (errors[0]) throw requestGraphQLError(errors[0]);
       throw new AdvisoryLookupError(
@@ -205,7 +197,6 @@ export class AdvisoryServiceImpl implements AdvisoryService {
         "Malformed advisory lookup response.",
       );
     }
-    const items: AdvisoryLookup[] = parsed.data;
     for (const error of errors) {
       const item = supportingErrorItem(items, error.path);
       if (!item) throw requestGraphQLError(error);
