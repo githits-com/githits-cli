@@ -71,7 +71,7 @@ export const readSchema: ReadSchema = {
     .number()
     .optional()
     .describe(
-      "Positive 1-indexed start. Include deciding conditions. Either bound overrides a docs fragment; bounds do not disambiguate symbols.",
+      "Positive 1-indexed start within the file/page's reported length. Omit unless the range is known for this exact file/version or docs page; never reuse another file's line numbers. Include deciding conditions. Either bound overrides a docs fragment; bounds do not disambiguate symbols.",
     ),
   end_line: z
     .number()

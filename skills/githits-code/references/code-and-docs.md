@@ -45,7 +45,8 @@ Default output is a bounded patch. Choose exactly one of `--patch`, `--stat`,
 `--name-only`, or `--name-status`. Pass one optional repository-relative glob
 after `--`, for example `-- 'packages/router/**'`, when the relevant path is
 known. Globs support `*`, `?`, and whole-component `**`, without brace
-expansion, character classes, or Git pathspec magic.
+expansion, character classes, or Git pathspec magic. For several diff paths,
+use one shared glob or separate calls.
 
 `--max-files` accepts 1-300 for every view; `--max-patch-bytes` accepts
 1024-2097152 for patch output only. `--verbose` adds identity and scope
@@ -96,7 +97,7 @@ If a missing or ambiguous site returns suggested site targets, retry one of thos
 
 Useful flags: repeatable `--file-type`, `--language`, `--intent`, `--limit` (1-500), `--after`, `--wait` (milliseconds, 0-300000; default 30000), `--silent`, `--json`. Text lists paths with direct read guidance; `--silent` emits paths only. JSON retains read/browse actions, lifecycle metadata, and `nextCursor`. Continue by replaying the same selection with the returned opaque cursor. Prefer exact emitted read actions to reconstructed locators.
 
-`--file-type` selects classifications such as `source` or `doc`; select file extensions with a quoted path glob such as `'lib/**/*.js'`. File-type and language names are case-insensitive, so `--language JavaScript` and `--language javascript` select the same source language.
+`--file-type` selects classifications such as `source` or `doc`, never language names; use `--language javascript` for JavaScript; select file extensions with a quoted path glob such as `'lib/**/*.js'`. File-type and language names are case-insensitive, so `--language JavaScript` and `--language javascript` select the same source language.
 
 Site list paths resolve within the required `site:<host[/scope]>` target. One leading `/` is accepted and stays within that scope; `/` alone selects its root. Omitted or empty list paths also select the root. In text output, a site path without a trailing `/` is a page even when its source URL ended in `/`; directory paths retain their trailing `/`. Literal paths and quoted globs operate only under the supplied target.
 
@@ -138,7 +139,7 @@ Scope repository files with repeatable `--path`, `--path-prefix`, or quoted
 do not restrict package-selected hosted docs. File/page headers are read
 locators; copy the target and optional path and use `read --lines` for more
 context. Counts describe the returned page. Continue only when needed with
-`--cursor` and the same ordered targets, pattern, and matching controls.
+`--cursor` and the same ordered targets, pattern/type, filters, case mode, context counts, and match limit. To change them, omit the cursor and start a new request.
 `--limit` is a global page cap (1-1000), and `--wait` is a first-page
 preparation wait in milliseconds (0-300000; default 30000). Cursor
 continuation never waits; explicit `--wait 0` skips first-page preparation.
@@ -188,6 +189,8 @@ Direct repository targets accept approved full HTTPS URLs on github.com, codeber
 GitLab web paths with `/-/` or reserved routes such as `tree`, `blob`, and `raw` are rejected. Unreserved names such as `issues` can be repository path components; without a web-route marker, the client treats the complete nested path as repository identity.
 
 ## Direct navigation
+
+For line reads, omit `--lines` unless the range is known for that exact file and version. Never borrow another file's line numbers.
 
 ### read
 

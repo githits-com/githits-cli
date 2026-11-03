@@ -70,7 +70,7 @@ const schema: ZodRawShape = {
     .max(64)
     .optional()
     .describe(
-      "Source inventories only; classifications such as `source` or `doc`, case-insensitive. Select file extensions with a `paths` glob such as `lib/**/*.js`.",
+      'File classes such as source or doc, not languages or extensions. For JavaScript use languages:["javascript"] or paths:["**/*.js"], never file_types:["javascript"]. Source inventories only; case-insensitive.',
     ),
   languages: z
     .array(z.string())

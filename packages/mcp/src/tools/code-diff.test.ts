@@ -139,7 +139,7 @@ describe("code_diff MCP adapter", () => {
       description?: string;
     };
     expect(pathGlobSchema.description).toContain(
-      "no braces, character classes, `!`, or Git pathspec magic",
+      "no character classes, ! or Git pathspec magic",
     );
     expect(pathGlobSchema.description).toContain("non-empty");
     expect(schema.properties?.target).toMatchObject({ type: "string" });

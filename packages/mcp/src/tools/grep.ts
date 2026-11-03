@@ -117,7 +117,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Continue with the same ordered targets, pattern, and matching controls. Empty starts page one. Hosted pages can change between grep and read.",
+      "Keep the same ordered targets, pattern/type, filters, case mode, both context counts and max_matches. To change them, omit cursor and start a new request. Empty starts page one. Hosted pages can change before read.",
     ),
   wait_timeout_ms: z
     .number()
