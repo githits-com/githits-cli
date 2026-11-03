@@ -59,6 +59,43 @@ describe("createIsolatedSmokeEnvironment", () => {
 });
 
 describe("createScopedSmokeEnvironment", () => {
+  it("defaults the disposable home to file auth storage", () => {
+    const scoped = createScopedSmokeEnvironment(
+      "githits-scoped-smoke-default-",
+      {},
+    );
+    try {
+      expect(scoped.env.GITHITS_AUTH_STORAGE).toBe("file");
+    } finally {
+      scoped.cleanup();
+    }
+  });
+
+  it("preserves an explicit auth storage override", () => {
+    const scoped = createScopedSmokeEnvironment(
+      "githits-scoped-smoke-override-",
+      { GITHITS_AUTH_STORAGE: "keychain" },
+    );
+    try {
+      expect(scoped.env.GITHITS_AUTH_STORAGE).toBe("keychain");
+    } finally {
+      scoped.cleanup();
+    }
+  });
+
+  it("does not shadow a differently cased storage override on case-insensitive hosts", () => {
+    const scoped = createScopedSmokeEnvironment(
+      "githits-scoped-smoke-casing-",
+      { githits_auth_storage: "keychain" },
+    );
+    try {
+      expect(scoped.env.githits_auth_storage).toBe("keychain");
+      expect(scoped.env.GITHITS_AUTH_STORAGE).toBeUndefined();
+    } finally {
+      scoped.cleanup();
+    }
+  });
+
   it("sets HOME, USERPROFILE, and config roots under the temporary root while preserving env-token/dev overrides, removing both opt-out casings, and leaving input unchanged", () => {
     const baseEnv = {
       GITHITS_API_TOKEN: "secret",

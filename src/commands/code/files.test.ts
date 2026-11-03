@@ -295,6 +295,7 @@ describe("pkgFilesAction", () => {
   it.each([
     "rubygems:rails",
     "go:golang.org/x/text",
+    "pub:path",
     "cargo:serde",
     "CARGO:serde@1.0.0",
     "cargo:",

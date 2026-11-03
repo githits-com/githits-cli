@@ -37,9 +37,26 @@ to suppress errors. The last case flag wins, including short flag clusters.
 RE2 and backend anchoring restrictions apply. Invalid or unsupported regexes
 fail without a literal retry.
 
-`-A/--after-context`, `-B/--before-context` and `-C/--context` accept 0–10.
-An explicit side overrides `-C` regardless of order. Every supplied value is
-validated without clamping. `--limit` caps the entire page (1–1,000, backend
+CLI `-A/--after-context`, `-B/--before-context` and `-C/--context` accept
+nonnegative safe integers and cap effective context at 10 per side. An explicit
+side overrides `-C` regardless of order; the last repeated value wins. Every
+supplied value is validated before precedence, so an invalid overridden value
+still fails. A valid excessive value that is overridden by in-range sides
+produces no notice. Negative, fractional, nonnumeric and unsafe values fail.
+
+Text mode reports reduced context once on stderr and points to `githits read`
+for a larger window. Successful CLI JSON adds `contextClamping` only when
+clamping occurred: `requestedBefore`, `requestedAfter`, `effectiveBefore` and
+`effectiveAfter`. Nonclamped CLI JSON remains identical to MCP JSON. A failed
+JSON invocation emits one error envelope on stderr without a preceding notice.
+MCP context arguments remain strictly bounded at 0–10; CLI tolerance does not
+change the backend ceiling or the MCP schema.
+
+Every positional operand after the pattern is a target. Use `--path
+lib/express.js` for an exact source file or `--path-prefix lib/` for a directory;
+the client does not reinterpret path-looking operands as selectors.
+
+`--limit` caps the entire page (1–1,000, backend
 default 100), unlike grep/rg's per-file `-m`. `--wait` accepts 0–300,000 ms, default 30,000 on the first page.
 Explicit zero returns without preparation wait; cursor continuation never waits.
 Empty cursors start page one; nonblank cursors remain opaque and unchanged.

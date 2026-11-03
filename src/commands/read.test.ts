@@ -242,6 +242,7 @@ describe("top-level read", () => {
 
   it.each([
     ["src/index.ts:3-8", {}, 3, 8],
+    ["src/index.ts", { lines: "42" }, 42, 42],
     ["src/index.ts", { lines: "-40" }, 1, 40],
     ["src/index.ts", { start: "3", end: "8" }, 3, 8],
   ])(
@@ -272,6 +273,24 @@ describe("top-level read", () => {
 
   it.each([
     ["src/index.ts:3-8", { lines: "4-5" }, "Use one line-range form only"],
+    ["src/index.ts", { lines: "" }, "--lines"],
+    ["src/index.ts", { lines: "2147483648" }, "2147483647"],
+    ["src/index.ts", { start: "2147483648" }, "2147483647"],
+    ["src/index.ts", { end: "2147483648" }, "2147483647"],
+    [
+      "src/index.ts",
+      { end: "99999999999999999999" },
+      "Got '99999999999999999999'",
+    ],
+    [
+      "src/index.ts",
+      { start: "10000000000000000000000" },
+      "Got '10000000000000000000000'",
+    ],
+    ["src/index.ts:2147483648", {}, "2147483647"],
+    ["src/index.ts:1-2147483648", {}, "2147483647"],
+    ["src/index.ts:100000000000000000000", {}, "Got '100000000000000000000'"],
+    ["src/index.ts:1-100000000000000000000", {}, "Got '100000000000000000000'"],
     [
       "src/index.ts",
       { lines: "4-5", start: "3" },
@@ -300,6 +319,31 @@ describe("top-level read", () => {
       } finally {
         error.mockRestore();
         exit.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    ["https://docs.example.test/guide#routing", undefined],
+    ["site:docs.example.test", "/guide"],
+    ["npm:express#createApplication", undefined],
+  ])(
+    "sends exact single-line bounds for docs or symbols: %s",
+    async (target, path) => {
+      const services = deps();
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await readAction(target, path, { lines: "42", json: true }, services);
+        expect(services.readService.read).toHaveBeenCalledWith(
+          expect.objectContaining({
+            target,
+            startLine: 42,
+            endLine: 42,
+          }),
+        );
+        expect(services.readService.read).toHaveBeenCalledTimes(1);
+      } finally {
+        log.mockRestore();
       }
     },
   );
@@ -637,7 +681,7 @@ describe("top-level read", () => {
     expect(docsReadHelp).toContain("Deprecated: use githits read");
     expect(docsReadHelp).toMatch(/mutable\s+current\s+content/);
     expect(docsReadHelp).toMatch(/repository\s+docs are snapshot-addressed/);
-    expect(docsReadHelp).toContain("full subtree");
+    expect(docsReadHelp).toContain("heading subtrees");
   });
 
   it.each([
@@ -873,7 +917,15 @@ describe("top-level read", () => {
     }
   });
 
-  it.each([{ gitRef: "main" }, { wait: "-1" }, { wait: "60001" }])(
+  it.each([
+    { gitRef: "main" },
+    { wait: "-1" },
+    { wait: "60001" },
+    { lines: "" },
+    { lines: "2147483648" },
+    { start: "2147483648" },
+    { end: "2147483648" },
+  ])(
     "rejects invalid pathless options before a service call: %j",
     async (options) => {
       const services = deps();

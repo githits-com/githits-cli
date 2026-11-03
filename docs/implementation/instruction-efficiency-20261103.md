@@ -42,7 +42,8 @@ workspaces are explicit. Trust rules remain intact.
 ## Method and exclusions
 
 Baseline: `c7a9e0f7df371ca4d034cd792a8af129f21cc440`, clean detached checkout.
-Candidate: reviewed working tree, guidance frozen at
+Evaluated candidate: commit `57a0f7d585d1991e316c63ec2da2d347e3991018`,
+with guidance frozen at
 `2026-11-03T08:39:58.169522+00:00`. Both used the candidate harness, dev backend,
 the same credentials, and exact workload bytes. Codex used `gpt-6-luna`, low
 effort. Candidate guidance snapshot SHA-256:
@@ -216,3 +217,23 @@ The next useful validation is targeted CLI routing with actual tool-use and
 coverage checks, plus the claude.ai connector. This result supports reviewing
 the shorter guidance; it does not justify claiming the whole rewrite is
 regression-free or that complete MCP catalog context is materially smaller.
+
+## Integration after the evaluation
+
+After the recorded runs, `main` advanced to
+`202dd2328990d0f435cdc33da3d7a6e8432eba6f` with Pub package support, dependency
+namespace output, and CLI argument tolerance. The PR merges that commit without
+rebasing the evaluated history. The only textual merge conflict was grep help:
+retain the concise symbol guidance together with main's context-clamping rule
+and exact-file/directory examples. Read help retains main's single-line option.
+
+The measured candidate and its size/hash figures above remain the pre-merge
+commit `57a0f7d5`; no agent comparison was rerun for the integrated runtime.
+The full instruction review file reflects the integrated text. Integration
+validation is recorded separately from the historical eval results.
+
+Integration checks passed: `bun test` (6,981 passed, three skipped, zero failed),
+`bun run typecheck`, `bun run build`, `bun run plugins:check`, and authenticated
+dev `bun run smoke:mcp` / `bun run smoke:cli`. Internal and retained Opus 5.5
+review found no integration defect. The reference's 0-10 context advice remains
+valid; complete CLI help describes the new clamping tolerance.

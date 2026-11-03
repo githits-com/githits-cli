@@ -13,7 +13,7 @@ export async function registerPkgCommandGroup(program: Command): Promise<void> {
     .command("pkg")
     .summary("Package metadata, dependencies, vulnerabilities and changelogs")
     .description(
-      "Inspect package metadata from npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, vcpkg, and Zig: overviews, advisories, dependency graphs, and changelogs. Advisory data is unavailable for vcpkg and Zig. For source-level operations inside a dependency, use `githits code`. The `cargo:` prefix is an alias for `crates:` (public crates.io).",
+      "Inspect package metadata from npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, Pub, vcpkg, and Zig: overviews, advisories, dependency graphs, and changelogs. Advisory data is unavailable for vcpkg and Zig. For source-level operations inside a dependency, use `githits code`. The `cargo:` prefix is an alias for `crates:` (public crates.io).",
     );
 
   registerPkgInfoCommand(pkgCommand);

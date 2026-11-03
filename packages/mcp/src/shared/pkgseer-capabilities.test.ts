@@ -30,12 +30,13 @@ describe("pkgseer capability matrices", () => {
       "rubygems",
       "go",
       "swift",
+      "pub",
     ]);
     expect(SUPPORTED_VULN_REGISTRIES_LIST).toBe(
-      "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift",
+      "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, pub",
     );
     expect(SUPPORTED_VULN_REGISTRIES_HUMAN).toBe(
-      "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, and swift",
+      "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, and pub",
     );
     expect([...SUPPORTED_VULN_REGISTRIES]).toEqual([
       "NPM",
@@ -48,6 +49,7 @@ describe("pkgseer capability matrices", () => {
       "RUBYGEMS",
       "GO",
       "SWIFT",
+      "PUB",
     ]);
 
     for (const registry of SUPPORTED_VULN_REGISTRIES) {
@@ -55,5 +57,10 @@ describe("pkgseer capability matrices", () => {
     }
     expect(supportsVulnerabilitiesRegistry("VCPKG")).toBe(false);
     expect(supportsVulnerabilitiesRegistry("ZIG")).toBe(false);
+  });
+
+  it("includes Pub in the supported vulnerability capability", () => {
+    expect(supportsVulnerabilitiesRegistry("PUB")).toBe(true);
+    expect(SUPPORTED_VULN_REGISTRIES_HUMAN).toContain("and pub");
   });
 });

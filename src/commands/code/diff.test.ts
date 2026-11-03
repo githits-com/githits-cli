@@ -197,7 +197,7 @@ describe("codeDiffAction", () => {
     ],
     [
       { maxFiles: "0" },
-      "--max-files expects an integer between 1 and 300. Got 0.",
+      "--max-files expects an integer between 1 and 300. Got '0'.",
       undefined,
     ],
   ] as const)(

@@ -7,8 +7,10 @@ import {
   DEFAULT_WAIT_TIMEOUT_MS,
   formatReadFileTerminal,
   InvalidPackageSpecError,
+  MAX_READ_LINE,
   MAX_WAIT_TIMEOUT_MS,
   parseLinesOption,
+  parsePositiveReadLine,
   type ReadFileRequestBuildResult,
   type ReadFileRequestInput,
   requireAuth,
@@ -56,7 +58,7 @@ export interface PkgReadCommandDependencies {
  *  `--lines 10-40`   → start=10, end=40
  *  `--lines 10-`     → start=10, end=EOF
  *  `--lines -40`     → start=1, end=40
- *  `--lines 10`      → rejected (did you mean `--lines 10-` or `--start 10`?)
+ *  `--lines 10`      → start=10, end=10
  *  `--lines 40-10`   → rejected (reversed)
  *  `--start N --end M` → equivalent
  *  `--lines` combined with `--start`/`--end` → rejected
@@ -228,9 +230,9 @@ export function resolveLineRange(
   options: PkgReadCommandOptions,
   pathWithRange: ParsedPathWithRange,
 ): LineRange {
-  const hasLines = Boolean(options.lines);
-  const hasStart = Boolean(options.start);
-  const hasEnd = Boolean(options.end);
+  const hasLines = options.lines !== undefined;
+  const hasStart = options.start !== undefined;
+  const hasEnd = options.end !== undefined;
   const hasPathRange =
     pathWithRange.startLine !== undefined ||
     pathWithRange.endLine !== undefined;
@@ -262,18 +264,8 @@ export function resolveLineRange(
   }
 
   return {
-    startLine: parseIntCliOption(
-      options.start,
-      "--start",
-      1,
-      Number.MAX_SAFE_INTEGER,
-    ),
-    endLine: parseIntCliOption(
-      options.end,
-      "--end",
-      1,
-      Number.MAX_SAFE_INTEGER,
-    ),
+    startLine: parseIntCliOption(options.start, "--start", 1, MAX_READ_LINE),
+    endLine: parseIntCliOption(options.end, "--end", 1, MAX_READ_LINE),
   };
 }
 
@@ -298,10 +290,10 @@ export function parsePathWithOptionalRange(path: string): ParsedPathWithRange {
     );
   }
 
-  const startLine = requirePositiveInteger(startRaw, "path range start");
+  const startLine = parsePositiveReadLine(startRaw, "path range start");
   const endLine =
     endRaw !== undefined && endRaw.length > 0
-      ? requirePositiveInteger(endRaw, "path range end")
+      ? parsePositiveReadLine(endRaw, "path range end")
       : startLine;
 
   if (startLine > endLine) {
@@ -313,30 +305,13 @@ export function parsePathWithOptionalRange(path: string): ParsedPathWithRange {
   return { filePath, startLine, endLine };
 }
 
-function requirePositiveInteger(raw: string, label: string): number {
-  if (!/^\d+$/.test(raw)) {
-    throw new InvalidPackageSpecError(
-      `${label} must be a positive integer. Got '${raw}'.`,
-    );
-  }
-  const parsed = Number.parseInt(raw, 10);
-  if (parsed < 1) {
-    throw new InvalidPackageSpecError(
-      `${label} must be ≥ 1 (lines are 1-indexed). Got ${parsed}.`,
-    );
-  }
-  return parsed;
-}
-
 const PKG_READ_DESCRIPTION = `Read a file from an indexed dependency.
 
 Default output is the raw file content — pipe-friendly for
 downstream tools (\`code read … | grep …\`). Pass --verbose for a
 header and a line-number gutter.
 
-Use --lines for a bounded range (e.g. \`--lines 10-40\`) or append a
-range directly to the path (e.g. \`src/index.js:10-40\`). The \`path\`
-comes directly from \`githits code files\`.
+Use indexed paths from \`githits code files\`; optional suffix: \`:N-M\`.
 
 Addressing: <target> accepts registry:name[@version], github:org/repo[@ref], codeberg:owner/repo[@ref], gitlab:group[/subgroup...]/project[@ref],
 launchpad:~owner/+git/repo[@ref], launchpad:~owner/project/+git/repo[@ref],
@@ -378,10 +353,7 @@ export function registerCodeReadCommand(pkgCommand: Command): Command {
       "--git-ref <ref>",
       "Optional tag, commit, branch, or HEAD for --repo-url.",
     )
-    .option(
-      "--lines <start-end>",
-      "Line range (e.g. `10-40`, `10-` for open end, `-40` for open start)",
-    )
+    .option("--lines <range>", "N, N-M, N-, or -M (1-based, inclusive)")
     .option("--start <n>", "Starting line (1-indexed). Alternative to --lines.")
     .option("--end <n>", "Ending line (inclusive). Alternative to --lines.")
     .option(

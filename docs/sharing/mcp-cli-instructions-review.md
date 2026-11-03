@@ -1,13 +1,13 @@
 # GitHits instruction revision
 
-Applied revision, 2026-11-03. The canonical sources deliver the text below to agents. Counts are whitespace-separated words, not model tokens.
+Integrated revision, 2026-11-03, including main at `202dd232`. Before counts use `c7a9e0f7`; historical eval results apply to `57a0f7d5` before integration. The canonical sources deliver the text below to agents. Counts are whitespace-separated words, not model tokens.
 
 | Surface | Before | After | Change |
 | --- | ---: | ---: | ---: |
 | MCP quick start (including trust rules) | 1039 | 940 | -9.5% |
 | githits-code | 1766 | 935 | -47.1% |
 | githits-package | 1410 | 802 | -43.1% |
-| All 15 tool descriptions | 1856 | 1791 | -3.5% |
+| All 15 tool descriptions | 1856 | 1793 | -3.4% |
 
 All first sentences and first 80 characters are unchanged. Descriptions are smaller, but the complete serialized descriptors plus argument schemas remain approximately the same size; the larger reductions are in the CLI skills.
 
@@ -137,9 +137,15 @@ Assess latest package health and adoption: license, downloads, and activity. Pro
 
 Before using this tool, call `quick_start` once per session unless the `githits-mcp` skill is loaded.
 
+### pkg_vulns
+
+Check current package advisories. Do not trust your memory for vulnerabilities. Advisories can be published or revised after training; a cutoff disclaimer is not current evidence. Covers pinned releases, latest-version risk, and package security history. For package-wide history, use an unpinned target and `advisory_scope:"all"`: `{"target":"npm:next","advisory_scope":"all"}`. Supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, and Pub; vcpkg and Zig unsupported. Returns counts/details: identifiers and aliases, including CVEs when available, severity, affected ranges, and fixes; malicious advisories are separate. Default text is capped; `verbose:true` shows all selected rows and identifier aliases (including CVEs). Transitive evidence is opt-in and adds graph-analysis cost; see `include_transitive` for scope and filter limits.
+
+Before using this tool, call `quick_start` once per session unless the `githits-mcp` skill is loaded.
+
 ### pkg_deps
 
-Inspect what a package depends on, directly or transitively. Lists direct runtime dependencies with resolved versions; non-runtime groups are omitted by default. Expand transitive footprint, provenance, or issue analysis only when needed, with the corresponding fields; full-graph analysis is not local application lockfile or reachability evidence. Supports npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist, rubygems, go, swift.
+Inspect what a package depends on, directly or transitively. Lists direct runtime dependencies with resolved versions; non-runtime groups are omitted by default. Expand transitive footprint, provenance, or issue analysis only when needed, with the corresponding fields; full-graph analysis is not local application lockfile or reachability evidence. Supports npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist, rubygems, go, swift, pub.
 
 Before using this tool, call `quick_start` once per session unless the `githits-mcp` skill is loaded.
 
@@ -194,6 +200,22 @@ Lines before each match (0-10; default 0). Use read for larger sections.
 ### grep.context_lines_after
 
 Lines after each match (0-10; default 0). Use read for larger sections.
+
+### resolve_target.registries
+
+Optional registry filter that constrains package candidates only; repository and site candidates remain eligible. Accepted registries: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist, rubygems, go, swift, pub. An empty list deliberately means no filter.
+
+### pkg_info.target
+
+Latest-only package registry:name, for example npm:express or npm:@types/node; omit version pins. Registries: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist, rubygems, go, swift, pub.
+
+### pkg_changelog.target
+
+Package registry:name[@version|@from..to], for example npm:express@5.2.1; omit the version for latest. Ranges exclude from and include to: @4.21.2..5.2.1 returns releases after 4.21.2 through 5.2.1. Use @from alone for the starting release's own notes. Open bounds from.. and ..to are accepted. Package-only; repository and site targets are rejected. Registries: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist, rubygems, go, swift, pub.
+
+### pkg_upgrade_review.registry
+
+Package registry for single-package mode. Supported: npm, pypi, hex, crates, nuget, maven, zig, vcpkg, packagist, rubygems, go, swift, pub.
 
 ### research.question
 
@@ -582,7 +604,7 @@ Options:
   --repo-url <url>   Repository URL addressing
   --git-ref <ref>    Git ref for --repo-url (code only)
   --selector <name>  Code symbol or logical documentation heading ID
-  --lines <range>    Inclusive line range, e.g. 10-40, 10-, or -40
+  --lines <range>    N, N-M, N-, or -M (1-based, inclusive)
   --start <n>        Starting line (alternative to --lines)
   --end <n>          Ending line (alternative to --lines)
   --wait <ms>        Indexing wait (0-60000, default 30000)
@@ -683,23 +705,23 @@ unsupported. Multi-file regex requires a literal anchor. Package targets include
 selected hosted docs independently of --corpus and path filters.
 
 Use `githits read <target> --selector <name>` for known definitions; grep for
-occurrences or unresolved definitions. Pass paths with `--path-prefix`; extra
-positional operands are targets. Context flags accept 0-10. Use read for larger
-sections. `--limit` is a global page cap. Use `--` before leading-dash patterns.
+occurrences or unresolved definitions. File: --path lib/express.js; directory:
+--path-prefix lib/. Extra positional operands are targets. Context accepts
+nonnegative safe integers, capped at 10 per side. Use read for larger sections.
+`--limit` is a global page cap. Use `--` before leading-dash patterns.
 
 Arguments:
   pattern                   RE2 regex, or literal with -F
-  targets                   Ordered package, repository, or site: operands
+  targets                   Targets, not file paths
 
 Options:
   -F, --fixed-strings       Match a literal string
   -i, --ignore-case         Ignore case (Unicode folding)
   -s, --case-sensitive      Match case sensitively (rg convention; last case
                             flag wins)
-  -A, --after-context <n>   Trailing context lines (0-10)
-  -B, --before-context <n>  Leading context lines (0-10)
-  -C, --context <n>         Context on both sides; -A/-B override their side
-                            (0-10)
+  -A, --after-context <n>   Lines after each match
+  -B, --before-context <n>  Lines before each match
+  -C, --context <n>         Lines on both sides; -A/-B override their side
   --path <path>             Exact source path, applied to every source operand
                             (repeatable)
   --path-prefix <prefix>    Source path prefix (repeatable)
@@ -767,7 +789,7 @@ Options:
   -q, --query <text>    Task context used as a soft ranking hint
   --registry <list>     Comma-separated filter that constrains package
                         candidates only: npm, pypi, hex, crates, nuget, maven,
-                        zig, vcpkg, packagist, rubygems, go, swift
+                        zig, vcpkg, packagist, rubygems, go, swift, pub
   --prefer-kind <kind>  Soft preference: package, repository, or site
   --intent-hint <text>  Soft intent hint (repeatable)
   -n, --limit <n>       Direct ranked matches (1-20, default 8); protected exact

@@ -184,11 +184,11 @@ deployed.
 
 GitHits works with package and repository targets such as:
 
-- package specs: `npm:react`, `npm:react@18.2.0`, `pypi:requests`, `crates:serde`
+- package specs: `npm:react`, `npm:react@18.2.0`, `pypi:requests`, `crates:serde`, `pub:path`
 - GitHub repos: `https://github.com/expressjs/express`, `github:expressjs/express@main`
 
 Package inspection supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist,
-RubyGems, Go, Swift, vcpkg, and Zig. Advisory data is unavailable for vcpkg and
+RubyGems, Go, Swift, Pub, vcpkg, and Zig. Advisory data is unavailable for vcpkg and
 Zig; dependency graph support varies by registry. `cargo:` is an input alias for
 `crates:` (public crates.io); canonical registry identities remain `crates`.
 

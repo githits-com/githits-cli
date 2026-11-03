@@ -1,8 +1,8 @@
 import { InvalidPackageSpecError } from "@githits/mcp/internal";
 
 /**
- * Parse an optional CLI integer string exactly. `parseInt` is deliberately
- * avoided because it silently accepts partial values such as `10abc`.
+ * Validate the complete CLI integer string before parsing so partial values
+ * such as `10abc` are rejected.
  */
 export function parseIntCliOption(
   raw: string | undefined,
@@ -19,7 +19,7 @@ export function parseIntCliOption(
   const parsed = Number.parseInt(raw, 10);
   if (parsed < min || parsed > max) {
     throw new InvalidPackageSpecError(
-      `${name} expects an integer between ${min} and ${max}. Got ${parsed}.`,
+      `${name} expects an integer between ${min} and ${max}. Got '${raw}'.`,
     );
   }
   return parsed;

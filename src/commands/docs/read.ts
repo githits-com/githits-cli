@@ -52,7 +52,8 @@ export async function docsReadAction(
       );
     }
 
-    const range = options.lines ? parseLinesOption(options.lines) : undefined;
+    const range =
+      options.lines !== undefined ? parseLinesOption(options.lines) : undefined;
 
     const build = buildReadPackageDocParams({
       pageId,
@@ -102,11 +103,9 @@ Pass the displayed [docs page] target from githits search or docsReadTarget from
 githits docs list unchanged. Hosted/crawled HTTP(S) targets read mutable current
 content; repository docs are snapshot-addressed. Historical page IDs remain
 accepted. Default output is content-only for easy piping; pass --verbose for a
-metadata header. Use --lines for a bounded line range (e.g. \`--lines 10-40\`,
-\`--lines 10-\` for open-ended, or \`--lines -40\` for the first 40 lines) —
-useful when a page is too long to read whole. An HTTP(S) fragment reads its
-heading and full subtree through the next equal-or-higher heading; explicit
---lines bounds override the fragment.`;
+metadata header.
+
+HTTP(S) fragments read heading subtrees; --lines overrides with page-relative bounds.`;
 
 export function registerDocsReadCommand(docsCommand: Command): Command {
   return docsCommand
@@ -119,10 +118,7 @@ export function registerDocsReadCommand(docsCommand: Command): Command {
       "<target>",
       "Emitted docsReadTarget or historical page ID from docs/search results",
     )
-    .option(
-      "--lines <range>",
-      "Bounded line range, e.g. 10-40, 10-, or -40 (1-indexed inclusive)",
-    )
+    .option("--lines <range>", "N, N-M, N-, or -M (1-based, inclusive)")
     .option("-v, --verbose", "Show metadata header before content")
     .option("--json", "Emit the JSON envelope")
     .action(async (pageId: string, options: DocsReadCommandOptions) => {

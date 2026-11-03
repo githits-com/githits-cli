@@ -188,6 +188,148 @@ describe("package_changelog parity", () => {
     expect(envelope.filter?.fromVersion).toBe("5.0.0");
   });
 
+  it("PARITY-JSON-KEYS: Pub exact build version preserves release evidence CLI === MCP", async () => {
+    const exactReport: ChangelogReport = {
+      source: "releases",
+      entries: [
+        {
+          version: "1.2.3+build.7",
+          normalizedVersion: "1.2.3+build.7",
+          publishedAt: "2026-03-04T12:00:00Z",
+          htmlUrl: "https://example.com/releases/1-2-3",
+          hasChangelog: true,
+        },
+      ],
+    };
+    const fn = mock(() => Promise.resolve(exactReport));
+    const target = "pub:Synthetic_Pub@1.2.3+build.7";
+    const cli = await cliJson(
+      target,
+      {},
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageChangelog: fn as never,
+        }),
+      }),
+    );
+    const { json, isError } = await mcpJson({ target }, fn as never);
+
+    expect(isError).toBeUndefined();
+    expect(cli).toEqual(json);
+    const calls = fn.mock.calls as unknown as Array<[Record<string, unknown>]>;
+    expect(calls).toHaveLength(2);
+    expect(
+      calls.map(([params]) => ({
+        registry: params.registry,
+        packageName: params.packageName,
+        version: params.version,
+      })),
+    ).toEqual([
+      {
+        registry: "PUB",
+        packageName: "Synthetic_Pub",
+        version: "1.2.3+build.7",
+      },
+      {
+        registry: "PUB",
+        packageName: "Synthetic_Pub",
+        version: "1.2.3+build.7",
+      },
+    ]);
+    expect(cli).toMatchObject({
+      registry: "pub",
+      name: "Synthetic_Pub",
+      mode: "exact",
+      source: "releases",
+      filter: { version: "1.2.3+build.7" },
+      entries: {
+        count: 1,
+        items: [
+          {
+            version: "1.2.3+build.7",
+            normalizedVersion: "1.2.3+build.7",
+            publishedAt: "2026-03-04T12:00:00Z",
+            htmlUrl: "https://example.com/releases/1-2-3",
+            hasChangelog: true,
+          },
+        ],
+      },
+    });
+  });
+
+  it("PARITY-JSON-KEYS: Pub range build bounds preserve release evidence CLI === MCP", async () => {
+    const rangeReport: ChangelogReport = {
+      source: "releases",
+      entries: [
+        {
+          version: "1.2.4+build.8",
+          normalizedVersion: "1.2.4+build.8",
+          publishedAt: "2026-03-05T12:00:00Z",
+          htmlUrl: "https://example.com/releases/1-2-4",
+        },
+      ],
+    };
+    const fn = mock(() => Promise.resolve(rangeReport));
+    const target = "pub:Synthetic_Pub@1.2.3+build.7..1.2.4+build.8";
+    const cli = await cliJson(
+      target,
+      {},
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageChangelog: fn as never,
+        }),
+      }),
+    );
+    const { json, isError } = await mcpJson({ target }, fn as never);
+
+    expect(isError).toBeUndefined();
+    expect(cli).toEqual(json);
+    const calls = fn.mock.calls as unknown as Array<[Record<string, unknown>]>;
+    expect(calls).toHaveLength(2);
+    expect(
+      calls.map(([params]) => ({
+        registry: params.registry,
+        packageName: params.packageName,
+        fromVersion: params.fromVersion,
+        toVersion: params.toVersion,
+      })),
+    ).toEqual([
+      {
+        registry: "PUB",
+        packageName: "Synthetic_Pub",
+        fromVersion: "1.2.3+build.7",
+        toVersion: "1.2.4+build.8",
+      },
+      {
+        registry: "PUB",
+        packageName: "Synthetic_Pub",
+        fromVersion: "1.2.3+build.7",
+        toVersion: "1.2.4+build.8",
+      },
+    ]);
+    expect(cli).toMatchObject({
+      registry: "pub",
+      name: "Synthetic_Pub",
+      mode: "range",
+      source: "releases",
+      filter: {
+        fromVersion: "1.2.3+build.7",
+        toVersion: "1.2.4+build.8",
+      },
+      entries: {
+        count: 1,
+        items: [
+          {
+            version: "1.2.4+build.8",
+            normalizedVersion: "1.2.4+build.8",
+            publishedAt: "2026-03-05T12:00:00Z",
+            htmlUrl: "https://example.com/releases/1-2-4",
+          },
+        ],
+      },
+    });
+  });
+
   it("PARITY-JSON-KEYS: no-body (CLI --no-body === MCP omit_bodies: true)", async () => {
     const fn = mock(() => Promise.resolve(defaultChangelogReport));
     const cli = await cliJson(

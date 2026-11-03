@@ -2293,7 +2293,7 @@ describe("searchStatusAction", () => {
         searchStatusAction("search-ref-wait", { wait: "120001" }, createDeps()),
       ).rejects.toThrow("process.exit");
       expect(String(errorSpy.mock.calls[0]?.[0])).toContain(
-        "--wait expects an integer between 0 and 120000. Got 120001.",
+        "--wait expects an integer between 0 and 120000. Got '120001'.",
       );
     } finally {
       errorSpy.mockRestore();
