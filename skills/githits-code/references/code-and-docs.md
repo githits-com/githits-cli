@@ -32,6 +32,10 @@ Raw-diff availability belongs to the backend. Unequal Launchpad comparisons
 currently return nonretryable `RAW_DIFF_UNAVAILABLE`; equal-commit comparisons
 return an empty inventory. Do not infer compatibility from either outcome.
 
+## Googlesource HTTPS targets
+
+Use full HTTPS project URLs, such as `https://go.googlesource.com/time@v0.16.0`; there is no `googlesource:` shorthand. All explicit ports, including `:443`, are rejected. Hosts normalize to lowercase while project paths preserve case; one terminal `.git` and trailing slash are removed. Public `-review` hosts retain their own identity and are never rewritten to another host. Append `@ref` for branches, tags or commits and reuse emitted HTTPS targets and exact commit pointers unchanged. Gitiles web routes, queries, fragments and non-HTTPS transports are unsupported.
+
 ## Source Diff
 
 `githits code diff <unversioned-target> <from>..<to>` compares exact package
@@ -183,6 +187,6 @@ MCP tool with its own schema and documented capabilities.
 - `githits read <docs-target>` maps to MCP `read` with `target` alone.
 - `githits read <site-target> <target-relative-page-path>` maps to MCP `read` with `target` and `path`.
 
-Direct repository targets accept approved full HTTPS URLs on github.com, codeberg.org, and gitlab.com. Codeberg requires exactly owner/repo; GitLab allows nested namespaces. Only GitHub supports host shorthand and HTTP compatibility. Never infer a provider from bare owner/repo. Repository refs use an @ suffix and may themselves contain / and @; # is reserved for semantic fragments. Empty refs and mixed suffixes are invalid. Credentials, queries, provider web subpaths, and unsupported/self-hosted hosts are rejected. Package targets keep registry-native coordinates, including `zig:cb/owner/repo` and `swift:gitlab.com/group/project`.
+Direct repository targets accept approved full HTTPS URLs on github.com, codeberg.org, gitlab.com, code.launchpad.net, git.launchpad.net, and public *.googlesource.com hosts. Codeberg requires exactly owner/repo; GitLab allows nested namespaces. Only GitHub supports host shorthand and HTTP compatibility. Never infer a provider from bare owner/repo. Repository refs use an @ suffix and may themselves contain / and @; # is reserved for semantic fragments. Empty refs and mixed suffixes are invalid. Credentials, queries, provider web subpaths, and unsupported/self-hosted hosts are rejected. Package targets keep registry-native coordinates, including `zig:cb/owner/repo` and `swift:gitlab.com/group/project`.
 
 GitLab web paths with `/-/` or reserved routes such as `tree`, `blob`, and `raw` are rejected. Unreserved names such as `issues` can be repository path components; without a web-route marker, the client treats the complete nested path as repository identity.

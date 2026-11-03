@@ -77,9 +77,9 @@ The backend owns native source access and raw-diff availability; the client adds
 no transport or provider API. Existing provider syntax and protocol-default-port
 compatibility remain unchanged.
 
-The public `githits-code` reference must add Googlesource to its HTTPS list in
-the release branch containing this behavior, following the public Agent Skill
-lifecycle. The current stable MCP guide already permits supported full URLs and
+The public `githits-code` reference carries the matching HTTPS grammar with
+the 0.38.0 release, following the public Agent Skill lifecycle. The current
+stable MCP guide already permits supported full URLs and
 its exact public-skill parity is unchanged. Hosted MCP receives parser changes
 only after `@githits/mcp` release, dependency adoption and hosted deployment.
 

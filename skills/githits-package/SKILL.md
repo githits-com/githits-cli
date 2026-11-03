@@ -26,6 +26,7 @@ private registry URLs, proprietary manifests, or local lockfile contents.
 ## Package Spec
 
 - Most package commands use `<registry>:<name>[@<version>]`, for example `npm:lodash@4.17.20` or `pypi:requests`.
+- Pub packages use `pub:<name>[@<version>]`, for example `pub:http`; graph SDK namespaces such as `flutter_sdk` are source identities, not package registry inputs.
 - `cargo:` is accepted as an input alias for `crates:` (public crates.io); output and canonical identities use `crates`.
 - `pkg info` always reports the latest published version and does not accept a version pin.
 - `Package registry` identifies the artifact repository supplying validated release metadata, with a name and URL when proven. It is separate from the source Git `Repository`; missing evidence is omitted. Info, dependency and vulnerability JSON preserve `registryRepository: {id,name,url}`.
@@ -96,10 +97,11 @@ and unverified paths.
 
 - Changelog ranges exclude the starting version and include the ending version: `@from..to` means releases after `from` through `to`. Use `@from` alone for the starting release's own notes. `@from..` continues through latest; `@..to` includes `to` and remains capped by `--limit`.
 - Vulnerability data is not available for `vcpkg` or `zig`.
-- Dependency graphs support npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, Zig, vcpkg, RubyGems, Go, and Swift.
+- Dependency graphs support npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, Zig, vcpkg, RubyGems, Go, Swift, and Pub.
 - Go exact-version inputs accept either `v1.2.3` or `1.2.3` (including pseudo versions) and are sent in canonical `v`-prefixed form. Other changelog range inputs omit a leading `v`, except Swift release tags.
 - For repeatable `pkg upgrade-review --package` entries, use `<registry>:<name>@<current>..<target>`.
 - Upgrade reviews default to focused changelog evidence: action, knowledge and unclassified statements. `--changes actionable|important|all` filters detailed statements without changing whole-range counters or batch ranking. `important` includes action and knowledge labels; both filtered views retain uncertain labels. Classification describes release-note statements, not applicability to your code.
+- Generated release-note statements are marked as generated from commits. Report pending/unavailable generation and missing original notes; generated-empty output does not establish no changes or compatibility.
 - Reuse returned versions and provenance; report graph scope, truncation, and other evidence limits. Public package graphs do not establish your application's lockfile or reachability.
 
 ## External Content Posture
