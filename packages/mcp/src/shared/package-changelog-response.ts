@@ -146,39 +146,63 @@ export function buildPackageChangelogSuccessPayload(
   return envelope;
 }
 
-/** Shared lossless statement envelope; the hosts only normalize enum spelling. */
+/** Compact statement evidence shared by CLI and MCP, including upgrade review. */
 export function normaliseChangelogStatements(
   statements: ChangelogStatements,
 ): LeanChangelogStatements {
   return {
     ...statements,
     count: statements.items.length,
-    items: statements.items.map((item) => ({
-      ...item,
-      ...(item.source ? { source: item.source.toLowerCase() } : {}),
-      classification:
-        item.classification === null
-          ? null
-          : {
-              ...item.classification,
-              tier: item.classification.tier.toLowerCase(),
-              ...(item.classification.kind
-                ? { kind: item.classification.kind.toLowerCase() }
-                : {}),
-            },
-    })),
-    coverage: statements.coverage.map((c) => ({
+    items: statements.items.map((item) => {
+      const { commits, ...statement } = omitDuplicateFullText(item);
+      const commit = commits?.[0];
+      return {
+        ...statement,
+        ...(item.context
+          ? { context: omitDuplicateFullText(item.context) }
+          : {}),
+        ...(commit ? { commits: [commit.url ?? commit.sha] } : {}),
+        ...(commits && commits.length > 1
+          ? { commitsOmitted: commits.length - 1 }
+          : {}),
+        ...(item.source ? { source: item.source.toLowerCase() } : {}),
+        classification:
+          item.classification === null
+            ? null
+            : {
+                ...item.classification,
+                tier: item.classification.tier.toLowerCase(),
+                ...(item.classification.kind
+                  ? { kind: item.classification.kind.toLowerCase() }
+                  : {}),
+              },
+      };
+    }),
+    coverage: statements.coverage.map(({ generation, ...c }) => ({
       ...c,
       status: c.status.toLowerCase(),
-      ...(c.generation
+      ...(generation
         ? {
             generation: {
-              ...c.generation,
-              status: c.generation.status.toLowerCase(),
+              status: generation.status.toLowerCase(),
+              ...(generation.reason != null
+                ? { reason: generation.reason }
+                : {}),
             },
           }
         : {}),
     })),
+  };
+}
+
+/** Preserve distinct evidence without repeating the same statement or context. */
+function omitDuplicateFullText<T extends { text: string; fullText?: string }>(
+  value: T,
+): Omit<T, "fullText"> & { fullText?: string } {
+  const { fullText, ...rest } = value;
+  return {
+    ...rest,
+    ...(fullText !== undefined && fullText !== value.text ? { fullText } : {}),
   };
 }
 
@@ -205,9 +229,11 @@ function buildFilterBlock(
   return Object.keys(filter).length > 0 ? filter : undefined;
 }
 
-/** Structured JSON retains evidence; only enum spelling is normalised. */
+/** JSON carries bounded commit locators and distinct text evidence. */
 export interface LeanChangelogStatement
-  extends Omit<ChangelogStatement, "classification"> {
+  extends Omit<ChangelogStatement, "classification" | "commits"> {
+  commits?: string[];
+  commitsOmitted?: number;
   classification:
     | (Omit<
         NonNullable<ChangelogStatement["classification"]>,
@@ -224,10 +250,7 @@ export interface LeanChangelogStatements
     "status" | "generation"
   > & {
     status: string;
-    generation?: Omit<
-      NonNullable<ChangelogStatements["coverage"][number]["generation"]>,
-      "status"
-    > & { status: string };
+    generation?: { status: string; reason?: string };
   })[];
 }
 

@@ -9,9 +9,10 @@ compares security and dependencies between installed and target versions.
 When a release's notes are missing, thin or unparseable, the API can also serve
 statements generated from that release's commits and diff. These follow the
 release's own statements. Text marks their source group once with
-`(generated from commits)`. JSON retains the server's full notice, including the
-distinction from maintainer-written notes, and every cited commit SHA and URL.
-Default text omits the notice and citation list to keep the changes readable.
+`(generated from commits)`. JSON uses `source: "generated"` and compact generation
+status/reason fields. Neither view includes the boilerplate notice. JSON keeps
+one cited commit locator per statement, with `commitsOmitted` when more were cited;
+text omits the citation list.
 
 Generation coverage is independent of assessment status: GENERATED, PENDING or
 NOT_GENERATED does not replace WITHOUT_NOTES or UNPARSEABLE. Generated-empty
@@ -73,7 +74,8 @@ restatement suppression. The client preserves nested wording/code and predecesso
 `context` when suppression would otherwise remove needed context. It performs
 no extraction, local deduplication or generated summarization. Text shows the
 bounded backend `text` without additional local excerpt limits; backend cuts
-are marked. JSON includes uncut statement/context fullText.
+are marked. JSON includes uncut statement/context fullText only when it differs
+from text, avoiding duplicate copies of ordinary statements and context.
 
 Source URLs appear once at each release/source block, close to their statements.
 Embedded Markdown links retain their inline URLs. There is no response-wide
@@ -108,7 +110,7 @@ metadata. No product-side second query is added for optional details.
 | Projection | Selected data |
 | --- | --- |
 | Statement text | First-page version/date/URL; every-page text, position/sourceIndex, heading/source/URL, generation status/reason, context, tier/ambiguous/kind and page controls |
-| Statement JSON | Above plus cited commits, generation notice, normalizedVersion, sourcePosition, fullText/context fullText, confidences, model/formulation and aggregate source; no entry.body |
+| Statement JSON | Above plus commit evidence, normalizedVersion, sourcePosition, fullText/context fullText, confidences, model/formulation and aggregate source; no notice or entry.body |
 | All statements | Coverage version/status/statementsTotal; assessment counts derived from collected answers |
 | Filtered statements | Full backend assessment coverage to detect shifting filtered offsets |
 | Original notes | Entry.body and timeline fields; JSON adds normalizedVersion/source; no statements/risk/provenance |
@@ -146,12 +148,17 @@ view; it is no longer a text-only expansion option. Both artifacts have minor
 pending impact during 0.x. Empty selections and exact releases without notes
 remain successful; actual missing packages/versions keep mapped errors.
 
-Statement items include `commits` when supplied, with complete SHAs and nullable
-URLs. Coverage includes `generation` when supplied, with lowercase status and
-the server's nullable reason and notice. Commits and the full notice are selected
-only for JSON; missing selected detail fields fail JSON validation, while text
-decoding accepts their omission. Null heading, URL and confidence remain
-omitted under the existing convention; generated statements do not require them.
+Statement items include `commits` as an array containing at most one authoritative
+URL, or the full SHA when that commit has no URL. `commitsOmitted` counts the
+remaining references and is absent when none were omitted. Empty commit arrays
+are omitted. This bounded preview never claims to be the full citation list.
+Coverage includes `generation` with lowercase status and a non-null reason when
+available; notices and null reasons are omitted. The API notice is never selected.
+Commit evidence is selected only for JSON; missing selected detail fields fail
+JSON validation, while text decoding accepts their omission. Statement/context
+fullText is omitted when identical to text; distinct fullText remains available.
+Null heading, URL and confidence remain omitted under the existing convention;
+generated statements do not require them.
 Upgrade review retains the same statement evidence and validates generated item
 counts against the whole-range risk counters. Its triage projection remains
 counters-only and does not fetch statements or generation metadata.
@@ -160,6 +167,8 @@ To compare generated-note text size without changing API evidence, save changelo
 and upgrade-review JSON and pass those fixed files to
 `bun scripts/generated-notes-text-size-benchmark.ts <files...>`. It reports UTF-8
 bytes and lines through the shared formatters, without measuring runtime speed.
+Use `--json` with fixed service statement blocks (before response shaping) to
+measure the compact JSON adapter against identical evidence.
 
 ## Validation and measurements
 

@@ -813,8 +813,7 @@ describe("complete upgrade statement presentation", () => {
       coverage.status = "without_notes";
       coverage.generation = {
         status,
-        reason: status === "generated" ? null : "budget",
-        notice: status === "generated" ? "Server empty notice" : null,
+        ...(status === "generated" ? {} : { reason: "budget" }),
       };
       review.changelog.riskCoverage.versionsWithoutNotes = 1;
       const text = formatPackageUpgradeReviewTerminal(
@@ -851,15 +850,11 @@ describe("complete upgrade statement presentation", () => {
       source: "generated",
       url: undefined,
       heading: undefined,
-      commits: [
-        { sha: "abcdef0123456789", url: "https://example.com/commit/abcdef0" },
-      ],
+      commits: ["https://example.com/commit/abcdef0"],
     };
     const review = statementReview([item]);
     review.changelog.statements!.coverage[0]!.generation = {
       status: "generated",
-      reason: null,
-      notice: "Server notice",
     };
     let text = formatPackageUpgradeReviewTerminal(
       formatterResponse([review]),
@@ -1157,6 +1152,7 @@ describe("complete upgrade statement presentation", () => {
       items: [
         {
           ...unit(),
+          commits: undefined,
           classification: {
             tier: "MUST_ACT",
             ambiguous: false,
@@ -1166,7 +1162,7 @@ describe("complete upgrade statement presentation", () => {
             formulation: "v2",
           },
         },
-        { ...unit(1), classification: null },
+        { ...unit(1), commits: undefined, classification: null },
       ],
       coverage: [],
     };

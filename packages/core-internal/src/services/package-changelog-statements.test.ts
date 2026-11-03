@@ -198,9 +198,9 @@ describe("changelog view projections", () => {
             );
             expect(
               wire.query.includes("generation { status reason notice }"),
-            ).toBe(view === "statements" && includeJsonFields);
+            ).toBe(false);
             expect(wire.query.includes("generation { status reason }")).toBe(
-              view === "statements" && !includeJsonFields,
+              view === "statements",
             );
             expect(wire.query.includes("fullText")).toBe(
               view === "statements" && includeJsonFields,
@@ -253,15 +253,19 @@ describe("complete changelog pagination", () => {
       reason: null,
     });
   });
-  it("requires the selected generation notice in JSON, including empty releases", async () => {
+  it("omits the generation notice from JSON queries, including empty releases", async () => {
     const p = page([], 0);
     Reflect.set(p.coverage[0]!, "generation", {
       status: "GENERATED",
       reason: null,
+      notice: "Unselected API notice",
     });
-    await expect(
-      setup([p], { includeJsonFields: true }).call(),
-    ).rejects.toThrow("evidence fields");
+    const run = setup([p], { includeJsonFields: true });
+    expect((await run.call()).statements?.coverage[0]?.generation).toEqual({
+      status: "GENERATED",
+      reason: null,
+    });
+    expect(run.requests[0]?.query).not.toContain("notice");
   });
   it.each([undefined, "1.0.0"])(
     "preserves generated evidence and original coverage for selector %s",
@@ -283,7 +287,6 @@ describe("complete changelog pagination", () => {
       const generation = {
         status: "GENERATED",
         reason: null,
-        notice: "Server notice",
       };
       const p = page();
       Reflect.set(p, "items", [item]);
@@ -314,7 +317,6 @@ describe("complete changelog pagination", () => {
       const generation = {
         status,
         reason: status === "GENERATED" ? null : "budget",
-        notice: status === "GENERATED" ? "Server notice" : null,
       };
       const p = page([], 0);
       Object.assign(p.coverage[0]!, { status: "UNPARSEABLE", generation });
@@ -334,12 +336,10 @@ describe("complete changelog pagination", () => {
     Reflect.set(first.coverage[0]!, "generation", {
       status: "PENDING",
       reason: "budget",
-      notice: null,
     });
     Reflect.set(next.coverage[0]!, "generation", {
       status: "GENERATED",
       reason: null,
-      notice: "Server notice",
     });
     await expect(setup([first, next]).call()).rejects.toThrow(
       "evidence changed",
@@ -350,7 +350,6 @@ describe("complete changelog pagination", () => {
     Reflect.set(p.coverage[0]!, "generation", {
       status: "GENERATED",
       reason: null,
-      notice: "Server notice",
     });
     const result = await setup([p]).call();
     expect(result.statements?.coverage[0]).toMatchObject({

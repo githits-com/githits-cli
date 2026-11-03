@@ -420,7 +420,6 @@ describe("changelog statement and view parity", () => {
       const generation = {
         status: "GENERATED" as const,
         reason: null,
-        notice: "Server notice",
       };
       report.statements!.coverage[0]!.generation = generation;
       const fn = mock(async () => report);
@@ -435,9 +434,10 @@ describe("changelog statement and view parity", () => {
       );
       const mcp = await mcpJson({ target }, fn);
       expect(cli).toEqual(mcp.json);
-      expect(cli).toHaveProperty("statements.items.0.commits", commits);
+      expect(cli).toHaveProperty("statements.items.0.commits", [
+        commits[0]!.sha,
+      ]);
       expect(cli).toHaveProperty("statements.coverage.0.generation", {
-        ...generation,
         status: "generated",
       });
     });
@@ -456,7 +456,6 @@ describe("changelog statement and view parity", () => {
     report.statements!.coverage[0]!.generation = {
       status: "GENERATED",
       reason: null,
-      notice: "Server notice",
     };
     const tool = createParityMcpTool("pkg_changelog", {
       packageIntelligenceService: createMockPackageIntelligenceService({
@@ -491,7 +490,8 @@ describe("changelog statement and view parity", () => {
         const mcp = await mcpJson({ target, changes }, fn);
         expect(cli).toEqual(mcp.json);
         expect(cli).not.toHaveProperty("entries.items.0.body");
-        expect(cli).toHaveProperty("statements.items.0.fullText");
+        expect(cli).not.toHaveProperty("statements.items.0.fullText");
+        expect(cli).toHaveProperty("statements.items.0.text");
         const calls = fn.mock.calls as unknown as Array<
           [Record<string, unknown>]
         >;

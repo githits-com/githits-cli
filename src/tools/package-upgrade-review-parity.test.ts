@@ -518,7 +518,6 @@ describe("complete statement CLI/MCP parity", () => {
     const generation = {
       status: "GENERATED" as const,
       reason: null,
-      notice: "Server notice",
     };
     statements.coverage[0]!.generation = generation;
     const cli = await cliJson(
@@ -530,11 +529,11 @@ describe("complete statement CLI/MCP parity", () => {
     expect(cli).toEqual(mcp.json);
     expect(cli).toHaveProperty(
       "reviews.0.changelog.statements.items.1.commits",
-      item.commits,
+      [item.commits![0]!.sha],
     );
     expect(cli).toHaveProperty(
       "reviews.0.changelog.statements.coverage.0.generation",
-      { ...generation, status: "generated" },
+      { status: "generated" },
     );
     const cliResult = await cliText(
       "npm:express@4.18.0..5.0.0",
@@ -563,7 +562,6 @@ describe("complete statement CLI/MCP parity", () => {
     statements.coverage[0]!.generation = {
       status: "GENERATED",
       reason: null,
-      notice: "Server notice",
     };
     const text = (await mcpText(args, service)).replace(/\s+/g, " ");
     expect(text).toContain("(generated from commits)");

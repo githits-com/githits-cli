@@ -3,4 +3,4 @@
 "@githits/mcp": minor
 ---
 
-- **Generated release-note evidence** - Changelog and upgrade review mark generated statements compactly, show generation progress and empty results, and retain the full notice, cited commits and generation coverage in JSON.
+- **Generated release-note evidence** - Changelog and upgrade review use compact generated-source and status markers. JSON omits boilerplate notices and duplicate text, and bounds commit evidence to one locator with an omitted-count.

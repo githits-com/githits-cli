@@ -220,7 +220,6 @@ describe("complete upgrade statement retrieval", () => {
       const generation = {
         status: "GENERATED",
         reason: null,
-        notice: "Server notice",
       };
       Object.assign(r.changelog.statements.coverage[0]!, {
         status: "WITHOUT_NOTES",
@@ -671,11 +670,9 @@ describe("upgrade statement projections", () => {
       expect(query).not.toContain("itemsOmitted");
       expect(query.includes("statements(")).toBe(view !== "triage");
       expect(query.includes("commits { sha url }")).toBe(view === "json");
-      expect(query.includes("generation { status reason notice }")).toBe(
-        view === "json",
-      );
+      expect(query.includes("generation { status reason notice }")).toBe(false);
       expect(query.includes("generation { status reason }")).toBe(
-        view === "text",
+        view !== "triage",
       );
       expect(query.includes("fullText")).toBe(view === "json");
       expect(query.includes("tierConfidence")).toBe(view === "json");

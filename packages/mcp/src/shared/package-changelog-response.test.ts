@@ -332,7 +332,50 @@ describe("complete statement evidence view", () => {
       explicitFilterFields: new Set(changes ? ["changes"] : []),
     });
   }
-  it("uses one compact generated marker and keeps detailed evidence in JSON", () => {
+  it("does not duplicate identical statement or context text in JSON", () => {
+    const report = evidence();
+    const item = report.statements!.items[3]!;
+    item.fullText = item.text;
+    item.context!.fullText = item.context!.text;
+    const result = payload(report).statements!.items[3]!;
+    expect(result.text).toBe(item.text);
+    expect(result.fullText).toBeUndefined();
+    expect(result.context!.text).toBe(item.context!.text);
+    expect(result.context!.fullText).toBeUndefined();
+    expect(item.fullText).toBe(item.text);
+    expect(item.context!.fullText).toBe(item.context!.text);
+  });
+  it("keeps one authoritative commit URL and reports omitted references", () => {
+    const report = evidence();
+    report.statements!.items[0]!.commits = [
+      { sha: "sha-one", url: "https://example.com/commit/one" },
+      { sha: "sha-two", url: "https://example.com/commit/two" },
+    ];
+    const result = payload(report).statements!.items[0]!;
+    expect(result.commits).toEqual(["https://example.com/commit/one"]);
+    expect(result.commitsOmitted).toBe(1);
+    report.statements!.items[0]!.commits = [{ sha: "sha-one", url: null }];
+    const single = payload(report).statements!.items[0]!;
+    expect(single.commits).toEqual(["sha-one"]);
+    expect(single.commitsOmitted).toBeUndefined();
+  });
+  it("keeps generation status and reason without the notice or null fields", () => {
+    const report = evidence();
+    report.statements!.coverage[0]!.generation = {
+      status: "PENDING",
+      reason: "budget",
+    };
+    Reflect.set(
+      report.statements!.coverage[0]!.generation!,
+      "notice",
+      "Unselected notice essay",
+    );
+    expect(payload(report).statements!.coverage[0]!.generation).toEqual({
+      status: "pending",
+      reason: "budget",
+    });
+  });
+  it("uses one compact generated marker and keeps JSON evidence compact", () => {
     const report = evidence();
     const statements = report.statements!;
     statements.items = statements.items.slice(0, 3);
@@ -351,8 +394,12 @@ describe("complete statement evidence view", () => {
     statements.coverage[0]!.generation = {
       status: "GENERATED",
       reason: null,
-      notice: "Server notice: an empty list does not mean nothing changed.",
     };
+    Reflect.set(
+      statements.coverage[0]!.generation!,
+      "notice",
+      "Server notice: an empty list does not mean nothing changed.",
+    );
     const p = payload(report);
     const text = formatPackageChangelogTerminal(p, { useColors: false });
     const flat = text.replace(/\s+/g, " ");
@@ -366,11 +413,10 @@ describe("complete statement evidence view", () => {
     expect(text).not.toContain("abcdef0");
     expect(text).not.toContain("https://example.com/commit/");
     expect(text).not.toContain("Cited commits");
-    expect(p.statements?.items[1]?.commits).toEqual(commits);
+    expect(p.statements?.items[1]?.commits).toEqual([commits[0]!.sha]);
+    expect(p.statements?.items[1]?.commitsOmitted).toBe(6);
     expect(p.statements?.coverage[0]?.generation).toEqual({
       status: "generated",
-      reason: null,
-      notice: statements.coverage[0]!.generation!.notice,
     });
     expect(statements.coverage[0]!.generation!.status).toBe("GENERATED");
     expect(
@@ -389,7 +435,6 @@ describe("complete statement evidence view", () => {
         generation: {
           status: "GENERATED",
           reason: null,
-          notice: "Server empty notice",
         },
       });
       report.entries = report.entries.slice(0, 1);
@@ -411,7 +456,6 @@ describe("complete statement evidence view", () => {
     report.statements!.coverage[0]!.generation = {
       status: "GENERATED",
       reason: null,
-      notice: "Server notice",
     };
     const text = formatPackageChangelogTerminal(payload(report, "actionable"), {
       useColors: false,
@@ -433,7 +477,7 @@ describe("complete statement evidence view", () => {
     Object.assign(report.statements!.coverage[0]!, {
       status: "WITHOUT_NOTES",
       statementsTotal: 0,
-      generation: { status, reason, notice: null },
+      generation: { status, reason },
     });
     const text = formatPackageChangelogTerminal(payload(report), {
       useColors: false,
