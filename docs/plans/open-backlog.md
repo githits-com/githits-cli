@@ -62,6 +62,16 @@ fields, unknown reasons, CLI/MCP JSON preservation and native guidance. Run the
 affected CLI/MCP smoke suites and targeted agent evals. Grep `target_issues` and
 indexing recovery remain separate contracts.
 
+The CLI ergonomics reorientation after #533 confirms a concrete grep boundary:
+the core error retains GraphQL extensions, but `mapGrepError()` currently drops
+validation `input_path`, `reason` and `expected`. Producer source can attribute
+invalid targets by zero-based `input_path: ["targets", index]`; deployed shape
+availability still needs verification. Preserve validated facts before offering
+conditional `--path`/`--path-prefix` guidance for an attributed extra operand.
+Do not infer paths from error prose or reuse preparation `target_issues` for
+input validation. Existing help-only guidance remains the supported behavior
+until this contract is adopted; do not duplicate it in the Research increment.
+
 ## Optimize overall tool routing and investigation instructions
 
 User deferred this follow-up until after unified MCP grep adoption on

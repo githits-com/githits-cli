@@ -3,7 +3,8 @@
 ## Status and expected outcome
 
 - Overall: **IN PROGRESS**; Phase 1 merged in [#530](https://github.com/githits-com/githits-cli/pull/530);
-  Phase 1a is complete pending merge; Phase 2 needs reorientation.
+  Phase 1a merged in [#533](https://github.com/githits-com/githits-cli/pull/533);
+  Phase 2 is the next independent CLI increment.
 - Owner: this CLI worktree; backend investigations have separate child worktrees.
 - User direction, 2026-11-03: improve CLI ergonomics from the supplied feedback;
   exclude all skill changes because OP is reviewing those separately. Dispatch
@@ -23,48 +24,44 @@ compact and accurate without silently changing caller intent.
 
 ## Verified planning baseline
 
-The original feedback baseline below predates #530; its line/context failures
-are now fixed. Evidence was collected against CLI `0.37.0`, branch
-`jlitola/analyze-ergonomics-feedback`, initial HEAD
-`c7a9e0f7df371ca4d034cd792a8af129f21cc440`.
+Phase 2 is based on refreshed `origin/main`
+`31b2fd60848aeab869c15540caf4f56596c2e012`, the merge of #533.
+Source feedback remains the supplied `feedback-summary-2026-11-03.docx`;
+its aggregate error/token figures are not reproduced measurements.
 
-| Observation | Verified implementation and implication |
-| --- | --- |
-| `--lines 42` fails; `42-42` works | `packages/mcp/src/shared/parse-lines-option.ts` explicitly rejects single integers. Top-level `read`, legacy `code read`, and `docs read` use it. Its suggested `--start 42` does not express an exact one-line selection. |
-| Top-level grep rejects context above 10 | `src/commands/grep.ts` and `shared/grep-request.ts` validate every supplied value before selecting the last one. Legacy `shared/grep-repo-request.ts` already clamps nonnegative safe integers to 10 and returns clamping metadata. |
-| A bare path is another grep operand | Commander registers `<pattern> <targets...>`. A direct request probe forwarded `lib/router.js` as a target alongside `npm:express`. Multi-target order and duplicates are meaningful. |
-| Regex bytes pass through | `buildGrepParams` preserves `foo\|bar`; matching belongs to the backend. RE2 syntax uses `|` for alternation; an escaped pipe can be intentional. This is a guidance opportunity, not proof of a matcher defect. |
-| Research rate-limit distinctions exist | `core-internal/services/agentic-ask-service.ts` distinguishes request and daily limits and captures `Retry-After`. `shared/agentic-ask-error-map.ts` preserves these facts. Daily exhaustion is nonretryable; the current message names search/grep/list/read without a scoped command. |
-| Output controls are partial | Grep `--limit` caps page matches, not bytes/lines. MCP read presentation caps spans at 150/300 lines with continuation; CLI reads retain complete selections. `shared/grep-text.ts` retains sources, omissions, coverage and cursor/read actions. |
-| Enclosing symbols differ by route | Legacy `code grep --symbol-field` supports enclosing-symbol metadata. The CLI unified grep query/types contain line slices, bounded context and a one-line `readTarget`, with no symbol/block fields. Backend schema support remains to be checked; metadata alone is not a full block. |
-| Existing plans overlap narrowly | `search-output-ux.md` owns general formatter hierarchy, not optional budgets. `open-backlog.md` owns literal-path round trips and future typed validation-error recovery. Do not duplicate those efforts or change literal-path grammar in this plan. |
+- `AgenticAskHttpError.rateLimitScope` distinguishes `daily` from `request`.
+  The service's exact daily-429 classification is nonretryable and preserves
+  00:00 UTC reset advice. `mapAgenticAskError()` retains scope, status,
+  retry timing, Research run ID and thread ID. No backend change is needed.
+- `researchAction()` owns the explicit target/thread/question and formats both
+  human errors and JSON. Current daily errors give generic search/grep/list/read
+  advice but no executable scoped command. The shared terminal formatter handles
+  request-rate timing; it does not render arbitrary `details.action` values.
+- `parseUnifiedSearchTargetSpec()` accepts explicit packages, repository
+  shorthands/URLs and site targets. Local probes accept `npm:express`,
+  `github:expressjs/express@4.21.2`, its HTTPS URL and `site:expressjs.com`;
+  they reject bare `express` and `lib/router.js`. `search --in TARGET -- QUERY`
+  is the actual registered CLI grammar. Reuse the parser only for eligibility;
+  preserve the original target bytes in a suggested command.
+- `shellQuoteExact()` is already exported through the private CLI transition
+  surface and handles quotes and C0/C1 controls using the established shell
+  action policy. Research values come from CLI argv, which cannot contain NUL.
+- Grep's core error preserves raw GraphQL extensions. The current mapper drops
+  validation `input_path`, `reason` and `expected`, retaining only `graphqlCode`.
+  A local producer-shaped probe with `input_path: ["targets", 1]` confirms that
+  loss. Backend source already supplies typed paths, so this is not evidence
+  that the producer lacks attribution. Deployed shapes and generic validation
+  adoption remain the existing backlog gate; preparation `target_issues` is a
+  different contract and cannot prove that an operand was intended as a path.
 
-Source feedback: the user-supplied `feedback-summary-2026-11-03.docx`.
-Its aggregate error/token/time figures are directional reports, not reproduced
-measurements. Raw traces, exact tested CLI versions and regex inputs are absent.
-The user corrected the initial `\[` reference to `\|`.
+These planning probes used pure parsers/error mappers and synthetic failures;
+no login, credentials, Research request or quota exhaustion was used. Runtime
+verification output belongs on the PR, not in permanent implementation docs.
 
-Phase 1a planning baseline: refreshed `origin/main` at
-`202dd2328990d0f435cdc33da3d7a6e8432eba6f`, the merge of #530.
-The reviewed backend [regex investigation](https://github.com/githits-com/pkgseer-backend/blob/0ab7fcad13bfc6b3c932cfc15ff5d4848a923f08/docs/analysis/2026-11-03-grep-regex-ergonomics.md)
-reproduced `foo|bar` as alternation and `foo\|bar` as a literal pipe in
-REGEX-mode native GREP/MULTI_GREP; it also checked LITERAL-mode and
-escaped/class variants.
-It found no matcher defect. Content-index searches require usable literal text;
-a single exact-file route accepts anchorless regexes subject to syntax/compile
-limits. This is route policy, not a malformed-regex rule.
-
-CLI evidence at that baseline: `src/commands/grep.ts` defaults to REGEX and `-F` selects
-LITERAL; legacy `src/commands/code/grep.ts` defaults to LITERAL and `--regex`
-selects REGEX. Both forward pattern bytes unchanged. Neither help explains the
-pipe distinction. Unified help incorrectly says all anchorless expressions
-fail; the legacy CLI-derived note qualifies literal-text requirements only by
-selector presence, rather than the actual content-index/exact-file route.
-Its existing `GREP_REPO_PATTERN_NOTE` has only a CLI consumer via the
-workspace-only `@githits/mcp/internal` transition export; no MCP tool or public
-entrypoint uses it. Its private package path does not make this a public MCP change.
-The legacy CLI reference's ASCII-only folding sentence contradicts current
-Unicode-aware help and its existing test; correct that adjacent documentation.
+The completed regex investigation is preserved at
+[PkgSeer commit 0ab7fca](https://github.com/githits-com/pkgseer-backend/blob/0ab7fcad13bfc6b3c932cfc15ff5d4848a923f08/docs/analysis/2026-11-03-grep-regex-ergonomics.md).
+It established correct matching and route policy; #533 adopted the CLI guidance.
+Its separate backend schema-documentation note remains in PkgSeer's backlog.
 
 ## Scope and boundaries
 
@@ -74,14 +71,14 @@ later adoption of verified backend enclosing-symbol capabilities. Existing
 command help and permanent implementation docs may change; skills, shared MCP
 instructions and plugin assets must not change as a side effect.
 
-Phase 1a additionally excludes MCP descriptors/instructions and public API
-changes. Its CLI-only internal pattern note may change. Later producer adoption
-retains its separate MCP gates.
+Phase 2 additionally excludes MCP descriptors/instructions, shared error-map
+or generic formatter changes, and public API changes. Its action is CLI-only;
+later producer adoption retains its separate MCP gates.
 
 Excluded: skill editing/routing rewrites; regex rewriting, intent detection,
 empty-result reminders or automatic literal retries; automatic Research
-retries/backoff; async Research infrastructure; quota accounting/doctor network probes; package
-freshness timestamps; inferred manifest/registry selection; multi-file or
+retries/backoff; async Research infrastructure; quota accounting/doctor network
+probes; package freshness timestamps; inferred manifest/registry selection; multi-file or
 disjoint-range batching; literal numeric-colon/whitespace path fixes; broad
 formatter redesign; release, publish, deploy or merge. These substantial backend
 and product candidates remain recorded below rather than silently disappearing.
@@ -112,10 +109,10 @@ and authoritative read actions; aigrep owns matching and parsed source blocks.
 5. Backend-dependent controls follow a verified, versioned producer contract.
    Never hydrate blocks through hidden per-hit read requests or synthesize bounds
    from regex/indentation in the CLI.
-6. CLI owns command-specific syntax guidance and mode names. Update modern
-   registration text and the existing CLI-only internal legacy note in place;
-   preserve required argument-name translations without adding a whole-sentence
-   replacement layer. No new formatter, helper, parser or service is needed.
+6. CLI owns command-specific syntax guidance and mode names. Completed Phase 1a
+   updated registration text and its CLI-only legacy note in place, preserving
+   argument-name translations without a new replacement layer or helper. Phase 2
+   adds its small request-aware action helper at the same CLI ownership level.
    Refactoring opportunity: move legacy CLI-only helpers out of the private MCP
    transition tree with the CLI package move; relocation is unnecessary for copy.
 
@@ -126,15 +123,13 @@ ceiling stays 10; accepting `--lines N` means exactly line N; existing successfu
 multi-target, range, case, path-selector and pagination behavior must remain.
 These are supported by the code/probes above, not assumptions about live latency.
 
-Unknowns/product decisions: **none for Phase 1a**; help-only is the selected
-CLI outcome. Its dependency is merged #530 and the verified backend behavior,
-not a backend fix or release. Before Phase 2 is made ready,
-verify live/mocked rejection shapes identify an offending extra grep operand;
-otherwise limit that part to help examples and defer typed diagnostics to the
-existing validation-recovery backlog. Phase 3 must settle budget units, supported
-commands and exact replay of omitted evidence from captured output. Phase 4 must
-settle the backend contracts and feature semantics with the user. Later unknowns
-are not gates for independent CLI work, including Phase 1a.
+Unknowns/product decisions: **none for Phase 2's Research increment**.
+Its typed limit scope and local search eligibility are verified. Grep operand
+recovery stays with [typed validation recovery](open-backlog.md#validation-error-recovery-after-pkgseer-phases-3-4):
+verify deployed producer shapes and preserve their facts before adding hints.
+Phase 3 still needs budget units, supported commands and exact replay semantics.
+Phase 4 needs the released producer contract and any separately approved body
+extension. These later unknowns do not block scoped Research recovery.
 
 No migrations, dependencies, caches, queues, retry layers, feature flags or
 background processes. Defaults remain stable except acceptance of the documented
@@ -146,8 +141,8 @@ formatting alone. Obtain approval before introducing infrastructure.
 | Phase | Status | Observable outcome | Dependencies |
 | --- | --- | --- | --- |
 | 1 — tolerate common arguments | COMPLETE; merged #530 | `--lines N` selects one line; excessive valid context becomes 10 with a visible notice; path flags are clear in help. | Existing read/grep paths only. |
-| 1a — compact regex guidance | COMPLETE; pending merge | Both CLI grep helps distinguish alternation/literal pipes and qualify route-dependent literal-text requirements. | Merged #530 and verified regex investigation; no backend change. |
-| 2 — actionable failure recovery | PLANNED | Daily Research exhaustion offers one usable scoped discovery command where possible; verified path-operand failures explain the correct flags. | Phase 1; inspect exact failure/operand contracts before final detail. |
+| 1a — compact regex guidance | COMPLETE; merged #533 | Both CLI grep helps distinguish alternation/literal pipes and qualify route-dependent literal-text requirements. | Merged #530 and verified regex investigation; no backend change. |
+| 2 — scoped Research recovery | READY | Daily Research exhaustion provides one executable scoped discovery command when an explicit search-compatible target exists. | Merged #533, existing typed rate-limit scope and local parser/quoting. Grep validation adoption remains separately gated. |
 | 3 — bounded readable output | NEEDS DESIGN at phase boundary | Opt-in text budgets preserve trust facts and provide honest access to omitted evidence. | Phase 2; representative output and replay evidence. |
 | 4 — backend-assisted enclosing symbols | WAITING ON NATIVE CONTRACT | Unified grep can opt into legacy-equivalent enclosing-symbol metadata and exact source-read ranges; source bodies remain conditional on cost. | Native implementation/release, PkgSeer adoption and verified wire contract. |
 
@@ -161,121 +156,103 @@ Verification and review records are on #530. No remaining Phase 1 gate.
 
 ### Phase 1a — compact CLI regex guidance
 
-Status: **COMPLETE; pending merge**. Outcome: a coding agent reading either
-CLI grep help can choose alternation or a literal pipe without guessing the
-matching mode or receiving a misleading blanket anchorless-regex refusal.
-Assumptions: #530's defaults and passthrough remain authoritative; the reviewed
-backend route distinction applies. Unknowns/product decisions: **none**.
-Dependencies: #530 merged and regex investigation above; no producer release.
+Status: **COMPLETE; merged #533**. Both CLI grep helps distinguish alternation
+and literal pipes and qualify route-specific literal-text requirements without
+help growth. Durable contracts live in `docs/implementation/unified-grep.md`
+and `cli-commands.md`; execution and review evidence is on #533. No open gate.
 
-As a coding agent, I want one compact syntax explanation at the CLI help surface
-so that I can express alternation or a literal pipe correctly on the first call.
+### Phase 2 — scoped Research recovery
 
-Implementation scope and order:
+Status: **READY**. Outcome: an agent hitting the daily
+Research limit can copy one scoped discovery command instead of inventing the
+next call. Assumptions: existing daily scope and search grammar remain stable.
+Unknowns/product decisions: **none**. Dependencies: merged #533 and existing
+pure parser/quoting/error contracts; no backend change or release.
 
-1. Edit CLI help copy in `src/commands/grep.ts`, `src/commands/code/grep.ts`
-   and its existing internal note in
-   `packages/mcp/src/shared/grep-repo-request.ts`. Explain once per help page,
-   in REGEX context:
-   `foo|bar` matches alternatives; `foo\|bar` matches a literal pipe. Keep default
-   modes explicit (unified REGEX/`-F`, legacy LITERAL/`--regex`). Any shell examples
-   quote the entire pattern so the shell preserves the pipe and backslash.
-2. Replace the overly broad anchor prose with the verified route distinction:
-   content-index regex needs usable literal text; a single exact-file route can
-   accept anchorless regex. Do not promise that any `--path`, prefix/glob, package
-   expansion or mixed-target request guarantees the exact-file execution route.
-   Edit `GREP_REPO_PATTERN_NOTE` directly and remove the obsolete whole-target
-   anchoring replacement from `CLI_GREP_PATTERN_NOTE`; keep the remaining CLI
-   argument-name translations. Do not add a whole-sentence replacement or change
-   MCP tool descriptions/public exports.
-3. Update the matching/CLI sections of `docs/implementation/unified-grep.md` and
-   `docs/implementation/cli-commands.md`, including the adjacent stale legacy
-   ASCII-only folding sentence. Add `changes/cli-regex-guidance.changed.md` with
-   `githits: patch` and `@githits/mcp: none` during implementation.
-4. Extend existing help assertions in `src/commands/grep.test.ts` and
-   `src/commands/code/grep.test.ts` for the syntax contrast, route qualification
-   and unchanged mode controls; update the existing note assertions in
-   `packages/mcp/src/shared/grep-repo-request.test.ts`. Extend existing checks in
-   `scripts/cli-smoke.ts` so source/Bun and built/Node both preserve the escaped
-   pipe. These are structural copy checks, not a new matching test suite;
-   reuse existing request/mode tests and add no fixture files or native probes.
+As a coding agent, I want an executable discovery pivot after a scoped daily
+Research limit, so I can continue gathering evidence with the original question.
+Search is a discovery pivot, not an equivalent Research answer or a success
+promise; the CLI only suggests it and makes no automatic follow-up call.
 
-Acceptance and validation:
+Ownership: root `src/commands/research.ts` naturally owns this policy because it
+has the resolved explicit subject and original question. Add one exported pure
+helper there, covered by the existing command tests; a separate module has no
+second consumer. Keep the shared transport mapper and generic formatter stable.
+No context needs threading into MCP or services, and no new runtime facility.
 
-- Each help exposes one compact pipe contrast, preserves default/opt-in modes,
-  and accurately limits the literal-text restriction to content-index routes.
-  Existing context, target/path and global-limit guidance remains available.
-- No action/formatter/service/schema/request changes: pattern bytes, errors,
-  empty/partial/cursor responses and text/JSON output stay identical. No runtime
-  warning, query rewrite, extra call, credential access or authentication probe.
-- Compare the same two `helpInformation()` cases at width 80, before/after:
-  `githits grep` baseline **2,191 UTF-8 bytes**, `githits code grep` **5,244**.
-  Keep each at or below its baseline: redundant prose anywhere in these two
-  help pages may be tightened, while context/target/path/global-limit facts and
-  distinct mode/route guidance remain. Avoid appending explanatory paragraphs.
-  Report rendered bytes, not model-token, latency, backend-cost or graded
-  agent-quality savings. Inspect both rendered helps.
-- Run `bun test src/commands/grep.test.ts src/commands/code/grep.test.ts
-  packages/mcp/src/shared/grep-request.test.ts
-  packages/mcp/src/shared/grep-repo-request.test.ts`, typecheck, lint/format,
-  `bun run build`, `bun run smoke:cli`, `bun run smoke:mcp`,
-  `bun run smoke:cli:built` and `bun run smoke:mcp:built`. Use disposable auth
-  homes and the dev preset with unintended endpoint/token overrides removed;
-  report authenticated-cohort skips honestly. No new agent eval is required:
-  MCP descriptors/instructions and runtime tool behavior are unchanged.
-- Internal preparation and one external reviewer per round precede a draft PR.
-  No migrations or operational rollout; rollback is reverting CLI copy/docs.
-  Keep this governing plan while later phases remain; replace this section
-  with completion links when merged. Permanent docs retain the syntax contract.
+Implementation contract:
 
-### Phase 2 — actionable failure recovery
+1. Generate an action only for mapped `RATE_LIMITED` with
+   `details.rateLimitScope === "daily"`, an explicit subject target, and a target
+   accepted by `parseUnifiedSearchTargetSpec()`. Do not infer a target from the
+   question, thread, cwd or manifest. Invalid/bare targets keep generic guidance;
+   failed eligibility must never replace the original Research error.
+2. Build exactly one command from the original values:
+   `githits search --in 'npm:example' -- 'How?'`. Use `shellQuoteExact()` for both
+   operands, retaining whitespace, Unicode, quotes and control bytes under the
+   existing action quoting policy. The `--` protects leading-dash questions.
+   Document on the helper that inputs come from CLI argv; NUL is impossible
+   in that input domain, so add no NUL suppression branch or synthetic NUL test.
+3. In `researchAction()`'s existing failure branch, derive the command once.
+   Human output adds one `Try: COMMAND` line alongside the unchanged diagnostic
+   and identifiers; JSON adds that same command as `details.action` in its
+   existing single stderr envelope. Keep stdout empty on failure, exit status 1,
+   and preserve message/reset advice, retryable flag, status, retry timing,
+   mapped details, `tool_call_id` and `thread_id`. Do not expand shared formatter
+   behavior merely to print this one request-aware action.
+4. Targetless and thread calls, malformed/bare explicit targets, request-rate
+   limits, absent/unknown rate scopes and other errors retain current behavior.
+   No automatic search, retry, target resolution, fallback, extra network call
+   or new CLI flag. Preserve spinner/progress completion and cancellation paths.
+5. Update `docs/implementation/research.md` and the Research section of
+   `cli-commands.md` with the conditional CLI action and discovery distinction.
+   Do not imply MCP also emits it or edit public skills/instructions. Add
+   `changes/research-daily-limit-recovery.fixed.md` with `githits: patch` and
+   `@githits/mcp: none` during implementation.
 
-Status: **PLANNED**, reorient after Phase 1a merges before marking ready.
-Outcome: users can recover from a known failed operation without guessing a
-sequence of discovery commands.
+Acceptance and targeted validation:
 
-Assumptions: requests may contain an explicit public target and question;
-thread-only/question-only requests do not necessarily identify a local target.
-Unknowns: exact typed grep rejection attribution; resolve from captured producer
-responses and service tests at this phase boundary. Dependencies: Phase 1 and
-existing Research scope/Retry-After mappings; no new backend endpoint.
+- Extend `src/commands/research.test.ts` using its existing interface mocks;
+  no new fixture files. Prove human/JSON command identity for one canonical
+  target with preserved IDs/details and exactly one failed Ask call. Cover
+  package/repository/site eligibility, unscoped/thread/bare/invalid targets,
+  daily/request/unknown scopes, and no action for other errors.
+- One metacharacter/quote case and one C0/C1 case prove exact original operands,
+  no raw terminal controls and a protected leading-dash query. Reuse existing
+  shell-quote and target-parser coverage instead of a new shell parser/harness.
+  Explicitly assert the suggestion is not executed and stdout stays empty.
+- Run `bun test src/commands/research.test.ts src/commands/format-mapped-error.test.ts
+  packages/mcp/src/shared/agentic-ask-error-map.test.ts
+  packages/mcp/src/shared/shell-quote.test.ts
+  packages/mcp/src/shared/unified-search-target.test.ts`, typecheck, targeted
+  lint/format, build, and the four source/built CLI/MCP smoke modes. Keep smoke
+  auth handling isolated with the dev preset; never exhaust a real allowance
+  to exercise this branch. Mocked command tests gate daily-limit behavior;
+  normal live-smoke skips do not prove that branch.
+- Run one targeted qualitative CLI agent check using the existing harness:
+  `bun run agent:e2e --agent codex --surface skills --server local --workload
+  eval/agentic/workloads/express-router.md`, with the dev preset and established
+  isolated eval credentials when available. Inspect raw tool calls, final answer,
+  metrics and isolation violations. The existing workload may not encounter a
+  daily limit: report whether it did, and do not claim it validates the new
+  action if it did not. Report unavailable prerequisites honestly; no quota
+  manipulation, new eval infrastructure or agent-quality/call-reduction claim.
+- Keep added instruction text to the single command line. Original backend copy
+  stays intact; no model-token or latency improvement is promised. No changes
+  to backend API fields, persistence, migrations or successful command output. Rollback
+  is reverting the CLI action/docs; no operational rollout is needed.
 
-Next-detail outline:
-
-1. For daily-limit Research errors with an explicit target accepted by the
-   existing search-target parser, append one opt-in
-   discovery action equivalent to `githits search --in TARGET -- QUESTION`,
-   quoting original arguments exactly. It is a discovery pivot, not an equivalent
-   Research answer or a guaranteed successful query. Keep the original error,
-   daily reset advice and diagnostic IDs. Do not execute the suggestion.
-2. Without an explicit canonical search target (including a supplied bare name),
-   retain honest generic recovery; do not parse a natural-language question/thread
-   ID to invent scope or add a resolution call. Validate eligibility with existing
-   target grammar without replacing the original target bytes.
-   Request-rate limits keep existing retry timing, without automatic retries.
-3. For an explicitly attributed invalid extra grep target that could be a file
-   or directory, add a conditional `--path`/`--path-prefix` correction. Preserve
-   original operands and failure status; never scrape backend prose or reject
-   valid multi-target input. If attribution is unavailable, ship help-only
-   guidance and retain the typed-diagnostics dependency in the existing backlog.
-4. Keep actions in root CLI request-aware helpers and existing mapped-error
-   presentation. Test shell metacharacters, leading dashes, Unicode, control
-   characters, targetless/thread requests, daily versus request limits, and one
-   service call on each failure. Human text and any structured action must be
-   consistent; preserve the existing error envelope classification.
-
-Acceptance: a canonical-target daily limit yields a copyable scoped search command;
-targetless cases invent no scope; no path hint changes multi-target semantics;
-no failed request is retried automatically; existing errors, reset facts and IDs
-remain available. Update implementation docs, add a CLI release fragment and run
-affected unit/smoke checks. Add targeted agent evals if agent-facing error actions
-change; raw trace and neutral-answer inspection is required, not just harness exit.
+The scoped internal/external plan review is clean. During implementation, use
+the normal scoped review and draft-PR workflow. Retain the
+plan while later phases remain; after merge replace this detail with completion
+links and keep the durable contract in implementation docs.
 
 ### Phase 3 — bounded readable output
 
 Status: **NEEDS DESIGN**. Outcome: callers avoid external `head` while keeping
 trust/coverage facts, read locators and an explicit route to omitted evidence.
-Dependencies: Phase 2 and reorientation against current formatter ownership.
+Ordering: follows Phase 2. Design dependencies are reorientation against current
+formatter ownership and representative captured output.
 Assumption: opt-in presentation controls can improve ergonomics without changing
 default output or machine JSON. Unknowns: first command, line/character units,
 budget scope, large-line handling and replay semantics. Resolve from one grep
