@@ -632,13 +632,20 @@ alias membership, grouping and range derivation belong to PkgSeer. The CLI never
 parses descriptions to guess packages. Unsupported ecosystems retain their names
 and a null registry. Withdrawn evidence remains visible and marked.
 
-Compact text leads with advisory identity, resolved summary, package count and any
-partial cause. Package blocks include registry links, backend-normalized affected spans and source-reported fixes.
-The default shows up to ten spans, with explicit omitted counts when truncated;
---verbose retains full raw expressions without expanding them into default JSON. Shared source facts appear once per result, with numbered references
-on package evidence; withdrawal/malicious markers also appear beside those refs.
-Null ranges/fixes mean unknown, while empty arrays mean none reported. Unevaluable
-source expressions are explicitly labelled, not treated as affected/safe versions.
+Compact text leads with the requested advisory ID, attributed numeric CVSS when
+available, resolved summary, package count and any partial cause. A differing
+served ID is labelled explicitly. Sources distinguish verified aliases from
+related records; synthetic severity-label numbers are omitted from text and
+JSON. Healthy coverage and generic follow-ups/disclaimers add no footer. Package
+blocks include registry links, backend-normalized affected spans and
+source-reported fixes. The default shows up to ten spans, with explicit omitted
+counts when truncated; --verbose retains full raw expressions without expanding
+them into default JSON. A single equivalent source appears beside the heading;
+multiple, unverified or verbose sources use numbered references on package
+evidence; withdrawal/malicious markers also appear beside those refs. Null
+ranges/fixes mean unknown, while empty arrays mean none reported. Unevaluable
+source expressions are explicitly labelled, not treated as affected/safe
+versions.
 
 `affected` and `fixed` are independent source lists, not index-aligned; a range
 boundary is not necessarily a fix. `--json` emits actionable packages, shared `sources`, zero-based `sourceIndexes`,

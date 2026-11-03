@@ -47,10 +47,13 @@ export interface VulnsSourceDetail extends VulnsSourceMetadata {
 }
 export interface VulnsSource extends VulnsSourceMetadata {
   id?: string;
+  /** Relationship to the resolved advisory; absent when no advisory was resolved. */
+  relationship?: "advisory" | "alias" | "related";
   origin: "live" | "local";
   url: string;
   summary?: string;
-  severity?: { score: number; type?: string };
+  /** Source-reported CVSS only; numeric stand-ins for severity labels are omitted. */
+  severity?: { score: number; type: "CVSS_V2" | "CVSS_V3" | "CVSS_V4" };
   withdrawnAt?: string;
   malicious?: true;
 }
@@ -220,6 +223,18 @@ function buildReport(result: VulnsResult, verbose: boolean): VulnsReport {
       ): void => {
         const source: VulnsSource = {
           ...(row.osvId ? { id: row.osvId } : {}),
+          ...(advisory
+            ? {
+                relationship:
+                  row.osvId === advisory.osvId
+                    ? ("advisory" as const)
+                    : (row.osvId && advisory.aliases?.includes(row.osvId)) ||
+                        ("aliases" in row &&
+                          row.aliases?.includes(advisory.osvId))
+                      ? ("alias" as const)
+                      : ("related" as const),
+              }
+            : {}),
           origin,
           url: row.sourceUrl,
           ...("summary" in row &&
@@ -227,11 +242,15 @@ function buildReport(result: VulnsResult, verbose: boolean): VulnsReport {
           row.summary !== advisory?.summary
             ? { summary: row.summary }
             : {}),
-          ...("severityScore" in row && row.severityScore !== null
+          ...("severityScore" in row &&
+          row.severityScore !== null &&
+          (row.severityType === "CVSS_V2" ||
+            row.severityType === "CVSS_V3" ||
+            row.severityType === "CVSS_V4")
             ? {
                 severity: {
                   score: row.severityScore,
-                  ...(row.severityType ? { type: row.severityType } : {}),
+                  type: row.severityType,
                 },
               }
             : {}),

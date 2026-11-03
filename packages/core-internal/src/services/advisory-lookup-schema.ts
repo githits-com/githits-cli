@@ -93,12 +93,13 @@ const local = z.object({
   packageName: z.string().nullable().optional(),
   publishedAt: z.string().nullable().optional(),
   modifiedAt: z.string().nullable().optional(),
-  aliases: strings.optional(),
+  aliases: strings,
   isMalicious: z.boolean().nullable().optional(),
   contentSafety: safety.optional(),
 });
 const compactAdvisory = advisorySchema.pick({
   osvId: true,
+  aliases: true,
   summary: true,
   sourceUrl: true,
   withdrawnAt: true,
@@ -134,7 +135,6 @@ const lookupSchema = z.object({
   requestedId: z.string(),
   advisory: compactAdvisory
     .extend({
-      aliases: strings.optional(),
       details: z.string().nullable().optional(),
       publishedAt: z.string().nullable().optional(),
       modifiedAt: z.string().optional(),

@@ -18,7 +18,7 @@ export function buildAdvisoryLookupQuery(
       severity { type score source } references { type url }
       affected { ...LookupAffected } contentSafety { filtered modifications }
     }`
-    : `advisory { osvId summary sourceUrl withdrawnAt }`;
+    : `advisory { osvId aliases summary sourceUrl withdrawnAt }`;
   const source = detailed
     ? `
     osvId sourceUrl modifiedAt withdrawnAt affected { ...LookupAffected }
@@ -31,7 +31,7 @@ export function buildAdvisoryLookupQuery(
     affectedVersionRanges fixedInVersions publishedAt modifiedAt withdrawnAt aliases isMalicious
     ${display(10)} contentSafety { filtered modifications }
   `
-    : `osvId sourceUrl summary severityScore severityType withdrawnAt isMalicious affectedVersionRanges fixedInVersions ${display(10)}`;
+    : `osvId aliases sourceUrl summary severityScore severityType withdrawnAt isMalicious affectedVersionRanges fixedInVersions ${display(10)}`;
   return `query AdvisoryLookup($ids: [String!]!, $first: Int!, $after: String) {
     vulnerabilityLookup(ids: $ids) {
       requestedId ${continuation ? "" : root}

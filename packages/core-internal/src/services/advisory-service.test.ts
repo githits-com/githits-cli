@@ -130,6 +130,10 @@ describe("cohesive advisory lookup", () => {
         after: after ?? null,
       });
       const query = requests[0]!.query;
+      if (after === undefined) expect(query).toContain("osvId aliases");
+      expect(query.match(/\baliases\b/g)).toHaveLength(
+        after === undefined ? 2 : 1,
+      );
       if (after !== undefined) expect(query).not.toContain("advisory {");
       expect(
         query.match(
@@ -472,6 +476,7 @@ describe("selected compact wire shape", () => {
     const advisory = fixture.advisory!;
     fixture.advisory = {
       osvId: advisory.osvId,
+      aliases: advisory.aliases,
       summary: advisory.summary,
       sourceUrl: advisory.sourceUrl,
       withdrawnAt: advisory.withdrawnAt,
@@ -482,7 +487,6 @@ describe("selected compact wire shape", () => {
         delete local.packageName;
         delete local.publishedAt;
         delete local.modifiedAt;
-        delete local.aliases;
         delete local.contentSafety;
       }
     }

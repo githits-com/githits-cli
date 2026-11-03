@@ -9,29 +9,50 @@ The CLI never evaluates version ranges, guesses parent modules or joins other AP
 
 ## Text
 
-The heading identifies the requested/served advisory, resolved-source summary,
-package count and any withdrawal. Partial causes and recovery actions precede
-package evidence. Package blocks link to registry pages and show backend-normalized affected spans
-and source-reported fixes. Up to ten spans are shown, covering short branch lists
-without expanding redundant exact-version entries. Larger lists carry explicit
-truncation/counts; raw expressions are available with --verbose. Equal ordered
-raw expressions and equal normalized views share a group within a package;
-source facts appear once per result in a numbered list. Package references carry
-withdrawn/malicious markers beside the number, so a caveat is visible without
-following the reference. Text source numbers start at 1.
+The heading keeps the requested ID primary, with a separate resolved-advisory
+line when it differs. Numeric CVSS scores from the resolved advisory and
+verified aliases follow the heading, before the summary and packages;
+related/unresolved record scores remain on their own source rows; differing
+reports retain their source references. No CVSS score is invented from vectors
+or severity-label approximations. Partial causes, incomplete package counts and
+unavailable acquisition statuses precede package evidence. Healthy coverage,
+generic follow-ups and safety disclaimers do not add a footer; help owns routine
+usage guidance. Package blocks link to registry pages and show
+backend-normalized affected spans and source-reported fixes. Up to ten spans are
+shown, covering short branch lists without expanding redundant exact-version
+entries. Larger lists carry explicit truncation/counts; raw expressions are
+available with --verbose. Equal ordered raw expressions and equal normalized
+views share a group within a package; source facts appear once per result,
+explicitly labelled Advisory, Alias or Related advisory against the resolved
+record. Unresolved results use a neutral Source label. A single equivalent
+source appears beside the heading without numbered references or a separate
+source section; distinct source URLs remain visible. A common summary across
+equivalent sources fills a missing heading summary once in text, with explicit
+source attribution. JSON retains each original source summary. Multiple,
+unverified and verbose sources use numbered references; a merely related source
+never supplies the root summary. Live/local acquisition origin is verbose-only
+text except where repeated ID/URL rows need it to remain distinguishable. A sole
+same-ID source adds no repeated identity line unless it supplies additional
+facts or markers. Ambiguous/not-found diagnostics omit repeated
+acquisition-status wording. Package references carry withdrawn/malicious markers
+beside the number, so a caveat is visible without following the reference.
+Single-source evidence retains those markers without a reference number. Text
+source numbers start at 1.
 
-Disagreements remain separate, even for the same advisory ID. Null raw ranges are
-not grouped: a display fallback cannot establish equal underlying evidence.
+Disagreements remain separate, even for the same advisory ID. Null raw ranges
+are not grouped: a display fallback cannot establish equal underlying evidence.
 `osv-invalid:` expressions render as `(unevaluable source range)`; JSON retains
 the source expression. Empty arrays say `none reported`; null says `unknown`.
 Source fixes are not verified releases or safe upgrades. Missing evidence never
-establishes safety. Severity types remain explicit; SEVERITY_LABEL scores are
-label approximations, not calculated CVSS.
+establishes safety. Numeric source severity is emitted only for CVSS_V2, CVSS_V3
+and CVSS_V4. SEVERITY_LABEL and untyped/unknown numeric scores are omitted from
+text and JSON. The CLI does not calculate CVSS scores or infer severity labels
+from numbers.
 
-Free prose wraps to terminal width (80 when unavailable). Atomic URLs, identifiers
-and command operands remain copyable. All terminal fields are sanitized; printable
-backend Unicode survives. False malicious markers and unchanged normalization
-boilerplate are omitted.
+Free prose wraps to terminal width (80 when unavailable). Atomic URLs,
+identifiers and command operands remain copyable. All terminal fields are
+sanitized; printable backend Unicode survives. False malicious markers and
+unchanged normalization boilerplate are omitted.
 
 ## Curated JSON
 
@@ -52,6 +73,7 @@ outcomes. This replaces the initial **unreleased** raw `lookup` envelope.
     "sources": [{
       "id": "GHSA-example",
       "origin": "local",
+      "relationship": "alias",
       "url": "https://osv.dev/vulnerability/GHSA-example",
       "severity": {"score": 7.5, "type": "CVSS_V3"}
     }],
@@ -74,8 +96,13 @@ outcomes. This replaces the initial **unreleased** raw `lookup` envelope.
 
 - `sources` contains each distinct projected source report once per result.
   `origin` is `live` or `local`; ID/link, severity, withdrawal and malicious
-  markers remain attributed to that report. Identical metadata is reused across
+  markers remain attributed to that report. `severity` contains only reported
+  numeric CVSS with its version type; approximations and unknown types are omitted. Identical metadata is reused across
   packages. Different metadata for the same ID produces separate source rows.
+- `sources[].relationship` describes the relationship to the resolved advisory:
+  `advisory` for the same ID, `alias` when root or local recorded aliases explicitly
+  establish it, otherwise `related`. It is omitted if no advisory was resolved.
+  IDs and URLs remain exact; a different ID alone never proves alias equivalence.
 - `sourceIndexes` contains **zero-based** indexes into that result's `sources`.
   For example, `sources[packages[0].evidence[0].sourceIndexes[0]]` resolves the
   first source for the first package's first range group. No cross-result joins.
@@ -152,7 +179,9 @@ Expanded display requests use the existing single-ID/five-group admission shape;
 the former five-ID compact profile only admitted smaller displays. There is no
 retry on a rejected profile or new caller serialization requirement.
 
-Compact local rows select `isMalicious`; compact source rows omit unused
+Compact root and local rows select `aliases` for relationship classification;
+full alias arrays remain verbose-only output. Compact local rows also select
+`isMalicious`; compact source rows omit unused
 `modifiedAt`. Detailed source revision is required by the detailed decoder.
 Display fields provide backend-owned normalization and fallback evidence for nullable raw ranges.
 `fixedVersionDetails` and `relatedAdvisories` are not acquired. Continuations omit

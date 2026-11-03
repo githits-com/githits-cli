@@ -3,33 +3,34 @@ import { defaultAdvisoryLookup } from "../../packages/core-internal/src/services
 import { formatVulns, type VulnsResult } from "./vulns-format.js";
 
 function result(): VulnsResult {
+  const lookup = structuredClone(defaultAdvisoryLookup);
+  lookup.advisory!.aliases!.push("GHSA-example");
   return {
     inputId: "CVE-example",
     status: "success",
-    lookup: structuredClone(defaultAdvisoryLookup),
+    lookup,
     packagePagination: { complete: true, pagesRead: 1 },
   };
 }
 
 describe("vulns formatter", () => {
-  it("leads with identity/summary/count, links packages and attributes source references", () => {
+  it("leads with requested identity and attributed CVSS, labels aliases and omits healthy boilerplate", () => {
     const output = formatVulns([result()]);
     expect(output).toStartWith(
-      "CVE-example -> OSV-example | 1 package\nSource résumé with Unicode",
+      "CVE-example | 1 package\nCVSS v3: 7.5\nResolved advisory: OSV-example\nSource résumé with Unicode",
     );
     expect(output).toContain("https://www.npmjs.com/package/minimatch");
-    expect(output).toContain("Affected [1]: >=10.0.0 <10.2.1");
+    expect(output).toContain("Affected: >=10.0.0 <10.2.1");
     expect(output).toContain("Source fixes: 10.2.1");
-    expect(output).toContain("[1] GHSA-example | local corpus | 7.5 (CVSS v3)");
+    expect(output).toContain("Alias: GHSA-example");
     expect(output).toContain("https://osv.dev/vulnerability/GHSA-example");
-    expect(output).toContain(
-      "githits pkg vulns '<target>@<installed-version>'",
+    expect(output).not.toMatch(
+      /Evidence:|Packages: 1\/1|githits pkg vulns|add --verbose|missing evidence does not establish safety|local corpus/,
     );
-    expect(output).toContain("live source available; local corpus available");
     expect(output).not.toContain("Full source explanation");
   });
 
-  it("prints shared source metadata and one assessment template across packages", () => {
+  it("prints shared source metadata and scores once across packages", () => {
     const item = result();
     const groups = item.lookup!.affectedPackages!.entries;
     groups.push({
@@ -41,9 +42,9 @@ describe("vulns formatter", () => {
     expect(
       output.match(/https:\/\/osv.dev\/vulnerability\/GHSA-example/g),
     ).toHaveLength(1);
-    expect(output.match(/7.5 \(CVSS v3\)/g)).toHaveLength(1);
-    expect(output.match(/githits pkg vulns/g)).toHaveLength(1);
-    expect(output.match(/Affected \[1\]/g)).toHaveLength(2);
+    expect(output.match(/CVSS v3: 7.5/g)).toHaveLength(1);
+    expect(output).not.toContain("githits pkg vulns");
+    expect(output.match(/Affected:/g)).toHaveLength(2);
   });
 
   it("verbose retains original Git event order, raw vectors, revisions and normalization", () => {
@@ -63,7 +64,7 @@ describe("vulns formatter", () => {
     expect(output).not.toContain("add --verbose");
   });
 
-  it("marks withdrawn/malicious evidence next to its package reference and preserves label qualification", () => {
+  it("marks withdrawn/malicious evidence next to its package reference without synthetic scores", () => {
     const item = result();
     const local = item.lookup!.affectedPackages!.entries[0]!.advisories[0]!;
     local.withdrawnAt = "2026-11-03T00:00:00Z";
@@ -72,9 +73,9 @@ describe("vulns formatter", () => {
     item.status = "partial";
     item.packagePagination!.complete = false;
     const output = formatVulns([item], { width: 120 });
-    expect(output).toContain("Affected [1 WITHDRAWN MALICIOUS]");
+    expect(output).toContain("Affected [WITHDRAWN MALICIOUS]");
     expect(output).toContain("[MALICIOUS] [WITHDRAWN]");
-    expect(output).toContain("label approximation, not calculated CVSS");
+    expect(output).not.toMatch(/CVSS|approximation|7\.5/);
     expect(output).toContain("INCOMPLETE");
   });
 
@@ -112,10 +113,10 @@ describe("vulns formatter", () => {
       totalCount: 0,
       truncated: false,
     };
-    expect(formatVulns([item])).toContain("Affected [1]: unknown");
-    expect(formatVulns([item])).not.toContain("Affected [1]: none reported");
+    expect(formatVulns([item])).toContain("Affected: unknown");
+    expect(formatVulns([item])).not.toContain("Affected: none reported");
     row.affectedVersionRanges = [];
-    expect(formatVulns([item])).toContain("Affected [1]: none reported");
+    expect(formatVulns([item])).toContain("Affected: none reported");
   });
 
   it("verbose raw evidence does not recommend verbose again for a large fallback", () => {
@@ -214,7 +215,7 @@ describe("vulns formatter", () => {
     const output = formatVulns([item]);
     expect(output).toContain("https://pkg.go.dev/std");
     expect(output).not.toContain("githits pkg vulns");
-    expect(output).toContain("Go release");
+    expect(output).not.toContain("Go entries");
   });
 
   it("wraps prose and sanitizes all terminal fields while preserving Unicode", () => {
@@ -252,15 +253,15 @@ describe("vulns formatter", () => {
     expect(formatVulns([item])).not.toContain("osv-invalid:");
   });
 
-  it("empty mappings point to source evidence without a circular verbose hint", () => {
+  it("empty mappings state the result without generic guidance", () => {
     const item = result();
     item.lookup!.affectedPackages!.entries = [];
     item.lookup!.affectedPackages!.pageInfo.totalCount = 0;
-    expect(formatVulns([item])).toContain("No named package mappings");
-    expect(formatVulns([item])).toContain(
+    expect(formatVulns([item])).toStartWith("CVE-example | 0 packages");
+    expect(formatVulns([item])).not.toContain(
       "missing evidence does not establish safety",
     );
-    expect(formatVulns([item])).toContain("add --verbose");
+    expect(formatVulns([item])).not.toContain("add --verbose");
     expect(formatVulns([item], { verbose: true })).not.toContain(
       "add --verbose",
     );
@@ -291,6 +292,8 @@ describe("vulns formatter", () => {
       ">=9.0.0 <9.0.6",
       ">=8.0.0 <8.0.5",
       ">=7.0.0 <7.4.7",
+      ">=6.0.0 <6.2.1",
+      ">=5.0.0 <5.1.7",
     ];
     row.affectedVersionDisplay = null;
     for (const width of [48, 80]) {
@@ -301,20 +304,8 @@ describe("vulns formatter", () => {
         );
       const continuation = output
         .split("\n")
-        .find(
-          (line) =>
-            line.trimStart().startsWith(">=9.0.0") ||
-            line.trimStart().startsWith(">=7.0.0"),
-        );
+        .find((line) => line.trimStart().startsWith(">="));
       expect(continuation).toStartWith("      ");
-      row.severityType = "SEVERITY_LABEL";
-      row.osvId = "GHSA-3ppc-4f35-3m26";
-      const sourceLines = formatVulns([item], { width }).split("\n");
-      const header = sourceLines.findIndex((line) => line.startsWith("  [1]"));
-      expect(sourceLines[header + 1]).toStartWith("    ");
-      expect(sourceLines.slice(header, header + 4).join(" ")).toMatch(
-        /label approximation,\s+not\s+calculated\s+CVSS/,
-      );
     }
   });
 
@@ -328,5 +319,147 @@ describe("vulns formatter", () => {
     ).toHaveLength(1);
     row.withdrawnAt = "2026-11-02T00:00:00Z";
     expect(formatVulns([item])).toContain("Withdrawn: 2026-11-02T00:00:00Z");
+  });
+
+  it("shows conflicting CVSS reports at the top with their source references", () => {
+    const item = result();
+    const group = item.lookup!.affectedPackages!.entries[0]!;
+    group.advisories.push({
+      ...structuredClone(group.advisories[0]!),
+      severityScore: 9.8,
+    });
+    const output = formatVulns([item]);
+    expect(output).toStartWith(
+      "CVE-example | 1 package\nCVSS v3: 7.5 [1]\nCVSS v3: 9.8 [2]\n",
+    );
+  });
+
+  it("deduplicates a shared alias summary without promoting a related record's summary", () => {
+    const item = result();
+    item.lookup!.advisory!.summary = null;
+    const group = item.lookup!.affectedPackages!.entries[0]!;
+    group.advisories.push({
+      ...structuredClone(group.advisories[0]!),
+      severityScore: 9.8,
+    });
+    let output = formatVulns([item]);
+    expect(output.match(/Local source evidence/g)).toHaveLength(1);
+    expect(output.indexOf("Local source evidence")).toBeLessThan(
+      output.indexOf("npm:minimatch"),
+    );
+    item.lookup!.advisory!.aliases = [];
+    output = formatVulns([item]);
+    expect(output.indexOf("Local source evidence")).toBeGreaterThan(
+      output.indexOf("npm:minimatch"),
+    );
+  });
+
+  it("distinguishes proven aliases from source records without a resolved advisory", () => {
+    const item = result();
+    item.lookup!.advisory!.aliases = ["GHSA-example"];
+    expect(formatVulns([item])).toContain("Alias: GHSA-example");
+    expect(formatVulns([item])).toContain(
+      "https://osv.dev/vulnerability/GHSA-example",
+    );
+    expect(formatVulns([item])).not.toMatch(/Affected \[1\]|Advisory records:/);
+    item.lookup!.advisory = null;
+    expect(formatVulns([item])).toContain("Source: GHSA-example");
+    expect(formatVulns([item])).not.toContain("Alias:");
+  });
+
+  it("puts concrete incomplete coverage ahead of packages without repeating healthy statuses", () => {
+    const item = result();
+    item.packagePagination!.complete = false;
+    item.lookup!.affectedPackages!.pageInfo.totalCount = 5;
+    item.lookup!.affectedPackages!.coverage.sourceStatus = "UNAVAILABLE";
+    const output = formatVulns([item]);
+    expect(output).toContain("Package coverage: 1/5 (INCOMPLETE).");
+    expect(output).toContain("Missing evidence: live source unavailable.");
+    expect(output.indexOf("Package coverage")).toBeLessThan(
+      output.indexOf("npm:minimatch"),
+    );
+    expect(output).not.toContain("local corpus available");
+  });
+
+  it("distinguishes live and local observations when their record identity repeats", () => {
+    const item = result();
+    const group = item.lookup!.affectedPackages!.entries[0]!;
+    const row = group.advisories[0]!;
+    row.summary = item.lookup!.advisory!.summary;
+    row.severityType = "SEVERITY_LABEL";
+    group.sourceEvidence = {
+      osvId: row.osvId!,
+      sourceUrl: row.sourceUrl,
+      withdrawnAt: null,
+      affectedVersionRanges: row.affectedVersionRanges,
+      fixedInVersions: row.fixedInVersions!,
+      affectedVersionDisplay: row.affectedVersionDisplay,
+    };
+    const output = formatVulns([item]);
+    expect(output).toContain("[1] Alias: GHSA-example | live source");
+    expect(output).toContain("[2] Alias: GHSA-example | local corpus");
+    expect(output).toContain("Affected [1, 2]");
+  });
+
+  it.each([false, true])(
+    "keeps unrelated or unresolved scores on their own source rows (unresolved=%s)",
+    (unresolved) => {
+      const item = result();
+      if (unresolved) item.lookup!.advisory = null;
+      else item.lookup!.advisory!.aliases = [];
+      const output = formatVulns([item]);
+      expect(output).not.toContain("\nCVSS v3:");
+      expect(output).toContain(
+        ` [1] ${unresolved ? "Source" : "Related advisory"}: GHSA-example | CVSS v3: 7.5`,
+      );
+      expect(output.indexOf("CVSS v3:")).toBeGreaterThan(
+        output.indexOf("npm:minimatch"),
+      );
+    },
+  );
+
+  it("omits redundant same-ID source identity while preserving malicious markers", () => {
+    const item = result();
+    const row = item.lookup!.affectedPackages!.entries[0]!.advisories[0]!;
+    row.osvId = item.lookup!.advisory!.osvId;
+    row.sourceUrl = item.lookup!.advisory!.sourceUrl;
+    row.summary = item.lookup!.advisory!.summary;
+    expect(formatVulns([item])).not.toContain("Advisory: OSV-example");
+    row.isMalicious = true;
+    expect(formatVulns([item])).toContain("Advisory: OSV-example [MALICIOUS]");
+  });
+
+  it("avoids repeated ambiguity/not-found status while retaining partial local-only coverage", () => {
+    const item = result();
+    item.lookup!.advisory = null;
+    item.lookup!.affectedPackages!.coverage.sourceStatus = "AMBIGUOUS";
+    item.lookup!.unknownDetails = [
+      {
+        section: "ADVISORY",
+        code: "AMBIGUOUS_VULNERABILITY_ID",
+        message: "Choose a record",
+        retryable: false,
+        candidateIds: ["GHSA-example"],
+        candidateIdsTruncated: false,
+      },
+    ];
+    item.status = "partial";
+    expect(formatVulns([item])).not.toContain("Missing evidence:");
+    item.lookup!.unknownDetails = [
+      {
+        ...item.lookup!.unknownDetails[0]!,
+        code: "NOT_FOUND",
+        message: "No source record",
+        candidateIds: null,
+      },
+    ];
+    item.lookup!.affectedPackages!.coverage.sourceStatus = "NOT_FOUND";
+    expect(formatVulns([item])).toContain(
+      "Missing evidence: live source not found.",
+    );
+    item.lookup!.affectedPackages!.entries = [];
+    item.lookup!.affectedPackages!.pageInfo.totalCount = 0;
+    item.status = "error";
+    expect(formatVulns([item])).not.toContain("Missing evidence:");
   });
 });

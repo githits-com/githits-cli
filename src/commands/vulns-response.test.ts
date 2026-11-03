@@ -174,6 +174,60 @@ describe("vulns response", () => {
     expect(report(item).sources).toHaveLength(2);
   });
 
+  it("only projects actual reported CVSS scores, never severity-label stand-ins", () => {
+    const item = result();
+    const row = item.lookup!.affectedPackages!.entries[0]!.advisories[0]!;
+    for (const type of ["SEVERITY_LABEL", "UNKNOWN", null]) {
+      row.severityType = type;
+      expect(report(item).sources![0]!.severity).toBeUndefined();
+      expect(report(item, true).sources![0]!.severity).toBeUndefined();
+    }
+    for (const type of ["CVSS_V2", "CVSS_V3", "CVSS_V4"] as const) {
+      row.severityType = type;
+      expect(report(item).sources![0]!.severity).toEqual({ score: 7.5, type });
+    }
+  });
+
+  it("classifies source relationships from backend identity and aliases without guessing", () => {
+    const item = result();
+    const advisory = item.lookup!.advisory!;
+    const row = item.lookup!.affectedPackages!.entries[0]!.advisories[0]!;
+    expect(report(item).sources![0]!.relationship).toBe("related");
+    advisory.aliases = [row.osvId!];
+    expect(report(item).sources![0]!.relationship).toBe("alias");
+    advisory.aliases = [];
+    row.aliases = [advisory.osvId];
+    expect(report(item).sources![0]!.relationship).toBe("alias");
+    row.osvId = advisory.osvId;
+    expect(report(item).sources![0]!.relationship).toBe("advisory");
+    item.lookup!.advisory = null;
+    expect(report(item).sources![0]!.relationship).toBeUndefined();
+  });
+
+  it("keeps alias summaries attributed to their original records", () => {
+    const item = result();
+    const advisory = item.lookup!.advisory!;
+    advisory.summary = null;
+    advisory.aliases = ["GHSA-example"];
+    const group = item.lookup!.affectedPackages!.entries[0]!;
+    group.advisories.push({
+      ...structuredClone(group.advisories[0]!),
+      severityScore: 9.8,
+    });
+    expect(report(item).advisory!.summary).toBeUndefined();
+    expect(
+      report(item).sources!.every(
+        (source) => source.summary === "Local source evidence",
+      ),
+    ).toBe(true);
+    group.advisories[1]!.summary = "Different source summary";
+    expect(report(item).advisory!.summary).toBeUndefined();
+    expect(report(item).sources![1]!.summary).toBe("Different source summary");
+    group.advisories[1]!.summary = "Local source evidence";
+    advisory.aliases = [];
+    expect(report(item).advisory!.summary).toBeUndefined();
+  });
+
   it("does not merge unavailable ranges or conflate unknown fixes with none reported", () => {
     const item = result();
     const group = item.lookup!.affectedPackages!.entries[0]!;

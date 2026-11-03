@@ -7,6 +7,7 @@ import {
   buildVulnsResponse,
   type VulnsOriginalAffected,
   type VulnsResult,
+  type VulnsSource,
   type VulnsSourceDetail,
 } from "./vulns-response.js";
 
@@ -49,16 +50,85 @@ export function formatVulns(
   for (const report of reports) {
     if (lines.length) add();
     const advisory = report.advisory;
+    const singleSource =
+      report.sources?.length === 1 ? report.sources[0] : undefined;
+    const equivalentSource = isEquivalentSource(singleSource);
+    const numberedSources = !equivalentSource || options.verbose;
+    const sharedSummary = report.sources?.[0]?.summary;
+    const summary =
+      advisory?.summary ??
+      (sharedSummary &&
+      report.sources?.every(
+        (source) =>
+          isEquivalentSource(source) && source.summary === sharedSummary,
+      )
+        ? sharedSummary
+        : undefined);
+    const renderSource = (
+      source: NonNullable<typeof singleSource>,
+      index: number,
+    ): void => {
+      const indent = numberedSources ? "    " : "  ";
+      const sameIdentity = report.sources?.some(
+        (other, otherIndex) =>
+          otherIndex !== index &&
+          other.id === source.id &&
+          other.url === source.url,
+      );
+      if (
+        !numberedSources &&
+        source.relationship === "advisory" &&
+        source.url === advisory?.url &&
+        (!source.summary || source.summary === summary) &&
+        !source.malicious &&
+        (!source.withdrawnAt || source.withdrawnAt === advisory?.withdrawnAt)
+      )
+        return;
+      const relationship =
+        source.relationship === "alias"
+          ? "Alias"
+          : source.relationship === "advisory"
+            ? "Advisory"
+            : source.relationship === "related"
+              ? "Related advisory"
+              : "Source";
+      add(
+        `${numberedSources ? `  [${index + 1}] ` : ""}${relationship}: ${source.id ?? "ID unavailable"}${options.verbose || sameIdentity ? ` | ${source.origin === "live" ? "live source" : "local corpus"}` : ""}${source.severity && !isEquivalentSource(source) ? ` | ${source.severity.type.replace("CVSS_V", "CVSS v")}: ${source.severity.score}` : ""}${source.malicious ? " [MALICIOUS]" : ""}${source.withdrawnAt ? " [WITHDRAWN]" : ""}`,
+      );
+      if (source.summary && source.summary !== summary)
+        add(`${indent}${source.summary}`);
+      if (source.url !== advisory?.url) add(`${indent}${source.url}`);
+      if (source.withdrawnAt && source.withdrawnAt !== advisory?.withdrawnAt)
+        add(`${indent}Withdrawn: ${source.withdrawnAt}`);
+      if (options.verbose) renderDetail(source, add, indent);
+    };
     const input = report.inputId.trim() || "(empty ID)";
-    const id =
-      advisory && advisory.id !== input ? `${input} -> ${advisory.id}` : input;
     const count = report.coverage
       ? ` | ${report.coverage.returned} package${report.coverage.returned === 1 ? "" : "s"}`
       : "";
     add(
-      `${id}${report.status === "success" ? "" : ` | ${report.status}`}${count}${advisory?.withdrawnAt ? " [WITHDRAWN]" : ""}`,
+      `${input}${report.status === "success" ? "" : ` | ${report.status}`}${count}${advisory?.withdrawnAt ? " [WITHDRAWN]" : ""}`,
     );
-    if (advisory?.summary) add(advisory.summary);
+    const scores = new Map<string, number[]>();
+    report.sources?.forEach((source, index) => {
+      if (!source.severity || !isEquivalentSource(source)) return;
+      const label = `${source.severity.type.replace("CVSS_V", "CVSS v")}: ${source.severity.score}`;
+      const refs = scores.get(label) ?? [];
+      refs.push(index + 1);
+      scores.set(label, refs);
+    });
+    for (const [label, refs] of scores)
+      add(`${label}${numberedSources ? ` [${refs.join(", ")}]` : ""}`);
+    if (advisory && advisory.id !== input)
+      add(`Resolved advisory: ${advisory.id}`);
+    if (summary) {
+      const attribution = advisory?.summary
+        ? ""
+        : numberedSources
+          ? `Summary [${report.sources?.map((_, index) => index + 1).join(", ")}]: `
+          : `${singleSource?.relationship === "alias" ? "Alias" : "Source"} summary: `;
+      add(`${attribution}${summary}`);
+    }
     for (const diagnostic of report.diagnostics ?? []) {
       const location =
         diagnostic.packageIndex !== undefined
@@ -85,10 +155,36 @@ export function formatVulns(
       if (diagnostic.notAttempted)
         add("  Not attempted after an earlier access failure.");
     }
+    if (report.coverage) {
+      const coverage = report.coverage;
+      if (!coverage.complete)
+        add(
+          `  Package coverage: ${coverage.returned}/${coverage.total} (INCOMPLETE).`,
+        );
+      const liveStatusExplained =
+        (coverage.live === "AMBIGUOUS" &&
+          report.diagnostics?.some(
+            (d) => d.code === "AMBIGUOUS_VULNERABILITY_ID",
+          )) ||
+        (coverage.live === "NOT_FOUND" &&
+          report.status === "error" &&
+          report.diagnostics?.some((d) => d.code === "NOT_FOUND"));
+      const unavailable = [
+        ...(coverage.live !== "AVAILABLE" && !liveStatusExplained
+          ? [`live source ${status(coverage.live)}`]
+          : []),
+        ...(coverage.local !== "AVAILABLE"
+          ? [`local corpus ${status(coverage.local)}`]
+          : []),
+      ];
+      if (unavailable.length)
+        add(`  Missing evidence: ${unavailable.join("; ")}.`);
+    }
     if (advisory) {
       add(advisory.url);
       if (advisory.withdrawnAt) add(`Withdrawn: ${advisory.withdrawnAt}`);
     }
+    if (singleSource && !numberedSources) renderSource(singleSource, 0);
     for (const pkg of report.packages ?? []) {
       add();
       add(
@@ -102,12 +198,25 @@ export function formatVulns(
               `${index + 1}${report.sources?.[index]?.withdrawnAt ? " WITHDRAWN" : ""}${report.sources?.[index]?.malicious ? " MALICIOUS" : ""}`,
           )
           .join(", ");
+        const markers = singleSource
+          ? [
+              singleSource.withdrawnAt ? "WITHDRAWN" : "",
+              singleSource.malicious ? "MALICIOUS" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")
+          : "";
+        const attribution = numberedSources
+          ? ` [${refs}]`
+          : markers
+            ? ` [${markers}]`
+            : "";
         const ranges = evidence.affected ?? evidence.affectedDisplay?.ranges;
         const affected =
           evidence.affected === null ? "unknown" : "none reported";
         if (ranges?.length)
           addItems(
-            `    Affected [${refs}]: `,
+            `    Affected${attribution}: `,
             ranges.map((range) =>
               range.startsWith("osv-invalid:")
                 ? "(unevaluable source range)"
@@ -115,7 +224,7 @@ export function formatVulns(
             ),
             ";",
           );
-        else add(`    Affected [${refs}]: ${affected}`);
+        else add(`    Affected${attribution}: ${affected}`);
         if (evidence.affectedTruncated)
           add(
             `    Showing ${evidence.affected?.length} of ${evidence.affectedTotal} spans; ${options.verbose ? "raw evidence follows." : "add --verbose for raw evidence."}`,
@@ -146,28 +255,10 @@ export function formatVulns(
         }
       }
     }
-    if (report.coverage && !report.packages?.length && advisory)
-      add(
-        "  No named package mappings; source evidence may identify repository versions.",
-      );
-    if (report.sources?.length) {
+    if (report.sources?.length && numberedSources) {
       add();
-      add("Sources:");
-      report.sources.forEach((source, index) => {
-        const severity = source.severity
-          ? source.severity.type === "SEVERITY_LABEL"
-            ? `${source.severity.score} (label approximation, not calculated CVSS)`
-            : `${source.severity.score}${source.severity.type ? ` (${source.severity.type.replace("CVSS_V", "CVSS v")})` : " (unknown severity type)"}`
-          : undefined;
-        add(
-          `  [${index + 1}] ${source.id ?? "ID unavailable"} | ${source.origin === "live" ? "live source" : "local corpus"}${severity ? ` | ${severity}` : ""}${source.malicious ? " [MALICIOUS]" : ""}${source.withdrawnAt ? " [WITHDRAWN]" : ""}`,
-        );
-        if (source.summary) add(`    ${source.summary}`);
-        if (source.url !== advisory?.url) add(`    ${source.url}`);
-        if (source.withdrawnAt && source.withdrawnAt !== advisory?.withdrawnAt)
-          add(`    Withdrawn: ${source.withdrawnAt}`);
-        if (options.verbose) renderDetail(source, add, "    ");
-      });
+      if (report.sources.length > 1) add("Advisory records:");
+      report.sources.forEach(renderSource);
     }
     if (advisory && options.verbose) {
       add();
@@ -185,34 +276,15 @@ export function formatVulns(
           `  Reference ${reference.type}: ${reference.url || "URL unavailable"}`,
         );
     }
-    if (report.coverage) {
-      const coverage = report.coverage;
-      add();
-      add(
-        `Evidence: live source ${status(coverage.live)}; local corpus ${status(coverage.local)}. Packages: ${coverage.returned}/${coverage.total}${coverage.complete ? "." : " (INCOMPLETE)."}`,
-      );
-    }
-  }
-  const packages = reports.flatMap((report) => report.packages ?? []);
-  if (packages.some((pkg) => pkg.target && !pkg.assessment)) {
-    add();
-    add(
-      "Assess an installed version: githits pkg vulns '<target>@<installed-version>'",
-    );
-  }
-  if (packages.some((pkg) => pkg.target?.startsWith("go:")))
-    add(
-      "Go entries may identify import paths or the standard library; use their links to identify the module or Go release.",
-    );
-  if (reports.some((report) => report.advisory)) {
-    if (!options.verbose) add("Original source detail: add --verbose.");
-  }
-  if (packages.length || reports.some((report) => report.advisory)) {
-    add(
-      "Source fixes are unverified; missing evidence does not establish safety.",
-    );
   }
   return `${lines.map(sanitizeTerminalText).join("\n")}\n`;
+}
+
+/** The formatter uses one identity rule for heading facts and source-scoped facts. */
+function isEquivalentSource(source: VulnsSource | undefined): boolean {
+  return (
+    source?.relationship === "advisory" || source?.relationship === "alias"
+  );
 }
 
 function status(value: string): string {
