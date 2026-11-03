@@ -46,7 +46,7 @@ Read known symbols directly with `selector` before searching or grepping. Follow
 - Use known locations before searching again. Revise failed queries from results; do not repeat equivalent searches.
 - Use sufficient content directly. Read omitted deciding conditions or bodies; combine nearby needed code and avoid repeated small windows.
 - Batch independent calls with known arguments; inspect results before dependent calls.
-- Reuse returned targets, paths, selectors, and ranges: package-relative paths for packages, repository-relative paths for repositories. Discover docs with `search source:"docs"`; reuse returned site/page locators and exact heading IDs, not titles.
+- Reuse returned targets, paths, selectors, and ranges: package-relative paths for packages, repository-relative paths for repositories. Discover docs with `search` and its `source: "docs"` argument; reuse returned site/page locators and exact heading IDs, not titles.
 - Keep default text. Use JSON only when code consumes raw fields or text omits a required field. Filter/limit output; paginate only for needed information.
 
 ## Versions, research, and recovery
