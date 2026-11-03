@@ -222,6 +222,25 @@ export const JSON_PARITY_FIXTURES: JsonParityFixture[] = [
     },
   },
   {
+    name: "read_single_line",
+    cliArgs: [
+      "read",
+      SMOKE_PACKAGE_SPEC,
+      "package.json",
+      "--lines",
+      "2",
+      "--json",
+    ],
+    mcpTool: "read",
+    mcpArgs: {
+      target: SMOKE_PACKAGE_SPEC,
+      path: "package.json",
+      start_line: 2,
+      end_line: 2,
+      format: "json",
+    },
+  },
+  {
     name: "read_selector_code_miss",
     expectedStatus: "NOT_FOUND",
     cliArgs: [
@@ -1294,8 +1313,17 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
     assert(
       grepHelp.exitCode === 0 &&
         grepHelp.stdout.includes("--fixed-strings") &&
-        grepHelp.stdout.includes("global page cap"),
-      "grep help must expose matching defaults and page limits",
+        grepHelp.stdout.includes("global page cap") &&
+        grepHelp.stdout.includes("capped at 10") &&
+        grepHelp.stdout.includes("--path lib/express.js") &&
+        grepHelp.stdout.includes("--path-prefix lib/"),
+      "grep help must expose defaults, context caps and file/directory selectors",
+    );
+    const readHelp = await runCliWithEnv(["read", "--help"], env);
+    assert(
+      readHelp.exitCode === 0 &&
+        readHelp.stdout.includes("N, N-M, N-, or -M (1-based, inclusive)"),
+      "read help must expose exact single-line selections",
     );
     for (const group of ["code", "docs"]) {
       const help = await runCliWithEnv([group, "read", "--help"], env);

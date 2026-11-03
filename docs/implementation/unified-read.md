@@ -214,7 +214,11 @@ CLI text/JSON keeps full selected content; MCP code caps apply to text/JSON,
 whereas MCP docs caps apply only to text.
 
 CLI uses `--lines` or `--start`/`--end` for either backend result, with the
-same explicit bounds sent to unified `read`. Exact-file paths also accept
+same explicit bounds sent to unified `read`. `--lines N` selects exactly line N
+by sending both bounds as N; `N-M`, `N-` and `-M` retain their range semantics.
+All written CLI line bounds must be positive integers at most 2,147,483,647,
+the GraphQL Int ceiling. This includes explicit flags and numeric path suffixes;
+invalid bounds fail before a service call. Exact-file paths also accept
 `<path>:N-M`; this suffix is not parsed for symbol or heading reads.
 The CLI validates compact exact-file targets and paths locally, retains
 content-only text and caller-parsed package/repository identity in JSON, and

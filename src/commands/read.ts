@@ -11,6 +11,7 @@ import {
   formatReadResult,
   InvalidPackageSpecError,
   isSiteReadTarget,
+  MAX_READ_LINE,
   MAX_WAIT_TIMEOUT_MS,
   mapCodeNavigationError,
   mapPackageIntelligenceError,
@@ -115,20 +116,20 @@ export async function readAction(
       }
       const range = pathWithRange
         ? resolveLineRange(options, pathWithRange)
-        : options.lines
+        : options.lines !== undefined
           ? parseLinesOption(options.lines)
           : {
               startLine: parseIntCliOption(
                 options.start,
                 "--start",
                 1,
-                Number.MAX_SAFE_INTEGER,
+                MAX_READ_LINE,
               ),
               endLine: parseIntCliOption(
                 options.end,
                 "--end",
                 1,
-                Number.MAX_SAFE_INTEGER,
+                MAX_READ_LINE,
               ),
             };
       if (!exactFile) validateReadRange(range.startLine, range.endLine);
@@ -301,7 +302,7 @@ export function registerReadCommand(program: Command): Command {
       "--selector <name>",
       "Code symbol or logical documentation heading ID",
     )
-    .option("--lines <range>", "Inclusive line range, e.g. 10-40, 10-, or -40")
+    .option("--lines <range>", "N, N-M, N-, or -M (1-based, inclusive)")
     .option("--start <n>", "Starting line (alternative to --lines)")
     .option("--end <n>", "Ending line (alternative to --lines)")
     .option(

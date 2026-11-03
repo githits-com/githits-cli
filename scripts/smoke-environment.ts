@@ -35,7 +35,9 @@ export interface IsolatedSmokeEnvironment {
 /**
  * Creates temporary config and skill roots while preserving inherited
  * environment credentials such as an env token. Host file-auth state is not
- * copied, and inherited skill-update opt-outs are removed.
+ * copied, and inherited skill-update opt-outs are removed. Without an explicit
+ * storage override, use the disposable file store instead of a host Keychain
+ * default whose configuration is absent from the new home.
  */
 export function createScopedSmokeEnvironment(
   prefix: string,
@@ -55,6 +57,13 @@ export function createScopedSmokeEnvironment(
   env.USERPROFILE = root;
   env.XDG_CONFIG_HOME = join(root, ".config");
   env.APPDATA = join(root, "AppData", "Roaming");
+  if (
+    !Object.keys(env).some(
+      (key) => key.toUpperCase() === "GITHITS_AUTH_STORAGE",
+    )
+  ) {
+    env.GITHITS_AUTH_STORAGE = "file";
+  }
   env.GITHITS_DISABLE_UPDATE_CHECK = "1";
   return {
     env,

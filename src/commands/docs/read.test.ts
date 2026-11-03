@@ -107,6 +107,7 @@ describe("docsReadAction", () => {
   });
 
   it.each([
+    ["42", { pageId: "opaque:%2Fpage#fragment", startLine: 42, endLine: 42 }],
     ["10-", { pageId: "opaque:%2Fpage#fragment", startLine: 10 }],
     ["-40", { pageId: "opaque:%2Fpage#fragment", endLine: 40 }],
   ])(
@@ -141,6 +142,31 @@ describe("docsReadAction", () => {
         expect(readPackageDoc).toHaveBeenCalledWith(expected);
       } finally {
         logSpy.mockRestore();
+      }
+    },
+  );
+
+  it.each(["", "2147483648", "1-2147483648"])(
+    "rejects invalid CLI line bounds before reading docs: %s",
+    async (lines) => {
+      const services = createDeps();
+      const error = spyOn(console, "error").mockImplementation(() => {});
+      const exit = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("exit");
+      });
+      try {
+        await expect(
+          docsReadAction("opaque-page", { lines, json: true }, services),
+        ).rejects.toThrow("exit");
+        expect(
+          services.packageIntelligenceService!.readPackageDoc,
+        ).not.toHaveBeenCalled();
+        expect(JSON.parse(String(error.mock.calls[0]?.[0])).code).toBe(
+          "INVALID_ARGUMENT",
+        );
+      } finally {
+        error.mockRestore();
+        exit.mockRestore();
       }
     },
   );

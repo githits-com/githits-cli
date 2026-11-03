@@ -5,10 +5,12 @@ import type {
   GrepRepoSymbolField,
 } from "@githits/core-internal";
 import { colorize, dim, highlightRanges } from "./colors.js";
-import type { GrepContextClamping } from "./grep-repo-request.js";
+import {
+  buildGrepContextClampingNotice,
+  type GrepContextClamping,
+} from "./grep-context.js";
 import {
   buildEmptyGrepGuidance,
-  buildGrepContextClampingNotice,
   grepRepoSourceFacts,
 } from "./grep-repo-text.js";
 import { projectIndexingEstimates } from "./indexing-estimates.js";
@@ -628,7 +630,10 @@ function formatTerminalNotes(
       .join("\n")}\n`;
   }
 
-  const contextNotice = buildGrepContextClampingNotice(envelope, "cli");
+  const contextNotice = buildGrepContextClampingNotice(
+    envelope.contextClamping,
+    "cli",
+  );
   if (contextNotice) lines.push(dim(contextNotice, useColors));
 
   if (shouldSuggestNarrowingScope(envelope)) {

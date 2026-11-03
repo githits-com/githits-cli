@@ -24,6 +24,7 @@ export * from "./shared/follow-up-command-text.js";
 export * from "./shared/format-date.js";
 export * from "./shared/format-number.js";
 export * from "./shared/githits-service-error-map.js";
+export * from "./shared/grep-context.js";
 export * from "./shared/grep-error-map.js";
 export * from "./shared/grep-repo-request.js";
 export * from "./shared/grep-repo-response.js";

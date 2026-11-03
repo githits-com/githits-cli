@@ -206,6 +206,13 @@ Do not assert mixed path strings such as `C:\\Users\\test/AppData/Roaming/githit
 
 ## Running Tests
 
+CLI and MCP smoke suites use disposable homes. Scoped live probes default to
+file auth storage and preserve an explicit `GITHITS_AUTH_STORAGE` override;
+host file credentials are not copied. Supply existing credentials through the
+child environment when authenticated coverage is required, without printing or
+persisting them. With no credentials, the suites must validate `AUTH_REQUIRED`
+and skip their live cohorts.
+
 ```bash
 # Run all tests
 bun test

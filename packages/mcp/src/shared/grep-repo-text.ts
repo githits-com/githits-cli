@@ -11,6 +11,7 @@
  * snapshot-style tests in `grep-repo-text.test.ts`.
  */
 
+import { buildGrepContextClampingNotice } from "./grep-context.js";
 import type {
   LeanGrepRepoEnvelope,
   LeanGrepRepoMatch,
@@ -61,7 +62,9 @@ export function renderGrepRepoText(
     return lines.join("\n");
   }
 
-  const contextNotice = buildGrepContextClampingNotice(envelope);
+  const contextNotice = buildGrepContextClampingNotice(
+    envelope.contextClamping,
+  );
   if (contextNotice) lines.push(contextNotice, "");
 
   const blocks = buildRenderBlocks(envelope.matches);
@@ -120,7 +123,10 @@ export function buildEmptyGrepGuidance(
   options: SourceTextOptions = {},
 ): string[] {
   const lines = [formatEmptyGrepFileCounts(envelope)];
-  const contextNotice = buildGrepContextClampingNotice(envelope, surface);
+  const contextNotice = buildGrepContextClampingNotice(
+    envelope.contextClamping,
+    surface,
+  );
   if (contextNotice) lines.push(contextNotice);
   const served = formatGrepServedTarget(envelope);
   if (served && !grepRepoSourceFacts(envelope).length) lines.push(served);
@@ -430,15 +436,4 @@ function renderLine(
 
 function quote(value: string): string {
   return value.includes('"') ? `'${value}'` : `"${value}"`;
-}
-
-/** Explain reduced context without requiring another grep request. */
-export function buildGrepContextClampingNotice(
-  envelope: LeanGrepRepoEnvelope,
-  surface: "mcp" | "cli" = "mcp",
-): string | undefined {
-  const adjustment = envelope.contextClamping;
-  if (!adjustment) return undefined;
-  const read = surface === "cli" ? "githits read" : "read";
-  return `Context limited to ${adjustment.effectiveBefore} before / ${adjustment.effectiveAfter} after (requested ${adjustment.requestedBefore} / ${adjustment.requestedAfter}; maximum 10 per side). Use ${read} for a larger window.`;
 }
