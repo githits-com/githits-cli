@@ -20,11 +20,12 @@ export interface ResolvedGrepContext {
 export function normalizeGrepContextValue(
   value: number | undefined,
   field: string,
+  displayValue: string = String(value),
 ): number | undefined {
   if (value === undefined) return undefined;
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new InvalidPackageSpecError(
-      `\`${field}\` must be a nonnegative safe integer; values above ${GREP_CONTEXT_MAX} are capped. Got ${value}.`,
+      `\`${field}\` must be a nonnegative safe integer; values above ${GREP_CONTEXT_MAX} are capped. Got ${displayValue}.`,
     );
   }
   return value;

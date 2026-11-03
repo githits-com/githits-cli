@@ -457,6 +457,7 @@ describe("unified grep CLI", () => {
         expect(payload.error).toContain("--before-context");
         expect(payload.error).toContain("nonnegative safe integer");
         expect(payload.error).toContain("above 10 are capped");
+        expect(payload.error).toContain(`Got ${JSON.stringify(value)}.`);
         expect(d.grepService.grep).not.toHaveBeenCalled();
       } finally {
         error.mockRestore();

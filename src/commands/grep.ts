@@ -167,7 +167,11 @@ function contextValue(
   return values
     ?.map((value) => {
       try {
-        return normalizeGrepContextValue(numeric(value), field);
+        return normalizeGrepContextValue(
+          numeric(value),
+          field,
+          JSON.stringify(value),
+        );
       } catch (error) {
         if (error instanceof InvalidPackageSpecError)
           throw new InvalidGrepRequestError(field, error.message);

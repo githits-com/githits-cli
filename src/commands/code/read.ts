@@ -10,6 +10,7 @@ import {
   MAX_READ_LINE,
   MAX_WAIT_TIMEOUT_MS,
   parseLinesOption,
+  parsePositiveReadLine,
   type ReadFileRequestBuildResult,
   type ReadFileRequestInput,
   requireAuth,
@@ -289,10 +290,10 @@ export function parsePathWithOptionalRange(path: string): ParsedPathWithRange {
     );
   }
 
-  const startLine = requirePositiveInteger(startRaw, "path range start");
+  const startLine = parsePositiveReadLine(startRaw, "path range start");
   const endLine =
     endRaw !== undefined && endRaw.length > 0
-      ? requirePositiveInteger(endRaw, "path range end")
+      ? parsePositiveReadLine(endRaw, "path range end")
       : startLine;
 
   if (startLine > endLine) {
@@ -304,36 +305,13 @@ export function parsePathWithOptionalRange(path: string): ParsedPathWithRange {
   return { filePath, startLine, endLine };
 }
 
-function requirePositiveInteger(raw: string, label: string): number {
-  if (!/^\d+$/.test(raw)) {
-    throw new InvalidPackageSpecError(
-      `${label} must be a positive integer. Got '${raw}'.`,
-    );
-  }
-  const parsed = Number.parseInt(raw, 10);
-  if (parsed < 1) {
-    throw new InvalidPackageSpecError(
-      `${label} must be ≥ 1 (lines are 1-indexed). Got ${parsed}.`,
-    );
-  }
-  if (parsed > MAX_READ_LINE) {
-    throw new InvalidPackageSpecError(
-      `${label} must be at most ${MAX_READ_LINE}. Got ${parsed}.`,
-    );
-  }
-  return parsed;
-}
-
 const PKG_READ_DESCRIPTION = `Read a file from an indexed dependency.
 
 Default output is the raw file content — pipe-friendly for
 downstream tools (\`code read … | grep …\`). Pass --verbose for a
 header and a line-number gutter.
 
-Use --lines for one line (e.g. \`--lines 10\`) or a bounded range
-(e.g. \`--lines 10-40\`), or append a
-range directly to the path (e.g. \`src/index.js:10-40\`). The \`path\`
-comes directly from \`githits code files\`.
+Use --lines for one line (e.g. \`--lines 10\`) or a bounded range (e.g. \`--lines 10-40\`), or append a range directly to the path (e.g. \`src/index.js:10-40\`). The \`path\` comes directly from \`githits code files\`.
 
 Addressing: <target> accepts registry:name[@version], github:org/repo[@ref], codeberg:owner/repo[@ref], gitlab:group[/subgroup...]/project[@ref],
 launchpad:~owner/+git/repo[@ref], launchpad:~owner/project/+git/repo[@ref],

@@ -3,6 +3,7 @@ import {
   type LineRange,
   MAX_READ_LINE,
   parseLinesOption,
+  parsePositiveReadLine,
 } from "./parse-lines-option.js";
 
 const validCases: Array<{ name: string; raw: string; expected: LineRange }> = [
@@ -95,5 +96,29 @@ describe("parseLinesOption", () => {
 
   it.each(invalidCases)("rejects $name", ({ raw }) => {
     expect(() => parseLinesOption(raw)).toThrow();
+  });
+});
+
+describe("parsePositiveReadLine", () => {
+  it('parses "42" with the path range start label as 42', () => {
+    expect(parsePositiveReadLine("42", "path range start")).toBe(42);
+  });
+
+  it(`accepts MAX_READ_LINE ${MAX_READ_LINE} as a positive bound`, () => {
+    expect(
+      parsePositiveReadLine(String(MAX_READ_LINE), "path range start"),
+    ).toBe(MAX_READ_LINE);
+  });
+
+  it('rejects zero "0" as a positive bound', () => {
+    expect(() => parsePositiveReadLine("0", "path range start")).toThrow();
+  });
+
+  it('rejects "100000000000000000000" with the original quoted path bound', () => {
+    expect(() =>
+      parsePositiveReadLine("100000000000000000000", "path range start"),
+    ).toThrow(
+      "path range start must be at most 2147483647 (the maximum GraphQL Int). Got '100000000000000000000'.",
+    );
   });
 });

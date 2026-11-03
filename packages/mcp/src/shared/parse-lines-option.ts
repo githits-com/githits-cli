@@ -22,7 +22,7 @@ export function parseLinesOption(raw: string): LineRange {
 
   const dashIndex = trimmed.indexOf("-");
   if (dashIndex < 0) {
-    const line = requirePositiveInteger(trimmed, "--lines line");
+    const line = parsePositiveReadLine(trimmed, "--lines line");
     return { startLine: line, endLine: line };
   }
 
@@ -37,11 +37,11 @@ export function parseLinesOption(raw: string): LineRange {
 
   const startLine =
     startRaw.length > 0
-      ? requirePositiveInteger(startRaw, "--lines start")
+      ? parsePositiveReadLine(startRaw, "--lines start")
       : undefined;
   const endLine =
     endRaw.length > 0
-      ? requirePositiveInteger(endRaw, "--lines end")
+      ? parsePositiveReadLine(endRaw, "--lines end")
       : undefined;
 
   if (startLine !== undefined && endLine !== undefined && startLine > endLine) {
@@ -53,7 +53,8 @@ export function parseLinesOption(raw: string): LineRange {
   return { startLine, endLine };
 }
 
-function requirePositiveInteger(raw: string, label: string): number {
+/** Validate a positive GraphQL Int line bound, preserving raw overflow input in errors. */
+export function parsePositiveReadLine(raw: string, label: string): number {
   if (!/^\d+$/.test(raw)) {
     throw new InvalidPackageSpecError(
       `${label} must be a positive integer. Got '${raw}'.`,
