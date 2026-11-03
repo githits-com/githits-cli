@@ -5,6 +5,28 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.38.1] - 2026-11-03
+
+### Changed
+
+- **Shorter agent guidance** - Condense MCP guidance, tool descriptions, CLI help, and public skills around direct lookups, symbol following, result reuse, and bounded recovery. Preserve discovery sentences, source trust rules, and version and coverage limits. Hosted MCP clients receive the changes after the MCP package is released and deployed.
+
+### Fixed
+
+- **Research recovery guidance** - Explain that request cooldowns apply across targets, questions, and threads; wait until the daily reset when applicable, and retry timeouts only when needed with sufficient execution time.
+- **Research daily-limit recovery** - Show a scoped search example with a fixed query placeholder after a daily Research limit when an explicit search-compatible target is available, preserving the original error and diagnostics in text and JSON.
+- **CLI eval accuracy** - Count unified grep and research commands and Windows launchers in agent traces, and provide a checkout-specific PowerShell launcher for skill evaluations.
+
+## [@githits/mcp 0.38.1] - 2026-11-03
+
+### Changed
+
+- **Shorter agent guidance** - Condense MCP guidance, tool descriptions, and argument descriptions around direct lookups, symbol following, result reuse, and bounded recovery. Preserve discovery sentences, source trust rules, and version and coverage limits. Hosted clients receive the changes after the released package is adopted and deployed.
+
+### Fixed
+
+- **Research recovery guidance** - Explain that request cooldowns apply across targets, questions, and threads; wait until the daily reset when applicable, and retry timeouts only when needed with sufficient execution time.
+
 ## [githits 0.38.0] - 2026-11-03
 
 ### Added
