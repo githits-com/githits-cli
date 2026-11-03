@@ -40,7 +40,7 @@ Use canonical targets without resolution; follow resolver ambiguity rules for un
 
 Reuse results. Investigate missing information that could change the implementation, decision, or answer. Stop when enough is known; state material gaps.
 
-For usage/setup, an authoritative example or declaration may suffice. For implementation, cover requested behavior and deciding conditions. Keep separate implementations, versions, and execution paths distinct; state which were not inspected. Establish imports, call shapes, and lifecycle steps required by your code.
+For usage/setup, an authoritative example or declaration may suffice. For implementation, cover requested behavior, comparison alternatives, and deciding conditions. Keep separate implementations, versions, and execution paths distinct; state which were not inspected. Establish imports, call shapes, and lifecycle steps required by your code.
 
 Read known symbols directly with \`selector\` before searching or grepping. Follow needed helpers/re-exports by declaration name; include a file only when its declaration is known, not its caller. Never guess qualifications. Reuse definitions already read. On selector failure, use a returned declaration range or literal grep for the identifier. Follow actual imports/calls: shared names or helpers do not establish shared behavior. A call site alone does not establish implementation.
 

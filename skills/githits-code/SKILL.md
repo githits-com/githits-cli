@@ -34,7 +34,7 @@ Choose the direct command. Use canonical targets without resolution; check CLI v
 
 Reuse results. Investigate missing information that could change implementation, decisions, or answers. Stop when enough is known; state material gaps.
 
-For usage/setup, an authoritative example or declaration may suffice. For implementation, cover requested behavior and deciding conditions. Keep separate implementations, versions, and execution paths distinct; state which were not inspected. Follow actual imports/calls; shared names or helpers do not establish shared behavior. Establish imports, call shapes, and lifecycle steps required by your code.
+For usage/setup, an authoritative example or declaration may suffice. For implementation, cover requested behavior, comparison alternatives, and deciding conditions. Keep separate implementations, versions, and execution paths distinct; state which were not inspected. Follow actual imports/calls; shared names or helpers do not establish shared behavior. Establish imports, call shapes, and lifecycle steps required by your code.
 
 Read known symbols directly with `--selector` or `'<target>#<symbol>'` before searching/grepping. Include only a known declaration path; never infer qualifications from a caller or inherited receiver. Follow needed helpers/re-exports. Reuse definitions already read; a call site alone does not establish implementation.
 

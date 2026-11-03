@@ -29,7 +29,7 @@ function normalized(text: string): string {
 describe("buildMcpQuickStart", () => {
   it("keeps the task guide compact and routes before navigation", () => {
     const guide = buildMcpQuickStart();
-    expect(guide.split(/\s+/).length).toBeLessThan(900);
+    expect(guide.split(/\s+/).length).toBeLessThan(950);
     expect(guide.indexOf("## Choose a tool")).toBeLessThan(
       guide.indexOf("## Depth and symbol following"),
     );
