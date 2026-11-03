@@ -4,7 +4,7 @@
 
 - Overall: **IN PROGRESS**; Phase 1 merged in [#530](https://github.com/githits-com/githits-cli/pull/530);
   Phase 1a merged in [#533](https://github.com/githits-com/githits-cli/pull/533);
-  Phase 2 is the next independent CLI increment.
+  Phase 2 is complete pending merge; Phase 3 needs design.
 - Owner: this CLI worktree; backend investigations have separate child worktrees.
 - User direction, 2026-11-03: improve CLI ergonomics from the supplied feedback;
   exclude all skill changes because OP is reviewing those separately. Dispatch
@@ -142,7 +142,7 @@ formatting alone. Obtain approval before introducing infrastructure.
 | --- | --- | --- | --- |
 | 1 — tolerate common arguments | COMPLETE; merged #530 | `--lines N` selects one line; excessive valid context becomes 10 with a visible notice; path flags are clear in help. | Existing read/grep paths only. |
 | 1a — compact regex guidance | COMPLETE; merged #533 | Both CLI grep helps distinguish alternation/literal pipes and qualify route-dependent literal-text requirements. | Merged #530 and verified regex investigation; no backend change. |
-| 2 — scoped Research recovery | READY | Daily Research exhaustion provides one executable scoped discovery command when an explicit search-compatible target exists. | Merged #533, existing typed rate-limit scope and local parser/quoting. Grep validation adoption remains separately gated. |
+| 2 — scoped Research recovery | COMPLETE; pending merge | Daily Research exhaustion provides one executable scoped discovery command when an explicit search-compatible target exists. | Merged #533, existing typed rate-limit scope and local parser/quoting. Grep validation adoption remains separately gated. |
 | 3 — bounded readable output | NEEDS DESIGN at phase boundary | Opt-in text budgets preserve trust facts and provide honest access to omitted evidence. | Phase 2; representative output and replay evidence. |
 | 4 — backend-assisted enclosing symbols | WAITING ON NATIVE CONTRACT | Unified grep can opt into legacy-equivalent enclosing-symbol metadata and exact source-read ranges; source bodies remain conditional on cost. | Native implementation/release, PkgSeer adoption and verified wire contract. |
 
@@ -163,7 +163,7 @@ and `cli-commands.md`; execution and review evidence is on #533. No open gate.
 
 ### Phase 2 — scoped Research recovery
 
-Status: **READY**. Outcome: an agent hitting the daily
+Status: **COMPLETE; pending merge**. Outcome: an agent hitting the daily
 Research limit can copy one scoped discovery command instead of inventing the
 next call. Assumptions: existing daily scope and search grammar remain stable.
 Unknowns/product decisions: **none**. Dependencies: merged #533 and existing

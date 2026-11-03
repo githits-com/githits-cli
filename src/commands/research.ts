@@ -8,12 +8,15 @@ import {
   extractAgenticAskDisplay,
   isRepositoryTargetSpec,
   LegacyRepositoryRefError,
+  type MappedError,
   type McpProgressHook,
   mapAgenticAskError,
   parseRepositoryTargetSpec,
+  parseUnifiedSearchTargetSpec,
   RESEARCH_VERIFIED_ANSWER_GUIDANCE,
   requireAuth,
   sanitizeTerminalText,
+  shellQuoteExact,
 } from "@githits/mcp/internal";
 import { type Command, InvalidArgumentError, Option } from "commander";
 import { createContainer } from "../container.js";
@@ -103,22 +106,33 @@ export async function researchAction(
     spinner.stop();
     if (isCallerCancellation(error, deps.signal)) throw error;
     const failure = mapAgenticAskError(error);
+    const action = buildResearchDiscoveryAction(
+      failure.mapped,
+      "target" in subject ? subject.target : undefined,
+      question,
+    );
+    const mapped: MappedError = action
+      ? {
+          ...failure.mapped,
+          details: { ...failure.mapped.details, action },
+        }
+      : failure.mapped;
     if (options.json) {
       console.error(
         JSON.stringify({
-          ...buildCliMappedErrorPayload(failure.mapped),
+          ...buildCliMappedErrorPayload(mapped),
           ...(failure.toolCallId ? { tool_call_id: failure.toolCallId } : {}),
           ...(failure.threadId ? { thread_id: failure.threadId } : {}),
         }),
       );
     } else {
       const diagnostic = formatMappedErrorForTerminal({
-        ...failure.mapped,
-        message: sanitizeTerminalText(failure.mapped.message),
+        ...mapped,
+        message: sanitizeTerminalText(mapped.message),
         details: {
-          ...failure.mapped.details,
-          ...(failure.mapped.details?.hint
-            ? { hint: sanitizeTerminalText(failure.mapped.details.hint) }
+          ...mapped.details,
+          ...(mapped.details?.hint
+            ? { hint: sanitizeTerminalText(mapped.details.hint) }
             : {}),
         },
       });
@@ -130,10 +144,37 @@ export async function researchAction(
           ? [`Thread ID: ${sanitizeTerminalText(failure.threadId)}`]
           : []),
       ];
-      console.error([diagnostic, ...identifiers].join("\n"));
+      console.error(
+        [
+          diagnostic,
+          ...(action ? [`Try: ${action}`] : []),
+          ...identifiers,
+        ].join("\n"),
+      );
     }
     process.exit(1);
   }
+}
+
+/** Build a CLI-only discovery pivot; operands originate in argv and cannot contain NUL. */
+export function buildResearchDiscoveryAction(
+  mapped: MappedError,
+  target: string | undefined,
+  question: string,
+): string | undefined {
+  if (
+    mapped.code !== "RATE_LIMITED" ||
+    mapped.details?.rateLimitScope !== "daily" ||
+    target === undefined
+  ) {
+    return undefined;
+  }
+  try {
+    parseUnifiedSearchTargetSpec(target);
+  } catch {
+    return undefined;
+  }
+  return `githits search --in ${shellQuoteExact(target)} -- ${shellQuoteExact(question)}`;
 }
 
 /** Print backend-owned Markdown through the terminal safety boundary. */

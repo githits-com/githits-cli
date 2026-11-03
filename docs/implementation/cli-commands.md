@@ -327,6 +327,13 @@ existing 210-second client timeout are unchanged. Human text labels the run ID
 inventories. A rate-limit error says "Try again in N seconds."; a daily-limit
 error is not retryable before 00:00 UTC; see [research](research.md#rate-limits).
 
+For a daily limit with an explicit search-compatible target, the CLI suggests
+one quoted `githits search --in TARGET -- QUESTION` discovery command. Human
+output adds `Try: COMMAND`; JSON adds the same bare command as `details.action`.
+The original error/reset facts and run/thread IDs remain. The command is never
+executed automatically; targetless/thread requests and bare or invalid targets
+keep generic guidance. This action is CLI-only.
+
 ### `githits doctor`
 
 ```

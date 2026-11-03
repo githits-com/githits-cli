@@ -9,6 +9,7 @@ import {
 import { TermsAcceptanceRequiredError } from "@githits/core-internal/browser";
 import {
   AuthRequiredError,
+  type MappedError,
   RESEARCH_VERIFIED_ANSWER_GUIDANCE,
 } from "@githits/mcp/internal";
 import { Command } from "commander";
@@ -19,6 +20,7 @@ import {
   DESCRIPTION as MCP_RESEARCH_DESCRIPTION,
 } from "../../packages/mcp/src/tools/research.js";
 import {
+  buildResearchDiscoveryAction,
   formatAgenticAskHumanResponse,
   type ResearchCommandDependencies,
   registerResearchCommand,
@@ -111,6 +113,68 @@ function createDeps(
 
 afterEach(() => {
   mock.restore();
+});
+
+describe("Research discovery action", () => {
+  const daily: MappedError = {
+    code: "RATE_LIMITED",
+    message: AGENTIC_ASK_DAILY_LIMIT_MESSAGE,
+    retryable: false,
+    details: { rateLimitScope: "daily" },
+  };
+
+  it.each([
+    "npm:example",
+    "github:acme/lib@v1",
+    "https://github.com/acme/lib",
+    "site:example.com/docs",
+    " npm:example ",
+  ])("preserves a search-compatible explicit target: %s", (target) => {
+    expect(buildResearchDiscoveryAction(daily, target, "How?")).toBe(
+      `githits search --in '${target}' -- 'How?'`,
+    );
+  });
+
+  it.each([undefined, "", " ", "express", "npm:", "lib/router.js"])(
+    "omits recovery without a search-compatible target: %s",
+    (target) => {
+      expect(
+        buildResearchDiscoveryAction(daily, target, "How?"),
+      ).toBeUndefined();
+    },
+  );
+
+  it.each([
+    { ...daily, details: { rateLimitScope: "request" as const } },
+    { ...daily, details: undefined },
+    { ...daily, code: "NETWORK" as const },
+  ])("omits recovery for other failures: %j", (failure) => {
+    expect(
+      buildResearchDiscoveryAction(failure, "npm:example", "How?"),
+    ).toBeUndefined();
+  });
+
+  it("quotes original operands and protects leading-dash questions", () => {
+    const action = buildResearchDiscoveryAction(
+      daily,
+      "github:acme/lib@feat/o'reilly",
+      "--why 'quoted' $(echo unsafe); `id` \\ λ",
+    );
+    expect(action).toBe(
+      "githits search --in 'github:acme/lib@feat/o'\"'\"'reilly' -- '--why '\"'\"'quoted'\"'\"' $(echo unsafe); `id` \\ λ'",
+    );
+  });
+
+  it("represents argv control characters without raw terminal controls", () => {
+    const action = buildResearchDiscoveryAction(
+      daily,
+      "npm:example",
+      "--why\tline\n\u001b[31m\u0085",
+    );
+    expect(action).toBe(
+      "githits search --in 'npm:example' -- $'--why\\x09line\\x0a\\x1b[31m\\xc2\\x85'",
+    );
+  });
 });
 
 describe("researchAction", () => {
@@ -376,33 +440,104 @@ describe("researchAction", () => {
     );
   });
 
-  it("tells the user when the daily research allowance is exhausted", async () => {
+  it.each([false, true])(
+    "daily Research recovery preserves action and diagnostics (%s)",
+    async (json) => {
+      const error = spyOn(console, "error").mockImplementation(() => undefined);
+      const log = spyOn(console, "log").mockImplementation(() => undefined);
+      const write = spyOn(process.stdout, "write").mockImplementation(
+        () => true,
+      );
+      const exit = spyOn(process, "exit").mockImplementation(() => {
+        throw new Error("process.exit");
+      });
+      const failure = new AgenticAskHttpError(
+        "RATE_LIMITED",
+        AGENTIC_ASK_DAILY_LIMIT_MESSAGE,
+        429,
+        TOOL_CALL_ID,
+        43_200,
+        false,
+        THREAD_ID,
+        undefined,
+        "daily",
+      );
+      const ask = mock(() => Promise.reject(failure));
+
+      await expect(
+        researchAction("npm:example", "How?", { json }, createDeps(ask)),
+      ).rejects.toThrow("process.exit");
+
+      const action = "githits search --in 'npm:example' -- 'How?'";
+      expect(exit).toHaveBeenCalledWith(1);
+      expect(ask).toHaveBeenCalledTimes(1);
+      expect(ask).toHaveBeenCalledWith(
+        { target: "npm:example", question: "How?" },
+        undefined,
+      );
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(log).not.toHaveBeenCalled();
+      expect(write).not.toHaveBeenCalled();
+
+      if (json) {
+        expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toEqual({
+          error: AGENTIC_ASK_DAILY_LIMIT_MESSAGE,
+          code: "RATE_LIMITED",
+          retryable: false,
+          details: {
+            status: 429,
+            retryAfterSeconds: 43_200,
+            rateLimitScope: "daily",
+            action,
+          },
+          tool_call_id: TOOL_CALL_ID,
+          thread_id: THREAD_ID,
+        });
+      } else {
+        expect(error.mock.calls[0]?.[0]).toBe(
+          `${AGENTIC_ASK_DAILY_LIMIT_MESSAGE}\nTry: ${action}\nResearch run ID: ${TOOL_CALL_ID}\nThread ID: ${THREAD_ID}`,
+        );
+      }
+    },
+  );
+
+  it.each([
+    { target: undefined, thread: undefined },
+    { target: undefined, thread: THREAD_ID },
+    { target: "express", thread: undefined },
+    { target: "lib/router.js", thread: undefined },
+  ])("keeps daily recovery generic for %j", async ({ target, thread }) => {
     const error = spyOn(console, "error").mockImplementation(() => undefined);
+    const write = spyOn(process.stdout, "write").mockImplementation(() => true);
     spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
     });
-    const failure = new AgenticAskHttpError(
-      "RATE_LIMITED",
-      AGENTIC_ASK_DAILY_LIMIT_MESSAGE,
-      429,
-      undefined,
-      43_200,
-      false,
-      undefined,
-      undefined,
-      "daily",
-    );
-
-    await expect(
-      researchAction(
-        "npm:example",
-        "How?",
-        {},
-        createDeps(mock(() => Promise.reject(failure))),
+    const ask = mock(() =>
+      Promise.reject(
+        new AgenticAskHttpError(
+          "RATE_LIMITED",
+          AGENTIC_ASK_DAILY_LIMIT_MESSAGE,
+          429,
+          TOOL_CALL_ID,
+          43_200,
+          false,
+          THREAD_ID,
+          undefined,
+          "daily",
+        ),
       ),
+    );
+    await expect(
+      researchAction(target, "How?", { thread, json: true }, createDeps(ask)),
     ).rejects.toThrow("process.exit");
-
-    expect(error.mock.calls[0]?.[0]).toBe(AGENTIC_ASK_DAILY_LIMIT_MESSAGE);
+    const payload = JSON.parse(String(error.mock.calls[0]?.[0]));
+    expect(payload.error).toBe(AGENTIC_ASK_DAILY_LIMIT_MESSAGE);
+    expect(payload.details.action).toBeUndefined();
+    expect(payload.tool_call_id).toBe(TOOL_CALL_ID);
+    expect(payload.thread_id).toBe(THREAD_ID);
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(write).not.toHaveBeenCalled();
   });
 
   it("renders the shared terms-acceptance remediation", async () => {
