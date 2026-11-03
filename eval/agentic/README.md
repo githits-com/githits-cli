@@ -825,6 +825,11 @@ and full-guidance setup preserves unrelated skills but refuses existing GitHits
 skill destinations or its CLI shim, so use a new path for those modes. OpenCode
 session setup also refuses to overwrite an existing project `opencode.json`.
 
+Windows skills runs create both `githits.cmd` and `githits.ps1` for the evaluated
+checkout. PowerShell selects the `.ps1` launcher; if execution policy blocks it,
+invoke `githits.cmd` explicitly using the quoting guidance in `githits-code`.
+The harness does not change the agent shell's execution policy.
+
 Useful options:
 
 ```bash

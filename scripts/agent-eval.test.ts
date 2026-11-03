@@ -2043,13 +2043,11 @@ describe("agent eval harness", () => {
     }
   });
 
-  it("refuses an existing CLI shim before mutating skill roots", () => {
+  it.each(
+    process.platform === "win32" ? ["githits.cmd", "githits.ps1"] : ["githits"],
+  )("refuses existing %s before mutating skill roots", (shimName) => {
     const workspaceDir = mkdtempSync(join(tmpdir(), "agent-session-test-"));
-    const shimPath = join(
-      workspaceDir,
-      ".agent-eval-bin",
-      process.platform === "win32" ? "githits.cmd" : "githits",
-    );
+    const shimPath = join(workspaceDir, ".agent-eval-bin", shimName);
     mkdirSync(join(workspaceDir, ".agent-eval-bin"), { recursive: true });
     writeFileSync(shimPath, "existing shim\n");
     try {
@@ -2073,6 +2071,107 @@ describe("agent eval harness", () => {
       rmSync(workspaceDir, { recursive: true, force: true });
     }
   });
+
+  for (const shell of ["pwsh", "powershell"]) {
+    it.skipIf(process.platform !== "win32" || !Bun.which(shell))(
+      `resolves bare githits and preserves arguments with redirected stderr in ${shell}`,
+      async () => {
+        const fixture = mkdtempSync(join(tmpdir(), "agent-shim-test-"));
+        const targetRoot = join(
+          fixture,
+          "checkout with ' \u2018\u2019\u201a\u201b \u00e4 spaces",
+        );
+        const workspaceDir = join(fixture, "workspace");
+        try {
+          const powershell = Bun.which(shell);
+          expect(powershell).not.toBeNull();
+          mkdirSync(join(targetRoot, "skills", "githits-code"), {
+            recursive: true,
+          });
+          writeFileSync(
+            join(targetRoot, "skills", "githits-code", "SKILL.md"),
+            "Fixture skill\n",
+          );
+          writeFileSync(
+            join(targetRoot, "package.json"),
+            JSON.stringify({ scripts: { dev: "bun args.ts" } }),
+          );
+          writeFileSync(
+            join(targetRoot, "args.ts"),
+            "console.log(JSON.stringify(process.argv.slice(2)));\n",
+          );
+          const installation = prepareSkillsWorkspace(
+            {
+              server: "local",
+              repoRoot: process.cwd(),
+              targetRoot,
+              publishedPackage: "githits@latest",
+            },
+            workspaceDir,
+          );
+          const globalBin = join(fixture, "global-bin");
+          mkdirSync(globalBin);
+          writeFileSync(
+            join(globalBin, "githits.ps1"),
+            "Write-Output 'wrong checkout'\n",
+          );
+          const probe = join(fixture, "probe.ps1");
+          writeFileSync(probe, "& githits @args 2>$null\nexit $LASTEXITCODE\n");
+          const childEnv = Object.fromEntries(
+            Object.entries(process.env).filter(
+              ([key]) => key.toLowerCase() !== "path",
+            ),
+          );
+          const inheritedPath =
+            Object.entries(process.env).find(
+              ([key]) => key.toLowerCase() === "path",
+            )?.[1] ?? "";
+          const child = Bun.spawn(
+            [
+              powershell!,
+              "-NoProfile",
+              // Only this fixture process; no user or machine policy change.
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              probe,
+              "grep",
+              "foo|bar",
+              "npm:express",
+              "--path-prefix",
+              "some path/",
+            ],
+            {
+              env: {
+                ...childEnv,
+                PATH: `${dirname(installation.cliShim)};${globalBin};${inheritedPath}`,
+              },
+              stdout: "pipe",
+              stderr: "pipe",
+            },
+          );
+          const [stdout, stderr, exitCode] = await Promise.all([
+            new Response(child.stdout).text(),
+            new Response(child.stderr).text(),
+            child.exited,
+          ]);
+          expect({ exitCode, stderr: exitCode === 0 ? "" : stderr }).toEqual({
+            exitCode: 0,
+            stderr: "",
+          });
+          expect(JSON.parse(stdout.trim())).toEqual([
+            "grep",
+            "foo|bar",
+            "npm:express",
+            "--path-prefix",
+            "some path/",
+          ]);
+        } finally {
+          rmSync(fixture, { recursive: true, force: true });
+        }
+      },
+    );
+  }
 
   it("preserves normal Claude and GitHits auth environment while filtering unrelated vars", () => {
     const env = buildEvalEnv({
@@ -3876,6 +3975,15 @@ describe("agent eval harness", () => {
       "/bin/zsh -lc 'githits read npm:express lib/express.js --lines 1-90'",
     ],
     ["resolve_target", "/bin/zsh -lc 'githits resolve lodahs'"],
+    ["grep", "githits grep 'foo|bar' npm:express"],
+    ["research", "githits research 'How does routing work?' npm:express"],
+    ["grep", 'githits.cmd --% grep "foo|bar" npm:express'],
+    ["grep", "githits.ps1 grep 'foo|bar' npm:express"],
+    ["research", 'githits.exe research "How does routing work?" npm:express'],
+    [
+      "grep",
+      '& "C:\\repo with spaces\\githits.ps1" grep "foo|bar" npm:express',
+    ],
   ])(
     "extracts top-level %s CLI calls from shell-wrapped events",
     (tool, command) => {
@@ -3903,9 +4011,29 @@ describe("agent eval harness", () => {
   );
 
   it.each([
+    'git commit -m "Add GitHits grep support"',
+    "git -C C:\\src\\githits grep foo",
+  ])(
+    "does not count incidental GitHits mentions as CLI calls: %s",
+    (command) => {
+      expect(
+        extractToolCalls(
+          JSON.stringify({
+            type: "item.completed",
+            item: { type: "command_execution", command, status: "completed" },
+          }),
+          "codex",
+        ),
+      ).toEqual([]);
+    },
+  );
+
+  it.each([
     ["list", "list"],
     ["read", "read"],
     ["resolve_target", "resolve"],
+    ["grep", "grep"],
+    ["research", "research"],
   ])(
     "flags top-level %s as a CLI fallback in MCP evals",
     (tool, commandName) => {
