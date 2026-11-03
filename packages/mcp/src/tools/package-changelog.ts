@@ -42,7 +42,7 @@ const schema: ZodRawShape = {
   target: z
     .string()
     .describe(
-      `Latest: npm:express (no @ suffix). One release: npm:express@5.2.1. Range: npm:express@4.21.2..5.2.1. Never leave a trailing @. Omit limit for an exact version or a range with a starting version. Ranges exclude from and include to: @4.21.2..5.2.1 returns releases after 4.21.2 through 5.2.1. Use @from alone for the starting release's own notes. Open bounds from.. and ..to are accepted. Package-only; repository and site targets are rejected. Registries: ${PKGSEER_REGISTRY_LIST}.`,
+      `Latest: npm:express (no @ suffix). One release: npm:express@5.2.1. Range: npm:express@4.21.2..5.2.1. Never leave a trailing @. Ranges exclude from and include to: @4.21.2..5.2.1 returns releases after 4.21.2 through 5.2.1. Use @from alone for the starting release's own notes. Open bounds from.. and ..to are accepted. Package-only; repository and site targets are rejected. Registries: ${PKGSEER_REGISTRY_LIST}.`,
     ),
   limit: z
     .number()
@@ -72,30 +72,24 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      "Deprecated alias for verbatim:true, in text and JSON. Overrides body_lines; cannot combine with omit_bodies:true.",
+      "Deprecated alias for verbatim:true in text and JSON; overrides body_lines; cannot combine with omit_bodies:true.",
     ),
   body_lines: z
     .number()
     .optional()
     .describe(
-      "Deprecated text-only original-note preview request and line cap (1-50). Ignored for format=json, omit_bodies:true, verbatim:true and verbose:true. Omit for the default statement view.",
+      "Deprecated text-only original-note preview cap (1-50); omit for statements. Ignored for JSON, omit_bodies:true, verbatim:true or verbose:true.",
     ),
   format: z
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Default text is for reading. Use json only when code consumes raw fields or text lacks required fields. JSON includes full statement text and per-item provenance by default; verbatim:true includes original markdown bodies.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON includes full statement text and per-item provenance; verbatim:true returns original bodies instead.",
     ),
 };
 
 export const DESCRIPTION_BASE: string =
-  "Find release notes and changelog history for a package. Default " +
-  "latest mode returns up to ten entries; source ordering may interleave maintained release lines. " +
-  "Pin `registry:name@version` for one selected release, or `registry:name@from..to` for releases after from through to (from excluded, to included). " +
-  "Omit `limit` for a version or a range with a starting version; it only caps latest or `@..to`. " +
-  "A selected release without notes succeeds with `hasChangelog: false`. " +
-  "Empty latest or range selections succeed with no entries. " +
-  "Default text shows all parsed statements with available agent classifications, including unassessed statements, in source order. `changes` filters statements; all matching pages are retrieved. `verbatim:true` shows original full notes; `omit_bodies:true` shows only the timeline. Original-note and timeline views skip classification and ignore `changes`. Preserve generated-from-commits labels and pending/unavailable status; generated statements are not publisher-written notes. Use parsed notes when sufficient; notes alone do not establish application compatibility.";
+  "Find release notes and changelog history for a package. Default latest mode returns up to ten entries; source ordering may interleave maintained release lines. Pin registry:name@version for one release or @from..to for releases after from through to; omit limit except for latest or @..to. Selected releases without notes return hasChangelog:false; empty selections return no entries. Default text shows parsed statements with available classifications, including unassessed ones, in source order; changes filters them and all matching pages are retrieved. verbatim:true shows original notes and omit_bodies:true only the timeline; both skip classification and ignore changes. Preserve generated-from-commits labels and pending/unavailable status; generated statements are not publisher notes. Notes alone do not establish compatibility.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_CHANGELOG_GUARDRAIL}`;
 

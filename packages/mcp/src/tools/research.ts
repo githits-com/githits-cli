@@ -62,11 +62,11 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Default text is for reading. Use json only when code consumes raw fields or text lacks required fields.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field.",
     ),
 };
 
-export const DESCRIPTION: string = `Research a public repository or package to answer a question with sources. Omit target and thread_id for project identification. If Research returns candidates, retry with the one matching established context as target; never guess. Use direct reads/package tools when sufficient. Reuse thread_id for follow-ups; state scope changes. ${RESEARCH_VERIFIED_ANSWER_GUIDANCE} Request an overview only when needed. A rate limit covers all Research questions/targets: wait the returned delay, or use direct retrieval for a specific gap; daily limits wait until reset. Research takes package/repository targets, not site: targets.`;
+export const DESCRIPTION: string = `Research a public repository or package to answer a question with sources. Omit target and thread_id for project identification. If Research returns candidates, retry with the one matching established context as target; never guess. Use pkg_info for registry metadata or repository URLs, package tools for assessments, and read for known symbols. Reuse thread_id for follow-ups; state scope changes. ${RESEARCH_VERIFIED_ANSWER_GUIDANCE} Request an overview only when needed. A rate limit covers all Research questions/targets: wait the returned delay, or use direct retrieval for a specific gap; daily limits wait until reset.`;
 
 export function createResearchTool(
   service: AgenticAskService,

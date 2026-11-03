@@ -30,27 +30,31 @@ describe("searchTool", () => {
       "Omit the suffix for the latest package version or repository default branch",
     );
     expect(targetSchema).toContain("a ref may be a branch, tag, or commit");
+    expect(targetSchema).toContain("Do not also pass `targets`");
+    expect(descriptor?.schema.targets?.description).toContain(
+      "Do not also pass `target`",
+    );
     expect(descriptor?.description.slice(0, 80)).toBe(
       "Discover relevant docs, code, and symbols in a known public target. Start here f",
     );
     expect(descriptor?.description).toContain("Hosted docs are mutable");
     expect(descriptor?.description).toContain(
-      "replay the complete read action or `followUp`, including selector/bounds",
+      "replay a hit's complete read action or followUp",
     );
     expect(descriptor?.description).toContain(
       "repository docs address snapshots",
     );
     expect(descriptor?.description).toContain(
-      "A docs-page header locates the page; its action selects the section",
+      "keeping its target, path, selector and bounds together",
     );
     const readDescriptor = getMcpToolDescriptors().find(
       (entry) => entry.name === "read",
     );
     expect(readDescriptor?.schema.selector?.description).toContain(
-      "A docs URL fragment needs no bounds",
+      "A docs fragment selects its full heading subtree",
     );
     expect(readDescriptor?.schema.selector?.description).toContain(
-      "full subtree through the next equal-or-higher heading",
+      "either bound replaces it with a page-relative range",
     );
     expect(readDescriptor?.description).toContain("Hosted docs are mutable");
     expect(readDescriptor?.description).toContain(
@@ -63,36 +67,39 @@ describe("searchTool", () => {
 
     expect(tool.description).toContain("Use sufficient hits directly");
     expect(tool.description).toContain(
-      "an active action and searchRef are returned",
+      "a returned active action and searchRef",
     );
-    expect(tool.description).toContain("Do not repeat search to poll");
+    expect(tool.description).toContain("never repeat search to poll");
     expect(tool.description).toContain("search_status");
-    expect(tool.description).toContain(
-      "Terminal or unrecognized statuses are not polled",
-    );
+    expect(
+      getMcpToolDescriptors().find((entry) => entry.name === "search_status")
+        ?.description,
+    ).toContain("unknown statuses are terminal");
     expect(tool.schema.allow_partial_results?.description).toContain(
       "serveable subset",
     );
-    expect(tool.description).not.toContain(
-      "`PENDING`, `INDEXING`, or `SEARCHING`",
+    expect(tool.schema.allow_partial_results?.description).toContain(
+      "False requires all runnable pairs",
     );
+    expect(tool.schema.allow_partial_results?.description).toContain(
+      "refresh may still return complete interim hits",
+    );
+    expect(tool.description).not.toContain("PENDING, INDEXING, or SEARCHING");
     expect(tool.description).not.toContain("Stale-but-serveable");
-    expect(tool.description).not.toContain(
-      "`DEFERRED`, `TIMEOUT`, and `FAILED`",
-    );
+    expect(tool.description).not.toContain("DEFERRED, TIMEOUT, FAILED");
   });
 
   it("makes status continuation conditional on needing updated results", () => {
     const tool = createSearchTool(createMockCodeNavigationService());
     expect(tool.description).toContain(
-      "Follow search_status only when an active action and searchRef are returned and remaining results matter",
+      "call search_status only for a returned active action and searchRef when more results matter",
     );
   });
 
   it("documents explicit site search and advisory retry targets", () => {
     const tool = createSearchTool(createMockCodeNavigationService());
 
-    expect(tool.description).toContain("site:<host[/path]>");
+    expect(tool.description).toContain("choose a site: target");
     expect(tool.description).toContain("suggestedSiteTargets");
     expect(tool.description).toContain("retry explicitly");
     expect(tool.description).toContain("suggestions are not aliases");
@@ -135,9 +142,9 @@ describe("searchTool", () => {
         qualifier,
       ).toHaveLength(1);
     }
-    expect(tool.description).toContain("Put constraints in `query`");
+    expect(tool.description).toContain("put other constraints in query");
     expect(tool.description).toContain("warnings");
-    expect(tool.description).toContain("`sourceStatus`");
+    expect(tool.description).toContain("sourceStatus");
   });
 
   it("returns unified search payload from service", async () => {

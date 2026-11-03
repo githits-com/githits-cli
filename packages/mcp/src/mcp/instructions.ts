@@ -25,7 +25,7 @@ Load this guide through \`githits-mcp\` or \`quick_start\` once; do not load bot
 | File names or directory structure | \`list\` |
 | Investigating behavior across code/docs | \`research\` |
 | Examples from other projects | \`get_example\` |
-| Package metadata or maintenance | \`pkg_info\` |
+| Package metadata, registry source, or maintenance | \`pkg_info\` |
 | Vulnerabilities | \`pkg_vulns\` |
 | Dependencies | \`pkg_deps\` |
 | Release notes | \`pkg_changelog\` |
@@ -40,9 +40,9 @@ Use canonical targets without resolution; follow resolver ambiguity rules for un
 
 Reuse results. Investigate missing information that could change the implementation, decision, or answer. Stop when enough is known; state material gaps.
 
-For usage/setup, an authoritative example or declaration may suffice. For implementation, cover requested behavior, comparison alternatives, and deciding conditions. Keep separate implementations, versions, and execution paths distinct; state which were not inspected. Establish imports, call shapes, and lifecycle steps required by your code.
+For usage/setup, an authoritative example or declaration may suffice. For implementation, cover requested behavior, comparison alternatives, and deciding conditions. Keep separate implementations, versions, and execution paths distinct; state which were not inspected. Preserve which function each source assigns behavior to. Establish imports, call shapes, and lifecycle steps required by your code.
 
-Read known symbols directly with \`selector\` before searching or grepping. Follow needed helpers/re-exports by declaration name; include a file only when its declaration is known, not its caller. Never guess qualifications. Reuse definitions already read. On selector failure, use a returned declaration range or literal grep for the identifier. Follow actual imports/calls: shared names or helpers do not establish shared behavior. A call site alone does not establish implementation.
+Read known symbols with \`read\` selector before searching. Follow needed helpers/re-exports by declaration name and reuse definitions already read. Follow actual imports/calls: shared names or helpers do not establish shared behavior, and a call site alone does not establish implementation.
 
 ## Retrieval
 
@@ -51,17 +51,17 @@ Read known symbols directly with \`selector\` before searching or grepping. Foll
 - Use sufficient content directly. Read omitted deciding conditions or bodies; combine nearby needed code and avoid repeated small windows.
 - Batch independent calls with known arguments; inspect results before dependent calls.
 - Reuse returned targets, paths, selectors, and ranges: package-relative paths for packages, repository-relative paths for repositories. Discover docs with \`search\` and its \`source: "docs"\` argument; reuse returned site/page locators and exact heading IDs, not titles.
-- Keep default text. Use JSON only when code consumes raw fields or text omits a required field. Filter/limit output; paginate only for needed information.
+- Filter/limit output; paginate only for needed information.
 
 ## Versions, research, and recovery
 
 Targets: packages use \`<registry>:<name>@version\` (such as \`npm:express\`, never literal \`registry:\`), repositories \`github:owner/repo@ref\` or another supported provider, and docs \`site:host[/path]\`. Swift uses \`swift:github.com/<owner>/<repo>\`; Zig uses \`zig:gh/<owner>/<repo>\`. Never infer a provider. Omit suffixes for default selection; \`#\` selects a symbol/heading, not a revision.
 
-Preserve versions and served provenance. Do not guess tags, investigate unrelated versions, or substitute current docs for historical behavior. Retrieval time does not prove freshness.
+Cite the source supporting each claim, including advisory IDs for vulnerability claims. Preserve versions and served provenance. Do not guess tags, investigate unrelated versions, or substitute current docs for historical behavior. Retrieval time does not prove freshness.
 
-For \`research\`: Ask for missing information; sources are included. Use and cite a sufficient answer directly. Open sources only for a specific missing detail, contradiction, or explicit source-inspection request; citations are not a reading checklist. Reuse \`thread_id\` and state scope changes. Research takes packages/repositories, not docs sites. Omit target and thread_id for project identification; retry returned candidates only with an established match.
+For \`research\`: Ask for missing information; sources are included. Use and cite a sufficient answer directly. Open sources only for a specific missing detail, contradiction, or explicit source-inspection request; citations are not a reading checklist. Reuse \`thread_id\` and state scope changes.
 
-Use available indexing results. Follow \`search_status\` only for an active returned continuation whose results matter. Do not repeat search to poll. A Research rate limit applies across questions/targets: wait the returned delay; do not retry daily limits before reset. Otherwise retrieve only a specific remaining gap. Correct invalid arguments before retrying; never repeat an unchanged invalid call.
+A Research rate limit applies across questions/targets: wait the returned delay; do not retry daily limits before reset. Otherwise retrieve only a specific remaining gap. Correct invalid arguments before retrying; never repeat an unchanged invalid call.
 
 Use package facts directly. Preserve unknown assessments and coverage limits. Start upgrades with \`pkg_upgrade_review\`; add source/changelog detail only for gaps. Reviews do not authorize modifications. For authorized upgrades, preserve original source/lockfiles; compare the same affected behavior before and after, including untested and omitted/null-input paths. Use isolated fixtures without credentials or production data. Passing tests alone does not prove compatibility.`;
 

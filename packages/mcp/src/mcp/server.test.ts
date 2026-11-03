@@ -120,7 +120,7 @@ const DESCRIPTION_ROUTING: Record<
       /^Discover relevant docs, code, and symbols in a known public target\./,
     body: [
       "Start here for unknown locations",
-      "Pass query and either target or targets, not both",
+      "The target sets project/version scope",
       "search_status",
       "complete read action",
     ],
@@ -128,9 +128,9 @@ const DESCRIPTION_ROUTING: Record<
   search_status: {
     prefix: /^Continue an explicit search reference for progress and results\./,
     body: [
-      "only after a prior `search` response explicitly supplies",
-      "`searchRef`",
-      "`search_status`",
+      "only after a prior search returned both",
+      "searchRef",
+      "search_status",
     ],
   },
   list: {
@@ -140,14 +140,11 @@ const DESCRIPTION_ROUTING: Record<
       "List files and documentation paths in a known package, repository, or site. Use ",
     body: [
       "skip it when a usable path or symbol is known",
-      "Use search for topics",
       "their package tree",
       "the snapshot",
-      "Both include source and documentation",
+      "both include source and docs",
       "explicit site target",
-      "target-relative literals or globs",
-      "glob depth is independent",
-      "Reuse returned read actions and paginate only for needed paths",
+      "Reuse returned read actions; paginate only for needed paths",
     ],
   },
   read: {
@@ -156,14 +153,12 @@ const DESCRIPTION_ROUTING: Record<
     exactPrefix:
       "Read an indexed source file, code symbol, or documentation section. Pass target ",
     body: [
-      "selector reads code symbols/docs headings",
-      "Read known code declarations with selector before searching/grepping",
-      "known declaration path",
-      "Follow helpers when their behavior matters",
+      "selector reads a known declaration or returned heading ID",
+      "Read known declarations before searching",
       "returned declaration range or literal grep",
       "bounds do not disambiguate",
       "If a heading is missing",
-      "If the page is unavailable",
+      "if the page is unavailable",
       "Hosted docs are mutable",
       "repository docs address snapshots",
       "Use list for directories",
@@ -197,8 +192,7 @@ const DESCRIPTION_ROUTING: Record<
       '`advisory_scope:"all"`',
       '`{"target":"npm:next","advisory_scope":"all"}`',
       "unpinned target",
-      "identifiers and aliases, including CVEs when available",
-      "identifier aliases (including CVEs)",
+      "identifiers/aliases (CVEs when available)",
       "Transitive evidence is opt-in",
     ],
   },
@@ -216,10 +210,10 @@ const DESCRIPTION_ROUTING: Record<
     exactPrefix:
       "Find release notes and changelog history for a package. Default latest mode retu",
     body: [
-      "`registry:name@version`",
-      "one selected release",
-      "Empty latest or range selections succeed",
-      "from excluded, to included",
+      "registry:name@version",
+      "one release",
+      "empty selections return no entries",
+      "releases after from through to",
     ],
     absent: [
       "newest-first",
@@ -235,12 +229,12 @@ const DESCRIPTION_ROUTING: Record<
       "Review a package upgrade: vulnerabilities, releases, peers, dependency changes. ",
     body: [
       "facts only",
-      "does not assign package-level risk",
-      "agent-classified",
+      "not package-level risk or an accept decision",
+      "classified release-note statements",
       "triage rows",
-      "at most 30 upgrades",
-      "Start assessments here; do not repeat covered checks",
-      "pkg_changelog and code_diff",
+      "at most 30",
+      "start assessments here",
+      "pkg_changelog or code_diff",
     ],
   },
 };
@@ -458,7 +452,7 @@ describe("MCP output format", () => {
         );
       } else {
         expect(JSON.stringify(formatSchema), descriptor.name).toContain(
-          "Default text is for reading",
+          "Omit for text",
         );
         expect(JSON.stringify(formatSchema), descriptor.name).toContain(
           "code consumes raw fields",

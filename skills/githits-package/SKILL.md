@@ -15,7 +15,7 @@ Use this skill for CLI work. With an available hosted GitHits connector, use `gi
 
 | Need | Command |
 | --- | --- |
-| Metadata, reported latest version, or maintenance | `githits pkg info <registry:name>` |
+| Metadata, registry source, latest version, or maintenance | `githits pkg info <registry:name>` |
 | Advisory status | `githits pkg vulns <registry:name@version>` |
 | Dependencies | `githits pkg deps <registry:name@version>` |
 | Release notes | `githits pkg changelog <registry:name@version>` or `<registry:name@from..to>` |
@@ -28,7 +28,7 @@ Use canonical coordinates directly. Resolve only unclear identities with known r
 
 ## Use package facts directly
 
-Use metadata and assessments directly. Inspect code for missing behavior or vulnerability mechanisms, not to restate package facts. Stop when enough is known; report material gaps.
+Use metadata and assessments directly. Cite the source supporting each claim, including advisory IDs for vulnerability claims. Inspect code for missing behavior or vulnerability mechanisms, not to restate package facts. Stop when enough is known; report material gaps.
 
 Start upgrades with `pkg upgrade-review`; add changelog/source detail only for gaps. Expand dependency depth, lifecycle scope, or `--transitive` only when needed. Public graphs do not establish local lockfiles or application reachability.
 
@@ -38,11 +38,9 @@ Keep default text; use `--json` only when code consumes raw fields or text lacks
 
 ## Versions, uncertainty, and upgrades
 
-`pkg info` takes an unversioned package and reports current metadata and latest known version. These do not establish historical release facts or registry freshness. Missing fields are unavailable, not evidence of absence. Retrieval time is not registry refresh time.
+`pkg info` takes an unversioned package and reports latest known metadata, not historical release facts. Retrieval time does not prove registry freshness. Missing fields are unavailable, not evidence of absence.
 
-Preserve inspected versions, unknown advisory assessments, withdrawn status, and coverage limits. Unknown does not mean unaffected. No matching advisory does not establish safety; resolver CLEAR is not a vulnerability assessment. Page counts are not necessarily inventory totals.
-
-Preserve served provenance and diff scope. Do not guess repository tags or infer package-wide absence from capped or sibling-only changes.
+Preserve inspected versions, unknown advisory assessments, withdrawn status, and coverage limits. Unknown does not mean unaffected. No matching advisory does not establish safety; resolver CLEAR is not a vulnerability assessment. Page counts are not necessarily inventory totals. Preserve served provenance and diff scope; never guess tags or infer package-wide absence from capped or sibling-only changes.
 
 Reviews provide findings and proposed checks; they do not authorize installations, edits, or project scripts. For authorized upgrades, preserve original source/lockfiles, establish a baseline for affected APIs/data, and compare relevant behavior and side effects afterward. Include affected untested and omitted/null-input paths. Use isolated fixtures, not credentials or production data. Passing existing tests alone does not prove compatibility.
 

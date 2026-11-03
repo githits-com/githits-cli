@@ -47,12 +47,9 @@ describe("buildMcpQuickStart", () => {
       "Use canonical targets without resolution",
       "follow resolver ambiguity rules",
       "Stop when enough is known; state material gaps",
-      "Read known symbols directly",
-      "Never guess qualifications",
-      "Reuse definitions already read",
-      "literal grep",
-      "before searching or grepping",
-      "A call site alone does not establish",
+      "Read known symbols with `read` selector before searching",
+      "reuse definitions already read",
+      "a call site alone does not establish",
       "Read omitted deciding conditions or bodies",
       "avoid repeated small windows",
       "Batch independent calls",
@@ -69,16 +66,12 @@ describe("buildMcpQuickStart", () => {
       "Never infer a provider",
       "not a revision",
       "Do not guess tags",
-      "Keep default text",
-      "Use JSON only when code consumes raw fields or text omits a required field",
-      "active returned continuation",
-      "Do not repeat search to poll",
+      "Filter/limit output; paginate only for needed information",
       "rate limit applies across questions/targets",
       "omit unused optional arguments",
       "exact heading IDs, not titles",
       "do not retry daily limits before reset",
       "Preserve unknown assessments and coverage limits",
-      "retry returned candidates only with an established match",
       "Reviews do not authorize modifications",
       "compare the same affected behavior before and after",
     ])
@@ -87,12 +80,7 @@ describe("buildMcpQuickStart", () => {
   it("shares research answer handling without mandatory rereads", () => {
     const guide = normalized(buildMcpQuickStart());
     expect(guide).toContain(RESEARCH_VERIFIED_ANSWER_GUIDANCE);
-    for (const phrase of [
-      "Reuse `thread_id` and state scope changes",
-      "Research takes packages/repositories, not docs sites",
-      "Omit target and thread_id for project identification",
-      "retry returned candidates only with an established match",
-    ])
+    for (const phrase of ["Reuse `thread_id` and state scope changes"])
       expect(guide).toContain(phrase);
     expect(guide).not.toContain("Local experimental tools");
   });

@@ -92,18 +92,14 @@ const schema: ZodRawShape = {
     .min(0)
     .max(10)
     .optional()
-    .describe(
-      "Lines before each match (0-10; default 0). Use read for larger sections.",
-    ),
+    .describe("Lines before each match (0-10; default 0)."),
   context_lines_after: z
     .number()
     .int()
     .min(0)
     .max(10)
     .optional()
-    .describe(
-      "Lines after each match (0-10; default 0). Use read for larger sections.",
-    ),
+    .describe("Lines after each match (0-10; default 0)."),
   max_matches: z
     .number()
     .int()

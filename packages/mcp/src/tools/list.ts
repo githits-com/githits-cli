@@ -112,11 +112,12 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Default text is for reading and navigation. Use json when code consumes raw fields or exact entry kinds/actions are needed.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON exposes exact entry kinds/actions.",
     ),
 };
 
-const DESCRIPTION = `List files and documentation paths in a known package, repository, or site. Use this for names and structure; skip it when a usable path or symbol is known. Use search for topics and grep for content. Avoid whole-project enumeration for a narrow lookup. Package targets cover their package tree; repositories cover the snapshot. Both include source and documentation. Hosted docs require an explicit site target from the user or a docs search result. Paths are target-relative literals or globs. Directories list immediate children unless recursive expands them. Reuse returned read actions and paginate only for needed paths. In site text, a path without trailing \`/\` is a page even when its source URL ends in \`/\`. Paths/globs form a union; glob depth is independent of recursion.`;
+const DESCRIPTION =
+  "List files and documentation paths in a known package, repository, or site. Use this for names and structure; skip it when a usable path or symbol is known, and avoid whole-project enumeration for narrow lookups. Package targets cover their package tree; repositories cover the snapshot; both include source and docs. Hosted docs need an explicit site target from the user or a docs search result. Reuse returned read actions; paginate only for needed paths. In site text, a path without trailing / is a page, even if its source URL ends with /.";
 
 export function createListTool(
   service: ListService,

@@ -70,24 +70,25 @@ describe("createListTool", () => {
     expect(tool.description).toContain(
       "skip it when a usable path or symbol is known",
     );
-    expect(tool.description).toContain("Use search for topics");
     expect(tool.description).toContain("their package tree");
     expect(tool.description).toContain("the snapshot");
-    expect(tool.description).toContain("Both include source and documentation");
+    expect(tool.description).toContain("both include source and docs");
     expect(tool.description).toContain("explicit site target");
     expect(tool.description).toContain("from the user or a docs search result");
-    expect(tool.description).toContain("target-relative literals or globs");
-    expect(tool.description).toContain(
-      "Directories list immediate children unless recursive",
+    expect(tool.schema.paths?.description).toContain(
+      "Literal paths and globs form a union",
+    );
+    expect(tool.schema.recursive?.description).toContain(
+      "Without this, selected directories show immediate children",
+    );
+    expect(tool.schema.recursive?.description).toContain(
+      "Glob depth is independent of recursion",
     );
     expect(tool.description).toContain(
-      "glob depth is independent of recursion",
+      "Reuse returned read actions; paginate only for needed paths",
     );
     expect(tool.description).toContain(
-      "Reuse returned read actions and paginate only for needed paths",
-    );
-    expect(tool.description).toContain(
-      "a path without trailing `/` is a page even when its source URL ends in `/`",
+      "a path without trailing / is a page, even if its source URL ends with /",
     );
     expect(tool.schema.format!.description).toContain(
       "code consumes raw fields",
@@ -139,9 +140,7 @@ describe("createListTool", () => {
       "Source inventories only",
     );
     expect(tool.schema.after!.description).toContain("same target, paths");
-    expect(tool.schema.format!.description).toContain(
-      "Default text is for reading",
-    );
+    expect(tool.schema.format!.description).toContain("Omit for text");
     expect(parsed.format).toBe("text");
     expect(parsed.paths).toEqual([]);
     expect(parsed.recursive).toBe(false);

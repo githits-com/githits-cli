@@ -47,14 +47,14 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Default text is for reading. Use json only when code consumes raw fields or text lacks required fields. JSON includes `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON adds versionCount, downloads.refreshedAt, advisoryHistory.total.",
     ),
 };
 
 export const DESCRIPTION_BASE: string =
   "Assess latest package health and adoption: license, downloads, and activity. Provide " +
   "an unpinned package target; this tool always returns latest known metadata. " +
-  "Default text returns license, description, repository popularity " +
+  "Registry and source Git repository URLs, when reported, do not establish binary provenance or current availability. Default text returns these URLs, license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
   "publish age, latest affected count, and separate package-wide advisory " +
   "history count. Historical counts are not current-version risk. " +

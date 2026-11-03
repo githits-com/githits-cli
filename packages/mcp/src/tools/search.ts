@@ -60,7 +60,7 @@ const searchTargetSchema = z
   .string()
   .min(1)
   .describe(
-    "Compact target: `npm:react@version`, `github:facebook/react@ref`, `launchpad:~owner/+git/repo@ref` (`lp:PROJECT` also accepted), or `site:react.dev`. Omit the suffix for the latest package version or repository default branch; a ref may be a branch, tag, or commit. `#` is for semantic fragments. For a docs page URL use read with that URL as target and no path; search docs with a package, repository, or site: target.",
+    "Compact package, repository, or site target; see target for forms.",
   );
 
 const schema: ZodRawShape = {
@@ -84,7 +84,7 @@ const schema: ZodRawShape = {
     .enum(["docs", "code", "symbol"])
     .optional()
     .describe(
-      "Optional result source: `docs` for guides/reference pages, `code` for source and tests, or `symbol` for APIs/entities. Omit to let GitHits select the best sources.",
+      "docs (guides/reference), code (source/tests), or symbol (APIs/entities); omit to auto-select.",
     ),
   public_only: z
     .boolean()
@@ -96,7 +96,7 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      "Default true returns a serveable subset while other target/source pairs prepare, with searchRef for continuation. Set false to keep hits atomic across runnable pairs; a complete serveable interim result may still accompany searchRef during refresh. Partial payloads support normal pagination via nextOffset.",
+      "Default true returns a serveable subset plus searchRef while other target/source pairs prepare. False requires all runnable pairs; refresh may still return complete interim hits with searchRef. Paginate with nextOffset.",
     ),
   limit: z.coerce
     .number()
@@ -126,12 +126,12 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Default text is for reading. Use json only when code consumes raw fields or text lacks required fields.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field.",
     ),
 };
 
 const DESCRIPTION =
-  `Discover relevant docs, code, and symbols in a known public target. Start here for unknown locations. Read known symbols with selector first. Target supplies project/version scope. Put constraints in \`query\`; inspect warnings and \`sourceStatus\`. Use sufficient hits directly; otherwise replay the complete read action or \`followUp\`, including selector/bounds. Keep each hit's target, path and heading together; never mix locators from different hits. Helpers may be declared elsewhere. Use known locations before searching again. Use available hits while indexing continues. Follow search_status only when an active action and searchRef are returned and remaining results matter. Do not repeat search to poll. Pass query and either target or targets, not both. public_only filters code/symbols, not docs. For \`suggestedSiteTargets\`, choose a \`site:<host[/path]>\` and retry explicitly; suggestions are not aliases. Terminal or unrecognized statuses are not polled. A docs-page header locates the page; its action selects the section. Hosted docs are mutable; repository docs address snapshots.` +
+  "Discover relevant docs, code, and symbols in a known public target. Start here for unknown locations; read known symbols with selector instead. The target sets project/version scope; put other constraints in query and inspect warnings and sourceStatus. Use sufficient hits directly; otherwise replay a hit's complete read action or followUp, keeping its target, path, selector and bounds together. Use visible hits while indexing continues; call search_status only for a returned active action and searchRef when more results matter; never repeat search to poll. For suggestedSiteTargets, choose a site: target and retry explicitly; suggestions are not aliases. public_only filters code/symbols, not docs. Hosted docs are mutable; repository docs address snapshots." +
   `\n\n${SEARCH_GUARDRAIL}`;
 
 export function createSearchTool(

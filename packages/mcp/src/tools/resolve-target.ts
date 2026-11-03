@@ -46,13 +46,13 @@ const schema: ZodRawShape = {
   name: z
     .string()
     .describe(
-      "Human-friendly package, repository, or standalone documentation-site name to resolve, including mutable Launchpad defaults such as lp:PROJECT. Do not use canonical registry:name, github:owner/repo, codeberg:owner/repo, gitlab:group/subgroup/project, launchpad:~owner/+git/repo, or site:<host[/path]> targets.",
+      "Human-friendly package, repository, or docs-site name, including lp:PROJECT defaults; not an already canonical target.",
     ),
   query: z
     .string()
     .optional()
     .describe(
-      "Optional task context used to rank retrieved candidates and does not expand candidate retrieval. Do not include credentials, personal data, private code, or proprietary content.",
+      "Ranking context only; does not expand retrieval. Never include credentials, personal data, private code, or proprietary content.",
     ),
   registries: z
     .array(z.string())
@@ -63,14 +63,12 @@ const schema: ZodRawShape = {
   preferred_kind: z
     .string()
     .optional()
-    .describe(
-      "Optional preference: package, repository, or site. An empty string means no preference; other values are rejected as invalid arguments.",
-    ),
+    .describe("package, repository, or site; empty means no preference."),
   intent_hints: z
     .array(z.string())
     .optional()
     .describe(
-      "Optional hints that rank retrieved candidates and do not expand candidate retrieval. Empty, blank, and duplicate hints are ignored. Do not include credentials, personal data, private code, or proprietary content.",
+      "Ranking hints only; do not expand retrieval. Empty, blank and duplicate hints are ignored. Never include credentials, personal data, private code, or proprietary content.",
     ),
   limit: z
     .number()
@@ -86,7 +84,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Default text is for reading. Use json only when code consumes raw fields or text lacks required fields.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field.",
     ),
 };
 

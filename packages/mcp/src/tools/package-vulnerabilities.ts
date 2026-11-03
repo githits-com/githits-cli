@@ -69,7 +69,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Default text is for reading. Use json only when code consumes raw fields or text lacks required fields.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field.",
     ),
 };
 
@@ -79,8 +79,8 @@ export const DESCRIPTION_BASE: string =
   "Covers pinned releases, latest-version risk, and package security history. " +
   'For package-wide history, use an unpinned target and `advisory_scope:"all"`: `{"target":"npm:next","advisory_scope":"all"}`. ' +
   "Supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, and Pub; vcpkg and Zig unsupported. " +
-  "Returns counts/details: identifiers and aliases, including CVEs when available, severity, affected ranges, and fixes; malicious advisories are separate. " +
-  "Default text is capped; `verbose:true` shows all selected rows and identifier aliases (including CVEs). " +
+  "Returns identifiers/aliases (CVEs when available), severity, affected ranges and fixes; malicious advisories are separate. " +
+  "Default text is capped; `verbose:true` shows all selected rows. " +
   "Transitive evidence is opt-in and adds graph-analysis cost; see `include_transitive` for scope and filter limits.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_VULNS_GUARDRAIL}`;

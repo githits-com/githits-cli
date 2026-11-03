@@ -168,7 +168,7 @@ describe("research MCP adapter", () => {
     expect(tool.schema.thread_id?.safeParse("").success).toBe(false);
     expect(tool.schema.format?.safeParse("text-v1").success).toBe(false);
     expect(tool.schema.format?.description).toBe(
-      "Default text is for reading. Use json only when code consumes raw fields or text lacks required fields.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field.",
     );
   });
 

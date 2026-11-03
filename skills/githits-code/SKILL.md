@@ -35,11 +35,11 @@ Choose the direct command. Package targets require a registry, e.g. `npm:express
 
 Reuse results. Investigate missing information that could change implementation, decisions, or answers. Stop when enough is known; state material gaps.
 
-For usage/setup, an authoritative example or declaration may suffice. For implementation, cover requested behavior, comparison alternatives, and deciding conditions. Keep separate implementations, versions, and execution paths distinct; state which were not inspected. Follow actual imports/calls; shared names or helpers do not establish shared behavior. Establish imports, call shapes, and lifecycle steps required by your code.
+For usage/setup, an authoritative example or declaration may suffice. For implementation, cover requested behavior, comparison alternatives, and deciding conditions. Keep separate implementations, versions, and execution paths distinct; state which were not inspected. Preserve which function each source assigns behavior to. Follow actual imports/calls; shared names or helpers do not establish shared behavior. Establish imports, call shapes, and lifecycle steps required by your code.
 
 Read known symbols directly with `--selector` before searching/grepping. Include only a known declaration path; never infer qualifications from a caller or inherited receiver. Follow needed helpers/re-exports. Reuse definitions already read; a call site alone does not establish implementation.
 
-If resolution fails, use a returned declaration range or literal-grep the exact identifier. Do not guess qualifications or change bounds to resolve ambiguity. A missing indexed symbol does not prove missing code.
+If resolution fails, use a returned declaration range or literal-grep the identifier. Do not change bounds to resolve ambiguity; a missing indexed symbol does not prove missing code.
 
 ## Retrieval and recovery
 
@@ -51,9 +51,7 @@ Reuse returned targets, paths, selectors, and ranges. Discover docs with `search
 
 Use default text. Use `--json` only when code consumes the raw response or text omits a required field. Apply filters and limits rather than routinely piping results through `head`. Paginate only for needed content. Follow active returned `search-status` actions; do not repeat search to poll.
 
-Ask Research for missing information; reuse `--thread <id>` and state scope changes. Use and cite a sufficient answer directly. Open sources only for a specific missing detail, contradiction, or explicit source-inspection request; citations are not a reading checklist. Research takes packages/repositories, not docs sites. Retry candidates only with an established project match.
-
-Research rate limits cover all questions/targets: wait the returned delay or daily reset. Otherwise retrieve only a specific remaining gap. Cite example projects; their code does not establish another version's contract.
+Ask Research for missing information; reuse `--thread <id>` and state scope changes. Use and cite a sufficient answer directly; open sources only for a specific missing detail, contradiction, or explicit source-inspection request. Research takes packages/repositories, not docs sites. Retry candidates only with an established project match. Research rate limits cover all questions/targets: wait the returned delay or daily reset. Otherwise retrieve only a specific remaining gap. Cite example projects; their code does not establish another version's contract.
 
 ## Invocation and retrieved content
 

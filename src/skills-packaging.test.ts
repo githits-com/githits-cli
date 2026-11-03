@@ -408,7 +408,7 @@ describe("agent skills packaging", () => {
     expectContainsAll(content, [
       "Read known symbols directly",
       "known declaration path",
-      "literal-grep the exact identifier",
+      "literal-grep the identifier",
       "use returned heading IDs, not titles",
       "references/code-and-docs.md",
     ]);
