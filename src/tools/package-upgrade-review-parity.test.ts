@@ -650,6 +650,73 @@ describe("complete statement CLI/MCP parity", () => {
       response,
     };
   }
+  it("preserves generated statement and coverage evidence across CLI and MCP", async () => {
+    const { service, response } = evidenceService();
+    const statements = response.reviews[0]!.changelog.statements!;
+    const item = statements.items[1]!;
+    Object.assign(item, {
+      source: "GENERATED",
+      url: undefined,
+      heading: undefined,
+      commits: [{ sha: "abcdef0123456789", url: null }],
+    });
+    item.classification!.ambiguous = false;
+    delete item.classification!.tierConfidence;
+    const generation = {
+      status: "GENERATED" as const,
+      reason: null,
+    };
+    statements.coverage[0]!.generation = generation;
+    const cli = await cliJson(
+      "npm:express@4.18.0..5.0.0",
+      {},
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const mcp = await mcpJson(args, service);
+    expect(cli).toEqual(mcp.json);
+    expect(cli).toHaveProperty(
+      "reviews.0.changelog.statements.items.1.commits",
+      [item.commits![0]!.sha],
+    );
+    expect(cli).toHaveProperty(
+      "reviews.0.changelog.statements.coverage.0.generation",
+      { status: "generated" },
+    );
+    const cliResult = await cliText(
+      "npm:express@4.18.0..5.0.0",
+      {},
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const mcpResult = await mcpText(args, service);
+    expect(cliResult.trimEnd()).toBe(mcpResult);
+    expect(mcpResult.replace(/\s+/g, " ")).toContain(
+      "(generated from commits)",
+    );
+    expect(mcpResult).not.toContain("Server notice");
+  });
+  it("keeps MCP upgrade text compact even with many generated citations", async () => {
+    const { service, response } = evidenceService();
+    const statements = response.reviews[0]!.changelog.statements!;
+    for (const item of statements.items) item.textTruncated = false;
+    Object.assign(statements.items[1]!, {
+      source: "GENERATED",
+      url: undefined,
+      commits: Array.from({ length: 7 }, (_, i) => ({
+        sha: `abcdef${i}123456789`,
+        url: null,
+      })),
+    });
+    statements.coverage[0]!.generation = {
+      status: "GENERATED",
+      reason: null,
+    };
+    const text = (await mcpText(args, service)).replace(/\s+/g, " ");
+    expect(text).toContain("(generated from commits)");
+    expect(text).not.toContain("Cited commits");
+    expect(text).not.toContain("abcdef0");
+    expect(text).not.toContain("Server notice");
+    expect(text).not.toContain("--json");
+  });
   for (const changes of [undefined, " ", "actionable", "important", "all"])
     it(`matches text, JSON and effective filter for ${changes ?? "default"}`, async () => {
       const { service, packageUpgradeReview, response } = evidenceService();

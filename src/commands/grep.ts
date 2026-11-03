@@ -193,9 +193,7 @@ export function registerGrepCommand(
     .command("grep")
     .summary("Find regex or literal matches across source and documentation")
     .description(
-      `Find matches in indexed open-source code and docs, not local files. Use \`-F\` for exact identifiers/text. Defaults are RE2 regex, case-sensitive, zero context. Alternation is \`|\`; \`\\|\` matches a pipe. Lookaround/backreferences are unsupported. Multi-file regex requires a literal anchor. Package targets include selected hosted docs independently of --corpus and path filters.
-
-Use \`githits read <target> --selector <name>\` for known definitions; grep for occurrences or unresolved definitions. File: --path lib/express.js; directory: --path-prefix lib/. Extra positional operands are targets. Context accepts nonnegative safe integers, capped at 10 per side. Use read for larger sections. \`--limit\` is a global page cap. Use \`--\` before leading-dash patterns.`,
+      "Search indexed open-source code/docs, not local files. Defaults: RE2 regex, case-sensitive, zero context, all repository files. Packages include hosted docs independently of --corpus and path filters. Regex: foo|bar alternates; foo\\|bar matches a literal pipe. Content-index regex needs literal text; a single exact-file route accepts anchorless regex. Use read --selector for known definitions, grep for occurrences. -s means case-sensitive (rg convention); --limit is a global page cap. Partial results retain exact read actions. Use -- before leading-dash patterns.\n\nContext: nonnegative safe integers; capped at 10 per side. Use read for larger sections.\n\nFile: --path lib/express.js; directory: --path-prefix lib/.",
     )
     .argument("<pattern>", "RE2 regex, or literal with -F")
     .argument("<targets...>", "Targets, not file paths")

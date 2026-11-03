@@ -830,11 +830,11 @@ unparseable totals, plus rerun guidance for pending classification. Quotes are
 evidence, not a compatibility verdict.
 
 `--verbose` expands quotes to their backend-bounded text and adds full batch,
-security, and dependency detail. JSON alone includes uncut `fullText`, source
+security, and dependency detail. JSON includes uncut `fullText` when distinct from text, source
 positions, and classification provenance. Upgrade JSON replaces `changelog.riskItems` with
 `changelog.statements`, including the effective `selection` in detailed
 results; `riskCoverage.itemsOmitted` is removed. `--json` and MCP
-`format: "json"` share this lossless machine surface. `text-v1` remains an
+`format: "json"` share this compact machine surface. `text-v1` remains an
 in-place evolving presentation, not a byte-stable prose contract. See
 [Upgrade review](pkg-upgrade-review.md) for evidence.
 
@@ -1014,7 +1014,21 @@ githits code grep --repo-url https://github.com/expressjs/express --git-ref main
 githits code grep npm:express middleware --path lib/express.js --json
 ```
 
-Deterministic text grep over indexed dependency or repository source. Defaults to ASCII case-insensitive literal matching across the whole target; non-ASCII letters match case-sensitively. Pass `[path-prefix]`, `--path`, `--glob`, or `--ext` to narrow scope. `--regex` switches to RE2 regex mode. Whole-target regexes must include at least one literal substring the index can use for pre-filtering. Max pattern 200 UTF-8 bytes. For discovery and ranking, use top-level `githits search` instead. Repeat `--symbol-field` to hydrate enclosing symbol metadata; supported values are `symbol_ref`, `name`, `qualified_path`, `kind`, `category`, `arity`, `is_public`, `file_path`, `start_line`, `end_line`, `content_hash`, and `parent_path`. Hints appear under each `--verbose` match, with the full payload in `--json`.
+Deterministic text grep over indexed dependency or repository source. Defaults to
+Unicode-aware case-insensitive literal matching across the whole target. Pass
+`[path-prefix]`, `--path`, `--glob`, or `--ext` to narrow scope. `--regex` switches
+to RE2 regex mode: `foo|bar` matches alternatives; `foo\|bar` matches literal
+`foo|bar`. Single-quote shell patterns (`'foo|bar'`, `'foo\|bar'`). Literal mode
+preserves backslashes. Content-index regexes need usable literal text; a single
+exact-file execution route permits anchorless regexes. A selector alone does not
+guarantee that route. Max pattern 200 UTF-8 bytes. For discovery and ranking,
+use top-level `githits search` instead.
+
+Repeat `--symbol-field` to hydrate enclosing symbol metadata; supported values
+are `symbol_ref`, `name`, `qualified_path`, `kind`, `category`, `arity`,
+`is_public`, `file_path`, `start_line`, `end_line`, `content_hash`, and
+`parent_path`. Hints appear under each `--verbose` match, with the full payload
+in `--json`.
 
 **Plain output (default).** One `file:line:text` record per match on stdout, pipe-friendly and deterministic. `-C/--context`, `-A/--after-context`, and `-B/--before-context` add surrounding lines. Distinct match groups are separated by `--`.
 

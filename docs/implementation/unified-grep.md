@@ -34,8 +34,13 @@ context on each side and `ALL` repository corpus. Backend defaults differ.
 `-F/--fixed-strings` opts into literal matching; `-i/--ignore-case` uses backend
 Unicode folding. `-s/--case-sensitive` follows rg; traditional grep uses `-s`
 to suppress errors. The last case flag wins, including short flag clusters.
-RE2 and backend anchoring restrictions apply. Invalid or unsupported regexes
-fail without a literal retry.
+In regex mode, `foo|bar` matches alternatives; `foo\|bar` matches literal
+`foo|bar`. Single-quote shell patterns (`'foo|bar'`, `'foo\|bar'`) so pipes and
+backslashes reach the matcher unchanged. `-F` treats the input verbatim,
+including backslashes. Content-index regexes need usable literal text; a single
+exact-file execution route permits anchorless regexes. Selector presence alone
+does not guarantee that route, especially with package expansion or mixed
+targets. Invalid or unsupported regexes fail without a literal retry.
 
 CLI `-A/--after-context`, `-B/--before-context` and `-C/--context` accept
 nonnegative safe integers and cap effective context at 10 per side. An explicit

@@ -792,6 +792,16 @@ export interface ChangelogStatementContext {
   fullText?: string;
 }
 
+export interface ChangelogStatementCommit {
+  sha: string;
+  url: string | null;
+}
+
+export interface ChangelogStatementGeneration {
+  status: "GENERATED" | "PENDING" | "NOT_GENERATED";
+  reason: string | null;
+}
+
 export interface ChangelogStatement {
   version: string;
   position: number;
@@ -800,6 +810,7 @@ export interface ChangelogStatement {
   heading?: string;
   source?: string;
   url?: string;
+  commits?: ChangelogStatementCommit[];
   text: string;
   textTruncated: boolean;
   fullText?: string;
@@ -816,6 +827,7 @@ export interface ChangelogStatementCoverage {
   statementsNotAssessed: number;
   statementsNoImpact: number;
   statementsUnclassified: number;
+  generation?: ChangelogStatementGeneration;
 }
 
 export interface ChangelogStatements {
@@ -2253,6 +2265,10 @@ const changelogStatementSchema = z.object({
   heading: z.string().nullable(),
   source: z.string().nullable(),
   url: z.string().nullable(),
+  commits: z
+    .array(z.object({ sha: z.string(), url: z.string().nullable() }))
+    .nullable()
+    .optional(),
   text: z.string(),
   textTruncated: z.boolean(),
   fullText: z.string().optional(),
@@ -2272,6 +2288,12 @@ const changelogStatementCoverageSchema = z.object({
   statementsNotAssessed: z.number().int().nonnegative().optional(),
   statementsNoImpact: z.number().int().nonnegative().optional(),
   statementsUnclassified: z.number().int().nonnegative().optional(),
+  generation: z
+    .object({
+      status: z.enum(["GENERATED", "PENDING", "NOT_GENERATED"]),
+      reason: z.string().nullable(),
+    })
+    .nullable(),
 });
 const changelogStatementPageSchema = z.object({
   items: z.array(changelogStatementSchema),
@@ -2684,10 +2706,10 @@ function changelogStatementSelection(
 ): string {
   return `statements(first: 100, offset: $offset, tiers: $tiers) {
     totalCount matchingCount remainingCount nextOffset hasMore
-    coverage { version status statementsTotal ${assessment ? "statementsAssessed statementsNotAssessed statementsNoImpact statementsUnclassified" : ""} }
+    coverage { version status statementsTotal generation { status reason } ${assessment ? "statementsAssessed statementsNotAssessed statementsNoImpact statementsUnclassified" : ""} }
     items {
       version position sourceIndex heading source url text textTruncated
-      ${json ? "sourcePosition fullText" : ""}
+      ${json ? "commits { sha url } sourcePosition fullText" : ""}
       context { heading text textTruncated ${json ? "fullText" : ""} }
       classification { tier ambiguous kind ${json ? "tierConfidence kindConfidence model formulation" : ""} }
     }
@@ -2726,6 +2748,7 @@ function validateChangelogStatementPage(
     json &&
     page.items.some(
       (item) =>
+        item.commits === undefined ||
         item.fullText === undefined ||
         item.sourcePosition === undefined ||
         (item.context && item.context.fullText === undefined) ||
@@ -2754,7 +2777,7 @@ function validateChangelogStatementPage(
 }
 
 function changelogCoverageSignature(
-  coverage: ChangelogStatementPage["coverage"],
+  coverage: ChangelogStatementPage["coverage"] | ChangelogStatementCoverage[],
 ): string {
   return JSON.stringify(
     coverage.map((c) => [
@@ -2765,6 +2788,7 @@ function changelogCoverageSignature(
       c.statementsNotAssessed,
       c.statementsNoImpact,
       c.statementsUnclassified,
+      c.generation ?? null,
     ]),
   );
 }
@@ -2867,6 +2891,7 @@ function normaliseChangelogStatement(
       item.classification === null
         ? null
         : stripNullProperties(item.classification),
+    ...(item.commits == null ? {} : { commits: item.commits }),
   } as ChangelogStatement;
 }
 
@@ -2932,7 +2957,11 @@ function collectChangelogStatements(
         throw new MalformedPackageIntelligenceResponseError(
           "Missing or inconsistent selected changelog coverage counts.",
         );
-      return c as ChangelogStatementCoverage;
+      const { generation, ...counts } = c;
+      return {
+        ...counts,
+        ...(generation ? { generation } : {}),
+      } as ChangelogStatementCoverage;
     }
     const releaseItems = items.filter((item) => item.version === c.version);
     if (releaseItems.length !== c.statementsTotal)
@@ -2946,7 +2975,9 @@ function collectChangelogStatements(
       version: c.version,
       statementsTotal: c.statementsTotal,
       status:
-        c.statementsTotal === 0
+        c.statementsTotal === 0 ||
+        c.status === "WITHOUT_NOTES" ||
+        c.status === "UNPARSEABLE"
           ? c.status
           : assessed === c.statementsTotal
             ? "CLASSIFIED"
@@ -2959,6 +2990,7 @@ function collectChangelogStatements(
       statementsUnclassified: releaseItems.filter(
         (item) => item.classification?.tier === "UNCLASSIFIED",
       ).length,
+      ...(c.generation ? { generation: c.generation } : {}),
     };
   });
   return {
@@ -3992,7 +4024,7 @@ export class PackageIntelligenceServiceImpl
             changelogCoverageSignature(page.coverage)
         )
           throw new PackageIntelligenceBackendError(
-            "Changelog evidence changed during retrieval; classification may still be in progress. Rerun to retrieve the current view.",
+            "Changelog evidence changed during retrieval; classification or note generation may still be in progress. Rerun to retrieve the current view.",
             undefined,
             undefined,
             true,
@@ -4602,6 +4634,7 @@ export class PackageIntelligenceServiceImpl
                   c.version,
                   c.statementsTotal,
                   c.statementsTotal === 0 ? c.status : null,
+                  c.generation,
                 ]),
           );
         if (
@@ -4611,7 +4644,7 @@ export class PackageIntelligenceServiceImpl
             signature(first) !== signature(statements))
         )
           throw new PackageIntelligenceBackendError(
-            "Changelog evidence changed during retrieval; classification may still be in progress. Rerun to retrieve the current view.",
+            "Changelog evidence changed during retrieval; classification or note generation may still be in progress. Rerun to retrieve the current view.",
             undefined,
             undefined,
             true,

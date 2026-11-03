@@ -550,6 +550,73 @@ describe("changelog statement and view parity", () => {
     "npm:express@5.2.1",
     "npm:express@5.0.0..5.2.1",
   ]) {
+    it(`${target}: generated JSON evidence matches across hosts`, async () => {
+      const report = structuredClone(defaultChangelogReport);
+      const commits = [{ sha: "abcdef0123456789", url: null }];
+      Object.assign(report.statements!.items[0]!, {
+        source: "GENERATED",
+        url: undefined,
+        heading: undefined,
+        commits,
+      });
+      const generation = {
+        status: "GENERATED" as const,
+        reason: null,
+      };
+      report.statements!.coverage[0]!.generation = generation;
+      const fn = mock(async () => report);
+      const cli = await cliJson(
+        target,
+        {},
+        cliDeps({
+          packageIntelligenceService: createMockPackageIntelligenceService({
+            packageChangelog: fn,
+          }),
+        }),
+      );
+      const mcp = await mcpJson({ target }, fn);
+      expect(cli).toEqual(mcp.json);
+      expect(cli).toHaveProperty("statements.items.0.commits", [
+        commits[0]!.sha,
+      ]);
+      expect(cli).toHaveProperty("statements.coverage.0.generation", {
+        status: "generated",
+      });
+    });
+  }
+  it("keeps MCP generated text compact even with many cited commits", async () => {
+    const report = structuredClone(defaultChangelogReport);
+    Object.assign(report.statements!.items[0]!, {
+      source: "GENERATED",
+      url: undefined,
+      heading: undefined,
+      commits: Array.from({ length: 7 }, (_, i) => ({
+        sha: `abcdef${i}123456789`,
+        url: null,
+      })),
+    });
+    report.statements!.coverage[0]!.generation = {
+      status: "GENERATED",
+      reason: null,
+    };
+    const tool = createParityMcpTool("pkg_changelog", {
+      packageIntelligenceService: createMockPackageIntelligenceService({
+        packageChangelog: mock(async () => report),
+      }),
+    });
+    const result = await tool.handler({ target: "npm:express" }, {});
+    const text = result.content[0]!.text!.replace(/\s+/g, " ");
+    expect(text).toContain("(generated from commits)");
+    expect(text).not.toContain("Cited commits");
+    expect(text).not.toContain("abcdef0");
+    expect(text).not.toContain("Server notice");
+    expect(text).not.toContain("--json");
+  });
+  for (const target of [
+    "npm:express",
+    "npm:express@5.2.1",
+    "npm:express@5.0.0..5.2.1",
+  ]) {
     for (const changes of ["actionable", "important", "all"]) {
       it(`${target} ${changes}: JSON evidence and wire request match`, async () => {
         const fn = mock(() => Promise.resolve(defaultChangelogReport));
@@ -565,7 +632,8 @@ describe("changelog statement and view parity", () => {
         const mcp = await mcpJson({ target, changes }, fn);
         expect(cli).toEqual(mcp.json);
         expect(cli).not.toHaveProperty("entries.items.0.body");
-        expect(cli).toHaveProperty("statements.items.0.fullText");
+        expect(cli).not.toHaveProperty("statements.items.0.fullText");
+        expect(cli).toHaveProperty("statements.items.0.text");
         const calls = fn.mock.calls as unknown as Array<
           [Record<string, unknown>]
         >;

@@ -781,6 +781,34 @@ describe("runMcpSmoke", () => {
       runMcpSmoke(createUpgradeCaller(true), { logger }),
     ).rejects.toThrow("pkg_upgrade_review statements: expected object");
   });
+  it.each([
+    [undefined, true],
+    ["Distinct uncut statement", true],
+    [42, false],
+    [null, false],
+  ] as const)(
+    "validates optional fullText in compact upgrade JSON: %s",
+    async (fullText, valid) => {
+      const caller = createCaller(async (name, args) => {
+        const response = smokeResponse(name, args);
+        if (name !== "pkg_upgrade_review" || args.format !== "json")
+          return response;
+        const payload = JSON.parse(
+          resultText(response, "compact statement fixture"),
+        );
+        payload.reviews[0].changelog.statements.items[0].fullText = fullText;
+        return jsonResult(payload);
+      });
+      const result = runMcpSmoke(caller, {
+        logger: { log: () => {}, error: () => {} },
+      });
+      if (valid) await expect(result).resolves.toBeUndefined();
+      else
+        await expect(result).rejects.toThrow(
+          "pkg_upgrade_review invalid statement fullText",
+        );
+    },
+  );
 
   it("rejects hosted documentation follow-ups that replay search bounds", async () => {
     const caller = createCaller(async (name, args) => {
@@ -1796,7 +1824,6 @@ function smokeJsonResponse(
                     sourcePosition: 0,
                     text: "Removed an API.",
                     textTruncated: false,
-                    fullText: "Removed an API.",
                     url: "https://example.com/releases/v5.0.0",
                     classification: {
                       tier: "must_act",

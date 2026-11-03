@@ -262,10 +262,9 @@ function buildCliGrepParams(
 }
 
 const CLI_GREP_PATTERN_NOTE = GREP_REPO_PATTERN_NOTE.replace(
-  "with no path, path_prefix, or glob",
-  "with no --path, [path-prefix], or --glob",
+  "pass case_sensitive: true",
+  "pass --case-sensitive",
 )
-  .replace("pass case_sensitive: true", "pass --case-sensitive")
   .replace(
     "(`path`, `path_prefix`, `globs`)",
     "(--path, [path-prefix], --glob)",
@@ -294,9 +293,7 @@ In target mode pass <target> <pattern> [path-prefix]; in --repo-url mode pass on
 
 [path-prefix] matches the same literal prefix semantics as \`githits code files\`.
 Use --path for one exact file, repeatable --glob for glob narrowing, and
-repeatable --ext for extension filtering. When [path-prefix], --path, and
---glob are combined they are unioned — a file matches if any selector matches;
-use --ext to narrow further (intersection).
+repeatable --ext for extension filtering.
 
 If an exact --path is missing, excluded, or cannot be verified by the source
 inventory, use \`githits list <target>\` to inspect the indexed paths.

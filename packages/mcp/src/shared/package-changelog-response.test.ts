@@ -332,6 +332,169 @@ describe("complete statement evidence view", () => {
       explicitFilterFields: new Set(changes ? ["changes"] : []),
     });
   }
+  it("does not duplicate identical statement or context text in JSON", () => {
+    const report = evidence();
+    const item = report.statements!.items[3]!;
+    item.fullText = item.text;
+    item.context!.fullText = item.context!.text;
+    const result = payload(report).statements!.items[3]!;
+    expect(result.text).toBe(item.text);
+    expect(result.fullText).toBeUndefined();
+    expect(result.context!.text).toBe(item.context!.text);
+    expect(result.context!.fullText).toBeUndefined();
+    expect(item.fullText).toBe(item.text);
+    expect(item.context!.fullText).toBe(item.context!.text);
+  });
+  it("keeps one authoritative commit URL and reports omitted references", () => {
+    const report = evidence();
+    report.statements!.items[0]!.commits = [
+      { sha: "sha-one", url: "https://example.com/commit/one" },
+      { sha: "sha-two", url: "https://example.com/commit/two" },
+    ];
+    const result = payload(report).statements!.items[0]!;
+    expect(result.commits).toEqual(["https://example.com/commit/one"]);
+    expect(result.commitsOmitted).toBe(1);
+    report.statements!.items[0]!.commits = [{ sha: "sha-one", url: null }];
+    const single = payload(report).statements!.items[0]!;
+    expect(single.commits).toEqual(["sha-one"]);
+    expect(single.commitsOmitted).toBeUndefined();
+  });
+  it("keeps generation status and reason without the notice or null fields", () => {
+    const report = evidence();
+    report.statements!.coverage[0]!.generation = {
+      status: "PENDING",
+      reason: "budget",
+    };
+    Reflect.set(
+      report.statements!.coverage[0]!.generation!,
+      "notice",
+      "Unselected notice essay",
+    );
+    expect(payload(report).statements!.coverage[0]!.generation).toEqual({
+      status: "pending",
+      reason: "budget",
+    });
+  });
+  it("uses one compact generated marker and keeps JSON evidence compact", () => {
+    const report = evidence();
+    const statements = report.statements!;
+    statements.items = statements.items.slice(0, 3);
+    const commits = Array.from({ length: 7 }, (_, i) => ({
+      sha: `abcdef${i}123456789`,
+      url: i === 0 ? null : `https://example.com/commit/${i}`,
+    }));
+    for (const item of statements.items.slice(1)) {
+      item.sourceIndex = 1;
+      item.source = "GENERATED";
+      item.heading = undefined;
+      item.url = undefined;
+      item.commits = commits;
+      item.classification!.ambiguous = false;
+    }
+    statements.coverage[0]!.generation = {
+      status: "GENERATED",
+      reason: null,
+    };
+    Reflect.set(
+      statements.coverage[0]!.generation!,
+      "notice",
+      "Server notice: an empty list does not mean nothing changed.",
+    );
+    const p = payload(report);
+    const text = formatPackageChangelogTerminal(p, { useColors: false });
+    const flat = text.replace(/\s+/g, " ");
+    expect(flat).toContain("(generated from commits)");
+    expect(text.indexOf("Quoted statement 0")).toBeLessThan(
+      text.indexOf("(generated from commits)"),
+    );
+    expect(text.match(/\(generated from commits\)/g)).toHaveLength(1);
+    expect(text).not.toContain("Server notice:");
+    expect(text).not.toContain("source URL unavailable");
+    expect(text).not.toContain("abcdef0");
+    expect(text).not.toContain("https://example.com/commit/");
+    expect(text).not.toContain("Cited commits");
+    expect(p.statements?.items[1]?.commits).toEqual([commits[0]!.sha]);
+    expect(p.statements?.items[1]?.commitsOmitted).toBe(6);
+    expect(p.statements?.coverage[0]?.generation).toEqual({
+      status: "generated",
+    });
+    expect(statements.coverage[0]!.generation!.status).toBe("GENERATED");
+    expect(
+      Bun.stripANSI(formatPackageChangelogTerminal(p, { useColors: true })),
+    ).toBe(text);
+  });
+  it.each(["latest", "range", "exact"] as const)(
+    "explains generated-empty release in %s mode without claiming nothing changed",
+    (mode) => {
+      const report = evidence();
+      report.statements!.items = [];
+      report.statements!.totalCount = 0;
+      Object.assign(report.statements!.coverage[0]!, {
+        status: "WITHOUT_NOTES",
+        statementsTotal: 0,
+        generation: {
+          status: "GENERATED",
+          reason: null,
+        },
+      });
+      report.entries = report.entries.slice(0, 1);
+      const p = { ...payload(report), mode };
+      const text = formatPackageChangelogTerminal(p, {
+        useColors: false,
+      }).replace(/\s+/g, " ");
+      expect(text).toContain(
+        "No actionable statements (generated from commits).",
+      );
+      expect(text).not.toContain("Server empty notice");
+      expect(text).toContain("not evidence of no risk");
+      expect(text).not.toContain("No release notes available");
+    },
+  );
+  it("does not describe filtered-out generated statements as generated-empty", () => {
+    const report = evidence();
+    report.statements!.items = [];
+    report.statements!.coverage[0]!.generation = {
+      status: "GENERATED",
+      reason: null,
+    };
+    const text = formatPackageChangelogTerminal(payload(report, "actionable"), {
+      useColors: false,
+    });
+    expect(text).toContain("No statements match this filter.");
+    expect(text).not.toContain("(generated from commits)");
+    expect(text).not.toContain("No actionable statements");
+    expect(text).not.toContain("Server notice");
+  });
+  it.each([
+    ["PENDING", "generating", "Generation pending"],
+    ["PENDING", "budget", "Generation pending"],
+    ["NOT_GENERATED", "no_repository", "Generation unavailable"],
+    ["NOT_GENERATED", "failed", "Generation unavailable"],
+  ] as const)("explains generation %s: %s", (status, reason, message) => {
+    const report = evidence();
+    report.entries = report.entries.slice(0, 1);
+    report.statements!.items = [];
+    Object.assign(report.statements!.coverage[0]!, {
+      status: "WITHOUT_NOTES",
+      statementsTotal: 0,
+      generation: { status, reason },
+    });
+    const text = formatPackageChangelogTerminal(payload(report), {
+      useColors: false,
+    }).replace(/\s+/g, " ");
+    expect(text).toContain(message);
+    expect(text).toContain(`(${reason})`);
+    expect(text).toContain("not evidence of no risk");
+    if (status === "PENDING") expect(text).toContain("retry later");
+    expect(text).toContain("No release notes available.");
+    expect(text).not.toContain("No statements match this filter");
+    report.statements!.coverage[0]!.status = "UNPARSEABLE";
+    const unparseable = formatPackageChangelogTerminal(payload(report), {
+      useColors: false,
+    });
+    expect(unparseable).toContain("Notes contain no parsed statements.");
+    expect(unparseable).not.toContain("No statements match this filter");
+  });
   it("renders all parsed units once, source URLs nearby, without raw-note duplication", () => {
     const text = formatPackageChangelogTerminal(payload(), {
       useColors: false,

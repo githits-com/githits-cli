@@ -146,31 +146,63 @@ export function buildPackageChangelogSuccessPayload(
   return envelope;
 }
 
-/** Shared lossless statement envelope; the hosts only normalize enum spelling. */
+/** Compact statement evidence shared by CLI and MCP, including upgrade review. */
 export function normaliseChangelogStatements(
   statements: ChangelogStatements,
 ): LeanChangelogStatements {
   return {
     ...statements,
     count: statements.items.length,
-    items: statements.items.map((item) => ({
-      ...item,
-      ...(item.source ? { source: item.source.toLowerCase() } : {}),
-      classification:
-        item.classification === null
-          ? null
-          : {
-              ...item.classification,
-              tier: item.classification.tier.toLowerCase(),
-              ...(item.classification.kind
-                ? { kind: item.classification.kind.toLowerCase() }
-                : {}),
-            },
-    })),
-    coverage: statements.coverage.map((c) => ({
+    items: statements.items.map((item) => {
+      const { commits, ...statement } = omitDuplicateFullText(item);
+      const commit = commits?.[0];
+      return {
+        ...statement,
+        ...(item.context
+          ? { context: omitDuplicateFullText(item.context) }
+          : {}),
+        ...(commit ? { commits: [commit.url ?? commit.sha] } : {}),
+        ...(commits && commits.length > 1
+          ? { commitsOmitted: commits.length - 1 }
+          : {}),
+        ...(item.source ? { source: item.source.toLowerCase() } : {}),
+        classification:
+          item.classification === null
+            ? null
+            : {
+                ...item.classification,
+                tier: item.classification.tier.toLowerCase(),
+                ...(item.classification.kind
+                  ? { kind: item.classification.kind.toLowerCase() }
+                  : {}),
+              },
+      };
+    }),
+    coverage: statements.coverage.map(({ generation, ...c }) => ({
       ...c,
       status: c.status.toLowerCase(),
+      ...(generation
+        ? {
+            generation: {
+              status: generation.status.toLowerCase(),
+              ...(generation.reason != null
+                ? { reason: generation.reason }
+                : {}),
+            },
+          }
+        : {}),
     })),
+  };
+}
+
+/** Preserve distinct evidence without repeating the same statement or context. */
+function omitDuplicateFullText<T extends { text: string; fullText?: string }>(
+  value: T,
+): Omit<T, "fullText"> & { fullText?: string } {
+  const { fullText, ...rest } = value;
+  return {
+    ...rest,
+    ...(fullText !== undefined && fullText !== value.text ? { fullText } : {}),
   };
 }
 
@@ -197,9 +229,11 @@ function buildFilterBlock(
   return Object.keys(filter).length > 0 ? filter : undefined;
 }
 
-/** Structured JSON retains evidence; only enum spelling is normalised. */
+/** JSON carries bounded commit locators and distinct text evidence. */
 export interface LeanChangelogStatement
-  extends Omit<ChangelogStatement, "classification"> {
+  extends Omit<ChangelogStatement, "classification" | "commits"> {
+  commits?: string[];
+  commitsOmitted?: number;
   classification:
     | (Omit<
         NonNullable<ChangelogStatement["classification"]>,
@@ -211,8 +245,12 @@ export interface LeanChangelogStatements
   extends Omit<ChangelogStatements, "items" | "coverage"> {
   count: number;
   items: LeanChangelogStatement[];
-  coverage: (Omit<ChangelogStatements["coverage"][number], "status"> & {
+  coverage: (Omit<
+    ChangelogStatements["coverage"][number],
+    "status" | "generation"
+  > & {
     status: string;
+    generation?: { status: string; reason?: string };
   })[];
 }
 
@@ -311,17 +349,25 @@ export function formatPackageChangelogTerminal(
     const items = statements.items.filter(
       (item) => item.version === entry.version,
     );
+    const coverage = statements.coverage.find(
+      (v) => v.version === entry.version,
+    );
+    lines.push(...formatChangelogGeneration(coverage, options));
     if (!items.length) {
       if (entry.htmlUrl) prose(sanitizeTerminalText(entry.htmlUrl), "  ");
-      const coverage = statements.coverage.find(
-        (v) => v.version === entry.version,
-      );
+      if (
+        coverage?.generation?.status === "generated" &&
+        coverage.statementsTotal === 0
+      )
+        continue;
       prose(
-        coverage?.status === "without_notes"
-          ? "No release notes available."
-          : coverage?.status === "unparseable"
-            ? "Notes contain no parsed statements."
-            : "No statements match this filter.",
+        coverage?.generation && coverage.statementsTotal > 0
+          ? "No statements match this filter."
+          : coverage?.status === "without_notes"
+            ? "No release notes available."
+            : coverage?.status === "unparseable"
+              ? "Notes contain no parsed statements."
+              : "No statements match this filter.",
         "  ",
       );
       continue;
@@ -329,6 +375,42 @@ export function formatPackageChangelogTerminal(
     lines.push(...formatChangelogVersionStatements(items, options));
   }
   return `${lines.join("\n")}\n`;
+}
+
+/** Generation is release-level evidence, including when no statements are shown. */
+export function formatChangelogGeneration(
+  coverage:
+    | Pick<
+        LeanChangelogStatements["coverage"][number],
+        "generation" | "statementsTotal"
+      >
+    | undefined,
+  options: FormatChangelogTerminalOptions,
+): string[] {
+  const generation = coverage?.generation;
+  if (!generation) return [];
+  const lines: string[] = [];
+  const prose = (text: string): void => {
+    lines.push(
+      ...wrapTerminalProse(
+        `  ${sanitizeTerminalText(text)}`,
+        Math.max(20, options.terminalWidth ?? 80),
+        "  ",
+      ),
+    );
+  };
+  if (generation.status === "generated") {
+    if (coverage.statementsTotal === 0)
+      prose("No actionable statements (generated from commits).");
+  } else {
+    const reason = generation.reason ? ` (${generation.reason})` : "";
+    prose(
+      generation.status === "pending"
+        ? `Generation pending${reason}; retry later.`
+        : `Generation unavailable${reason}.`,
+    );
+  }
+  return lines;
 }
 
 /** Source ordering and trusted tags belong to the shared statement presentation. */
@@ -349,7 +431,9 @@ export function formatChangelogVersionStatements(
       heading = undefined;
       const source = noteSourceLabel(item.source);
       prose(
-        `${source}${item.url ? `: ${sanitizeTerminalText(item.url)}` : " (source URL unavailable)"}`,
+        item.source === "generated"
+          ? "(generated from commits)"
+          : `${source}${item.url ? `: ${sanitizeTerminalText(item.url)}` : " (source URL unavailable)"}`,
         "  ",
       );
     }
