@@ -4,7 +4,8 @@
 
 - Overall: **IN PROGRESS**; Phase 1 merged in [#530](https://github.com/githits-com/githits-cli/pull/530);
   Phase 1a merged in [#533](https://github.com/githits-com/githits-cli/pull/533);
-  Phase 2 is complete pending merge; Phase 3 needs design.
+  Phase 2 merged in [#535](https://github.com/githits-com/githits-cli/pull/535);
+  Phase 3 needs design before implementation.
 - Owner: this CLI worktree; backend investigations have separate child worktrees.
 - User direction, 2026-11-03: improve CLI ergonomics from the supplied feedback;
   exclude all skill changes because OP is reviewing those separately. Dispatch
@@ -142,7 +143,7 @@ formatting alone. Obtain approval before introducing infrastructure.
 | --- | --- | --- | --- |
 | 1 — tolerate common arguments | COMPLETE; merged #530 | `--lines N` selects one line; excessive valid context becomes 10 with a visible notice; path flags are clear in help. | Existing read/grep paths only. |
 | 1a — compact regex guidance | COMPLETE; merged #533 | Both CLI grep helps distinguish alternation/literal pipes and qualify route-dependent literal-text requirements. | Merged #530 and verified regex investigation; no backend change. |
-| 2 — scoped Research recovery | COMPLETE; pending merge | Daily Research exhaustion shows a scoped search example with a fixed query placeholder when an explicit search-compatible target exists. | Merged #533, existing typed rate-limit scope and local parser/quoting. Grep validation adoption remains separately gated. |
+| 2 — scoped Research recovery | COMPLETE; merged #535 | Daily Research exhaustion shows a scoped search example with a fixed query placeholder when an explicit search-compatible target exists. | Merged #533, existing typed rate-limit scope and local parser/quoting. Grep validation adoption remains separately gated. |
 | 3 — bounded readable output | NEEDS DESIGN at phase boundary | Opt-in text budgets preserve trust facts and provide honest access to omitted evidence. | Phase 2; representative output and replay evidence. |
 | 4 — backend-assisted enclosing symbols | WAITING ON NATIVE CONTRACT | Unified grep can opt into legacy-equivalent enclosing-symbol metadata and exact source-read ranges; source bodies remain conditional on cost. | Native implementation/release, PkgSeer adoption and verified wire contract. |
 
@@ -163,89 +164,12 @@ and `cli-commands.md`; execution and review evidence is on #533. No open gate.
 
 ### Phase 2 — scoped Research recovery
 
-Status: **COMPLETE; pending merge**. Outcome: an agent hitting the daily
-Research limit gets a scoped search example with the fixed `your query`
-placeholder. Assumptions: existing daily scope and search grammar remain stable.
-Unknowns/product decisions: **none**. Dependencies: merged #533 and existing
-pure parser/quoting/error contracts; no backend change or release.
-
-User correction on open PR #535: a conversational Research question is not a
-useful BM25 query. Show a fixed `your query` placeholder, labelled as an example,
-without keyword extraction or copying the original question. The caller fills
-in search terms; the CLI makes no automatic follow-up call.
-
-Ownership: root `src/commands/research.ts` naturally owns this policy because it
-has the resolved explicit subject. One exported pure helper there is covered
-by the existing command tests; a separate module has no
-second consumer. Keep the shared transport mapper and generic formatter stable.
-No context needs threading into MCP or services, and no new runtime facility.
-
-Implementation contract:
-
-1. Generate an example only for mapped `RATE_LIMITED` with
-   `details.rateLimitScope === "daily"`, an explicit subject target, and a target
-   accepted by `parseUnifiedSearchTargetSpec()`. Do not infer a target from the
-   question, thread, cwd or manifest. Invalid/bare targets keep generic guidance;
-   failed eligibility must never replace the original Research error.
-2. Build exactly one template from the original target:
-   `githits search --in 'npm:express' -- 'your query'`. Use `shellQuoteExact()`
-   for the target, preserving its original bytes. The query is always the fixed
-   placeholder, independent of the original question. Document the existing
-   CLI argv input domain; add no unreachable NUL guard or synthetic NUL test.
-3. In `researchAction()`'s existing failure branch, derive the example once.
-   Human output adds one `Example: COMMAND` line alongside the unchanged diagnostic
-   and identifiers; JSON adds that same template as `details.example` in its
-   existing single stderr envelope. Keep stdout empty on failure, exit status 1,
-   and preserve message/reset advice, retryable flag, status, retry timing,
-   mapped details, `tool_call_id` and `thread_id`. Do not expand shared formatter
-   behavior merely to print this one request-aware example.
-4. Targetless and thread calls, malformed/bare explicit targets, request-rate
-   limits, absent/unknown rate scopes and other errors retain current behavior.
-   No automatic search, retry, target resolution, fallback, extra network call
-   or new CLI flag. Preserve spinner/progress completion and cancellation paths.
-5. Update `docs/implementation/research.md` and the Research section of
-   `cli-commands.md` with the conditional CLI example and fixed query placeholder.
-   Do not imply MCP also emits it or edit public skills/instructions. Add
-   `changes/research-daily-limit-recovery.fixed.md` with `githits: patch` and
-   `@githits/mcp: none` during implementation.
-
-Acceptance and targeted validation:
-
-- Extend `src/commands/research.test.ts` using its existing interface mocks;
-  no new fixture files. Prove human/JSON example identity for one canonical
-  target with preserved IDs/details and exactly one failed Ask call. Cover
-  package/repository/site eligibility, unscoped/thread/bare/invalid targets,
-  daily/request/unknown scopes, and no example for other errors. Verify that the
-  original question is still sent to Ask but is absent from the example.
-- One quote/Unicode target case and one accepted control-whitespace target case
-  prove exact target quoting. The fixed query remains unchanged in both. Reuse existing
-  shell-quote and target-parser coverage instead of a new shell parser/harness.
-  Explicitly assert the suggestion is not executed and stdout stays empty.
-- Run `bun test src/commands/research.test.ts src/commands/format-mapped-error.test.ts
-  packages/mcp/src/shared/agentic-ask-error-map.test.ts
-  packages/mcp/src/shared/shell-quote.test.ts
-  packages/mcp/src/shared/unified-search-target.test.ts`, typecheck, targeted
-  lint/format, build, and the four source/built CLI/MCP smoke modes. Keep smoke
-  auth handling isolated with the dev preset; never exhaust a real allowance
-  to exercise this branch. Mocked command tests gate daily-limit behavior;
-  normal live-smoke skips do not prove that branch.
-- Run one targeted qualitative CLI agent check using the existing harness:
-  `bun run agent:e2e --agent codex --surface skills --server local --workload
-  eval/agentic/workloads/express-router.md`, with the dev preset and established
-  isolated eval credentials when available. Inspect raw tool calls, final answer,
-  metrics and isolation violations. The existing workload may not encounter a
-  daily limit: report whether it did, and do not claim it validates the new
-  example if it did not. Report unavailable prerequisites honestly; no quota
-  manipulation, new eval infrastructure or agent-quality/call-reduction claim.
-- Keep added instruction text to the single command line. Original backend copy
-  stays intact; no model-token or latency improvement is promised. No changes
-  to backend API fields, persistence, migrations or successful command output. Rollback
-  is reverting the CLI example/docs; no operational rollout is needed.
-
-The scoped internal/external plan review is clean. During implementation, use
-the normal scoped review and draft-PR workflow. Retain the
-plan while later phases remain; after merge replace this detail with completion
-links and keep the durable contract in implementation docs.
+Status: **COMPLETE; merged #535**. Eligible CLI daily-limit errors show a scoped
+search template with the fixed `your query` placeholder, labelled `Example:`
+and exposed as `details.example`. Original request/error facts and diagnostic
+IDs remain; no inferred target, question replay or automatic follow-up call.
+Durable contracts live in `docs/implementation/research.md` and
+`cli-commands.md`; review and verification evidence is on #535. No open gate.
 
 ### Phase 3 — bounded readable output
 
