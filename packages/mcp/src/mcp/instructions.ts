@@ -71,7 +71,7 @@ Use package facts directly. Preserve unknown assessments and coverage limits. St
 export interface BuildMcpQuickStartOptions {
   /**
    * Include the external-content posture (shared guardrail block).
-   * Defaults to `true` â€” production always wants it. The eval mock
+   * Defaults to `true` — production always wants it. The eval mock
    * MCP server passes `false` so it can compare baseline (no
    * guardrail) vs guardrailed instructions cleanly.
    */

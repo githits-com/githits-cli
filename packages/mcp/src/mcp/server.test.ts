@@ -253,7 +253,7 @@ function renderDeferredCatalogSummary(description: string): string {
     );
   }
 
-  return sentence.length > 79 ? `${sentence.slice(0, 79)}â€¦` : sentence;
+  return sentence.length > 79 ? `${sentence.slice(0, 79)}…` : sentence;
 }
 
 describe("MCP tool annotations", () => {
@@ -341,12 +341,12 @@ describe("MCP tool description catalog", () => {
         descriptor.description.split(".")[0]!.length + 1,
         descriptor.name,
       ).toBeLessThanOrEqual(79);
-      expect(catalogSummary, descriptor.name).not.toEndWith("â€¦");
+      expect(catalogSummary, descriptor.name).not.toEndWith("…");
       if (descriptor.name === "quick_start") {
         expect(catalogSummary).toContain("Call quick_start first");
         expect(catalogSummary).toContain("untrusted-content rules");
         expect(catalogSummary).not.toContain("githits-mcp");
-        expect(catalogSummary).not.toEndWith("â€¦");
+        expect(catalogSummary).not.toEndWith("…");
         expect(catalogPrefix).not.toContain("githits-mcp");
       }
       expect(catalogPrefix, descriptor.name).not.toMatch(

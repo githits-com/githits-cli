@@ -10,7 +10,7 @@ import {
 
 const PROBE_TOOL: LocalExperimentalToolGuidance = {
   name: "probe",
-  guidance: "- `probe` â€” probe one experimental contract.",
+  guidance: "- `probe` — probe one experimental contract.",
 };
 const EXPERIMENTAL_TOOLS = [PROBE_TOOL] as const;
 
