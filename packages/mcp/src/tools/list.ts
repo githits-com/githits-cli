@@ -57,7 +57,7 @@ const schema: ZodRawShape = {
     .max(1000)
     .optional()
     .describe(
-      "Target-relative literal paths and globs form a union for packages, repositories, and sites. Site paths with one leading `/` stay within the supplied target; `/` alone selects its root. Omit or pass `[]` to browse the root.",
+      "Omit or pass [] to browse the root; never pass blank entries. Package/repository paths are relative: do not use / for their root. Literal paths and globs form a union. Only site paths accept a leading /; / selects the site root.",
     ),
   recursive: z
     .boolean()

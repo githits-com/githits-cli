@@ -44,7 +44,7 @@ const schema: ZodRawShape = {
     .min(1)
     .optional()
     .describe(
-      "Thread UUID returned by an earlier research call. Cannot be combined with target. Reuse it for follow-ups; name a new project or version in the question to change scope.",
+      "Omit when no thread was returned; never pass an empty string. Otherwise reuse the returned thread UUID for follow-ups, without target; name scope changes in the question.",
     ),
   question: z
     .string()

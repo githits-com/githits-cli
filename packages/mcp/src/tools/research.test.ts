@@ -125,7 +125,9 @@ describe("research MCP adapter", () => {
     expect(firstSentence.length).toBe(74);
     expect(DESCRIPTION.slice(0, 80)).toStartWith(firstSentence);
     expect(DESCRIPTION).toContain("If Research returns candidates");
-    expect(tool.schema.thread_id?.description).toContain("research call");
+    expect(tool.schema.thread_id?.description).toContain(
+      "returned thread UUID",
+    );
     expect(tool.schema.question?.description).toContain("research question");
     expect(DESCRIPTION).toContain(
       "Omit target and thread_id for project identification",

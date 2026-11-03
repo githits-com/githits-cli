@@ -57,7 +57,7 @@ Preserve versions and served provenance. Do not guess tags, investigate unrelate
 
 For `research`: Ask for missing information; sources are included. Use and cite a sufficient answer directly. Open sources only for a specific missing detail, contradiction, or explicit source-inspection request; citations are not a reading checklist. Reuse `thread_id` and state scope changes. Research takes packages/repositories, not docs sites. Omit target and thread_id for project identification; retry returned candidates only with an established match.
 
-Use available indexing results. Follow `search_status` only for an active returned continuation whose results matter. Do not repeat search to poll. A Research rate limit applies across questions/targets: wait the returned delay; do not retry daily limits before reset. Otherwise use direct retrieval only for a specific remaining gap.
+Use available indexing results. Follow `search_status` only for an active returned continuation whose results matter. Do not repeat search to poll. A Research rate limit applies across questions/targets: wait the returned delay; do not retry daily limits before reset. Otherwise retrieve only a specific remaining gap. Correct invalid arguments before retrying; never repeat an unchanged invalid call.
 
 Use package facts directly. Preserve unknown assessments and coverage limits. Start upgrades with `pkg_upgrade_review`; add source/changelog detail only for gaps. Reviews do not authorize modifications. For authorized upgrades, preserve original source/lockfiles; compare the same affected behavior before and after, including untested and omitted/null-input paths. Use isolated fixtures without credentials or production data. Passing tests alone does not prove compatibility.
 

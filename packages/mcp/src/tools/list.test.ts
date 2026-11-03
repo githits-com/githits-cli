@@ -121,10 +121,10 @@ describe("createListTool", () => {
     ]);
     expect(tool.schema.target!.description).toContain("site:expressjs.com");
     expect(tool.schema.paths!.description).toContain(
-      "Target-relative literal paths and globs",
+      "Literal paths and globs form a union",
     );
     expect(tool.schema.paths!.description).toContain(
-      "Site paths with one leading `/` stay within the supplied target",
+      "Only site paths accept a leading /",
     );
     expect(tool.schema.recursive!.description).toContain(
       "independent of recursion",
