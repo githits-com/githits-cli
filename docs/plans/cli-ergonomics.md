@@ -3,7 +3,7 @@
 ## Status and expected outcome
 
 - Overall: **IN PROGRESS**; Phase 1 merged in [#530](https://github.com/githits-com/githits-cli/pull/530);
-  Phase 1a is the next CLI-only increment.
+  Phase 1a is complete pending merge; Phase 2 needs reorientation.
 - Owner: this CLI worktree; backend investigations have separate child worktrees.
 - User direction, 2026-11-03: improve CLI ergonomics from the supplied feedback;
   exclude all skill changes because OP is reviewing those separately. Dispatch
@@ -44,7 +44,7 @@ Its aggregate error/token/time figures are directional reports, not reproduced
 measurements. Raw traces, exact tested CLI versions and regex inputs are absent.
 The user corrected the initial `\[` reference to `\|`.
 
-Current planning baseline: refreshed `origin/main` at
+Phase 1a planning baseline: refreshed `origin/main` at
 `202dd2328990d0f435cdc33da3d7a6e8432eba6f`, the merge of #530.
 The reviewed backend [regex investigation](https://github.com/githits-com/pkgseer-backend/blob/0ab7fcad13bfc6b3c932cfc15ff5d4848a923f08/docs/analysis/2026-11-03-grep-regex-ergonomics.md)
 reproduced `foo|bar` as alternation and `foo\|bar` as a literal pipe in
@@ -54,7 +54,7 @@ It found no matcher defect. Content-index searches require usable literal text;
 a single exact-file route accepts anchorless regexes subject to syntax/compile
 limits. This is route policy, not a malformed-regex rule.
 
-Current CLI evidence: `src/commands/grep.ts` defaults to REGEX and `-F` selects
+CLI evidence at that baseline: `src/commands/grep.ts` defaults to REGEX and `-F` selects
 LITERAL; legacy `src/commands/code/grep.ts` defaults to LITERAL and `--regex`
 selects REGEX. Both forward pattern bytes unchanged. Neither help explains the
 pipe distinction. Unified help incorrectly says all anchorless expressions
@@ -146,7 +146,7 @@ formatting alone. Obtain approval before introducing infrastructure.
 | Phase | Status | Observable outcome | Dependencies |
 | --- | --- | --- | --- |
 | 1 — tolerate common arguments | COMPLETE; merged #530 | `--lines N` selects one line; excessive valid context becomes 10 with a visible notice; path flags are clear in help. | Existing read/grep paths only. |
-| 1a — compact regex guidance | READY | Both CLI grep helps distinguish alternation/literal pipes and qualify route-dependent literal-text requirements. | Merged #530 and verified regex investigation; no backend change. |
+| 1a — compact regex guidance | COMPLETE; pending merge | Both CLI grep helps distinguish alternation/literal pipes and qualify route-dependent literal-text requirements. | Merged #530 and verified regex investigation; no backend change. |
 | 2 — actionable failure recovery | PLANNED | Daily Research exhaustion offers one usable scoped discovery command where possible; verified path-operand failures explain the correct flags. | Phase 1; inspect exact failure/operand contracts before final detail. |
 | 3 — bounded readable output | NEEDS DESIGN at phase boundary | Opt-in text budgets preserve trust facts and provide honest access to omitted evidence. | Phase 2; representative output and replay evidence. |
 | 4 — backend-assisted enclosing symbols | WAITING ON NATIVE CONTRACT | Unified grep can opt into legacy-equivalent enclosing-symbol metadata and exact source-read ranges; source bodies remain conditional on cost. | Native implementation/release, PkgSeer adoption and verified wire contract. |
@@ -161,7 +161,7 @@ Verification and review records are on #530. No remaining Phase 1 gate.
 
 ### Phase 1a — compact CLI regex guidance
 
-Status: **READY**. Outcome: a coding agent reading either
+Status: **COMPLETE; pending merge**. Outcome: a coding agent reading either
 CLI grep help can choose alternation or a literal pipe without guessing the
 matching mode or receiving a misleading blanket anchorless-regex refusal.
 Assumptions: #530's defaults and passthrough remain authoritative; the reviewed
@@ -230,7 +230,7 @@ Acceptance and validation:
 
 ### Phase 2 — actionable failure recovery
 
-Status: **PLANNED**, reorient after Phase 1 merges before marking ready.
+Status: **PLANNED**, reorient after Phase 1a merges before marking ready.
 Outcome: users can recover from a known failed operation without guessing a
 sequence of discovery commands.
 

@@ -188,12 +188,18 @@ describe("buildGrepRepoParams", () => {
 });
 
 describe("GREP_REPO_PATTERN_NOTE", () => {
-  it("mentions literal, regex, RE2, byte limit, and whole-target regex planning", () => {
+  it("explains modes, pipe syntax, byte limits and route-specific regex requirements", () => {
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/literal/i);
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/regex/i);
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/RE2/i);
     expect(GREP_REPO_PATTERN_NOTE).toMatch(/200/i);
-    expect(GREP_REPO_PATTERN_NOTE).toMatch(/literal substring/i);
+    expect(GREP_REPO_PATTERN_NOTE).toContain("literal text");
+    expect(GREP_REPO_PATTERN_NOTE).toContain(
+      "foo|bar alternates; foo\\|bar matches a literal pipe.",
+    );
+    expect(GREP_REPO_PATTERN_NOTE).toContain(
+      "a single exact-file route accepts anchorless regex",
+    );
     expect(GREP_REPO_PATTERN_NOTE).toContain(
       "Matching uses Unicode-aware case folding by default; pass case_sensitive: true for exact casing.",
     );

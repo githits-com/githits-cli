@@ -52,6 +52,17 @@ describe("unified grep CLI", () => {
     expect(help).toContain("--path lib/express.js");
     expect(help).toContain("--path-prefix lib/");
     expect(help).toContain("Targets, not file paths");
+    const prose = help.replace(/\s+/g, " ");
+    expect(prose).toContain("Defaults: RE2 regex");
+    expect(prose).toContain(
+      "foo|bar alternates; foo\\|bar matches a literal pipe.",
+    );
+    expect(prose).toContain("Content-index regex needs literal text");
+    expect(prose).toContain(
+      "a single exact-file route accepts anchorless regex",
+    );
+    expect(prose.split("foo\\|bar")).toHaveLength(2);
+    expect(prose).not.toContain("unsupported or anchorless expressions fail");
   });
   it("parses ordered mixed operands and interleaved selectors with explicit defaults", async () => {
     const grep = mock((_params: GrepParams) =>
