@@ -74,6 +74,8 @@ hosts receive their own auth action and new-session discovery instructions.
 Staged Cursor-only auth keeps `managed_by_cursor`; other hosted-only setup uses
 `managed_by_host`, with additive per-host `remoteAuth` instructions for mixed runs.
 
+Interactive sign-in steps follow the selected tools; see [setup reporting](./init-setup-output.md#partial-failures) for selection and no-op behavior.
+
 Claude Code and Gemini retain legacy plugin/extension cleanup before native
 HTTP or stdio add. Gemini file checks accept both current `{type:"http",url}`
 and legacy `httpUrl` user HTTP representations independently of connection
@@ -427,10 +429,3 @@ advertise unreleased behavior.
 - `src/commands/init/guidance-assets.ts` — four-skill runtime catalog.
 - `src/commands/init/agent-definitions.ts` — Pi and Codex host behavior.
 - `src/commands/init/setup-format.ts` — human prose wrapping and change rows.
-
-Interactive next steps follow the selected tools. A configured but unselected
-host receives no sign-in or tool-discovery instructions. When no tool selector
-is needed, the no-op report covers the existing detected setup. Choosing a
-guidance repair and then declining keeps that chosen host in the unchanged
-report without writes or login attempts. Ordinary tool choices use names;
-transport and replacement details belong in the review before confirmation.

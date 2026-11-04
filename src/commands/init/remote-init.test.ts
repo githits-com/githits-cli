@@ -224,7 +224,7 @@ describe("remote init profile", () => {
     expect(output).not.toContain("agent mcp login GitHits");
     expect(
       (f.deps.execService.exec as ReturnType<typeof mock>).mock.calls.some(
-        ([command]) => command === "cursor-agent",
+        ([command]) => command === "agent" || command === "cursor-agent",
       ),
     ).toBe(false);
     expect(f.createLoginDeps).not.toHaveBeenCalled();

@@ -4224,7 +4224,7 @@ describe("initAction", () => {
     expect(output).not.toContain("agent mcp login GitHits");
     expect(
       (execService.exec as ReturnType<typeof mock>).mock.calls.some(
-        ([command]) => command === "cursor-agent",
+        ([command]) => command === "agent" || command === "cursor-agent",
       ),
     ).toBe(false);
   });
@@ -4330,7 +4330,7 @@ describe("initAction", () => {
     ).toBe(false);
     expect(
       (execService.exec as ReturnType<typeof mock>).mock.calls.some(
-        ([command]) => command === "cursor-agent",
+        ([command]) => command === "agent" || command === "cursor-agent",
       ),
     ).toBe(false);
     expect(createLoginDeps).not.toHaveBeenCalled();
