@@ -139,3 +139,8 @@ transport and replacement details belong in the review before confirmation.
 Already-configured rows remain disabled when another tool needs setup or a
 manual handoff. Use `githits init --detect-agents` to see hosted sign-in steps for
 those existing connections.
+
+Interactive prompt rendering belongs to the prompt adapter. It wraps questions,
+choice labels/descriptions, disabled reasons and confirmations at word boundaries,
+reserving the selector prefix or confirmation suffix columns. Continued labels
+retain indentation; choice values, defaults and answer labels stay unchanged.

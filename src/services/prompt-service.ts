@@ -77,14 +77,25 @@ export function wrapPromptText(text: string, width: number): string {
 }
 
 /** Reserve Inquirer's prefix columns when preparing selectable labels. */
-function wrapChoices<T extends { name: string; description?: string }>(
-  choices: T[],
-): T[] {
+function wrapChoices<
+  T extends { name: string; description?: string; disabled?: boolean | string },
+>(choices: T[], prefixWidth: number): T[] {
   const columns = process.stdout.columns || 80;
   return choices.map((choice) => ({
     ...choice,
-    name: wrapPromptText(choice.name, columns - 2).replaceAll("\n", "\n  "),
+    name: wrapPromptText(choice.name, columns - prefixWidth).replaceAll(
+      "\n",
+      `\n${" ".repeat(prefixWidth)}`,
+    ),
     short: choice.name,
+    ...(typeof choice.disabled === "string"
+      ? {
+          disabled: `\n${wrapPromptText(choice.disabled, columns - prefixWidth)
+            .split("\n")
+            .map((line) => `${" ".repeat(prefixWidth)}${line}`)
+            .join("\n")}`,
+        }
+      : {}),
     ...(choice.description === undefined
       ? {}
       : {
@@ -104,7 +115,7 @@ export class PromptServiceImpl implements PromptService {
   ): Promise<T> {
     return select({
       message: wrapPromptText(message, (process.stdout.columns || 80) - 2),
-      choices: wrapChoices(choices),
+      choices: wrapChoices(choices, 2),
       default: defaultValue,
     });
   }
@@ -115,12 +126,15 @@ export class PromptServiceImpl implements PromptService {
   ): Promise<T[]> {
     return checkbox({
       message: wrapPromptText(message, (process.stdout.columns || 80) - 2),
-      choices: wrapChoices(choices),
+      choices: wrapChoices(choices, 3),
     });
   }
 
   async confirm(message: string, defaultValue?: boolean): Promise<boolean> {
-    return confirm({ message, default: defaultValue });
+    return confirm({
+      message: wrapPromptText(message, (process.stdout.columns || 80) - 8),
+      default: defaultValue,
+    });
   }
 
   async confirm3(
