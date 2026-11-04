@@ -585,7 +585,8 @@ does not dump symbol refs, hashes, repeated file paths or other raw metadata.
 JSON preserves all requested metadata on repository `hit.symbol`, including
 exact opaque refs and individual range bounds. Repository absence is null;
 hosted docs hits have no symbol field. Unrequested scalar defaults never become
-facts because their fields are not selected. Range fields are not inferred from match/context lines.
+facts because their fields are not selected. Range fields are not inferred from
+match/context lines.
 Metadata does not include source bodies or cause additional read requests.
 
 Symbol refs are opaque, snapshot-bound `_repo` identities containing the served

@@ -275,9 +275,9 @@ the preceding increment and captured output settle the contract.
 ### Phase 4 — backend-assisted enclosing symbols
 
 Status: **COMPLETE; pending merge**. Unified CLI/MCP grep accepts explicit
-legacy-equivalent masks and preserves enclosing metadata in text and JSON,
-including exact snapshot refs, requested ranges and ordinary matched-line read
-locators. Default queries omit symbol hydration and the new schema entirely.
+legacy-equivalent masks, compact hints in text, and full requested metadata
+including exact snapshot refs and ranges in JSON. Ordinary matched-line read
+locators remain unchanged. Default queries omit symbol hydration and the new schema entirely.
 This phase is independent of Phase 3 and does not change that lane's design.
 
 Core services share the legacy catalogue, requested-field projection and symbol
