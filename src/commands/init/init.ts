@@ -727,17 +727,20 @@ function colorizeLogo(logo: string, useColors: boolean): string {
 const INIT_INTENT_CHOICES: SelectChoice<InitIntent>[] = [
   {
     name: "Connect via remote MCP (recommended)",
+    short: "Remote MCP",
     value: "remote-guided",
     description: "Use the hosted GitHits server. Sign in through your agent.",
   },
   {
     name: "Run MCP locally (supports experimental features)",
+    short: "Local MCP",
     value: "mcp-guided",
     description:
       "Local where supported, remote otherwise. Experiments are opt-in.",
   },
   {
     name: "Use the CLI with supporting skills",
+    short: "CLI with supporting skills",
     value: "skills",
     description: "Install CLI skills for your agents and sign in to GitHits.",
   },
@@ -751,12 +754,14 @@ const INIT_INTENT_CHOICES: SelectChoice<InitIntent>[] = [
 const GUIDANCE_CHOICES: SelectChoice<"install" | "mcp-only">[] = [
   {
     name: "Install skills and instructions (recommended)",
+    short: "Skills and instructions",
     value: "install",
     description:
       "Help your agent know when and how to use GitHits.\nAdds GitHits skills and instructions for the selected agents.",
   },
   {
     name: "Configure MCP only",
+    short: "MCP only",
     value: "mcp-only",
     description:
       "Set up the MCP connection without adding skills or instruction files.",
@@ -1421,6 +1426,7 @@ function buildInitAgentChoices(
         return {
           name: entry.name,
           value: entry.id,
+          short: entry.name,
           disabled: entry.reason ?? "unsupported project configuration",
         };
       }
@@ -1429,12 +1435,14 @@ function buildInitAgentChoices(
           name: entry.name,
           description: "Connect through the Claude directory.",
           value: entry.id,
+          short: entry.name,
           checked: true,
         };
       if (entry.status === "needs_setup") {
         return {
           name: entry.name,
           value: entry.id,
+          short: entry.name,
           checked: true,
         };
       }
@@ -1443,12 +1451,14 @@ function buildInitAgentChoices(
           name: entry.name,
           description: "Add missing skills and instructions.",
           value: entry.id,
+          short: entry.name,
           checked: true,
         };
       }
       return {
         name: entry.name,
         value: entry.id,
+        short: entry.name,
         disabled: "already configured",
       };
     });
@@ -4953,7 +4963,7 @@ async function runCliSkillsSetup(
   useColors: boolean,
 ): Promise<void> {
   if (scope === "project" && !(await resolveProjectSetupScope({}, fs))) return;
-  printSection(1, "Choose agents", useColors);
+  printSection("Choose agents", useColors);
   const available = await Promise.all(
     agentDefinitions
       .filter((agent) => GUIDANCE_SKILL_TARGETS[agent.id]?.[scope]?.length)
@@ -4998,7 +5008,7 @@ async function runCliSkillsSetup(
   const config: CompositeSetup = { method: "composite", steps };
   const alreadyInstalled = await isSetupAlreadyConfigured(config, fs, exec);
   if (!alreadyInstalled) {
-    printSection(2, "Review and confirm", useColors);
+    printSection("Review and confirm", useColors);
     console.log(`    Scope: ${scope === "project" ? "Project" : "User"}`);
     printInitProse(
       `    Agents: ${selected.map((agent) => agent.name).join(", ")}`,
@@ -5027,7 +5037,7 @@ async function runCliSkillsSetup(
       return;
     }
   }
-  printSection(3, "Sign in", useColors);
+  printSection("Sign in", useColors);
   const auth = await runInitAuthentication(
     options,
     prompts,
@@ -5036,7 +5046,7 @@ async function runCliSkillsSetup(
     false,
   );
   if (auth === "cancelled") return;
-  printSection(4, "Install and verify", useColors);
+  printSection("Install and verify", useColors);
   const result: SetupResult = alreadyInstalled
     ? {
         status: "already_configured",

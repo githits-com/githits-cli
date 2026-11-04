@@ -143,4 +143,6 @@ those existing connections.
 Interactive prompt rendering belongs to the prompt adapter. It wraps questions,
 choice labels/descriptions, disabled reasons and confirmations at word boundaries,
 reserving the selector prefix or confirmation suffix columns. Continued labels
-retain indentation; choice values, defaults and answer labels stay unchanged.
+retain indentation. Completed answers use concise labels on an indented line;
+agent summaries use names without setup qualifiers. Disabled reasons stay on
+the row when they fit. Choice values and defaults are unchanged.
