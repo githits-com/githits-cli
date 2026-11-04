@@ -39,6 +39,10 @@ import {
   agentDefinitions,
   type CompositeSetup,
   type ConfigFileSetup,
+  CURSOR_MCP_LOGIN_COMMAND,
+  CURSOR_MCP_UI_INSTRUCTION,
+  CURSOR_MCP_VERIFICATION_COMMANDS,
+  CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS,
   GITHITS_MCP_INVOCATION,
   getAgentSetupConfig,
   getInitAgentDefinitions,
@@ -316,11 +320,6 @@ const INSTALL_REVIEW_ITEMS = [
 ] as const;
 
 const CURSOR_REMOTE_MCP_URL = "https://mcp.githits.com";
-const CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS = [
-  `Cursor uses the remote GitHits MCP at ${CURSOR_REMOTE_MCP_URL} and manages its OAuth separately from local GitHits CLI authentication.`,
-  "In Cursor, open the MCP panel and click Authenticate once for GitHits, or run `cursor-agent mcp login GitHits`; then open a new Cursor Agent chat and verify that GitHits tools are available.",
-  "If cursor-agent is available, verify with `cursor-agent mcp list` and `cursor-agent mcp list-tools GitHits`; run `cursor-agent mcp login GitHits` if authentication is required.",
-] as const;
 
 type SafeScanResult =
   | { ok: true; scan: ScanResult }
@@ -735,13 +734,13 @@ const INIT_INTENT_CHOICES: SelectChoice<InitIntent>[] = [
     name: "Use the local CLI (supports experimental features)",
     value: "mcp-guided",
     description:
-      "Run MCP locally with CLI skills, or use remote MCP where required.\nExperimental features are opt-in.",
+      "Local where supported, remote otherwise. Experiments are opt-in.",
   },
   {
     name: "Configure MCP only (local first)",
     value: "mcp",
     description:
-      "Use local MCP where supported and remote MCP otherwise.\nNo skills or instructions are installed.",
+      "Local where supported, remote otherwise. No skills or instructions.",
   },
   {
     name: "View CLI skill setup instructions",
@@ -764,8 +763,7 @@ const INIT_SCOPE_CHOICES: SelectChoice<InitScopeChoice>[] = [
   {
     name: "Project-level config",
     value: "project",
-    description:
-      "Configure project-local MCP files for tools that support workspace config.",
+    description: "Set up GitHits in this project where supported.",
   },
 ];
 
@@ -822,25 +820,17 @@ function printInitProse(text: string): void {
   }
 }
 
-/** Print Cursor's human-facing verification guidance with standalone commands. */
+/** Print Cursor's current UI action with copyable CLI commands. */
 function printCursorRemoteVerificationInstructions(useColors: boolean): void {
   printInitProse(`  ${CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS[0]}`);
+  printInitProse(`  ${CURSOR_MCP_UI_INSTRUCTION}`);
+  printInitProse("  If you use Cursor CLI, sign in with:");
+  console.log(`    ${formatCommand(CURSOR_MCP_LOGIN_COMMAND, useColors)}`);
+  printInitProse("  Verify with:");
+  for (const command of CURSOR_MCP_VERIFICATION_COMMANDS)
+    console.log(`    ${formatCommand(command, useColors)}`);
   printInitProse(
-    "  In Cursor, open the MCP panel and click Authenticate once for GitHits, or run:",
-  );
-  console.log(
-    `    ${formatCommand("cursor-agent mcp login GitHits", useColors)}`,
-  );
-  printInitProse(
-    "  Then open a new Cursor Agent chat and verify that GitHits tools are available.",
-  );
-  printInitProse("  If cursor-agent is available, verify with:");
-  console.log(`    ${formatCommand("cursor-agent mcp list", useColors)}`);
-  console.log(
-    `    ${formatCommand("cursor-agent mcp list-tools GitHits", useColors)}`,
-  );
-  printInitProse(
-    "  Use the login command above if authentication is required.",
+    "  Open a new Cursor Agent chat and check that GitHits tools are available.",
   );
 }
 
@@ -1437,31 +1427,29 @@ function buildInitAgentChoices(
     .map((entry) => {
       if (entry.status === "unsupported_project_config") {
         return {
-          name: `${entry.name} (unsupported)`,
+          name: entry.name,
           value: entry.id,
           disabled: entry.reason ?? "unsupported project configuration",
         };
       }
       if (entry.status === "manual_action_required")
         return {
-          name: `${entry.name} (connect through directory)`,
+          name: entry.name,
+          description: "Connect through the Claude directory.",
           value: entry.id,
           checked: true,
         };
       if (entry.status === "needs_setup") {
-        const action =
-          entry.guidanceStatus === "needs_setup"
-            ? "MCP + supporting instructions"
-            : "MCP only";
         return {
-          name: `${entry.name} (${action}; ${entry.transport === "http" ? "remote" : "local CLI"})`,
+          name: entry.name,
           value: entry.id,
           checked: true,
         };
       }
       if (entry.guidanceStatus === "needs_setup") {
         return {
-          name: `${entry.name} (guidance repair)`,
+          name: entry.name,
+          description: "Add missing skills and instructions.",
           value: entry.id,
           checked: true,
         };
@@ -1516,10 +1504,14 @@ function getInteractiveInitSelection(
     ? getGuidanceTargetAgents(selectedAgents, fileSystemService, scope)
     : [];
   const guidanceAgentIds = new Set(guidanceAgents.map((agent) => agent.id));
+  // With no selectable changes, the no-op report covers the detected setup.
+  const noSelectionNeeded =
+    detection.actionableIds.length + detection.manualActionIds.length === 0;
   const unchangedAgents = detection.entries
     .filter(
       (entry) =>
         entry.status === "already_configured" &&
+        (selectedIdSet.has(entry.id) || noSelectionNeeded) &&
         !guidanceAgentIds.has(entry.id),
     )
     .map((entry) => findAgent(entry.id))
@@ -2292,11 +2284,8 @@ function buildAgenticInstallAuthPayload(
     return {
       required: null,
       status: "managed_by_cursor",
-      loginCommand: "cursor-agent mcp login GitHits",
-      verificationCommands: [
-        "cursor-agent mcp list",
-        "cursor-agent mcp list-tools GitHits",
-      ],
+      loginCommand: CURSOR_MCP_LOGIN_COMMAND,
+      verificationCommands: [...CURSOR_MCP_VERIFICATION_COMMANDS],
     };
   }
   if (authStatus === "authenticated") {
@@ -5154,7 +5143,7 @@ export async function initAction(
       useColors,
     );
   } else {
-    printTask("success", "Selected all detected tools", "--yes", useColors);
+    printTask("success", "Selected tools needing setup", "--yes", useColors);
   }
 
   let selection = getInteractiveInitSelection(

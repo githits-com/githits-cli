@@ -68,8 +68,8 @@ Hosted MCP uses https://mcp.githits.com and host-owned OAuth. Entirely hosted
 setup and guidance-only repairs do not construct CLI login dependencies. Local
 CLI auth only applies to selected local integrations. Configuration success is
 not an authenticated tool-discovery result; remote next steps also appear on
-configured/guidance-only paths. Cursor retains its MCP-panel Authenticate action,
-`cursor-agent mcp login GitHits`, and copyable tool-discovery commands. Other
+configured/guidance-only paths. Cursor uses Customize > MCPs and its sign-in prompts,
+`agent mcp login GitHits`, and copyable tool-discovery commands. Other
 hosts receive their own auth action and new-session discovery instructions.
 Staged Cursor-only auth keeps `managed_by_cursor`; other hosted-only setup uses
 `managed_by_host`, with additive per-host `remoteAuth` instructions for mixed runs.
@@ -181,7 +181,7 @@ Verified host contracts (2026-10-20):
   stays explicit; the redirected successor docs' path is not adopted.
 
 Remote sign-in instructions belong to each definition: Claude Code `/mcp`,
-Cursor existing panel/login commands, Codex `codex mcp login githits`, Gemini
+Cursor Customize > MCPs and current CLI login commands, Codex `codex mcp login githits`, Gemini
 `/mcp auth githits`, Pi `/mcp-auth GitHits`, OpenCode/Kilo native MCP auth,
 and the other hosts' documented MCP Authenticate/Authorize action. Every remote
 instruction ends with a new-session/tool-discovery check; none claims CLI auth
@@ -427,3 +427,10 @@ advertise unreleased behavior.
 - `src/commands/init/guidance-assets.ts` — four-skill runtime catalog.
 - `src/commands/init/agent-definitions.ts` — Pi and Codex host behavior.
 - `src/commands/init/setup-format.ts` — human prose wrapping and change rows.
+
+Interactive next steps follow the selected tools. A configured but unselected
+host receives no sign-in or tool-discovery instructions. When no tool selector
+is needed, the no-op report covers the existing detected setup. Choosing a
+guidance repair and then declining keeps that chosen host in the unchanged
+report without writes or login attempts. Ordinary tool choices use names;
+transport and replacement details belong in the review before confirmation.

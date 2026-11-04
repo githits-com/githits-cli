@@ -197,6 +197,11 @@ targeted onboarding validation in an isolated disposable environment; the
 stateful onboarding eval remains manual/dry-run-only until its harness supports
 safe automated execution.
 
+Cursor's current init handoff uses Customize > MCPs and `agent mcp` (verified
+against publisher docs and CLI2026.09.18-9a7762b help). Include that naming update
+in the onboarding skill/references at release preparation; `cursor-agent` remains
+an installed legacy alias, so this does not block the CLI output correction.
+
 ## Verify Gemini custom-home guidance discovery
 
 Observed while reviewing remote init: Gemini CLI `76e4d7c0` computes global

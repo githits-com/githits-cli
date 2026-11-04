@@ -211,7 +211,7 @@ describe("remote init profile", () => {
       command: "keep",
     });
   });
-  it("keeps unchanged Cursor sign-in steps in a mixed local rerun without executing them", async () => {
+  it("omits unselected Cursor sign-in steps in a mixed local rerun", async () => {
     const path = "/home/remote-test/.cursor/mcp.json";
     const f = fixture(["cursor", "opencode"], {
       [path]: JSON.stringify({ mcpServers: { GitHits: { url: MCP_URL } } }),
@@ -221,7 +221,7 @@ describe("remote init profile", () => {
       guidance: false,
       skipLogin: true,
     });
-    expect(output).toContain("cursor-agent mcp login GitHits");
+    expect(output).not.toContain("agent mcp login GitHits");
     expect(
       (f.deps.execService.exec as ReturnType<typeof mock>).mock.calls.some(
         ([command]) => command === "cursor-agent",
@@ -260,7 +260,7 @@ describe("remote init profile", () => {
     f.files[CLINE] = "{}";
     process.exitCode = 0;
     const rerun = await f.run({ remote: true, guidance: false });
-    expect(rerun).toContain("codex mcp login githits");
+    expect(rerun).not.toContain("codex mcp login githits");
     expect(process.exitCode).toBe(0);
   });
   it("keeps hosted sign-in steps when guidance repair fails on configured MCP", async () => {
@@ -759,7 +759,7 @@ describe("remote next-step disclosures", () => {
     expectNoReadyClaim(output);
   });
 
-  it("prints host auth instructions and local login guidance in mixed preserve mode when login is skipped", async () => {
+  it("prints only selected local setup guidance in mixed preserve mode", async () => {
     const f = fixture(["cline", "opencode"], {
       [CLINE]: JSON.stringify({
         mcpServers: {
@@ -771,13 +771,13 @@ describe("remote next-step disclosures", () => {
       await f.run({ yes: true, skipLogin: true, guidance: false }),
     );
 
-    expect(output).toContain(
+    expect(output).not.toContain(
       "Hosted GitHits MCP: https://mcp.githits.com. Each agent manages its own sign-in.",
     );
-    expect(output).toContain(
+    expect(output).not.toContain(
       "Open Cline's MCP settings and use Authenticate/Authorize for GitHits.",
     );
-    expect(output).toContain(
+    expect(output).not.toContain(
       "Open a new agent session and verify that GitHits tools are available.",
     );
     expect(output).toContain(
@@ -844,9 +844,9 @@ describe("staged mixed host auth disclosures", () => {
     expect(output).toContain(
       "If the user is not already signed in, ask before running: npx -y githits@latest login",
     );
-    expect(output).not.toContain("Cursor uses the remote GitHits MCP");
-    expect(output).not.toContain("In Cursor, open the MCP panel");
-    expect(output).not.toContain("cursor-agent mcp login GitHits");
+    expect(output).not.toContain("Cursor manages sign-in for hosted GitHits");
+    expect(output).not.toContain("In Cursor, open Customize > MCPs");
+    expect(output).not.toContain("agent mcp login GitHits");
     expect(output).not.toContain("click Authenticate once for GitHits");
     expect(f.files[cursorConfig]).toBeUndefined();
     expect(f.files[OPEN]).toBeDefined();
@@ -998,7 +998,7 @@ describe("native hosted route regressions", () => {
 describe("manual handoff completion reporting", () => {
   for (const yes of [false, true]) {
     for (const remote of [false, true]) {
-      it(`keeps unchanged sign-in guidance beside Desktop; yes=${yes}, remote=${remote}`, async () => {
+      it(`omits unselected sign-in guidance beside Desktop; yes=${yes}, remote=${remote}`, async () => {
         const cline = JSON.stringify({
           mcpServers: {
             GitHits: remote ? { type: "streamableHttp", url: MCP_URL } : LOCAL,
@@ -1015,25 +1015,21 @@ describe("manual handoff completion reporting", () => {
           })
         ).replace(/\s+/g, " ");
         expect(output).toContain(CLAUDE_DIRECTORY_URL);
-        expect(output).toContain(
-          remote
-            ? "Open Cline's MCP settings and use Authenticate/Authorize for GitHits."
-            : "Sign-in was not checked",
-        );
-        expect(output).toContain("Cline unchanged");
+        expect(output).not.toContain("Open Cline's MCP settings");
+        expect(output).not.toContain("Cline unchanged");
         expect(f.fs.atomicWriteFile).not.toHaveBeenCalled();
         expect(f.createLoginDeps).not.toHaveBeenCalled();
       });
     }
   }
-  it("retains sign-in steps on the default guided rerun with Desktop", async () => {
+  it("keeps the default Desktop rerun focused on its directory handoff", async () => {
     const f = fixture(["claude-desktop", "cline"]);
     await f.run({ installAgents: "cline", remote: true, guidance: true });
     (f.fs.atomicWriteFile as ReturnType<typeof mock>).mockClear();
     (f.fs.writeFile as ReturnType<typeof mock>).mockClear();
     const output = (await f.run({})).replace(/\s+/g, " ");
     expect(output).toContain(CLAUDE_DIRECTORY_URL);
-    expect(output).toContain(
+    expect(output).not.toContain(
       "Open Cline's MCP settings and use Authenticate/Authorize for GitHits.",
     );
     expect(f.fs.atomicWriteFile).not.toHaveBeenCalled();
@@ -1050,7 +1046,7 @@ describe("manual handoff completion reporting", () => {
     expect(output).not.toContain(CLAUDE_DIRECTORY_URL);
     expect(f.fs.atomicWriteFile).not.toHaveBeenCalled();
   });
-  it("keeps unchanged hosted instructions when all actionable tools are deselected", async () => {
+  it("omits hosted instructions when all tools are deselected", async () => {
     const f = fixture(["cline", "opencode"], {
       [CLINE]: JSON.stringify({
         mcpServers: { GitHits: { type: "streamableHttp", url: MCP_URL } },
@@ -1061,7 +1057,7 @@ describe("manual handoff completion reporting", () => {
       /\s+/g,
       " ",
     );
-    expect(output).toContain(
+    expect(output).not.toContain(
       "Open Cline's MCP settings and use Authenticate/Authorize for GitHits.",
     );
     expect(output).not.toContain("OpenCode:");
@@ -1108,4 +1104,54 @@ describe("manual handoff completion reporting", () => {
       );
     }
   });
+});
+
+describe("selected-host next steps", () => {
+  for (const failedGuidance of [false, true]) {
+    it(`keeps Claude-only guidance repair scoped to Claude; failed=${failedGuidance}`, async () => {
+      const oldCodex = process.env.CODEX_HOME;
+      const oldClaude = process.env.CLAUDE_CONFIG_DIR;
+      process.env.CODEX_HOME = "";
+      process.env.CLAUDE_CONFIG_DIR = "";
+      try {
+        const cursor = "/home/remote-test/.cursor/mcp.json";
+        const codex = "/home/remote-test/.codex/config.toml";
+        const claude = "/home/remote-test/.claude.json";
+        const seed = {
+          [cursor]: JSON.stringify({
+            mcpServers: { GitHits: { url: MCP_URL } },
+          }),
+          [codex]: `[mcp_servers.githits]\nurl = "${MCP_URL}"\n`,
+          [claude]: JSON.stringify({
+            mcpServers: { githits: { type: "http", url: MCP_URL } },
+          }),
+        };
+        const f = fixture(["claude-code", "cursor", "codex-cli"], seed);
+        f.deps.promptService.checkbox = mock(async () => [
+          "claude-code",
+        ]) as typeof f.deps.promptService.checkbox;
+        if (failedGuidance)
+          f.fs.atomicWriteFile = mock(async () => {
+            throw new Error("Read-only guidance directory");
+          });
+        const output = (await f.run({ remote: true })).replace(/\s+/g, " ");
+        expect(output).toContain(
+          "Open /mcp in Claude Code and authenticate githits.",
+        );
+        expect(output).not.toContain("agent mcp login GitHits");
+        expect(output).not.toContain("codex mcp login githits");
+        expect(output).not.toContain("Cursor manages sign-in");
+        expect(f.files[cursor]).toBe(seed[cursor]);
+        expect(f.files[codex]).toBe(seed[codex]);
+        expect(f.files[claude]).toBe(seed[claude]);
+        expect(f.createLoginDeps).not.toHaveBeenCalled();
+        expect(process.exitCode).toBe(failedGuidance ? 1 : 0);
+      } finally {
+        if (oldCodex === undefined) delete process.env.CODEX_HOME;
+        else process.env.CODEX_HOME = oldCodex;
+        if (oldClaude === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+        else process.env.CLAUDE_CONFIG_DIR = oldClaude;
+      }
+    });
+  }
 });

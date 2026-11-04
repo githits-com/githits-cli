@@ -290,27 +290,23 @@ function expectCursorRemoteNextSteps(logCalls: string[]): void {
   );
   expect(output).toContain("Cursor is ready only after its separate OAuth");
   expect(output).toContain(
-    "open the MCP panel and click Authenticate once for GitHits",
+    "open Customize > MCPs, select GitHits and follow the sign-in prompts",
   );
-  expect(output).toContain("cursor-agent mcp login GitHits");
-  expect(output).toContain("separately from local GitHits CLI authentication");
+  expect(output).toContain("agent mcp login GitHits");
+  expect(output).toContain("Cursor manages sign-in for hosted GitHits");
   expect(
     logCalls.some(
       (msg) =>
-        msg.trim() !== "cursor-agent mcp login GitHits" &&
-        msg.includes("cursor-agent mcp login GitHits"),
+        msg.trim() !== "agent mcp login GitHits" &&
+        msg.includes("agent mcp login GitHits"),
     ),
   ).toBe(false);
-  expect(
-    logCalls.some((msg) => msg.trim() === "cursor-agent mcp login GitHits"),
-  ).toBe(true);
-  expect(logCalls.some((msg) => msg.trim() === "cursor-agent mcp list")).toBe(
+  expect(logCalls.some((msg) => msg.trim() === "agent mcp login GitHits")).toBe(
     true,
   );
+  expect(logCalls.some((msg) => msg.trim() === "agent mcp list")).toBe(true);
   expect(
-    logCalls.some(
-      (msg) => msg.trim() === "cursor-agent mcp list-tools GitHits",
-    ),
+    logCalls.some((msg) => msg.trim() === "agent mcp list-tools GitHits"),
   ).toBe(true);
 }
 
@@ -748,11 +744,9 @@ describe("initAction", () => {
     const payload = JSON.parse(getLogOutput()[0] ?? "{}");
     expect(payload.actionableIds).toContain("cursor");
     expect(JSON.stringify(payload.instructions)).not.toContain(
-      "Cursor uses the remote GitHits MCP",
+      "Cursor manages sign-in for hosted GitHits",
     );
-    expect(JSON.stringify(payload.instructions)).not.toContain(
-      "cursor-agent mcp",
-    );
+    expect(JSON.stringify(payload.instructions)).not.toContain("agent mcp");
   });
 
   it("reports guidance-only repair as actionable without changing installableIds", async () => {
@@ -843,11 +837,11 @@ describe("initAction", () => {
       "Do not ask the user to choose actionable IDs.",
     );
     expect(payload.instructions).toContain(
-      "Cursor uses the remote GitHits MCP at https://mcp.githits.com and manages its OAuth separately from local GitHits CLI authentication.",
+      "Cursor manages sign-in for hosted GitHits at https://mcp.githits.com.",
     );
     expect(
       payload.instructions.some((instruction: string) =>
-        instruction.includes("cursor-agent mcp list-tools GitHits"),
+        instruction.includes("agent mcp list-tools GitHits"),
       ),
     ).toBe(true);
   });
@@ -1325,7 +1319,7 @@ describe("initAction", () => {
     ).toBe(false);
     expect(
       getLogOutput().some((msg) =>
-        msg.includes("Cursor uses the remote GitHits MCP"),
+        msg.includes("Cursor manages sign-in for hosted GitHits"),
       ),
     ).toBe(true);
     expect(
@@ -1920,9 +1914,9 @@ describe("initAction", () => {
     const payload = JSON.parse(getLogOutput()[0] ?? "{}");
     expect(payload.auth.required).toBeNull();
     expect(payload.auth.status).toBe("managed_by_cursor");
-    expect(payload.auth.loginCommand).toBe("cursor-agent mcp login GitHits");
+    expect(payload.auth.loginCommand).toBe("agent mcp login GitHits");
     expect(payload.auth.verificationCommands).toContain(
-      "cursor-agent mcp list-tools GitHits",
+      "agent mcp list-tools GitHits",
     );
     expect(createLoginDeps).not.toHaveBeenCalled();
     expect(JSON.stringify(payload)).not.toContain("githits@latest login");
@@ -1962,9 +1956,9 @@ describe("initAction", () => {
     const payload = JSON.parse(getLogOutput()[0] ?? "{}");
     expect(createLoginDeps).not.toHaveBeenCalled();
     expect(payload.auth.status).toBe("managed_by_cursor");
-    expect(payload.auth.loginCommand).toBe("cursor-agent mcp login GitHits");
+    expect(payload.auth.loginCommand).toBe("agent mcp login GitHits");
     expect(payload.instructions).toContain(
-      "Cursor uses the remote GitHits MCP at https://mcp.githits.com and manages its OAuth separately from local GitHits CLI authentication.",
+      "Cursor manages sign-in for hosted GitHits at https://mcp.githits.com.",
     );
     expect(JSON.stringify(payload)).not.toContain("githits@latest login");
   });
@@ -2292,7 +2286,7 @@ describe("initAction", () => {
       'Configured MCP server "githits": remote MCP at https://mcp.githits.com for Cursor',
     );
     expect(normalizeHumanOutput(logCalls)).toContain(
-      "open the MCP panel and click Authenticate once for GitHits",
+      "open Customize > MCPs, select GitHits and follow the sign-in prompts",
     );
   });
 
@@ -2692,9 +2686,9 @@ describe("initAction", () => {
     expect(output).toContain("Local GitHits CLI authentication is active.");
     expect(output).not.toContain("you are already signed in");
     expect(output).toContain(
-      "In Cursor, open the MCP panel and click Authenticate once for GitHits, or run:",
+      "In Cursor, open Customize > MCPs, select GitHits and follow the sign-in prompts.",
     );
-    expect(output).toContain("cursor-agent mcp login GitHits");
+    expect(output).toContain("agent mcp login GitHits");
   });
 
   it("repairs a missing subset of shared skills without MCP or auth", async () => {
@@ -3654,15 +3648,15 @@ describe("initAction", () => {
       const cursorLines = getLogOutput();
       const cursorProseLines = cursorLines.filter(
         (line) =>
-          line.includes("Cursor uses") ||
+          line.includes("Cursor manages sign-in") ||
           line.includes("manages") ||
           line.includes("OAuth"),
       );
       expect(cursorProseLines.length).toBeGreaterThan(1);
       expect(cursorProseLines.every((line) => line.length <= 40)).toBe(true);
-      expect(cursorLines).toContain("    cursor-agent mcp login GitHits");
-      expect(cursorLines).toContain("    cursor-agent mcp list");
-      expect(cursorLines).toContain("    cursor-agent mcp list-tools GitHits");
+      expect(cursorLines).toContain("    agent mcp login GitHits");
+      expect(cursorLines).toContain("    agent mcp list");
+      expect(cursorLines).toContain("    agent mcp list-tools GitHits");
     } finally {
       Object.defineProperty(process.stdout, "columns", {
         configurable: true,
@@ -3954,7 +3948,7 @@ describe("initAction", () => {
           msg.includes("unchanged") &&
           msg.includes("~/.cursor/mcp.json"),
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       logCalls.some(
         (msg) =>
@@ -4026,8 +4020,8 @@ describe("initAction", () => {
             disabled?: boolean | string;
           }>,
         ) => {
-          const repairChoice = choices.find((choice) =>
-            String(choice.name).includes("guidance repair"),
+          const repairChoice = choices.find(
+            (choice) => String(choice.value) === "cursor",
           );
           expect(repairChoice?.checked).toBe(true);
           return [repairChoice!.value];
@@ -4227,7 +4221,7 @@ describe("initAction", () => {
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toBeUndefined();
     expect(output).not.toContain("Codex CLI guidance");
-    expect(output).toContain("cursor-agent mcp login GitHits");
+    expect(output).not.toContain("agent mcp login GitHits");
     expect(
       (execService.exec as ReturnType<typeof mock>).mock.calls.some(
         ([command]) => command === "cursor-agent",
@@ -4276,9 +4270,7 @@ describe("initAction", () => {
     expect(createLoginDeps).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
     expect(getLogOutput().join("\n")).toContain("Nothing to change");
-    expect(getLogOutput().join("\n")).toContain(
-      "cursor-agent mcp login GitHits",
-    );
+    expect(getLogOutput().join("\n")).toContain("agent mcp login GitHits");
     expect(
       (promptService.confirm as ReturnType<typeof mock>).mock.calls.some(
         ([message]) => String(message).includes("Continue with"),
@@ -4286,7 +4278,7 @@ describe("initAction", () => {
     ).toBe(false);
   });
 
-  it("shows already-configured rows when no new tools are selected", async () => {
+  it("finishes without unrelated host steps when no tools are selected", async () => {
     const fs = createFsWithDetection(
       ["/home/test/.cursor", "/home/test/.codeium/windsurf"],
       {
@@ -4327,15 +4319,15 @@ describe("initAction", () => {
           msg.includes("unchanged") &&
           msg.includes("~/.cursor/mcp.json"),
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       logCalls.some(
         (msg) => msg.includes("Windsurf") && msg.includes("created"),
       ),
     ).toBe(false);
     expect(
-      logCalls.some((msg) => msg.includes("cursor-agent mcp login GitHits")),
-    ).toBe(true);
+      logCalls.some((msg) => msg.includes("agent mcp login GitHits")),
+    ).toBe(false);
     expect(
       (execService.exec as ReturnType<typeof mock>).mock.calls.some(
         ([command]) => command === "cursor-agent",
