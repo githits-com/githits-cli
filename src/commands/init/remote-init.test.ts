@@ -597,6 +597,34 @@ describe("MCP guidance consent", () => {
       expect(f.createLoginDeps).not.toHaveBeenCalled();
     });
 
+    it(`retains hosted next steps when guidance repair is declined at ${scope.name} scope`, async () => {
+      const initial = JSON.stringify({
+        mcpServers: { GitHits: scope.expectedMcp },
+      });
+      const f = fixture([...scope.ids], { [scope.configPath]: initial });
+      chooseGuidance(f, async () => "mcp-only");
+      const output = (await f.run(scope.options)).replace(/\s+/g, " ");
+      expectGuidancePrompt(f, scope.name);
+      expect(output).toContain("Nothing to change");
+      expect(output).toContain(
+        scope.name === "user" ? "Cline unchanged" : "Claude Code unchanged",
+      );
+      expect(output).toContain(
+        "Open a new agent session and verify that GitHits tools are available.",
+      );
+      expect(f.files).toEqual({ [scope.configPath]: initial });
+      expect(f.fs.atomicWriteFile).not.toHaveBeenCalled();
+      expect(f.fs.writeFile).not.toHaveBeenCalled();
+      expect(f.createLoginDeps).not.toHaveBeenCalled();
+      expect(
+        (
+          f.deps.promptService.confirm as ReturnType<typeof mock>
+        ).mock.calls.some(([message]) =>
+          String(message).includes("Continue with"),
+        ),
+      ).toBe(false);
+    });
+
     it(`configures MCP only when guidance is declined at ${scope.name} scope`, async () => {
       const f = fixture([...scope.ids]);
       chooseGuidance(f, async () => "mcp-only");
