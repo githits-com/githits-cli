@@ -887,6 +887,8 @@ describe("enclosing-symbol text", () => {
     expect(text).toContain(hit.read.target);
     expect(text).toContain(hit.read.path!);
     expect(page).toEqual(before);
+    page.hits[1]!.line += 1;
+    expect(formatGrepText(page).split("symbolRef:")).toHaveLength(3);
     page.hits = [hit];
     hit.symbol = { name: "only_name" };
     const lean = formatGrepText(page);
