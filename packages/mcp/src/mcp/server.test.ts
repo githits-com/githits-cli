@@ -485,9 +485,14 @@ describe("MCP grep schema", () => {
       "max_matches",
       "pattern",
       "pattern_type",
+      "symbol_fields",
       "targets",
       "wait_timeout_ms",
     ]);
+    expect(inputSchema.properties?.symbol_fields).toMatchObject({
+      type: "array",
+      items: { type: "string" },
+    });
     expect(inputSchema.required).toEqual(["targets", "pattern"]);
 
     const targetsSchema = inputSchema.properties?.targets as

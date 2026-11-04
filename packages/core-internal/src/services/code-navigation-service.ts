@@ -2482,7 +2482,7 @@ query FetchCodeContext(
 // grepRepo -----------------------------------------------------------
 
 /** Shared requested-field symbol projection for both grep operations. */
-export const navigationSymbolSchema = z
+export const navigationSymbolSchema: z.ZodType<NavigationSymbol> = z
   .object({
     symbolRef: z.string().optional(),
     name: z.string().optional(),
