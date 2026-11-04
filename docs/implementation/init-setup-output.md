@@ -111,3 +111,12 @@ targets continue after an individual failure.
 Claude connector disconnection belongs to Claude's UI. CLI uninstall removes
 only legacy Desktop local config and the normal verified guidance targets; it
 does not claim to disconnect that account-level connector.
+
+
+## Partial failures
+
+Interactive setup exits nonzero when any selected setup fails. It retains
+sign-in/discovery instructions for successfully configured hosted targets even
+when another tool fails. Probe failures name known configuration paths and
+explain that permissions, syntax and the GitHits entry need checking; they
+leave existing config untouched and never echo config contents.

@@ -50,6 +50,13 @@ Exercise real built terminal choices at80/40columns, project consent and CLI
 files in disposable homes. Check two fresh native Codex remote sessions without
 reading/printing credentials. Inspect actual MCP call results, not agent claims.
 If authentication needs human interaction, ask only for that missing step.
+The final review identified ordinary closure work: preserve config symlinks in
+config setup/removal (not the credential writer), keep successful hosted auth
+steps on partial failure, return nonzero for interactive failures and name
+known config paths in probe errors without echoing contents. The child prompt
+adapter completes confirmation/disabled-text wrapping and distinguishes unchecked
+CLI auth from a confirmed missing login. These retain the approved flow.
+
 Internal code_reviewer then one external Opus5.5 reviewer over combined delta,
 max3 rounds for this new refresh scope. No review fanout; retain through merge.
 Record exact verification and limits on PR505/514. Stacked CI's base-main filter
