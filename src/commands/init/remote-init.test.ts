@@ -9,6 +9,7 @@ import {
 } from "bun:test";
 import { readFileSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
+import { ExitPromptError } from "@inquirer/core";
 import { parse as parseToml } from "smol-toml";
 import { version } from "../../../package.json";
 import { renderManagedSkillContent } from "../../services/mcp-skill-content.js";

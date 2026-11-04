@@ -73,7 +73,7 @@ Hosts without a guidance target report that limitation rather than claiming
 an instruction write.
 
 Guidance outcomes enumerate created, updated, unchanged, removed, and failed
-skill files. Guidance-only repairs do not mutate MCP or authenticate. During
+skill installations. Guidance-only repairs do not mutate MCP or authenticate. During
 uninstall, an all-absent guidance result collapses to one unchanged row, while
 removed files and failed paths remain individually visible. Failure reasons are
 sanitized; the target path is retained. Guidance contributes to the overall

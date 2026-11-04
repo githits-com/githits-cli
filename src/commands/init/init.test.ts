@@ -7781,7 +7781,7 @@ describe("initUninstallAction", () => {
       expect(configFiles[path]).toBe(content);
     }
     expect(normalizeHumanOutput()).toContain(
-      "GitHits guidance unchanged 7 guidance targets skipped because tools may still use them",
+      "GitHits guidance unchanged 4 guidance targets skipped because tools may still use them",
     );
   });
 
@@ -7831,7 +7831,7 @@ describe("initUninstallAction", () => {
       expect(configFiles[path]).toBe(content);
     }
     expect(normalizeHumanOutput()).toContain(
-      "GitHits guidance unchanged 7 guidance targets skipped because tools may still use them",
+      "GitHits guidance unchanged 4 guidance targets skipped because tools may still use them",
     );
   });
 
