@@ -204,6 +204,23 @@ describe("remote init profile", () => {
     expect(process.exitCode).toBe(1);
     expect(f.createLoginDeps).not.toHaveBeenCalled();
     expect(output).not.toContain("CLI is ready");
+    f.files[CLINE] = "{}";
+    process.exitCode = 0;
+    const rerun = await f.run({ remote: true, guidance: false });
+    expect(rerun).toContain("codex mcp login githits");
+    expect(process.exitCode).toBe(0);
+  });
+  it("keeps hosted sign-in steps when guidance repair fails on configured MCP", async () => {
+    const f = fixture(["codex-cli"]);
+    await f.run({ remote: true, guidance: false });
+    f.fs.atomicWriteFile = mock(async () => {
+      throw new Error("Read-only skill folder");
+    });
+    const output = await f.run({ remote: true, guidance: true });
+    expect(output).toContain("Setup completed with errors");
+    expect(output).toContain("codex mcp login githits");
+    expect(process.exitCode).toBe(1);
+    expect(f.createLoginDeps).not.toHaveBeenCalled();
   });
 
   it("defaults interactive setup to hosted MCP and only the MCP skill without local auth", async () => {

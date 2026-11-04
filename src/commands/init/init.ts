@@ -5389,7 +5389,13 @@ export async function initAction(
   if (failed > 0) {
     process.exitCode = 1;
     console.log("  Setup completed with errors.");
-    printRemoteInstructions(configuredMcpAgents);
+    printRemoteInstructions([
+      ...configuredMcpAgents,
+      ...selection.unchangedAgents,
+      ...selection.guidanceAgents.filter((agent) =>
+        scan.alreadyConfigured.some((configured) => configured.id === agent.id),
+      ),
+    ]);
   } else if (
     configured > 0 ||
     alreadyDone > 0 ||
@@ -5411,7 +5417,7 @@ export async function initAction(
       [
         ...summaryMcpAgents,
         ...selection.guidanceAgents,
-        ...(options.yes ? selection.unchangedAgents : []),
+        ...selection.unchangedAgents,
       ].filter(usesHostedMcp),
     );
   }
