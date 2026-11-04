@@ -693,7 +693,7 @@ describe("selected release and registry pointer", () => {
       undefined,
       "1.27.0-preview.1",
       "PRERELEASE_EXCLUDED",
-      "latest 1.27.0-preview.1 is a prerelease; no default release; request it explicitly",
+      "latest 1.27.0-preview.1 is a prerelease; no default release; installing it requires an explicit version",
     ],
     [
       "NUGET",
@@ -701,7 +701,7 @@ describe("selected release and registry pointer", () => {
       "1.27.0-preview.1",
       "1.27.0-preview.1",
       "PRERELEASE_EXCLUDED",
-      "latest 1.27.0-preview.1 is a prerelease; no default release; request it explicitly",
+      "latest 1.27.0-preview.1 is a prerelease; no default release; installing it requires an explicit version",
     ],
   ] as const)(
     "explains %s:%s selected %s vs %s",
@@ -733,7 +733,7 @@ describe("selected release and registry pointer", () => {
         expect(text.split("\n")[0]).toContain(
           version ? `@ ${version}` : "no selected version",
         );
-        expect(text.replace(/\s+/g, " ")).toContain(explanation);
+        expect(text.split("\n\n")[1]!.replace(/\s+/g, " ")).toBe(explanation);
         expect(text).toContain("Selected:");
         expect(text).not.toContain("Latest:");
         expect(text).not.toContain("undefined");

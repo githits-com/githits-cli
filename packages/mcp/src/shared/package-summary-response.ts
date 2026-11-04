@@ -388,11 +388,14 @@ function formatRegistryLatestDifference(
     difference.reason === "PRERELEASE_EXCLUDED" &&
     (!lean.version || lean.version === difference.version)
   ) {
-    return `${prefix}; no default release; request it explicitly`;
+    return `${prefix}; no default release; installing it requires an explicit version`;
   }
   if (!lean.version || lean.version === difference.version)
     return `${prefix}; no default release`;
-  const installHint = lean.registry === "npm" ? " (what npm installs)" : "";
+  const installHint =
+    lean.registry === "npm" && difference.reason === "DEPRECATED"
+      ? " (what npm installs)"
+      : "";
   return `${prefix}; showing ${lean.version}${installHint}`;
 }
 
