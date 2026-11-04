@@ -179,11 +179,9 @@ Verified host contracts (2026-10-20):
   uses the existing direct `mcp.<name>` map with remote type, URL, and enabled
   state. Another source directory has a newer nesting shape; do not mistake
   that unrelated/unreleased surface for a requirement to migrate existing setup.
-  Installed OpenCode 1.18.30 exposes native `mcp add --url`; Codex 0.163.0 also
-  exposes `mcp add --url` (help/version probes only, no user config read).
 - Codex `e18a20d6`, `codex-rs/cli/src/mcp_cmd.rs:453-490` writes the
   entry and immediately awaits browser OAuth from `mcp add --url`. Local
-  Codex 0.163.0 help has no no-login switch. Remote user setup therefore uses
+  Remote user setup therefore uses
   the existing TOML executor at `CODEX_HOME/config.toml`, or
   `~/.codex/config.toml` when the environment value is absent/empty; project
   setup keeps `.codex/config.toml`. Preserve sibling settings and preserve surrounding comments/formatting through the shared TOML editor
@@ -310,11 +308,12 @@ file path, independently of selection order.
 
 Each declared skill includes every packaged file: code uses
 `references/code-and-docs.md`, package uses `references/package.md`, and
-onboarding uses `references/troubleshooting.md`. These are ordinary per-file
-setup entries, installed and verified with `SKILL.md`. A missing reference is
-repairable guidance. References are removed before `SKILL.md`, allowing the
-existing empty-directory cleanup to remove the skill folder. A package-tree
-contract test catches undeclared files; there is no recursive copy/delete path.
+onboarding uses `references/troubleshooting.md`. Each skill setup owns its
+catalogued files as a unit. The shared source reader loads all files from one
+packaged source directory, and setup/status/uninstall use that same catalog.
+A missing reference is repairable guidance. Removal cleans empty directories
+while retaining unrelated files. The package-tree contract test catches
+undeclared files. Init selects skills; the existing executor owns file lifecycle.
 
 The runtime catalog is defined in `src/commands/init/guidance-assets.ts` and
 is checked for parity with plugin packaging. Missing files are repaired;

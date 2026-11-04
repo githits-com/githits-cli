@@ -983,14 +983,20 @@ function getGuidanceSkillSetups(
             skill.name === GITHITS_MCP_SKILL_NAME,
       )) {
         const targetPath = fileSystemService.joinPath(
-          basePath, ...relativeTarget, skill.name, "SKILL.md",
+          basePath,
+          ...relativeTarget,
+          skill.name,
+          "SKILL.md",
         );
         if (seen.has(targetPath)) continue;
         seen.add(targetPath);
         const source = GITHITS_SKILL_SOURCE_PATHS[skill.name];
         setups.push({
-          method: "skill", skillName: skill.name, sourcePath: source.sourcePath,
-          sourcePathCandidates: source.sourcePathCandidates, targetPath,
+          method: "skill",
+          skillName: skill.name,
+          sourcePath: source.sourcePath,
+          sourcePathCandidates: source.sourcePathCandidates,
+          targetPath,
         });
       }
     }
@@ -5002,7 +5008,9 @@ async function runCliSkillsSetup(
     );
     for (const step of steps)
       for (const relativePath of getSkillFilePaths(step.skillName))
-        printInitProse(`      ${formatConfigPath(fs.joinPath(fs.getDirname(step.targetPath), ...relativePath.split("/")), fs)}`);
+        printInitProse(
+          `      ${formatConfigPath(fs.joinPath(fs.getDirname(step.targetPath), ...relativePath.split("/")), fs)}`,
+        );
     printInitProse(
       "    These skills use the GitHits CLI or npx; a global CLI install is not required.",
     );

@@ -1,6 +1,7 @@
 import checkbox from "@inquirer/checkbox";
 import confirm from "@inquirer/confirm";
 import select from "@inquirer/select";
+import stringWidth from "fast-string-width";
 
 /** Choice for checkbox prompt */
 export interface CheckboxChoice<T> {
@@ -54,6 +55,44 @@ export interface PromptService {
   ): Promise<ConfirmChoice>;
 }
 
+/** Wrap plain prompt text at word boundaries, preserving authored line breaks. */
+export function wrapPromptText(text: string, width: number): string {
+  return text
+    .split("\n")
+    .map((paragraph) => {
+      const indent = paragraph.match(/^ */)?.[0] ?? "";
+      const words = paragraph.trim().split(/\s+/);
+      const lines: string[] = [];
+      let line = indent;
+      for (const word of words) {
+        const candidate = line.trim() ? `${line} ${word}` : `${indent}${word}`;
+        if (line.trim() && stringWidth(candidate) > width) {
+          lines.push(line);
+          line = `${indent}${word}`;
+        } else line = candidate;
+      }
+      return [...lines, line].join("\n");
+    })
+    .join("\n");
+}
+
+/** Reserve Inquirer's prefix columns when preparing selectable labels. */
+function wrapChoices<T extends { name: string; description?: string }>(
+  choices: T[],
+): T[] {
+  const columns = process.stdout.columns || 80;
+  return choices.map((choice) => ({
+    ...choice,
+    name: wrapPromptText(choice.name, columns - 2).replaceAll("\n", "\n  "),
+    short: choice.name,
+    ...(choice.description === undefined
+      ? {}
+      : {
+          description: wrapPromptText(choice.description, columns - 1),
+        }),
+  }));
+}
+
 /**
  * Production implementation using Inquirer prompt packages.
  */
@@ -63,14 +102,21 @@ export class PromptServiceImpl implements PromptService {
     choices: SelectChoice<T>[],
     defaultValue?: T,
   ): Promise<T> {
-    return select({ message, choices, default: defaultValue });
+    return select({
+      message: wrapPromptText(message, (process.stdout.columns || 80) - 2),
+      choices: wrapChoices(choices),
+      default: defaultValue,
+    });
   }
 
   async checkbox<T>(
     message: string,
     choices: CheckboxChoice<T>[],
   ): Promise<T[]> {
-    return checkbox({ message, choices });
+    return checkbox({
+      message: wrapPromptText(message, (process.stdout.columns || 80) - 2),
+      choices: wrapChoices(choices),
+    });
   }
 
   async confirm(message: string, defaultValue?: boolean): Promise<boolean> {

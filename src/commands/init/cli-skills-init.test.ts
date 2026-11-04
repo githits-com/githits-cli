@@ -20,7 +20,11 @@ import {
   createMockPromptService,
 } from "../../services/test-helpers.js";
 import { agentDefinitions } from "./agent-definitions.js";
-import { GITHITS_SKILL_CATALOG, GITHITS_SKILL_SOURCE_PATHS, getSkillFilePaths } from "./guidance-assets.js";
+import {
+  GITHITS_SKILL_CATALOG,
+  GITHITS_SKILL_SOURCE_PATHS,
+  getSkillFilePaths,
+} from "./guidance-assets.js";
 import {
   type InitDependencies,
   type InitOptions,
@@ -56,16 +60,23 @@ afterEach(() => {
 const HOME = "/home/cli-test";
 function fixture(ids = ["cline"], seed: Record<string, string> = {}) {
   const files = { ...seed };
-  const sources = new Map(GITHITS_SKILL_CATALOG.flatMap(skill => getSkillFilePaths(skill.name).map(relativePath => {
-    const path = join(dirname(GITHITS_SKILL_SOURCE_PATHS[skill.name].sourcePath), ...relativePath.split("/"));
-    return [resolve(path), readFileSync(path, "utf8")] as const;
-  })));
+  const sources = new Map(
+    GITHITS_SKILL_CATALOG.flatMap((skill) =>
+      getSkillFilePaths(skill.name).map((relativePath) => {
+        const path = join(
+          dirname(GITHITS_SKILL_SOURCE_PATHS[skill.name].sourcePath),
+          ...relativePath.split("/"),
+        );
+        return [resolve(path), readFileSync(path, "utf8")] as const;
+      }),
+    ),
+  );
   const dirs = new Set(["/repo"]);
   const fs = createMockFileSystemService({
     getHomeDir: () => HOME,
     getCwd: () => "/repo",
     joinPath: posix.join,
-    getDirname: posix.dirname,
+    getDirname: (path: string) => posix.dirname(path.replaceAll("\\", "/")),
   });
   for (const agent of agentDefinitions.filter((agent) =>
     ids.includes(agent.id),
