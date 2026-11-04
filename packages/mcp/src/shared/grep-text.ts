@@ -259,21 +259,6 @@ export function formatGrepText(
       for (const symbol of row.symbols) {
         const hint = formatGrepSymbolHint(symbol);
         if (hint) prose(`  in: ${hint}`);
-        // Refs are copyable opaque identity; never wrap or reconstruct them.
-        if (symbol.symbolRef !== undefined)
-          lines.push(`  symbolRef: ${escapeControls(symbol.symbolRef)}`);
-        for (const [label, value] of Object.entries({
-          category: symbol.category,
-          isPublic: symbol.isPublic === false ? false : undefined,
-          filePath: symbol.filePath,
-          startLine:
-            symbol.endLine === undefined ? symbol.startLine : undefined,
-          endLine: symbol.startLine === undefined ? symbol.endLine : undefined,
-          contentHash: symbol.contentHash,
-          parentPath: symbol.parentPath,
-        })) {
-          if (value !== undefined) prose(`  ${label}: ${value}`);
-        }
       }
       previous = row.number;
     }

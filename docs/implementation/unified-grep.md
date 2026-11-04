@@ -579,9 +579,11 @@ to an empty object; no enclosure remains null. The query selects only
 `__typename` in that case and the result allowlist removes it. These masks do not
 expose the ordinary hit's file hash or manufacture a symbol implementation flag.
 
-Text shows supplied symbol hints beneath matching rows, plus exact symbol refs
-and remaining requested metadata. JSON preserves the requested metadata on
-repository `hit.symbol`. Repository absence is null; hosted docs hits have no
+Text uses the same compact `in:` hint as legacy `code grep`: supplied name or
+qualified path, kind, public visibility, arity and a complete line range. It
+does not dump symbol refs, hashes, repeated file paths or other raw metadata.
+JSON preserves all requested metadata on repository `hit.symbol`, including
+exact opaque refs and individual range bounds. Repository absence is null; hosted docs hits have no
 symbol field. Unrequested scalar defaults never become facts because their
 fields are not selected. Range fields are not inferred from match/context lines.
 Metadata does not include source bodies or cause additional read requests.

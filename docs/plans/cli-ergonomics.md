@@ -282,6 +282,8 @@ This phase is independent of Phase 3 and does not change that lane's design.
 
 Core services share the legacy catalogue, requested-field projection and symbol
 schema; shared MCP helpers own validation, result projection and grouped text.
+User UX correction: text reuses only the compact legacy `in:` hint; full refs,
+hashes, paths and other requested metadata remain in JSON. No raw field dump.
 CLI `--symbol-field` and MCP `symbol_fields` use the same explicit demand
 boundary. All 14 producer masks are accepted; the two native-only controls have
 no GraphQL scalar output and this limitation is documented. Site-only requests

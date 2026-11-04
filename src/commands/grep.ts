@@ -234,7 +234,7 @@ export function registerGrepCommand(
     )
     .option(
       "--symbol-field <field>",
-      `Repeatable; enclosing metadata in text/JSON. Repeat the same mask on continuations. ${GREP_REPO_SYMBOL_FIELDS_NOTE}`,
+      `Repeatable; compact hints in text, full metadata in --json. Repeat the same mask on continuations. ${GREP_REPO_SYMBOL_FIELDS_NOTE}`,
       collect,
     )
     .option(
