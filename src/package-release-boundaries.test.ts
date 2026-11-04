@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { readdir, readFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 import { subset } from "semver";
@@ -326,4 +327,204 @@ describe("package release boundaries", () => {
       }
     }
   });
+});
+
+interface ChangelogJob {
+  outputs?: Record<string, string>;
+  needs?: string;
+  if?: string;
+  uses?: string;
+  permissions: Record<string, string>;
+  with?: Record<string, string>;
+  secrets?: Record<string, string>;
+  "runs-on"?: string;
+  "timeout-minutes"?: number;
+  "continue-on-error"?: boolean;
+  steps?: {
+    run: string;
+    env: Record<string, string>;
+    "continue-on-error"?: boolean;
+  }[];
+}
+
+interface ChangelogWorkflow {
+  on: Record<
+    string,
+    {
+      inputs: Record<
+        string,
+        { description: string; required: boolean; type: string }
+      >;
+      secrets?: Record<string, { required: boolean }>;
+    }
+  >;
+  permissions: Record<string, string>;
+  jobs: Record<string, ChangelogJob>;
+}
+
+async function readChangelogWorkflow(name: string): Promise<ChangelogWorkflow> {
+  return parseYaml(
+    await readFile(
+      join(import.meta.dir, "..", ".github", "workflows", name),
+      "utf8",
+    ),
+  ) as ChangelogWorkflow;
+}
+
+describe("Mintlify release trigger", () => {
+  it("shares a non-fatal, permissionless trigger between real releases and manual runs", async () => {
+    const release = await readChangelogWorkflow("release.yml");
+    const trigger = await readChangelogWorkflow(
+      "mintlify-changelog-trigger.yml",
+    );
+    const caller = release.jobs["trigger-docs-changelog"]!;
+    const job = trigger.jobs["trigger-docs-changelog"]!;
+    expect(release.jobs.release!.outputs).toEqual({
+      released: "$" + "{{ steps.version.outputs.should_release }}",
+      version: "$" + "{{ steps.version.outputs.version }}",
+    });
+    expect(caller.needs).toBe("release");
+    expect(caller.if).toBe("needs.release.outputs.released == 'true'");
+    expect(caller.uses).toBe(
+      "./.github/workflows/mintlify-changelog-trigger.yml",
+    );
+    expect(caller.permissions).toEqual({});
+    expect(caller.with).toEqual({
+      version: "$" + "{{ needs.release.outputs.version }}",
+    });
+    expect(caller.secrets).toEqual({
+      MINTLIFY_API_KEY: "$" + "{{ secrets.MINTLIFY_API_KEY }}",
+    });
+    expect(caller["continue-on-error"]).toBeUndefined();
+    expect(trigger.permissions).toEqual({});
+    expect(Object.keys(trigger.on).sort()).toEqual([
+      "workflow_call",
+      "workflow_dispatch",
+    ]);
+    for (const event of ["workflow_call", "workflow_dispatch"]) {
+      expect(trigger.on[event]!.inputs.version).toEqual({
+        description: "CLI version for logging only",
+        required: false,
+        type: "string",
+      });
+    }
+    expect(trigger.on.workflow_call!.secrets).toEqual({
+      MINTLIFY_API_KEY: { required: false },
+    });
+    expect(job["runs-on"]).toBe("aks-deployment-runner");
+    expect(job.permissions).toEqual({});
+    expect(job["timeout-minutes"]).toBe(5);
+    expect(job.steps).toHaveLength(1);
+    expect(job.steps![0]!["continue-on-error"]).toBe(true);
+    expect(job.steps![0]!.env).toEqual({
+      MINTLIFY_API_KEY: "$" + "{{ secrets.MINTLIFY_API_KEY }}",
+      MINTLIFY_PROJECT_ID: "$" + "{{ vars.MINTLIFY_PROJECT_ID }}",
+      MINTLIFY_DRAFT_CHANGELOG_WORKFLOW_ID:
+        "$" + "{{ vars.MINTLIFY_DRAFT_CHANGELOG_WORKFLOW_ID }}",
+      VERSION: "$" + "{{ inputs.version }}",
+    });
+  });
+
+  const settings: Record<string, string> = {
+    MINTLIFY_API_KEY: "fixture-key",
+    MINTLIFY_PROJECT_ID: "fixture-project",
+    MINTLIFY_DRAFT_CHANGELOG_WORKFLOW_ID: "fixture-workflow",
+  };
+  for (const missing of [
+    ...Object.keys(settings),
+    "all",
+    "none",
+    "request-failure",
+    "request-timeout",
+    "no-version",
+    "literal-version",
+  ]) {
+    // The workflow runs on Linux; Windows CI still checks its YAML contract above.
+    it.skipIf(process.platform === "win32")(
+      `handles trigger configuration: ${missing}`,
+      async () => {
+        const trigger = await readChangelogWorkflow(
+          "mintlify-changelog-trigger.yml",
+        );
+        const script = trigger.jobs["trigger-docs-changelog"]!.steps![0]!.run;
+        const dir = await mkdtemp(join(tmpdir(), "mintlify-trigger-"));
+        try {
+          await writeFile(
+            join(dir, "curl"),
+            '#!/bin/bash\nset -eu\nprintf "%s\\n" "$@" > "$CURL_ARGS"\nexit "$CURL_EXIT"\n',
+            { mode: 0o755 },
+          );
+          const argsPath = join(dir, "args");
+          const env: Record<string, string> = {
+            ...settings,
+            PATH: `${dir}:/usr/bin:/bin`,
+            VERSION: "0.39.0",
+            CURL_ARGS: argsPath,
+            CURL_EXIT:
+              missing === "request-failure"
+                ? "22"
+                : missing === "request-timeout"
+                  ? "28"
+                  : "0",
+          };
+          if (missing === "no-version") env.VERSION = "";
+          if (missing === "literal-version")
+            env.VERSION = "$(exit 91); `exit 92`";
+          if (missing === "all")
+            for (const name of Object.keys(settings)) env[name] = "";
+          else if (missing in settings) env[missing] = "";
+          const child = Bun.spawn(["/bin/bash", "-c", script], {
+            env,
+            stdout: "pipe",
+            stderr: "pipe",
+          });
+          const [stdout, stderr, code] = await Promise.all([
+            new Response(child.stdout).text(),
+            new Response(child.stderr).text(),
+            child.exited,
+          ]);
+          expect(stderr).toBe("");
+          expect(stdout).not.toContain(settings.MINTLIFY_API_KEY!);
+          if (missing === "all" || missing in settings) {
+            expect(code).toBe(0);
+            expect(stdout).toContain(
+              `::notice::Skipping Mintlify Draft changelog: ${missing === "all" ? "MINTLIFY_API_KEY" : missing} is missing.`,
+            );
+            expect(await Bun.file(argsPath).exists()).toBe(false);
+          } else {
+            expect(code).toBe(
+              missing === "request-failure"
+                ? 22
+                : missing === "request-timeout"
+                  ? 28
+                  : 0,
+            );
+            expect(stdout).toContain(
+              `CLI version: ${env.VERSION || "unspecified"}`,
+            );
+            expect(
+              (await readFile(argsPath, "utf8")).trim().split("\n"),
+            ).toEqual([
+              "-fsS",
+              "--connect-timeout",
+              "10",
+              "--max-time",
+              "30",
+              "--retry",
+              "2",
+              "--retry-max-time",
+              "120",
+              "-X",
+              "POST",
+              "https://api.mintlify.com/v1/workflow/fixture-project/fixture-workflow/trigger",
+              "-H",
+              "Authorization: Bearer fixture-key",
+            ]);
+          }
+        } finally {
+          await rm(dir, { recursive: true, force: true });
+        }
+      },
+    );
+  }
 });

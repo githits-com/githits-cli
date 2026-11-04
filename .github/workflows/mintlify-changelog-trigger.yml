@@ -42,6 +42,6 @@ jobs:
           done
 
           echo "Triggering Mintlify Draft changelog (CLI version: ${VERSION:-unspecified})"
-          curl -fsS --retry 2 -X POST \
+          curl -fsS --connect-timeout 10 --max-time 30 --retry 2 --retry-max-time 120 -X POST \
             "https://api.mintlify.com/v1/workflow/${MINTLIFY_PROJECT_ID}/${MINTLIFY_DRAFT_CHANGELOG_WORKFLOW_ID}/trigger" \
             -H "Authorization: Bearer ${MINTLIFY_API_KEY}"
