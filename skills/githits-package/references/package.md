@@ -9,7 +9,7 @@ when using this reference.
 
 ## Package Info
 
-`githits pkg info <registry:name>` returns latest-version triage: license, description, repository popularity, downloads, publish age, and separate latest-affected and package-wide advisory-history scopes. Use `--verbose` for GitHub language/topics/last-pushed, package-wide advisory history (all versions), published-version count, download freshness, and recent changes. Use `--json` only for code consuming raw fields or required fields absent from text.
+`githits pkg info <registry:name>` returns default-release triage: license, description, repository popularity, downloads, selected-release publish age, and separate selected-release affected and package-wide advisory-history scopes. A skipped registry latest is explained; JSON keeps selected `version`/`publishedAt` separate from `latestVersion`/`latestVersionPublishedAt` and `registryLatestDifference`. If no release is selected, `version` is omitted. Use `--verbose` for GitHub language/topics/last-pushed, package-wide advisory history (all versions), published-version count, download freshness, and recent changes. Use `--json` only for code consuming raw fields or required fields absent from text.
 
 When proven, `Package registry` follows the source Git `Repository` row and
 names the artifact repository supplying validated release metadata, with its
@@ -22,6 +22,24 @@ Supported registries include npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, Ru
 Pub targets use `pub:<name>[@<version>]`, for example `pub:http`. SDK graph sources such as `flutter_sdk` are not accepted package registries.
 `cargo:` is an input alias for `crates:` (public crates.io); canonical registry identities remain `crates`.
 Swift package targets use `swift:github.com/<owner>/<repo>` or `swift:gitlab.com/<group>/<project>`; Zig package targets use `zig:gh/<owner>/<repo>` or `zig:cb/<owner>/<repo>`. Keep these registry-native coordinates for package evidence; direct repository targets inspect the full repository.
+
+## Advisory ID Lookup (CLI-only)
+
+`githits vulns <ids...>` looks up CVE/OSV IDs and reports affected packages,
+source-attributed ranges/fixes, and acquisition or pagination limits. IDs are
+case-sensitive; preserve returned IDs and aliases rather than silently changing
+case. Multiple IDs retain input order and independent outcomes.
+
+Flags: `--verbose`, `--json`. Default text and JSON read all available package
+pages. `--verbose` adds original source evidence, including with `--json`.
+Partial results remain usable but exit nonzero; preserve diagnostics and coverage
+limits. Source fix lists are not verified releases or safe-upgrade advice.
+
+Use a returned package target with an installed version in `githits pkg vulns`
+for applicability. Go results can identify an import path or toolchain: establish
+the module or Go release first. Unknown registries and unverified Swift providers
+need identity resolution before assessment. Neither an empty mapping nor a
+successful lookup establishes safety. This command has no MCP equivalent.
 
 ## Vulnerabilities
 
@@ -116,6 +134,7 @@ nor a patch version establishes compatibility.
 
 ## Command Name Mapping
 
+- `githits vulns` is CLI-only; there is no MCP advisory-ID lookup tool.
 - `githits pkg info` maps to MCP `pkg_info`.
 - `githits pkg vulns` maps to MCP `pkg_vulns`; CLI `--transitive` maps to `include_transitive:true`.
 - `githits pkg deps` maps to MCP `pkg_deps`.
