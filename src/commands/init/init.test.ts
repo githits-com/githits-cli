@@ -4275,9 +4275,15 @@ describe("initAction", () => {
 
     expect(createLoginDeps).not.toHaveBeenCalled();
     expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(getLogOutput().join("\n")).toContain("Nothing to change");
     expect(getLogOutput().join("\n")).toContain(
-      "Nothing selected, no changes made",
+      "cursor-agent mcp login GitHits",
     );
+    expect(
+      (promptService.confirm as ReturnType<typeof mock>).mock.calls.some(
+        ([message]) => String(message).includes("Continue with"),
+      ),
+    ).toBe(false);
   });
 
   it("shows already-configured rows when no new tools are selected", async () => {

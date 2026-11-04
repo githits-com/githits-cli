@@ -1515,12 +1515,12 @@ function getInteractiveInitSelection(
   const guidanceAgents = installSupportingGuidance
     ? getGuidanceTargetAgents(selectedAgents, fileSystemService, scope)
     : [];
-  const selectedAgentIds = new Set(selectedIds);
+  const guidanceAgentIds = new Set(guidanceAgents.map((agent) => agent.id));
   const unchangedAgents = detection.entries
     .filter(
       (entry) =>
         entry.status === "already_configured" &&
-        !selectedAgentIds.has(entry.id),
+        !guidanceAgentIds.has(entry.id),
     )
     .map((entry) => findAgent(entry.id))
     .filter((agent): agent is AgentDefinition => Boolean(agent));
@@ -5211,7 +5211,8 @@ export async function initAction(
     );
     if (
       selection.mcpAgents.length === 0 &&
-      selection.guidanceAgents.length === 0
+      selection.guidanceAgents.length === 0 &&
+      selection.unchangedAgents.length === 0
     ) {
       console.log("  Nothing selected, no changes made.");
       console.log();
