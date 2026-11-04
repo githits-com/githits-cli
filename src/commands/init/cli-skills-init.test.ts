@@ -178,6 +178,14 @@ function assertNoMcpCalls(f: ReturnType<typeof fixture>): void {
 }
 
 describe("direct CLI setup", () => {
+  it("does not claim authentication is missing when login was skipped", async () => {
+    const f = fixture();
+    const output = await f.run({ skipLogin: true });
+    expect(output).toContain("sign-in was not checked");
+    expect(output).not.toContain("sign-in is still required");
+    expect(f.auth).not.toHaveBeenCalled();
+  });
+
   for (const project of [false, true])
     it(`installs exactly two complete skills in ${project ? "project" : "user"} scope without MCP probes`, async () => {
       const mcp = `${HOME}/.cline/data/settings/cline_mcp_settings.json`;
@@ -320,6 +328,7 @@ describe("direct CLI setup", () => {
     const output = await f.run();
     expect(Object.keys(f.files)).toHaveLength(4);
     expect(output).toContain("Sign-in unavailable");
+    expect(output).toContain("sign-in was not checked");
     expect(output).not.toContain("CLI is ready");
   });
   for (const failure of ["write", "verification"])

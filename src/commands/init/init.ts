@@ -5075,7 +5075,9 @@ async function runCliSkillsSetup(
   else {
     printTask(
       "warning",
-      "CLI skills installed; sign-in is still required",
+      options.skipLogin || auth === "unavailable"
+        ? "CLI skills installed; sign-in was not checked"
+        : "CLI skills installed; sign-in is still required",
       undefined,
       useColors,
     );
