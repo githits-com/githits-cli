@@ -4197,3 +4197,14 @@ describe("buildCheckboxChoices", () => {
     expect(choices).toHaveLength(agentDefinitions.length);
   });
 });
+
+it("keeps unsupported project rows on one 80-column line", () => {
+  for (const agent of agentDefinitions) {
+    const project = agent.projectSetup;
+    if (project && !project.supported) {
+      expect(agent.name.length + project.reason.length + 4).toBeLessThanOrEqual(
+        80,
+      );
+    }
+  }
+});

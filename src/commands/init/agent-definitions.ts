@@ -986,7 +986,7 @@ const cline: AgentDefinition = {
     serverConfig: getStandardMcpServerConfig(),
   }),
   projectSetup: getUnsupportedProjectSetup(
-    "Cline MCP settings are documented as user-level config; project MCP auto-load not verified",
+    "Project-level MCP config not verified",
   ),
 };
 

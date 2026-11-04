@@ -198,7 +198,7 @@ stateful onboarding eval remains manual/dry-run-only until its harness supports
 safe automated execution.
 
 Cursor's current init handoff uses Customize > MCPs and `agent mcp` (verified
-against publisher docs and CLI2026.09.18-9a7762b help). Include that naming update
+against publisher docs and CLI 2026.09.18-9a7762b help). Include that naming update
 in the onboarding skill/references at release preparation; `cursor-agent` remains
 an installed legacy alias, so this does not block the CLI output correction.
 

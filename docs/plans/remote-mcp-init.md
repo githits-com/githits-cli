@@ -52,15 +52,15 @@ branches and replay the child without changing install/auth policy.
 
 Verified: unchangedAgents currently includes every configured tool; Cursor
 current docs use Customize > MCPs and agent mcp, confirmed by installed Cursor
-CLI2026.09.18-9a7762b help. Assumption: one-line help targets ordinary80-column
+CLI 2026.09.18-9a7762b help. Assumption: one-line help targets ordinary 80-column
 terminals; narrower terminals keep word wrapping. A scan with no selectable
 changes retains its existing no-op report; explicit choices scope next steps.
 
-Acceptance: descriptions contain no authored line breaks and fit80columns;
+Acceptance: descriptions contain no authored line breaks and fit 80 columns;
 ordinary tool rows are names; choosing only Claude emits no Cursor/Codex sign-in
 steps on success, guidance-only or failure paths. Selecting guidance repair
 then declining keeps that selected host's no-op instructions. No changes are
 made to unselected MCP config. Cursor human/JSON output uses current catalog
-metadata. Verify targeted tests, actual80/40column PTY and required build/smoke
+metadata. Verify targeted tests, actual 80/40-column PTY and required build/smoke
 checks. Use the retained reviewer for a new bounded user-feedback round, after
 internal pre-flight. Prior final external verdict remains accurately recorded.
