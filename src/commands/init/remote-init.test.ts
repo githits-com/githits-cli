@@ -8,8 +8,7 @@ import {
   spyOn,
 } from "bun:test";
 import { readFileSync } from "node:fs";
-import { posix, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join, posix } from "node:path";
 import { parse as parseToml } from "smol-toml";
 import {
   createMockExecService,
@@ -17,7 +16,11 @@ import {
   createMockPromptService,
 } from "../../services/test-helpers.js";
 import { agentDefinitions } from "./agent-definitions.js";
-import { GITHITS_SKILL_CATALOG } from "./guidance-assets.js";
+import {
+  GITHITS_SKILL_CATALOG,
+  GITHITS_SKILL_SOURCE_PATHS,
+  getSkillFilePaths,
+} from "./guidance-assets.js";
 import { type InitOptions, initAction, initUninstallAction } from "./init.js";
 
 const MCP_URL = "https://mcp.githits.com";
@@ -60,21 +63,22 @@ function fixture(ids: string[], seed: Record<string, string> = {}) {
     getHomeDir: () => "/home/remote-test",
     getCwd: () => "/repo",
     joinPath: posix.join,
+    getDirname: (path: string) => posix.dirname(path.replaceAll("\\", "/")),
   });
   for (const agent of agentDefinitions.filter((agent) =>
     ids.includes(agent.id),
   ))
     for (const path of agent.detectPaths?.(fs) ?? []) directories.add(path);
-  const skills = new Map<string, string>(
-    GITHITS_SKILL_CATALOG.map((skill) => {
-      const sourcePath = resolve(
-        fileURLToPath(
-          new URL(`../../../skills/${skill.name}/SKILL.md`, import.meta.url),
-        ),
-      );
-      return [sourcePath, readFileSync(sourcePath, "utf8")];
-    }),
-  );
+  const normalizeMockPath = (path: string): string =>
+    path.replaceAll("\\", "/");
+  const skills = new Map<string, string>();
+  for (const skill of GITHITS_SKILL_CATALOG) {
+    const source = GITHITS_SKILL_SOURCE_PATHS[skill.name];
+    for (const relativePath of getSkillFilePaths(skill.name)) {
+      const path = join(dirname(source.sourcePath), ...relativePath.split("/"));
+      skills.set(normalizeMockPath(path), readFileSync(path, "utf8"));
+    }
+  }
   fs.isDirectory = mock(
     async (path: string) => directories.has(path) || path === "/repo",
   );
@@ -84,7 +88,7 @@ function fixture(ids: string[], seed: Record<string, string> = {}) {
   fs.readFile = mock(async (path: string) => {
     if (path in files) return files[path]!;
     // Only exact packaged source paths bypass the mock file map.
-    const source = skills.get(resolve(path));
+    const source = skills.get(normalizeMockPath(path));
     if (source !== undefined) return source;
     throw Object.assign(new Error("Not found"), { code: "ENOENT" });
   });
