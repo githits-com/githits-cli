@@ -501,11 +501,13 @@ function expectGuidancePrompt(
   expect(call?.[1]).toEqual([
     {
       name: "Install skills and instructions (recommended)",
+      short: "Skills and instructions",
       value: "install",
       description: installDescription,
     },
     {
       name: "Configure MCP only",
+      short: "MCP only",
       value: "mcp-only",
       description:
         "Set up the MCP connection without adding skills or instruction files.",
