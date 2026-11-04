@@ -14,7 +14,7 @@ export const osvSourceMetadataSchema = z.object({
   ),
 });
 
-/** Only fields consumed by full package-source text and JSON are acquired. */
+/** Shared fields consumed by package source explanations and advisory detail. */
 export const OSV_SOURCE_DETAILS_FIELDS = `
   osvId aliases summary details sourceUrl publishedAt modifiedAt withdrawnAt
   schemaVersion relatedIds upstreamIds credits { name contact type }
