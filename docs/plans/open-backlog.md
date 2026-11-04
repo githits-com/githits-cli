@@ -3,9 +3,11 @@
 ## Package skill selected-release wording after release — 2026-11-04
 
 After the selected-release package overview ships, update
-`skills/githits-package/SKILL.md` metadata wording and its command table to describe
-the default selected release rather than the registry latest pointer. The public
-skill lifecycle forbids advertising unreleased CLI behavior on skills.sh. Acceptance:
+`skills/githits-package/SKILL.md` metadata wording, command table and `pkg info`
+interpretation paragraph, plus the Package Info section in
+`skills/githits-package/references/package.md`, to describe the default selected
+release and selected-release affectedness rather than the registry latest pointer.
+The public skill lifecycle forbids advertising unreleased CLI behavior on skills.sh. Acceptance:
 the skill distinguishes selected version from `latestVersion` and
 `registryLatestDifference`, retains the unpinned input restriction, and plugin
 generation/check pass. This is a release-timed documentation step, not code work.

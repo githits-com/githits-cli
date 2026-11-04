@@ -206,7 +206,7 @@ describe("createPackageSummaryTool — compact target validation", () => {
       "pkg_info returns the default selected release; omit @22.0.0.",
     ],
   ])(
-    "rejects latest-only pinned target %s without calling service",
+    "rejects pinned target %s without calling service",
     async (target, error) => {
       const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
       const tool = createPackageSummaryTool(

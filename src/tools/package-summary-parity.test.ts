@@ -11,7 +11,7 @@
 //     so envelopes are byte-identical.
 //   - INVALID_ARGUMENT fixture (missing package name) → `toEqual`.
 //     Both surfaces reject the same `npm:` input through `parsePackageSpec`,
-//     then share the builder and latest-only pin validation.
+//     then share the builder and version-pin validation.
 //
 // Rule IDs are stable; changes to either this test or the parity doc
 // are coordinated.
@@ -370,7 +370,7 @@ describe("package_summary parity", () => {
     });
   });
 
-  it("PARITY-ERROR-ENVELOPE: latest-only pin CLI/MCP validation", async () => {
+  it("PARITY-ERROR-ENVELOPE: version-pin CLI/MCP validation", async () => {
     const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
     const service = createMockPackageIntelligenceService({
       packageSummary: packageSummary as never,

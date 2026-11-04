@@ -58,7 +58,7 @@ export const DESCRIPTION_BASE: string =
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
   "publish age, selected-release affected count, and separate package-wide advisory " +
   "history count. Historical counts are not current-version risk. " +
-  "Use `verbose: true` for additional health and history details. Use metadata directly; missing fields are unknown. Latest and retrieval time do not prove registry freshness or historical release facts.";
+  "Use `verbose: true` for additional health and history details. Use metadata directly; missing fields are unknown. The selected release and retrieval time do not prove registry freshness or historical release facts.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_INFO_GUARDRAIL}`;
 
