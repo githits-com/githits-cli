@@ -152,6 +152,28 @@ shape during development, and require release sections for the versions
 currently declared in both public package manifests. A version bump without a
 matching changelog section must fail before release.
 
+## Mintlify Changelog Drafts
+
+After a successful CLI release, `release.yml` runs `trigger-docs-changelog`
+to trigger only Mintlify's **Draft changelog** automation. It skips when the
+release artifacts already exist. The job has no GitHub token permissions;
+missing configuration produces a notice and skips the request, and a trigger
+failure cannot fail the release.
+
+The job uses `aks-deployment-runner` for its fixed public IP ranges
+`52.153.186.208/28` and `172.185.36.80/28`, so the Mintlify key can be restricted
+to those ranges if IP allowlisting is supported. Grant `githits-cli` access to
+the runner group containing this runner in organization Settings > Actions >
+Runner groups.
+
+Configure the repository secret `MINTLIFY_API_KEY` with a Mintlify admin API key
+that has write scope and an expiry. Set repository variables
+`MINTLIFY_PROJECT_ID` and `MINTLIFY_DRAFT_CHANGELOG_WORKFLOW_ID`; copy the latter
+from the Draft changelog automation's settings panel. Keep this automation on a
+custom schedule, with its Friday schedule as a backstop: the
+[trigger API](https://www.mintlify.com/docs/api/automations/trigger) only supports
+scheduled automations. The MCP release workflow does not trigger it.
+
 ## npm Publication Completion and Recovery
 
 CI and package-release workflows default to `permissions: {}`. Agent evals

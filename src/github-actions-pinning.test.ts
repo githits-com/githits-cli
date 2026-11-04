@@ -111,7 +111,11 @@ describe("GitHub Actions supply-chain pins", () => {
           expect(job.uses).toBeUndefined();
           continue;
         }
-        expect(job.permissions).toEqual({ contents: "read" });
+        expect(job.permissions).toEqual(
+          workflowName === "release.yml" && jobName === "trigger-docs-changelog"
+            ? {}
+            : { contents: "read" },
+        );
       }
 
       if (workflowName === "release.yml") {
