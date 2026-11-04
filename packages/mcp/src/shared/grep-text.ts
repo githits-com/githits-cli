@@ -3,7 +3,6 @@ import type {
   GrepLineSlice,
   GrepResult,
   GrepTargetStatus,
-  NavigationSymbol,
 } from "@githits/core-internal";
 import { colors, highlightMatch } from "./colors.js";
 import { grepPreparationReason } from "./grep-preparation-text.js";
@@ -47,7 +46,7 @@ interface RenderLine {
   slice: GrepLineSlice;
   match: boolean;
   spans: MatchSpan[];
-  symbols: NavigationSymbol[];
+  symbolHints: string[];
 }
 interface FileGroup {
   first: GrepHit;
@@ -256,10 +255,7 @@ export function formatGrepText(
       lines.push(
         `${String(row.number).padStart(gutter)}${row.match ? ":" : "-"} ${renderSlice(row, options.useColors ?? false)}`,
       );
-      for (const symbol of row.symbols) {
-        const hint = formatGrepSymbolHint(symbol);
-        if (hint) prose(`  in: ${hint}`);
-      }
+      for (const hint of row.symbolHints) prose(`  in: ${hint}`);
       previous = row.number;
     }
     if (group.hits.some((hit) => hit.contentSafety.filtered))
@@ -626,7 +622,7 @@ function groupRows(hits: GrepHit[]): RenderLine[] {
     number: number,
     slice: GrepLineSlice,
     span?: MatchSpan,
-    symbol?: NavigationSymbol | null,
+    symbolHint?: string,
   ): void => {
     const key = JSON.stringify([
       number,
@@ -639,13 +635,8 @@ function groupRows(hits: GrepHit[]): RenderLine[] {
       if (span) {
         row.match = true;
         row.spans.push(span);
-        if (
-          symbol &&
-          !row.symbols.some(
-            (entry) => JSON.stringify(entry) === JSON.stringify(symbol),
-          )
-        )
-          row.symbols.push(symbol);
+        if (symbolHint && !row.symbolHints.includes(symbolHint))
+          row.symbolHints.push(symbolHint);
       }
     } else
       rows.set(key, {
@@ -653,7 +644,7 @@ function groupRows(hits: GrepHit[]): RenderLine[] {
         slice,
         match: span !== undefined,
         spans: span ? [span] : [],
-        symbols: symbol ? [symbol] : [],
+        symbolHints: symbolHint ? [symbolHint] : [],
       });
   };
   for (const hit of hits) {
@@ -667,7 +658,9 @@ function groupRows(hits: GrepHit[]): RenderLine[] {
         start: hit.matchStartByte,
         end: hit.matchEndByte,
       },
-      hit.__typename === "GrepRepositoryHit" ? hit.symbol : undefined,
+      hit.__typename === "GrepRepositoryHit"
+        ? formatGrepSymbolHint(hit.symbol ?? undefined)
+        : undefined,
     );
     hit.contextAfterSlices.forEach((slice, index) => {
       add(hit.line + index + 1, slice);

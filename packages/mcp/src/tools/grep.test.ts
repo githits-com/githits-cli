@@ -136,6 +136,16 @@ describe("unified MCP grep", () => {
       "wait_timeout_ms",
       "format",
     ]);
+    expect(inputSchema.properties?.symbol_fields).toHaveProperty(
+      "description",
+      expect.stringContaining(
+        "use format json for complete requested metadata",
+      ),
+    );
+    expect(inputSchema.properties?.format).toHaveProperty(
+      "description",
+      expect.stringContaining("complete requested symbol metadata"),
+    );
     expect(inputSchema.required).toEqual(["targets", "pattern"]);
     expect(inputSchema.properties?.cursor).toHaveProperty(
       "description",

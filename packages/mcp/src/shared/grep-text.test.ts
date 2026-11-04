@@ -852,6 +852,21 @@ function sortedCounts(counts: Map<string, number>): Record<string, number> {
 }
 
 describe("enclosing-symbol text", () => {
+  it("consolidates equal rendered hints even when raw symbol identities differ", () => {
+    const page = parseGrepResult(mixed100);
+    const hit = page.hits.find(
+      (hit) => hit.__typename === "GrepRepositoryHit",
+    )!;
+    if (hit.__typename !== "GrepRepositoryHit") throw new Error("fixture");
+    page.hits = ["ref-a", "ref-b", "ref-c"].map((symbolRef) => ({
+      ...hit,
+      symbol: { symbolRef, kind: "function" },
+    }));
+    page.totalMatches = 3;
+    expect(formatGrepText(page).split("in: (function)")).toHaveLength(2);
+    expect(projectGrepResult(page).hits).toEqual(page.hits);
+  });
+
   it("uses the legacy compact hint and leaves complete metadata in JSON", () => {
     const page = parseGrepResult(mixed100);
     const hit = page.hits.find(

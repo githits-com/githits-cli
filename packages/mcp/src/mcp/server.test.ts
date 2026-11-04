@@ -448,7 +448,7 @@ describe("MCP output format", () => {
           "Omit for text: grouped matches, read locators, and coverage",
         );
         expect(JSON.stringify(formatSchema), descriptor.name).toContain(
-          "Use json only when code consumes raw hit and scope fields",
+          "Use json for complete requested symbol metadata or programmatic hit and scope fields",
         );
       } else {
         expect(JSON.stringify(formatSchema), descriptor.name).toContain(

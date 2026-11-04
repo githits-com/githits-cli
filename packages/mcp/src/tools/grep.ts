@@ -121,7 +121,7 @@ const schema: ZodRawShape = {
     .array(z.string())
     .optional()
     .describe(
-      `${GREP_REPO_SYMBOL_FIELDS_NOTE} Empty stays off; repeat the same mask on continuations.`,
+      `${GREP_REPO_SYMBOL_FIELDS_NOTE} Text shows compact hints; use format json for complete requested metadata. Empty stays off; repeat the same mask on continuations.`,
     ),
   wait_timeout_ms: z
     .number()
@@ -136,7 +136,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit for text: grouped matches, read locators, and coverage. Use json only when code consumes raw hit and scope fields.",
+      "Omit for text: grouped matches, read locators, and coverage. Use json for complete requested symbol metadata or programmatic hit and scope fields.",
     ),
 };
 
