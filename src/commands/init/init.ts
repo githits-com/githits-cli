@@ -45,6 +45,7 @@ import {
   type InitSetupMode,
   type InitSetupScope,
   type ManagedBlockSetup,
+  REMOTE_MCP_VERIFICATION_INSTRUCTION,
   type ScanProgress,
   type ScanResult,
   type SetupConfig,
@@ -805,12 +806,12 @@ const AUTH_START_CHOICES: SelectChoice<InitAuthStartChoice>[] = [
   { name: "Cancel setup", value: "cancel" },
 ];
 
-function printSection(index: number, title: string, useColors: boolean): void {
+function printSection(title: string, useColors: boolean): void {
   console.log();
   console.log(
-    `  ${colorizeBrand(`${index}. ${title}`, "primary", useColors, { bold: true })}`,
+    `  ${colorizeBrand(title, "primary", useColors, { bold: true })}`,
   );
-  console.log(`  ${colorize("-".repeat(title.length + 3), "dim", useColors)}`);
+  console.log(`  ${colorize("-".repeat(title.length), "dim", useColors)}`);
 }
 
 /** Print natural-language init output at the current terminal width. */
@@ -916,6 +917,13 @@ function printInstallReview(
     );
     if (mcpAgents.length > 0) {
       console.log(`    MCP transport: ${describeMcpTransport(mcpAgents)}`);
+      const replacements = mcpAgents.filter(
+        (agent) => agent.resolvedSetupCheckStatus === "non_canonical",
+      );
+      if (replacements.length)
+        printInitProse(
+          `    Replaces existing GitHits settings: ${replacements.map((agent) => agent.name).join(", ")}. Custom settings on those entries will be removed; other servers are kept.`,
+        );
     }
   }
   if (guidanceAgents) {
@@ -1459,7 +1467,7 @@ function buildInitAgentChoices(
         };
       }
       return {
-        name: `${entry.name} (already configured)`,
+        name: entry.name,
         value: entry.id,
         disabled: "already configured",
       };
@@ -3010,7 +3018,7 @@ function printPostSetupNextSteps(
   sharedGuidanceReady: boolean,
 ): void {
   const ready = shouldPrintReady(authStatus) && !cursorConfigured;
-  printSection(6, ready ? "Ready" : "Next Steps", useColors);
+  printSection(ready ? "Ready" : "Next Steps", useColors);
   if (changesMade) {
     printInitProse(
       "  Open a new coding agent session so it reloads MCP configuration and any supporting instructions.",
@@ -3062,7 +3070,7 @@ function printProjectNextSteps(
   sharedGuidanceReady: boolean,
 ): void {
   const ready = shouldPrintReady(authStatus) && !cursorConfigured;
-  printSection(6, ready ? "Ready" : "Next Steps", useColors);
+  printSection(ready ? "Ready" : "Next Steps", useColors);
   if (changesMade) {
     printInitProse(
       "  Open a new coding agent session in this project so it loads the project config and any supporting instructions.",
@@ -3116,7 +3124,7 @@ function printScopedNextSteps(
   remoteAgents: AgentDefinition[] = [],
 ): void {
   if (remoteAgents.some((agent) => agent.id !== "cursor")) {
-    printSection(6, "Next Steps", useColors);
+    printSection("Next Steps", useColors);
     if (sharedGuidanceReady) printSharedGuidanceVisibility(scope);
     printRemoteInstructions(remoteAgents);
     if (localAuthApplicable) {
@@ -5066,7 +5074,7 @@ export async function initAction(
     printProjectScopeExplanation(useColors);
   }
 
-  printSection(1, "Detect tools", useColors);
+  printSection("Detect tools", useColors);
   console.log("    Scanning for compatible AI coding tools...");
   const progress = createScanProgressReporter(useColors);
   const scanPromise = startSafeInitScan(
@@ -5114,7 +5122,7 @@ export async function initAction(
   let selectedIds = options.yes
     ? [...detection.actionableIds, ...detection.manualActionIds]
     : [];
-  printSection(2, "Choose tools", useColors);
+  printSection("Choose tools", useColors);
   if (
     !options.yes &&
     detection.actionableIds.length + detection.manualActionIds.length > 0
@@ -5224,7 +5232,7 @@ export async function initAction(
       ),
     ))
       printInitProse(`  ${notice}`);
-  printSection(3, "Review and confirm", useColors);
+  printSection("Review and confirm", useColors);
   printInstallReview(
     useColors,
     setupScope,
@@ -5264,7 +5272,7 @@ export async function initAction(
   const hostManagedOnly =
     selection.mcpAgents.length > 0 && selection.mcpAgents.every(usesHostedMcp);
   if (selection.mcpAgents.length > 0 && !hostManagedOnly) {
-    printSection(4, "Sign in", useColors);
+    printSection("Sign in", useColors);
     authStatus = await runInitAuthentication(
       options,
       promptService,
@@ -5277,7 +5285,7 @@ export async function initAction(
     }
   }
 
-  printSection(5, "Install and verify", useColors);
+  printSection("Install and verify", useColors);
   const mcpOutcomes = noActions
     ? []
     : await installSelectedAgents(
@@ -5332,14 +5340,12 @@ export async function initAction(
     )
     .filter((agent): agent is AgentDefinition => Boolean(agent));
   const cursorConfigured =
-    configuredMcpAgents.some((agent) => agent.id === "cursor") ||
-    (noActions &&
-      reportingOutcomes.some(
-        (outcome) =>
-          outcome.id === "cursor" &&
-          (outcome.status === "success" ||
-            outcome.status === "already_configured"),
-      )) ||
+    outcomes.some(
+      (outcome) =>
+        outcome.id === "cursor" &&
+        (outcome.status === "success" ||
+          outcome.status === "already_configured"),
+    ) ||
     selection.selectedEntries.some(
       (entry) => entry.id === "cursor" && entry.status === "already_configured",
     );
@@ -5627,10 +5633,22 @@ function remoteInstructions(agents: AgentDefinition[]): string[] {
 function printRemoteInstructions(agents: AgentDefinition[]): void {
   if (agents.some((agent) => agent.id === "cursor" && usesHostedMcp(agent)))
     printCursorRemoteVerificationInstructions(shouldUseColors());
-  for (const instruction of remoteInstructions(
-    agents.filter((agent) => agent.id !== "cursor"),
-  ))
-    printInitProse(`  ${instruction}`);
+  const remote = [
+    ...new Map(
+      agents
+        .filter((agent) => agent.id !== "cursor" && usesHostedMcp(agent))
+        .map((agent) => [agent.id, agent]),
+    ).values(),
+  ];
+  if (!remote.length) return;
+  printInitProse(
+    `  Hosted GitHits MCP: ${CURSOR_REMOTE_MCP_URL}. Each agent manages its own sign-in.`,
+  );
+  for (const agent of remote)
+    for (const instruction of agent.remoteInstructions ?? [])
+      if (instruction !== REMOTE_MCP_VERIFICATION_INSTRUCTION)
+        printInitProse(`  ${agent.name}: ${instruction}`);
+  printInitProse(`  ${REMOTE_MCP_VERIFICATION_INSTRUCTION}`);
 }
 function directoryAction(agent: AgentDefinition): {
   url: string;

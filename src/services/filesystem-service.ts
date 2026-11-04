@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  lstat,
   mkdir,
   mkdtemp,
   readdir,
@@ -70,6 +71,9 @@ export interface FileSystemService {
 
   /** Check if path is a directory */
   isDirectory(path: string): Promise<boolean>;
+
+  /** Check the path itself for a symbolic link; return false when missing. */
+  isSymbolicLink(path: string): Promise<boolean>;
 
   /** Check if the followed path is a regular file; return false when missing. */
   isFile(path: string): Promise<boolean>;
@@ -190,6 +194,15 @@ export class FileSystemServiceImpl implements FileSystemService {
       return stats.isDirectory();
     } catch {
       return false;
+    }
+  }
+
+  async isSymbolicLink(path: string): Promise<boolean> {
+    try {
+      return (await lstat(path)).isSymbolicLink();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+      throw error;
     }
   }
 

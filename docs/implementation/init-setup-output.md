@@ -30,12 +30,19 @@ failure row; it never fabricates a successful cleanup row.
 
 The install report prints per-target changes first, then configured,
 already-configured, and failed counts in the Install and verify section. The
-Ready/Next Steps section follows those counts and contains only readiness or
-reload guidance.
+Ready/Next Steps section follows those counts and contains readiness, host
+sign-in and reload guidance. Section headings are unnumbered because steps vary
+by route and existing configuration.
+
+Before confirmation, review names any existing GitHits entries being replaced
+and warns that their custom settings are removed; unrelated servers are retained.
+It never displays configuration values.
 
 After selection, the MCP summary groups the actual local and hosted targets.
 Hosted connections use https://mcp.githits.com; each host owns OAuth and the
 new-session tool-discovery step. CLI login only applies to local integrations.
+The human report prints the shared endpoint and verification step once, with
+each host's sign-in action. Per-agent structured instructions remain complete.
 Configuration is never presented as proof of hosted readiness. Cursor retains
 its copyable login/list/list-tools commands and separate OAuth instructions.
 

@@ -1798,6 +1798,10 @@ function remoteSetup(
   return { ...local, commands, check };
 }
 
+/** Shared remote verification step retained in each host's structured metadata. */
+export const REMOTE_MCP_VERIFICATION_INSTRUCTION =
+  "Open a new agent session and verify that GitHits tools are available.";
+
 /** Hosts own native config shapes and the OAuth action shown after configuration. */
 function resolveInitAgent(
   agent: AgentDefinition,
@@ -1822,7 +1826,7 @@ function resolveInitAgent(
     remoteInstructions: [
       actions[agent.id] ??
         `Open ${agent.name}'s MCP settings and use Authenticate/Authorize for GitHits.`,
-      "Open a new agent session and verify that GitHits tools are available.",
+      REMOTE_MCP_VERIFICATION_INSTRUCTION,
     ],
   };
   if (agent.id === "claude-code" || agent.id === "pi")
