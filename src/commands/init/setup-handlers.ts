@@ -1867,6 +1867,26 @@ async function executeUninstallStep(
   return executeManagedBlockUninstall(step, fs);
 }
 
+/** Preserve dotfile-managed config symlinks without changing credential writes. */
+async function writeConfigFile(
+  path: string,
+  content: string,
+  fs: FileSystemService,
+): Promise<void> {
+  let target = path;
+  try {
+    target = await fs.realpath(path);
+  } catch (error) {
+    if (
+      !(error instanceof Error) ||
+      !("code" in error) ||
+      error.code !== "ENOENT"
+    )
+      throw error;
+  }
+  await fs.atomicWriteFile(target, content);
+}
+
 /**
  * Execute a config-file-based setup (read/merge/atomic-write).
  * Returns a result object — does not throw on failure.
@@ -1928,7 +1948,7 @@ export async function executeConfigFileSetup(
 
     // Atomic write — result.status is "added" or "updated" here. A pre-existing
     // (even if empty) file counts as "updated"; only a missing file is "created".
-    await fs.atomicWriteFile(setup.configPath, result.content);
+    await writeConfigFile(setup.configPath, result.content, fs);
 
     return {
       status: "success",
@@ -2207,7 +2227,7 @@ export async function executeConfigFileUninstall(
 
     // The file is rewritten with the GitHits entry stripped — the file itself
     // is updated, not deleted.
-    await fs.atomicWriteFile(setup.configPath, result.content);
+    await writeConfigFile(setup.configPath, result.content, fs);
 
     return {
       status: "removed",

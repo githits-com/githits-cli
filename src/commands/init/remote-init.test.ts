@@ -193,6 +193,19 @@ function fixture(ids: string[], seed: Record<string, string> = {}) {
 }
 
 describe("remote init profile", () => {
+  it("keeps successful host sign-in steps after a partial failure and exits nonzero", async () => {
+    const f = fixture(["cline", "codex-cli"], { [CLINE]: "{ malformed" });
+    const output = await f.run({ remote: true, guidance: false });
+    expect(output).toContain("Setup completed with errors");
+    expect(output).toContain("codex mcp login githits");
+    expect(output).toContain(CLINE);
+    expect(output).toContain("Check file permissions, syntax");
+    expect(f.files[CLINE]).toBe("{ malformed");
+    expect(process.exitCode).toBe(1);
+    expect(f.createLoginDeps).not.toHaveBeenCalled();
+    expect(output).not.toContain("CLI is ready");
+  });
+
   it("defaults interactive setup to hosted MCP and only the MCP skill without local auth", async () => {
     const f = fixture(["cline"]);
     await f.run({});

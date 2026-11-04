@@ -4079,3 +4079,73 @@ it("classifies native Zed nested commands and rejects mixed remote/local entries
     ),
   ).toBe("non_canonical");
 });
+
+describe("config symlink preservation", () => {
+  for (const format of ["json", "toml"] as const) {
+    it(`writes and removes ${format} entries through the existing file link`, async () => {
+      const { mkdtemp, mkdir, writeFile, readFile, symlink, lstat, rm } =
+        await import("node:fs/promises");
+      const { tmpdir } = await import("node:os");
+      const { join } = await import("node:path");
+      const { FileSystemServiceImpl } = await import(
+        "../../services/filesystem-service.js"
+      );
+      const root = await mkdtemp(join(tmpdir(), "githits-config-link-"));
+      const target = join(root, "dotfiles", `config.${format}`);
+      const link = join(root, `config.${format}`);
+      const initial =
+        format === "toml"
+          ? '# User comment\nmodel = "gpt-6-luna"\n'
+          : '{"userSetting":true}';
+      try {
+        await mkdir(join(root, "dotfiles"));
+        await writeFile(target, initial);
+        await symlink(target, link, "file");
+        const fs = new FileSystemServiceImpl();
+        const setup: ConfigFileSetup = {
+          method: "config-file",
+          configPath: link,
+          serversKey: format === "toml" ? "mcp_servers" : "mcpServers",
+          serverName: "githits",
+          serverConfig: { url: "https://mcp.githits.com" },
+          ...(format === "toml" ? { format: "toml" as const } : {}),
+        };
+        expect((await executeConfigFileSetup(setup, fs)).status).toBe(
+          "success",
+        );
+        expect((await lstat(link)).isSymbolicLink()).toBe(true);
+        expect(await readFile(target, "utf8")).toContain(
+          "https://mcp.githits.com",
+        );
+        expect((await executeConfigFileUninstall(setup, fs)).status).toBe(
+          "removed",
+        );
+        expect((await lstat(link)).isSymbolicLink()).toBe(true);
+        const remaining = await readFile(target, "utf8");
+        expect(remaining).not.toContain("githits");
+        expect(remaining).toContain(
+          format === "toml" ? "# User comment" : "userSetting",
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+  }
+  it("does not write when canonical path resolution is denied", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(async () => "{}"),
+      realpath: mock(async () => {
+        throw Object.assign(new Error("Permission denied"), { code: "EACCES" });
+      }),
+    });
+    const setup: ConfigFileSetup = {
+      method: "config-file",
+      configPath: "/config.json",
+      serversKey: "mcpServers",
+      serverName: "githits",
+      serverConfig: { url: "https://mcp.githits.com" },
+    };
+    expect((await executeConfigFileSetup(setup, fs)).status).toBe("failed");
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+});

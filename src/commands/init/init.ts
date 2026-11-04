@@ -4071,9 +4071,13 @@ async function executeAgentSetupWithVerification(
     };
   }
   if (agent.resolvedSetupCheckStatus === "probe_failed") {
+    const paths = getConfigFileSetups(config).map((setup) => setup.configPath);
+    if (config.method === "cli" && config.check?.kind === "file")
+      paths.push(config.check.path);
+    const location = paths.length ? ` for ${paths.join(", ")}` : "";
     return {
       status: "failed",
-      message: `${agent.name} configuration probe failed. The existing configuration was left unchanged.`,
+      message: `${agent.name} configuration probe failed${location}. Check file permissions, syntax and the GitHits MCP entry, then rerun init. The existing configuration was left unchanged.`,
       changes: [],
     };
   }
@@ -5383,7 +5387,9 @@ export async function initAction(
   }
 
   if (failed > 0) {
+    process.exitCode = 1;
     console.log("  Setup completed with errors.");
+    printRemoteInstructions(configuredMcpAgents);
   } else if (
     configured > 0 ||
     alreadyDone > 0 ||
