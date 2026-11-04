@@ -553,7 +553,6 @@ parse nor rewrite that prose. Root provenance does not authorize broader scope.
 These additive fields must be deployed and verified, including production,
 before the coordinated public CLI/MCP release selects them.
 
-
 ## Enclosing-symbol metadata
 
 Unified CLI grep accepts repeatable `--symbol-field <field>`; MCP `grep` accepts

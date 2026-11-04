@@ -1156,7 +1156,6 @@ Each command follows this pattern:
 2. **Testable action function** — Pure logic that accepts deps via parameter injection
 3. **Registration function** — `registerXxxCommand(program)` handles Commander setup with lazy `createContainer()` inside the action callback
 
-
 ### Shared Code with MCP Tools
 
 | Shared Module | Used By |
