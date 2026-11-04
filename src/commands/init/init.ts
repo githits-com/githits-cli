@@ -1888,9 +1888,6 @@ function printAgenticDetectSummary(
     for (const instruction of buildConfiguredDetectionInstructions(entries)) {
       printInitProse(`  ${instruction}`);
     }
-    if (hasConfiguredCursor(entries)) {
-      printCursorRemoteVerificationInstructions(useColors);
-    }
     console.log(`  ${AGENTIC_INIT_YES_WARNING}`);
     console.log(
       `  Do not run init again as a verification step; use ${getAgenticVerifyCommand(scope, commandOptions)} if verification is needed.`,

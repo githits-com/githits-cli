@@ -1155,3 +1155,18 @@ describe("selected-host next steps", () => {
     });
   }
 });
+
+it("prints current Cursor instructions once during human detection", async () => {
+  const f = fixture(["cursor"], {
+    "/home/remote-test/.cursor/mcp.json": JSON.stringify({
+      mcpServers: { GitHits: { url: MCP_URL } },
+    }),
+  });
+  const output = (await f.run({ detectAgents: true, guidance: false })).replace(
+    /\s+/g,
+    " ",
+  );
+  expect(output.split("In Cursor, open Customize > MCPs")).toHaveLength(2);
+  expect(output.split("agent mcp login GitHits")).toHaveLength(2);
+  expect(output).not.toContain("cursor-agent");
+});
