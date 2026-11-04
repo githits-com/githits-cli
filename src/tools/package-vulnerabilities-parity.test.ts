@@ -1097,3 +1097,53 @@ describe("source detail parity", () => {
     }
   });
 });
+
+it.each([false, true])(
+  "offers native dependency source follow-ups with direct rows=%s",
+  async (directRows) => {
+    const report = transitiveVulnerabilityReport();
+    report.sourceDetails = [];
+    if (!directRows) {
+      report.security!.vulnerabilities = [];
+      report.security!.affectedVulnerabilityCount = 0;
+      report.security!.nonAffectingVulnerabilityCount = 0;
+      report.security!.allVulnerabilityCount = 0;
+      report.security!.currentVersionAffected = false;
+    } else report.sourceDetails = [{ advisoryId: "MISSING", source: null }];
+    const service = createMockPackageIntelligenceService({
+      packageVulnerabilities: mock(async () => report),
+    });
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      (chunk) => {
+        writes.push(String(chunk));
+        return true;
+      },
+    );
+    try {
+      await pkgVulnsAction(
+        "npm:express",
+        { transitive: true, sourceDetails: true },
+        cliDeps({ packageIntelligenceService: service }),
+      );
+    } finally {
+      writeSpy.mockRestore();
+    }
+    const cli = stripVTControlCharacters(writes.join("")).replace(/\s+/g, " ");
+    const tool = createParityMcpTool("pkg_vulns", {
+      packageIntelligenceService: service,
+    });
+    const result = await tool.handler(
+      { target: "npm:express", include_transitive: true, source_details: true },
+      {},
+    );
+    const mcp = (result.content[0]?.text ?? "").replace(/\s+/g, " ");
+    expect(cli).toContain("Source details cover direct advisories.");
+    expect(cli).toContain("githits vulns <advisory-id> --verbose");
+    expect(mcp).toContain("Source details cover direct advisories.");
+    expect(mcp).toContain(
+      "registry:name@resolvedVersion with source_details=true",
+    );
+    expect(mcp).not.toContain("githits vulns");
+  },
+);

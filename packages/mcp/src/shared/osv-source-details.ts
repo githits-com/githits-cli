@@ -16,7 +16,12 @@ export function formatOsvSourceMetadata(
 ): string[] {
   const lines: string[] = [];
   const add = (value: string): void => {
-    lines.push(...wrapTerminalProse(sanitizeTerminalText(value), width));
+    lines.push(
+      ...wrapTerminalProse(
+        sanitizeTerminalText(value.replace(/[\t\r\n]+/g, " ")),
+        width,
+      ),
+    );
   };
   if (source.schemaVersion) add(`  OSV schema: ${source.schemaVersion}`);
   if (source.relatedIds?.length)
@@ -43,7 +48,12 @@ export function formatOsvSourceDetails(
 ): string[] {
   const lines: string[] = [];
   const add = (value: string): void => {
-    lines.push(...wrapTerminalProse(sanitizeTerminalText(value), width));
+    lines.push(
+      ...wrapTerminalProse(
+        sanitizeTerminalText(value.replace(/[\t\r\n]+/g, " ")),
+        width,
+      ),
+    );
   };
   add(`${source.osvId}${source.withdrawnAt !== null ? " [WITHDRAWN]" : ""}`);
   add(`  ${source.sourceUrl}`);
@@ -53,8 +63,10 @@ export function formatOsvSourceDetails(
   if (source.withdrawnAt !== null) add(`  Withdrawn: ${source.withdrawnAt}`);
   if (source.aliases.length) add(`  Aliases: ${source.aliases.join(", ")}`);
   lines.push(...formatOsvSourceMetadata(source, width));
-  if (source.details) lines.push(...literalMarkdownLines(source.details));
-  else add("  No explanation supplied by source.");
+  if (source.details) {
+    add("  Explanation:");
+    lines.push(...literalMarkdownLines(source.details));
+  } else add("  No explanation supplied by source.");
   for (const severity of source.severity)
     add(
       `  Source severity ${severity.type}: ${severity.score}${severity.source !== null ? ` (${severity.source})` : ""}`,

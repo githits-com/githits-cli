@@ -620,6 +620,17 @@ When a new tool lands with both MCP and CLI surfaces:
 
 ### `pkg_vulns`
 
+- **Full source explanations.** CLI `--source-details` and MCP
+  `source_details: true` enable the same bounded direct source projection in
+  text or JSON. Omitted/false controls, verbose alone and JSON alone omit it.
+  Independent top-level `sourceDetails` preserves original row order/identity
+  despite assessment dedup, including complete Markdown and per-source errors.
+  Typed source errors retain useful assessments: CLI exits 1; MCP returns the
+  result without `isError`. When dependency occurrences are also present, text
+  explains that embedded source details cover direct rows and gives a native
+  follow-up: CLI `vulns <advisory-id> --verbose`, or MCP `pkg_vulns` on the
+  dependency's `registry:name@resolvedVersion` with `source_details: true`.
+
 - **Permissive MCP schema + in-handler validation.**
   `buildPackageVulnerabilitiesParams` is the single validator.
 - **Filter-aware summary.** `minSeverity` + `includeWithdrawn` go

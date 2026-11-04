@@ -37,7 +37,7 @@ remains human-readable.
 | `settings terms accept` | — | `--yes`, `--json` | Confirm and accept the current Terms of Service |
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (default selected release, downloads, license, vulnerabilities) |
 | `vulns <ids...>` | one or several CVE/OSV IDs or recorded aliases | `--verbose`, `--json` | Attributed source and backend-grouped affected packages across IDs; reads all available package pages with explicit partial outcomes |
-| `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--transitive`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift/pub), optionally including affected versions resolved in its dependency graph |
+| `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--transitive`, `--source-details`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift/pub), optionally including affected versions resolved in its dependency graph |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--depth`, `--issues`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional capped transitive graph, and opt-in dependency issue analysis (npm/pypi/hex/crates/nuget/maven/zig/vcpkg/packagist/rubygems/go/swift/pub) |
 | `pkg changelog <spec>` | package spec (`registry:name[@version\|@from..to]`) | `--from`, `--to`, `--limit`, `--changes`, `--no-body`, `--verbatim`, `--verbose`, `--json` | All parsed statements with available classifications. `--changes` filters; `--verbatim` shows original notes instead, `--verbose` is its deprecated alias; `--no-body` shows only the timeline. |
 | `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--changes <view>`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for vulnerabilities, release-note statements, compatibility and dependency changes, and security evidence. `--changes` filters detailed quotes; whole-range counters and batch ranking remain unchanged. Reports evidence without a package verdict. |
@@ -681,6 +681,12 @@ field selection, partial-envelope handling and continuation.
 
 ### `githits pkg vulns`
 
+Full current OSV source Markdown is available with
+`githits pkg vulns <spec> --source-details` for selected direct rows, or
+`githits vulns <advisory-id> --verbose` for one source explanation and original
+affected evidence. Add `--json` for complete normalized Markdown and typed source
+metadata. Package `--verbose` and `--json` alone do not add live source reads.
+
 ```
 githits pkg vulns npm:express
 githits pkg vulns npm:express@4.17.0
@@ -1258,9 +1264,3 @@ commands in one step with a two-minute combined timeout.
 Direct repository targets accept approved full HTTPS URLs on github.com, codeberg.org, gitlab.com, git.launchpad.net, code.launchpad.net, and public *.googlesource.com hosts. Googlesource requires full HTTPS URLs without explicit ports; project case is preserved and one terminal .git/trailing slash is normalized. Launchpad HTTPS URLs accept mutable defaults and complete owner-qualified Git paths; git://git.launchpad.net requires a complete path on the default port 9418. Codeberg requires exactly owner/repo; GitLab allows nested namespaces. Only GitHub supports host shorthand and HTTP compatibility. Never infer a provider from bare owner/repo. Repository refs use an @ suffix and may themselves contain / and @; # is reserved for semantic fragments. Empty refs and mixed suffixes are invalid. Credentials, queries, provider web subpaths, and unsupported/self-hosted hosts are rejected. Package targets keep registry-native coordinates, including `zig:cb/owner/repo` and `swift:gitlab.com/group/project`. Changelog repo URL fields remain full HTTPS URLs.
 
 See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, GitLab, Launchpad Git, and Googlesource addressing contract and provider-preserving response identity.
-
-Full current OSV source Markdown is available with
-`githits pkg vulns <spec> --source-details` for selected direct rows, or
-`githits vulns <advisory-id> --verbose` for one source explanation and original
-affected evidence. Add `--json` for complete normalized Markdown and typed source
-metadata. Package `--verbose` and `--json` alone do not add live source reads.

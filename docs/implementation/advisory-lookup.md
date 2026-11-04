@@ -252,10 +252,11 @@ The initial `--verbose` selection also requires `schemaVersion`, `relatedIds`,
 continuations omit these fields. Verbose JSON puts them on `advisory`, preserving
 empty arrays, null credit roles, open role strings and all contact strings.
 Related/upstream IDs are not aliases and do not trigger traversal. Text labels
-them separately and omits empty contacts; neither contacts nor reference URLs
-are fetched.
+them separately and omits empty contacts. Contact strings and reference URLs are
+displayed without following them or fetching linked resources.
 
-Full explanation text uses the shared literal Markdown emitter rather than prose
+Full explanation text follows an Explanation label and uses the shared literal
+Markdown emitter rather than prose
 wrapping, preserving fences, tables, indentation and blank lines without a body
 cap. CRLF/CR normalize to LF, tabs expand to four spaces and terminal controls are
 removed; JSON explanation strings remain complete backend-normalized Markdown.

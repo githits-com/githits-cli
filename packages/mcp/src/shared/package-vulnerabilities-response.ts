@@ -1099,6 +1099,16 @@ export function formatPackageVulnerabilitiesTerminal(
             options.terminalWidth,
           ).join("\n")
         : undefined;
+  const dependencySourceHint =
+    payload.sourceDetails !== undefined &&
+    (payload.transitive?.packages.length ?? 0) > 0
+      ? wrapTerminalProse(
+          surface === "mcp"
+            ? "Source details cover direct advisories. For dependency explanations, call pkg_vulns on the dependency registry:name@resolvedVersion with source_details=true."
+            : "Source details cover direct advisories. For dependency explanations: githits vulns <advisory-id> --verbose.",
+          options.terminalWidth,
+        ).join("\n")
+      : undefined;
   const headerLine = formatHeader(payload, useColors);
   const requestedLine = payload.requestedVersion
     ? dim(
@@ -1142,6 +1152,7 @@ export function formatPackageVulnerabilitiesTerminal(
     }
     if (transitiveBlock) lines.push("", transitiveBlock);
     if (sourceBlock) lines.push("", sourceBlock);
+    if (dependencySourceHint) lines.push("", dependencySourceHint);
     return `${lines.join("\n")}\n`;
   }
 
@@ -1185,6 +1196,7 @@ export function formatPackageVulnerabilitiesTerminal(
   if (upgradeFooter) blocks.push(upgradeFooter);
   if (transitiveBlock) blocks.push(transitiveBlock);
   if (sourceBlock) blocks.push(sourceBlock);
+  if (dependencySourceHint) blocks.push(dependencySourceHint);
 
   return `${blocks.join("\n\n")}\n`;
 }

@@ -139,3 +139,19 @@ describe("full package source evidence", () => {
     );
   });
 });
+
+it("keeps metadata word boundaries and labels source Markdown separately", () => {
+  const item = report();
+  const source = item.sourceDetails![0]!.source!;
+  source.summary = "First line\nSecond line\ttabbed";
+  source.credits = [{ name: "A\nB", contact: ["first\r\nsecond"], type: null }];
+  source.details = "Modified: 1999-01-01";
+  const output = formatPackageVulnerabilitiesTerminal(item);
+  expect(output).toContain("First line Second line tabbed");
+  expect(output).toContain("    A B");
+  expect(output).toContain("      first second");
+  expect(output).toContain("  Explanation:\n  Modified: 1999-01-01");
+  expect(
+    buildPackageVulnerabilitiesSuccessPayload(item).sourceDetails![0]!.source,
+  ).toEqual(source);
+});

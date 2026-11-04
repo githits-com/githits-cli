@@ -338,9 +338,10 @@ export function formatVulns(
       add();
       add(`Details: ${advisory.id}`);
       lines.push(...formatOsvSourceMetadata(advisory, width));
-      if (advisory.explanation)
+      if (advisory.explanation) {
+        add("  Explanation:");
         lines.push(...literalMarkdownLines(advisory.explanation));
-      else add("  No explanation supplied by source.");
+      } else add("  No explanation supplied by source.");
       for (const severity of advisory.severity ?? [])
         add(
           `  ${originalSeverity(
