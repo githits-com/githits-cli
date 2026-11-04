@@ -1,4 +1,13 @@
-import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from "bun:test";
 import { posix, win32 } from "node:path";
 import type { ExecResult } from "../../services/exec-service.js";
 import {
@@ -2247,6 +2256,16 @@ describe("detectAgents", () => {
 });
 
 describe("scanAgents", () => {
+  let originalCodexHome: string | undefined;
+  beforeEach(() => {
+    originalCodexHome = process.env.CODEX_HOME;
+    delete process.env.CODEX_HOME;
+  });
+  afterEach(() => {
+    if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = originalCodexHome;
+  });
+
   function createPathOnlyAgent(id: string): AgentDefinition {
     return {
       id,
