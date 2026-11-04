@@ -73,7 +73,7 @@ Hosts without a guidance target report that limitation rather than claiming
 an instruction write.
 
 Guidance outcomes enumerate created, updated, unchanged, removed, and failed
-skill files. Guidance-only repairs do not mutate MCP or authenticate. During
+skill installations. Guidance-only repairs do not mutate MCP or authenticate. During
 uninstall, an all-absent guidance result collapses to one unchanged row, while
 removed files and failed paths remain individually visible. Failure reasons are
 sanitized; the target path is retained. Guidance contributes to the overall
@@ -139,3 +139,14 @@ transport and replacement details belong in the review before confirmation.
 Already-configured rows remain disabled when another tool needs setup or a
 manual handoff. Use `githits init --detect-agents` to see hosted sign-in steps for
 those existing connections.
+
+Interactive prompt rendering belongs to the prompt adapter. It wraps questions,
+choice labels/descriptions, disabled reasons and confirmations at word boundaries,
+reserving the selector prefix or confirmation suffix columns. Continued labels
+retain indentation. Completed answers use concise labels on an indented line;
+agent summaries use names without setup qualifiers. Disabled reasons stay on
+the row when they fit. Choice values and defaults are unchanged.
+
+Selector help fits a single line at 80 columns. Narrow terminals continue to wrap
+between words. Project guidance help includes the committed-file warning on the
+same help line.
