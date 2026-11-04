@@ -1,4 +1,6 @@
 import {
+  formatOsvSourceMetadata,
+  literalMarkdownLines,
   sanitizeTerminalText,
   terminalWidth,
   wrapTerminalProse,
@@ -335,9 +337,10 @@ export function formatVulns(
     if (advisory && options.verbose) {
       add();
       add(`Details: ${advisory.id}`);
+      lines.push(...formatOsvSourceMetadata(advisory, width));
       if (advisory.explanation)
-        for (const line of advisory.explanation.split("\n"))
-          add(line.trim() ? `  ${line}` : "", "  ");
+        lines.push(...literalMarkdownLines(advisory.explanation));
+      else add("  No explanation supplied by source.");
       for (const severity of advisory.severity ?? [])
         add(
           `  ${originalSeverity(

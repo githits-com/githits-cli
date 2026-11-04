@@ -537,3 +537,36 @@ describe("display diagnostic attribution", () => {
     ]);
   });
 });
+
+it("selects and requires typed OSV metadata only on the initial detailed advisory", async () => {
+  for (const detailed of [false, true])
+    for (const after of [undefined, "next"]) {
+      const { service, requests } = setup();
+      await service.lookup(["CVE-example"], detailed, after);
+      const query = requests[0]!.query;
+      expect(query.includes("schemaVersion")).toBe(
+        detailed && after === undefined,
+      );
+      expect(query.includes("credits { name contact type }")).toBe(
+        detailed && after === undefined,
+      );
+    }
+  for (const missing of [
+    "schemaVersion",
+    "relatedIds",
+    "upstreamIds",
+    "credits",
+  ]) {
+    const response = success();
+    delete (
+      response.body.data.vulnerabilityLookup[0]!.advisory as unknown as Record<
+        string,
+        unknown
+      >
+    )[missing];
+    const { service } = setup([response]);
+    await expect(service.lookup(["CVE-example"], true)).rejects.toMatchObject({
+      code: "UPSTREAM_ERROR",
+    });
+  }
+});

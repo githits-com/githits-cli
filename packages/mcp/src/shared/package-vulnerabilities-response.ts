@@ -44,15 +44,17 @@ import type {
   TransitiveVulnerabilityAuditCounts,
   VulnerabilityDetail,
   VulnerabilityReport,
+  VulnerabilitySourceEntry,
 } from "@githits/core-internal";
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
 import { toIsoDate } from "./format-date.js";
+import { formatPackageSourceDetails } from "./osv-source-details.js";
 import type {
   AdvisoryScopeLabel,
   PackageVulnerabilitiesFilterEcho,
 } from "./package-vulnerabilities-request.js";
-import { sanitizeTerminalText } from "./terminal-text.js";
+import { sanitizeTerminalText, wrapTerminalProse } from "./terminal-text.js";
 import { terminalWidth as measureTerminalWidth } from "./terminal-width.js";
 import {
   formatAdvisoryAssessment,
@@ -152,6 +154,7 @@ export interface LeanVulnerabilitySummary {
 }
 
 export interface LeanVulnerabilityReport {
+  sourceDetails?: VulnerabilitySourceEntry[];
   registry: string;
   name: string;
   version: string;
@@ -201,6 +204,8 @@ export function buildPackageVulnerabilitiesSuccessPayload(
     version: pkg.version,
     summary: buildSummary(total, security, dedupedAdvisories),
   };
+  if (report.sourceDetails !== undefined)
+    payload.sourceDetails = report.sourceDetails;
   if (pkg.registryRepository)
     payload.registryRepository = pkg.registryRepository;
 
@@ -1083,6 +1088,17 @@ export function formatPackageVulnerabilitiesTerminal(
   const verbose = options.verbose ?? false;
   const surface = options.surface ?? "cli";
 
+  const sourceBlock =
+    payload.sourceDetails !== undefined
+      ? formatPackageSourceDetails(payload.sourceDetails, options.terminalWidth)
+      : payload.advisories?.length
+        ? wrapTerminalProse(
+            surface === "mcp"
+              ? "Full current OSV Markdown: use source_details=true (direct advisories)."
+              : "Full current OSV Markdown: add --source-details.\nOne ID: githits vulns <id> --verbose.",
+            options.terminalWidth,
+          ).join("\n")
+        : undefined;
   const headerLine = formatHeader(payload, useColors);
   const requestedLine = payload.requestedVersion
     ? dim(
@@ -1125,6 +1141,7 @@ export function formatPackageVulnerabilitiesTerminal(
       );
     }
     if (transitiveBlock) lines.push("", transitiveBlock);
+    if (sourceBlock) lines.push("", sourceBlock);
     return `${lines.join("\n")}\n`;
   }
 
@@ -1167,6 +1184,7 @@ export function formatPackageVulnerabilitiesTerminal(
   const upgradeFooter = formatUpgradeFooter(payload.upgradePaths);
   if (upgradeFooter) blocks.push(upgradeFooter);
   if (transitiveBlock) blocks.push(transitiveBlock);
+  if (sourceBlock) blocks.push(sourceBlock);
 
   return `${blocks.join("\n\n")}\n`;
 }

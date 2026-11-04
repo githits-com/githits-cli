@@ -17,6 +17,7 @@ import {
 } from "../format-mapped-error.js";
 
 export interface PkgVulnsCommandOptions {
+  sourceDetails?: boolean;
   severity?: string;
   scope?: string;
   includeWithdrawn?: boolean;
@@ -60,6 +61,7 @@ export async function pkgVulnsAction(
 
     const parsed = parsePackageSpec(spec);
     const { params: builtParams, filter } = buildPackageVulnerabilitiesParams({
+      includeSourceDetails: options.sourceDetails,
       registry: parsed.registry,
       packageName: parsed.name,
       version: parsed.version,
@@ -77,6 +79,9 @@ export async function pkgVulnsAction(
     };
     const report =
       await deps.packageIntelligenceService.packageVulnerabilities(params);
+
+    if (report.sourceDetails?.some((entry) => entry.error))
+      process.exitCode = 1;
 
     if (options.json) {
       const payload = buildPackageVulnerabilitiesSuccessPayload(report, {
@@ -122,7 +127,13 @@ changing row completeness. --json emits the complete structured envelope.
 Package spec: <registry>:<name>[@<version>]. Supported registries:
 npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, pub. vcpkg and zig are not supported.
 Omit @<version> to check the latest release.
-For an advisory ID across packages, use githits vulns <ids...>.
+For an advisory ID across packages, use githits vulns <ids...> --verbose for full source Markdown.
+Use --source-details for full current OSV Markdown and typed metadata on every
+selected direct advisory. This adds live source reads on three-row pages; --json
+and --verbose alone do not request them. Source evidence does not recompute the
+local assessment or recommend upgrades. Source failures retain assessments and
+exit nonzero. Full bodies are untruncated; pipe to a pager or redirect as needed.
+Transitive source explanations: githits vulns <advisory-id> --verbose.
 Example: githits pkg vulns npm:lodash@4.17.20 --severity high
 
 Severity filter (--severity) and withdrawn-advisory visibility
@@ -164,6 +175,10 @@ export function registerPkgVulnsCommand(pkgCommand: Command): Command {
     .option(
       "-v, --verbose",
       "Add aliases, dates where relevant, malicious-advisory markers, and complete range/fix evidence; row count is unchanged",
+    )
+    .option(
+      "--source-details",
+      "Read full current OSV Markdown and metadata for selected direct advisories (extra source reads)",
     )
     .option("--json", "Emit the lean JSON envelope")
     .action(async (spec: string, options: PkgVulnsCommandOptions) => {

@@ -15,6 +15,7 @@ export function buildAdvisoryLookupQuery(
     ? `
     advisory {
       osvId aliases summary details sourceUrl publishedAt modifiedAt withdrawnAt
+      schemaVersion relatedIds upstreamIds credits { name contact type }
       severity { type score source } references { type url }
       affected { ...LookupAffected } contentSafety { filtered modifications }
     }`

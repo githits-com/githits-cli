@@ -46,6 +46,7 @@ export * from "./shared/list-request.js";
 export * from "./shared/list-response.js";
 export * from "./shared/list-text.js";
 export * from "./shared/mapped-error-text.js";
+export { formatOsvSourceMetadata } from "./shared/osv-source-details.js";
 export * from "./shared/package-changelog-request.js";
 export * from "./shared/package-changelog-response.js";
 export * from "./shared/package-changelog-target.js";
@@ -91,6 +92,7 @@ export * from "./shared/resolve-target-response.js";
 export * from "./shared/shell-quote.js";
 export * from "./shared/target-resolution.js";
 export {
+  literalMarkdownLines,
   sanitizeTerminalText,
   wrapTerminalProse,
 } from "./shared/terminal-text.js";

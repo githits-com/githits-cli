@@ -686,3 +686,24 @@ describe("vulns formatter", () => {
     expect(formatVulns([item])).not.toContain("Missing evidence:");
   });
 });
+
+it("preserves complete source Markdown structure through final verbose output", () => {
+  const item = result();
+  const markdown =
+    "## Impact\r\n\r\n```go\r\n\tif affected {\r\n\t\treturn err\r\n\t}\r\n```\r\n\r\n| A | B |\r| --- | --- |\r| value | more |\r\n" +
+    "Long source paragraph. ".repeat(500) +
+    "END-OF-SOURCE\u001b[31m";
+  item.lookup!.advisory!.details = markdown;
+  const output = formatVulns([item], { verbose: true, width: 48 });
+  expect(output).toContain(
+    "  ## Impact\n\n  ```go\n      if affected {\n          return err\n      }\n  ```\n\n  | A | B |\n  | --- | --- |\n  | value | more |\n",
+  );
+  expect(output).toContain(
+    `${"Long source paragraph. ".repeat(500)}END-OF-SOURCE`,
+  );
+  expect(output).not.toContain("\u001b");
+  expect(
+    buildVulnsResponse([item], { verbose: true }).results[0]!.advisory!
+      .explanation,
+  ).toBe(markdown);
+});

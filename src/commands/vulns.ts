@@ -251,7 +251,8 @@ Examples:
 --json includes every package, source reference, coverage and recovery field,
 with up to ten normalized affected spans. affectedRanges and sourceFixVersions
 are independent lists, not index-aligned; a range boundary is not necessarily a fix.
-Use --verbose only for original source detail, including package-less Git
+Use --verbose for full untruncated source Markdown, schema version, related/upstream
+IDs, credits and original source detail, including package-less Git
 ranges, vectors, aliases, dates and references. Verbose JSON uses zero-based
 advisoryAffectedIndexes into advisory.originalAffected for exact same-record
 copies. Source fixes are unverified;
@@ -263,7 +264,7 @@ IDs are case-sensitive; input order and duplicates are preserved.`)
     )
     .option(
       "-v, --verbose",
-      "Add original source evidence, vectors, dates and references",
+      "Add full source Markdown, typed metadata, original evidence, vectors, dates and references",
     )
     .option(
       "--json",

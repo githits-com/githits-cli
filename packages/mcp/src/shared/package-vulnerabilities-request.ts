@@ -91,6 +91,7 @@ export interface PackageVulnerabilitiesRequestInput {
   includeTransitive?: boolean;
   /** Advisory rows to return. Defaults to advisories affecting the inspected version. */
   advisoryScope?: string;
+  includeSourceDetails?: boolean;
 }
 
 export interface PackageVulnerabilitiesFilterEcho {
@@ -158,6 +159,9 @@ export function buildPackageVulnerabilitiesParams(
   return {
     params: {
       registry,
+      ...(input.includeSourceDetails === true
+        ? { includeSourceDetails: true }
+        : {}),
       packageName: trimmedName,
       version,
       minSeverity,

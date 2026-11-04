@@ -382,3 +382,17 @@ describe("unknown advisory scope", () => {
     expect(result.filter?.advisoryScope).toBe("unknown");
   });
 });
+
+it.each([undefined, false, true])(
+  "opts into current source only for includeSourceDetails=%s",
+  (includeSourceDetails) => {
+    const result = buildPackageVulnerabilitiesParams({
+      registry: "npm",
+      packageName: "example",
+      includeSourceDetails,
+    });
+    if (includeSourceDetails === true)
+      expect(result.params.includeSourceDetails).toBe(true);
+    else expect(result.params).not.toHaveProperty("includeSourceDetails");
+  },
+);

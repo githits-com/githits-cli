@@ -7,6 +7,10 @@ import type {
 
 /** Small source-shaped fixture retaining distinct evidence kinds. */
 export const defaultAdvisoryDetails: AdvisoryDetails = {
+  schemaVersion: "1.9.0",
+  relatedIds: [],
+  upstreamIds: [],
+  credits: [],
   osvId: "OSV-example",
   aliases: ["CVE-example"],
   summary: "Source résumé with Unicode",

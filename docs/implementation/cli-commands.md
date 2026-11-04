@@ -1258,3 +1258,9 @@ commands in one step with a two-minute combined timeout.
 Direct repository targets accept approved full HTTPS URLs on github.com, codeberg.org, gitlab.com, git.launchpad.net, code.launchpad.net, and public *.googlesource.com hosts. Googlesource requires full HTTPS URLs without explicit ports; project case is preserved and one terminal .git/trailing slash is normalized. Launchpad HTTPS URLs accept mutable defaults and complete owner-qualified Git paths; git://git.launchpad.net requires a complete path on the default port 9418. Codeberg requires exactly owner/repo; GitLab allows nested namespaces. Only GitHub supports host shorthand and HTTP compatibility. Never infer a provider from bare owner/repo. Repository refs use an @ suffix and may themselves contain / and @; # is reserved for semantic fragments. Empty refs and mixed suffixes are invalid. Credentials, queries, provider web subpaths, and unsupported/self-hosted hosts are rejected. Package targets keep registry-native coordinates, including `zig:cb/owner/repo` and `swift:gitlab.com/group/project`. Changelog repo URL fields remain full HTTPS URLs.
 
 See [Repository target grammar](repository-targets.md) for the shared GitHub, Codeberg, GitLab, Launchpad Git, and Googlesource addressing contract and provider-preserving response identity.
+
+Full current OSV source Markdown is available with
+`githits pkg vulns <spec> --source-details` for selected direct rows, or
+`githits vulns <advisory-id> --verbose` for one source explanation and original
+affected evidence. Add `--json` for complete normalized Markdown and typed source
+metadata. Package `--verbose` and `--json` alone do not add live source reads.

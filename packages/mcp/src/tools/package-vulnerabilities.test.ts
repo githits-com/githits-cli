@@ -93,6 +93,7 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
       "include_transitive",
       "include_withdrawn",
       "min_severity",
+      "source_details",
       "target",
       "verbose",
     ]);

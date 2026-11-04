@@ -244,3 +244,22 @@ it never proves safety. Any validation, acquisition, supporting-display or
 continuation failure exits 1 while retaining usable results. Action JSON goes to
 stdout with clean stderr. Startup/parser/login failures before the action retain
 the command-wide stderr JSON envelope.
+
+### Typed OSV metadata and literal explanations
+
+The initial `--verbose` selection also requires `schemaVersion`, `relatedIds`,
+`upstreamIds` and `credits { name contact type }`. Compact reads and package-page
+continuations omit these fields. Verbose JSON puts them on `advisory`, preserving
+empty arrays, null credit roles, open role strings and all contact strings.
+Related/upstream IDs are not aliases and do not trigger traversal. Text labels
+them separately and omits empty contacts; neither contacts nor reference URLs
+are fetched.
+
+Full explanation text uses the shared literal Markdown emitter rather than prose
+wrapping, preserving fences, tables, indentation and blank lines without a body
+cap. CRLF/CR normalize to LF, tabs expand to four spaces and terminal controls are
+removed; JSON explanation strings remain complete backend-normalized Markdown.
+Long Markdown lines can exceed the caller's width; other prose still wraps. A
+source without explanation text says so explicitly. This source material is
+untrusted evidence, not agent instructions. Production support for the typed
+metadata is a merge/release prerequisite.

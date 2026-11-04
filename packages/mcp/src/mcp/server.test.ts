@@ -577,6 +577,7 @@ describe("MCP compact target schemas", () => {
         "include_transitive",
         "include_withdrawn",
         "min_severity",
+        "source_details",
         "target",
         "verbose",
       ],

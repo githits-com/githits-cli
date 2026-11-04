@@ -87,6 +87,7 @@ async function mcpJson(
     advisory_scope?: string;
     include_withdrawn?: boolean;
     include_transitive?: boolean;
+    source_details?: boolean;
   },
   packageVulnerabilitiesMock?: () => Promise<VulnerabilityReport>,
 ): Promise<{ json: unknown; isError: boolean | undefined }> {
@@ -221,9 +222,14 @@ describe("package_vulnerabilities parity", () => {
     );
     const mcp = result.content[0]?.text ?? "";
     expect(result.isError).toBeUndefined();
-    expect(cli.replace(/\s+/g, " ").trim()).toBe(
-      mcp.replace(/\s+/g, " ").trim(),
+    expect(
+      cli.split("Full current OSV Markdown:")[0]!.replace(/\s+/g, " ").trim(),
+    ).toBe(
+      mcp.split("Full current OSV Markdown:")[0]!.replace(/\s+/g, " ").trim(),
     );
+    expect(cli).toContain("--source-details");
+    expect(mcp).toContain("source_details=true");
+    expect(mcp).not.toContain("githits vulns");
     for (const text of [cli, mcp]) {
       expect(text).toContain("Scope   non-affecting advisories only");
       expect(text).toContain("showing 1 non-affecting advisory\n");
@@ -1042,5 +1048,52 @@ describe("direct unknown JSON parity", () => {
         advisoryScope: "UNKNOWN",
         includeTransitive: true,
       });
+  });
+});
+
+describe("source detail parity", () => {
+  it("preserves complete source entries and maps the opt-in identically", async () => {
+    const report = structuredClone(defaultVulnerabilityReport);
+    report.sourceDetails = [
+      {
+        advisoryId: "MISSING",
+        source: null,
+        error: {
+          code: "TIMEOUT",
+          message: "Current OSV source unavailable (TIMEOUT).",
+          retryable: true,
+        },
+      },
+    ];
+    const packageVulnerabilities = mock(
+      async (
+        _params: Parameters<
+          PackageIntelligenceService["packageVulnerabilities"]
+        >[0],
+      ) => report,
+    );
+    const previousExitCode = process.exitCode;
+    try {
+      const cli = await cliJson(
+        "npm:express",
+        { sourceDetails: true },
+        cliDeps({
+          packageIntelligenceService: createMockPackageIntelligenceService({
+            packageVulnerabilities,
+          }),
+        }),
+      );
+      expect(process.exitCode).toBe(1);
+      const mcp = await mcpJson(
+        { target: "npm:express", source_details: true },
+        packageVulnerabilities as never,
+      );
+      expect(cli).toEqual(mcp.json);
+      expect(mcp.isError).toBeUndefined();
+      for (const [params] of packageVulnerabilities.mock.calls)
+        expect(params.includeSourceDetails).toBe(true);
+    } finally {
+      process.exitCode = previousExitCode;
+    }
   });
 });

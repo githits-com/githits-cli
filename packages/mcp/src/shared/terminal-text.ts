@@ -41,3 +41,14 @@ export function wrapTerminalProse(
     return lines;
   });
 }
+
+/** Preserve source Markdown layout while neutralizing terminal controls. */
+export function literalMarkdownLines(
+  markdown: string,
+  indent: string = "  ",
+): string[] {
+  return markdown.split(/\r\n|\r|\n/).map((line) => {
+    const safe = sanitizeTerminalText(line.replace(/\t/g, "    "));
+    return safe ? `${indent}${safe}` : "";
+  });
+}

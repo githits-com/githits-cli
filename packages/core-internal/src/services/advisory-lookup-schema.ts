@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  type OsvSourceMetadata,
+  osvSourceMetadataSchema,
+} from "./osv-source-details.js";
 
 const severitySchema = z.object({
   type: z.string(),
@@ -50,6 +54,7 @@ const advisorySchema = z.object({
   }),
 });
 const fullAdvisorySchema = advisorySchema
+  .extend(osvSourceMetadataSchema.shape)
   .required({ details: true, references: true })
   .extend({
     affected: z.array(
@@ -134,6 +139,7 @@ const connection = z.object({
 const lookupSchema = z.object({
   requestedId: z.string(),
   advisory: compactAdvisory
+    .extend(osvSourceMetadataSchema.partial().shape)
     .extend({
       details: z.string().nullable().optional(),
       publishedAt: z.string().nullable().optional(),
@@ -233,7 +239,7 @@ export interface AdvisoryDisplay {
 }
 
 /** Compact source identity; detail-only fields remain optional until selected. */
-export interface AdvisorySummary {
+export interface AdvisorySummary extends Partial<OsvSourceMetadata> {
   osvId: string;
   summary: string | null;
   sourceUrl: string;
@@ -248,6 +254,10 @@ export interface AdvisorySummary {
   contentSafety?: AdvisorySafety;
 }
 export interface AdvisoryDetails extends AdvisorySummary {
+  schemaVersion: string;
+  relatedIds: string[];
+  upstreamIds: string[];
+  credits: OsvSourceMetadata["credits"];
   aliases: string[];
   details: string | null;
   publishedAt: string | null;
