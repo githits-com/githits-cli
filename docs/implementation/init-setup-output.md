@@ -147,6 +147,6 @@ retain indentation. Completed answers use concise labels on an indented line;
 agent summaries use names without setup qualifiers. Disabled reasons stay on
 the row when they fit. Choice values and defaults are unchanged.
 
-Selector help fits a single line at80columns. Narrow terminals continue to wrap
+Selector help fits a single line at 80 columns. Narrow terminals continue to wrap
 between words. Project guidance help includes the committed-file warning on the
 same help line.
