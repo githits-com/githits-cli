@@ -4,7 +4,7 @@
 package targets. Structured registry inputs also accept `cargo`. Registry spelling
 is case-insensitive and trims surrounding whitespace, including the prefix segment
 in compact addresses. Package names, versions, ranges and existing restrictions
-(such as latest-only `pkg_info` and unversioned diff targets) remain unchanged.
+(such as unpinned `pkg_info` and unversioned diff targets) remain unchanged.
 This adds no alternate Cargo registry or PURL input syntax.
 
 ## Ownership and canonical identity

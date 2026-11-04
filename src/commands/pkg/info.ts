@@ -31,7 +31,7 @@ export interface PkgInfoCommandDependencies {
 
 /**
  * Core `pkg info` action. Rejects `@<version>` with a clear
- * INVALID_ARGUMENT (never silently swaps to latest), then delegates
+ * INVALID_ARGUMENT (never silently changes the requested release), then delegates
  * to the shared request builder and response formatter.
  */
 export async function pkgInfoAction(
@@ -56,7 +56,7 @@ export async function pkgInfoAction(
     const parsed = parsePackageSpec(spec);
     if (parsed.version !== undefined) {
       throw new InvalidPackageSpecError(
-        `pkg info always returns the latest version; omit @${parsed.version}.`,
+        `pkg info returns the default selected release; omit @${parsed.version}.`,
       );
     }
 
@@ -94,17 +94,17 @@ function handlePkgInfoCommandError(error: unknown, json: boolean): never {
   }
 
   // Bare mapped message. Domain messages (`Package 'npm:foo' not found.`,
-  // `pkg info always returns the latest version; omit @4.18.0.`) are
+  // `pkg info returns the default selected release; omit @4.18.0.`) are
   // already caller-readable.
   console.error(formatMappedErrorForTerminal(mapped));
   process.exit(1);
 }
 
-const PKG_INFO_DESCRIPTION = `Latest-version package overview for dependency triage.
+const PKG_INFO_DESCRIPTION = `Default-release package overview for dependency triage.
 
 Default output shows license, description, repository popularity
 (stars/forks/issues and [ARCHIVED] when applicable), downloads,
-publish age, latest affected count, and separate package-wide advisory
+publish age, selected-release affected count, and separate package-wide advisory
 history count. --verbose adds GitHub language/topics/last-pushed,
 published-version count, download refresh date, package-wide advisory
 history (all versions), and recent changes. Inspect package history with:
@@ -114,7 +114,7 @@ Package spec: <registry>:<name>. Supported registries: ${PKGSEER_REGISTRY_LIST}.
 
 Example: githits pkg info npm:express
 
-Always returns data for the latest published version.`;
+Uses the default selected release and explains any skipped registry latest.`;
 
 export function registerPkgInfoCommand(pkgCommand: Command): Command {
   return pkgCommand
@@ -128,7 +128,7 @@ export function registerPkgInfoCommand(pkgCommand: Command): Command {
     )
     .option(
       "--json",
-      "Emit the lean JSON envelope with version count, download refresh date, and advisory history",
+      "Emit JSON with selected version, registry latest/difference, version count, refresh date, and advisory history",
     )
     .action(async (spec: string, options: PkgInfoCommandOptions) => {
       const deps = await createContainer();

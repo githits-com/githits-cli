@@ -70,11 +70,29 @@ export interface RegistryRepository {
   url: string;
 }
 
+/** Why the registry pointer is excluded from default release selection. */
+export type RegistryLatestDifferenceReason =
+  | "DEPRECATED"
+  | "YANKED"
+  | "NO_FILES"
+  | "UNLISTED"
+  | "PRERELEASE_EXCLUDED";
+
+export interface RegistryLatestDifference {
+  version: string;
+  reason: RegistryLatestDifferenceReason;
+}
+
 export interface PackageIdentity {
   name: string;
   registry?: string;
   description?: string;
-  latestVersion: string;
+  /** Release selected for this overview; absent when no release is selected. */
+  version?: string;
+  publishedAt?: string;
+  registryLatestDifference?: RegistryLatestDifference;
+  /** Registry pointer, which may differ from the selected release. */
+  latestVersion?: string;
   latestVersionPublishedAt?: string;
   homepage?: string;
   repositoryUrl?: string;
@@ -1109,10 +1127,26 @@ const githubRepositorySchema = z
   .nullable()
   .optional();
 
+const registryLatestDifferenceSchema = z.object({
+  version: z.string(),
+  reason: z.enum([
+    "DEPRECATED",
+    "YANKED",
+    "NO_FILES",
+    "UNLISTED",
+    "PRERELEASE_EXCLUDED",
+  ]),
+});
+
 const packageIdentitySchema = z.object({
   name: z.string().nullable().optional(),
   registry: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
+  version: z.string().nullable().optional(),
+  publishedAt: z.string().nullable().optional(),
+  registryLatestDifference: registryLatestDifferenceSchema
+    .nullable()
+    .optional(),
   latestVersion: z.string().nullable().optional(),
   latestVersionPublishedAt: z.string().nullable().optional(),
   versionCount: z.number().int().nullable().optional(),
@@ -1199,8 +1233,14 @@ query PackageSummary(
       name
       registry
       description
-      latestVersion
-      latestVersionPublishedAt
+      version
+      publishedAt
+      registryLatestDifference {
+        version
+        reason
+      }
+      latestVersion @include(if: $includeVerboseFields)
+      latestVersionPublishedAt @include(if: $includeVerboseFields)
       homepage
       repositoryUrl
       license
@@ -3331,7 +3371,8 @@ export class PackageIntelligenceServiceImpl
     const selected = parsed.data.data?.provenance?.selectedVersion;
     if (
       errors.length === 0 &&
-      selected?.resolvedVersion === summary.package.latestVersion
+      summary.package.version !== undefined &&
+      selected?.resolvedVersion === summary.package.version
     ) {
       summary.package.registryRepository =
         selected.registryRepository ?? undefined;
@@ -3362,9 +3403,9 @@ export class PackageIntelligenceServiceImpl
   ): PackageSummary {
     const name = data.package?.name ?? undefined;
     const latestVersion = data.package?.latestVersion ?? undefined;
-    if (!name || !latestVersion) {
+    if (!name) {
       throw new MalformedPackageIntelligenceResponseError(
-        "Package summary response missing required name/latestVersion.",
+        "Package summary response missing required name.",
       );
     }
 
@@ -3373,6 +3414,9 @@ export class PackageIntelligenceServiceImpl
 
     const identity: PackageIdentity = {
       name,
+      version: pkg?.version ?? undefined,
+      publishedAt: pkg?.publishedAt ?? undefined,
+      registryLatestDifference: pkg?.registryLatestDifference ?? undefined,
       latestVersion,
       registry: pkg?.registry ?? undefined,
       description: pkg?.description ?? undefined,

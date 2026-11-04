@@ -581,23 +581,31 @@ When a new tool lands with both MCP and CLI surfaces:
   while missing or non-string targets fail SDK schema validation.
 - **`@version` rejection.** Both surfaces reject any embedded version
   with actionable `INVALID_ARGUMENT` before calling the service; neither
-  silently swaps to latest.
+  silently selects a different release.
 - **Shared package-summary envelope and formatter.** CLI `--json` and MCP
   `format: "json"` use the same lean envelope, including additive
   `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total` fields.
-  The shared formatter also owns the latest-versus-history text semantics:
-  `vulnerabilities.total` is latest-version affectedness and
+  `version` and `publishedAt` identify the API-selected release. Registry-pointer
+  facts remain separate as `latestVersion`, `latestVersionPublishedAt`, and
+  `registryLatestDifference: {version, reason}`. Null selected fields are omitted;
+  text explicitly shows no selected version instead of substituting the pointer.
+  Both null and pointer-valued prerelease-only versions with PRERELEASE_EXCLUDED
+  explain that the preview needs explicit selection. The shared formatter wraps
+  one difference explanation and uses `Selected:` for risk when a difference exists.
+  The shared formatter also owns the release-versus-history text semantics:
+  `vulnerabilities.total` is selected-release affectedness and
   `advisoryHistory.total` is package-wide non-withdrawn, deduplicated history.
-  History remains renderable when the nullable latest count is unavailable.
+  History remains renderable when the nullable selected-release count is unavailable.
 - **Package registry.** Both text surfaces add the same `Package registry` row
   after `Repository` when selected-release acquisition evidence matches the
   displayed version.
   Both JSON surfaces preserve the generic `registryRepository: {id,name,url}`
   descriptor; unknown evidence is omitted. Existing overview/history fields and
-  latest-only validation remain unchanged. Dependency/vulnerability JSON retain
+  unpinned validation remain unchanged. Dependency/vulnerability JSON retain
   their shared identity descriptor without changing their text.
 - **Evidence-only vulnerability field.** Both compact text surfaces use the same
-  `Latest:` and `History:` labels and do not append an inline action. CLI help
+  `Latest:` (or `Selected:` when a difference exists) and `History:` labels and do
+  not append an inline action. CLI help
   routes full-history inspection to
   `githits pkg vulns <registry>:<name> --scope all`; the MCP descriptor routes it
   to `pkg_vulns` with `advisory_scope: "all"`. Package-summary text otherwise
@@ -607,7 +615,7 @@ When a new tool lands with both MCP and CLI surfaces:
 - **Compact versus detailed fetching.** Default text requests
   `includeVerboseFields: false`; verbose text and JSON request `true` on both
   surfaces. `allVulnerabilityCount` is selected for every package summary,
-  while `versionCount` and `downloadsRefreshedAt` are selected only for the
+  while registry-pointer version/date, `versionCount` and `downloadsRefreshedAt` are selected only for the
   detailed modes.
 
 ### `pkg_vulns`

@@ -63,6 +63,7 @@ function overviewBody(
         package: {
           name: PARAMS.packageName,
           registry: PARAMS.registry,
+          version: "2.2",
           latestVersion: "2.2",
           license: "MIT",
         },

@@ -1087,6 +1087,10 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_info json missing version",
   );
   assert(
+    typeof pkgInfoJson.latestVersion === "string",
+    "pkg_info json missing registry latest version",
+  );
+  assert(
     typeof pkgInfoJson.versionCount === "number",
     "pkg_info json missing version count",
   );

@@ -1721,6 +1721,7 @@ function smokeJsonResponse(
             ? "serde"
             : "express",
         version: "1.0.0",
+        latestVersion: "1.0.0",
         versionCount: 42,
         downloads: { refreshedAt: "2024-06-15" },
         advisoryHistory: { total: 5 },

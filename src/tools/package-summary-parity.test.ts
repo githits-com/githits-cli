@@ -386,12 +386,12 @@ describe("package_summary parity", () => {
 
     expect(isError).toBe(true);
     expect(cli).toEqual({
-      error: "pkg info always returns the latest version; omit @5.2.1.",
+      error: "pkg info returns the default selected release; omit @5.2.1.",
       code: "INVALID_ARGUMENT",
       retryable: false,
     });
     expect(json).toEqual({
-      error: "pkg_info always returns the latest version; omit @5.2.1.",
+      error: "pkg_info returns the default selected release; omit @5.2.1.",
       code: "INVALID_ARGUMENT",
       retryable: false,
     });
@@ -552,4 +552,71 @@ describe("registry repository CLI/MCP parity", () => {
       }
     });
   }
+});
+
+describe("selected-release CLI/MCP parity", () => {
+  it.each([
+    ["npm:path-is-absolute", "1.0.1", "2.0.0", "DEPRECATED"],
+    ["pypi:example", "1.9.3", "2.0.0", "YANKED"],
+    ["nuget:preview", undefined, "1.27.0-preview.1", "PRERELEASE_EXCLUDED"],
+    [
+      "nuget:preview",
+      "1.27.0-preview.1",
+      "1.27.0-preview.1",
+      "PRERELEASE_EXCLUDED",
+    ],
+    ["npm:express", "4.18.2", "4.18.2", undefined],
+  ] as const)(
+    "preserves %s selection %s in text and JSON",
+    async (target, version, latestVersion, reason) => {
+      const fixture = structuredClone(defaultPackageSummary);
+      fixture.package.version = version;
+      fixture.package.latestVersion = latestVersion;
+      fixture.package.registryLatestDifference = reason
+        ? { version: latestVersion, reason }
+        : undefined;
+      const packageSummary = mock(() => Promise.resolve(fixture));
+      const service = createMockPackageIntelligenceService({ packageSummary });
+      const deps = cliDeps({ packageIntelligenceService: service });
+      const cli = await cliJson(target, deps);
+      const mcp = await mcpJson({ target }, packageSummary);
+      expect(cli).toEqual(mcp.json);
+      expect(mcp.isError).toBeUndefined();
+      expect(cli).toMatchObject({ latestVersion });
+      if (version) expect(cli).toHaveProperty("version", version);
+      else expect(cli).not.toHaveProperty("version");
+      expect(
+        (cli as { registryLatestDifference?: unknown })
+          .registryLatestDifference,
+      ).toEqual(fixture.package.registryLatestDifference);
+      for (const verbose of [false, true]) {
+        const writes: string[] = [];
+        const writeSpy = spyOn(process.stdout, "write").mockImplementation(((
+          chunk: string | Uint8Array,
+        ) => {
+          writes.push(
+            typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+          );
+          return true;
+        }) as typeof process.stdout.write);
+        try {
+          await pkgInfoAction(target, { verbose }, deps);
+        } finally {
+          writeSpy.mockRestore();
+        }
+        const tool = createParityMcpTool("pkg_info", {
+          packageIntelligenceService: service,
+        });
+        const result = await tool.handler({ target, verbose }, {});
+        expect(writes.join("").trimEnd()).toBe(result.content[0]?.text ?? "");
+        const text = result.content[0]?.text ?? "";
+        if (reason) {
+          expect(text).toContain(`latest ${latestVersion}`);
+          expect(text).toContain("Selected:");
+        }
+        if (version) expect(text.split("\n")[0]).toContain(`@ ${version}`);
+        else expect(text.split("\n")[0]).toContain("no selected version");
+      }
+    },
+  );
 });

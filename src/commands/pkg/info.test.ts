@@ -21,7 +21,7 @@ describe("pkg info help", () => {
     const rawHelp = command.helpInformation();
     const help = rawHelp.replace(/\s+/g, " ");
 
-    expect(help).toContain("latest affected count");
+    expect(help).toContain("selected-release affected count");
     expect(help).toContain("package-wide advisory history count");
     expect(help).toContain("separate package-wide advisory");
     expect(help).toContain("published-version count");
@@ -190,7 +190,7 @@ describe("pkgInfoAction", () => {
 
     const combined = errorSpy.mock.calls.map((c) => c[0]).join("\n");
     expect(combined).toContain(
-      "pkg info always returns the latest version; omit @4.18.0.",
+      "pkg info returns the default selected release; omit @4.18.0.",
     );
     expect(exitSpy).toHaveBeenCalledWith(1);
     errorSpy.mockRestore();
@@ -214,7 +214,7 @@ describe("pkgInfoAction", () => {
     expect(payload.code).toBe("INVALID_ARGUMENT");
     expect(payload.retryable).toBe(false);
     expect(payload.error).toBe(
-      "pkg info always returns the latest version; omit @4.18.0.",
+      "pkg info returns the default selected release; omit @4.18.0.",
     );
     errorSpy.mockRestore();
     exitSpy.mockRestore();

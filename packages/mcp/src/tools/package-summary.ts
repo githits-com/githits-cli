@@ -35,28 +35,28 @@ const schema: ZodRawShape = {
   target: z
     .string()
     .describe(
-      `Latest-only package registry:name, for example npm:express or npm:@types/node; omit version pins. Registries: ${PKGSEER_REGISTRY_LIST}.`,
+      `Unversioned package registry:name, for example npm:express or npm:@types/node; omit version pins. Registries: ${PKGSEER_REGISTRY_LIST}.`,
     ),
   verbose: z
     .boolean()
     .optional()
     .describe(
-      "Text only. Adds GitHub language/topics/last-pushed, published-version count, download refresh date, package-wide advisory history (all versions), and recent changes. Latest affected and package-wide history counts are shown separately. Ignored for format=json.",
+      "Text only. Adds GitHub language/topics/last-pushed, published-version count, download refresh date, package-wide advisory history (all versions), and recent changes. Selected-release affected and package-wide history counts are shown separately. Ignored for format=json.",
     ),
   format: z
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON adds versionCount, downloads.refreshedAt, advisoryHistory.total.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON adds latestVersion, latestVersionPublishedAt, registryLatestDifference, versionCount, downloads.refreshedAt, advisoryHistory.total.",
     ),
 };
 
 export const DESCRIPTION_BASE: string =
-  "Assess latest package health and adoption: license, downloads, and activity. Provide " +
-  "an unpinned package target; this tool always returns latest known metadata. " +
+  "Assess package health and adoption: license, downloads, and activity. Provide " +
+  "an unpinned package target; this tool describes the default selected release and explains a skipped registry latest. " +
   "Registry and source Git repository URLs, when reported, do not establish binary provenance or current availability. Default text returns these URLs, license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
-  "publish age, latest affected count, and separate package-wide advisory " +
+  "publish age, selected-release affected count, and separate package-wide advisory " +
   "history count. Historical counts are not current-version risk. " +
   "Use `verbose: true` for additional health and history details. Use metadata directly; missing fields are unknown. Latest and retrieval time do not prove registry freshness or historical release facts.";
 
@@ -75,7 +75,7 @@ export function createPackageSummaryTool(
         const target = parsePackageSpec(args.target.trim());
         if (target.version !== undefined) {
           throw new InvalidPackageSpecError(
-            `pkg_info always returns the latest version; omit @${target.version}.`,
+            `pkg_info returns the default selected release; omit @${target.version}.`,
           );
         }
         const { params } = buildPackageSummaryParams({

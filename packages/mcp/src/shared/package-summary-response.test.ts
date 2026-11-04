@@ -87,7 +87,7 @@ describe("buildPackageSummarySuccessPayload — omission rules", () => {
     fixture.package.license = undefined;
     fixture.package.homepage = undefined;
     fixture.package.repositoryUrl = undefined;
-    fixture.package.latestVersionPublishedAt = undefined;
+    fixture.package.publishedAt = undefined;
     const payload = buildPackageSummarySuccessPayload(fixture);
     expect(payload.description).toBeUndefined();
     expect(payload.license).toBeUndefined();
@@ -231,7 +231,7 @@ describe("buildPackageSummarySuccessPayload — data transformations", () => {
   it("converts publishedAt to UTC YYYY-MM-DD", () => {
     const fixture = happyFixture();
     // 23:59 UTC still falls on the stated date.
-    fixture.package.latestVersionPublishedAt = "2024-05-10T23:59:00Z";
+    fixture.package.publishedAt = "2024-05-10T23:59:00Z";
     const payload = buildPackageSummarySuccessPayload(fixture);
     expect(payload.publishedAt).toBe("2024-05-10");
   });
@@ -650,5 +650,143 @@ describe("formatPackageSummaryTerminal", () => {
       "  Topics       framework, http, middleware, nodejs, web",
     );
     expect(output.match(/Topics/g)?.length).toBe(1);
+  });
+});
+
+describe("selected release and registry pointer", () => {
+  it.each([
+    [
+      "NPM",
+      "path-is-absolute",
+      "1.0.1",
+      "2.0.0",
+      "DEPRECATED",
+      "latest 2.0.0 is deprecated; showing 1.0.1 (what npm installs)",
+    ],
+    [
+      "PYPI",
+      "example",
+      "1.9.3",
+      "2.0.0",
+      "YANKED",
+      "latest 2.0.0 is yanked; showing 1.9.3",
+    ],
+    [
+      "NPM",
+      "example",
+      "1.0.0",
+      "2.0.0",
+      "NO_FILES",
+      "latest 2.0.0 has no files; showing 1.0.0",
+    ],
+    [
+      "NUGET",
+      "example",
+      "1.0.0",
+      "2.0.0",
+      "UNLISTED",
+      "latest 2.0.0 is unlisted; showing 1.0.0",
+    ],
+    [
+      "NUGET",
+      "preview",
+      undefined,
+      "1.27.0-preview.1",
+      "PRERELEASE_EXCLUDED",
+      "latest 1.27.0-preview.1 is a prerelease; no default release; request it explicitly",
+    ],
+    [
+      "NUGET",
+      "preview",
+      "1.27.0-preview.1",
+      "1.27.0-preview.1",
+      "PRERELEASE_EXCLUDED",
+      "latest 1.27.0-preview.1 is a prerelease; no default release; request it explicitly",
+    ],
+  ] as const)(
+    "explains %s:%s selected %s vs %s",
+    (registry, name, version, latestVersion, reason, explanation) => {
+      const fixture = happyFixture();
+      Object.assign(fixture.package, {
+        registry,
+        name,
+        version,
+        latestVersion,
+        publishedAt: version ? "2024-01-02T00:00:00Z" : undefined,
+        latestVersionPublishedAt: "2025-03-04T00:00:00Z",
+        registryLatestDifference: { version: latestVersion, reason },
+      });
+      const payload = buildPackageSummarySuccessPayload(fixture);
+      expect(payload.version).toBe(version);
+      expect(payload.latestVersion).toBe(latestVersion);
+      expect(payload.latestVersionPublishedAt).toBe("2025-03-04");
+      expect(payload.registryLatestDifference).toEqual({
+        version: latestVersion,
+        reason,
+      });
+      expect(payload.publishedAt).toBe(version ? "2024-01-02" : undefined);
+      for (const verbose of [false, true]) {
+        const text = formatPackageSummaryTerminal(fixture, {
+          verbose,
+          now: FIXED_NOW,
+        });
+        expect(text.split("\n")[0]).toContain(
+          version ? `@ ${version}` : "no selected version",
+        );
+        expect(text.replace(/\s+/g, " ")).toContain(explanation);
+        expect(text).toContain("Selected:");
+        expect(text).not.toContain("Latest:");
+        expect(text).not.toContain("undefined");
+        if (registry !== "NPM")
+          expect(text).not.toContain("(what npm installs)");
+        const narrow = formatPackageSummaryTerminal(fixture, {
+          verbose,
+          now: FIXED_NOW,
+          terminalWidth: 40,
+        });
+        const explanationLines = narrow.trimEnd().split("\n\n")[1]!.split("\n");
+        expect(explanationLines.every((line) => displayWidth(line) <= 40)).toBe(
+          true,
+        );
+      }
+    },
+  );
+
+  it("explains a non-prerelease difference with no selected release", () => {
+    const fixture = happyFixture();
+    fixture.package.version = undefined;
+    fixture.package.publishedAt = undefined;
+    fixture.package.registryLatestDifference = {
+      version: "2.0.0",
+      reason: "YANKED",
+    };
+    const output = formatPackageSummaryTerminal(fixture);
+    expect(output).toContain("latest 2.0.0 is yanked; no default release");
+    expect(output).not.toContain("showing");
+  });
+
+  it("does not call an excluded pointer the npm default when the API returns it as version", () => {
+    const fixture = happyFixture();
+    fixture.package.version = "2.0.0";
+    fixture.package.registryLatestDifference = {
+      version: "2.0.0",
+      reason: "DEPRECATED",
+    };
+    const output = formatPackageSummaryTerminal(fixture);
+    expect(output).toContain("latest 2.0.0 is deprecated; no default release");
+    expect(output).not.toContain("showing");
+    expect(output).not.toContain("what npm installs");
+  });
+
+  it("keeps ordinary human output free of pointer explanations", () => {
+    const fixture = happyFixture();
+    expect(
+      buildPackageSummarySuccessPayload(fixture).registryLatestDifference,
+    ).toBeUndefined();
+    const output = formatPackageSummaryTerminal(fixture, { now: FIXED_NOW });
+    expect(output).toStartWith("express @ 4.18.2 | MIT\n");
+    expect(output).toContain("Latest:");
+    expect(output).not.toContain("showing");
+    expect(output).not.toContain("default release");
   });
 });
