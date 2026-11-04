@@ -124,8 +124,15 @@ does not claim to disconnect that account-level connector.
 
 Interactive setup exits nonzero when any selected setup fails. It retains
 sign-in/discovery instructions for successfully configured hosted targets even
-when another tool fails. Already-configured hosted targets also retain those
+when another tool fails. Selected already-configured hosted targets retain those
 steps during a rerun or guidance-only failure; configuration status does not
 prove OAuth readiness. These are instructions, not automatic sign-in attempts. Probe failures name known configuration paths and
 explain that permissions, syntax and the GitHits entry need checking; they
 leave existing config untouched and never echo config contents.
+
+Interactive next steps follow the selected tools. A configured but unselected
+host receives no sign-in or tool-discovery instructions. When no tool selector
+is needed, the no-op report covers the existing detected setup. Choosing a
+guidance repair and then declining keeps that chosen host in the unchanged
+report without writes or login attempts. Ordinary tool choices use names;
+transport and replacement details belong in the review before confirmation.

@@ -1802,6 +1802,21 @@ function remoteSetup(
 export const REMOTE_MCP_VERIFICATION_INSTRUCTION =
   "Open a new agent session and verify that GitHits tools are available.";
 
+/** Cursor's supported UI path and CLI names, shared by every init output. */
+export const CURSOR_MCP_UI_INSTRUCTION =
+  "In Cursor, open Customize > MCPs, select GitHits and follow the sign-in prompts.";
+export const CURSOR_MCP_LOGIN_COMMAND = "agent mcp login GitHits";
+export const CURSOR_MCP_VERIFICATION_COMMANDS = [
+  "agent mcp list",
+  "agent mcp list-tools GitHits",
+] as const;
+export const CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS = [
+  `Cursor manages sign-in for hosted GitHits at ${DEFAULT_MCP_URL}.`,
+  CURSOR_MCP_UI_INSTRUCTION,
+  `If you use Cursor CLI, sign in with \`${CURSOR_MCP_LOGIN_COMMAND}\`.`,
+  `Verify with \`${CURSOR_MCP_VERIFICATION_COMMANDS[0]}\` and \`${CURSOR_MCP_VERIFICATION_COMMANDS[1]}\`, then open a new Cursor Agent chat and check that GitHits tools are available.`,
+] as const;
+
 /** Hosts own native config shapes and the OAuth action shown after configuration. */
 function resolveInitAgent(
   agent: AgentDefinition,
@@ -1810,8 +1825,7 @@ function resolveInitAgent(
   const remote = mode === "remote";
   const actions: Record<string, string> = {
     "claude-code": "Open /mcp in Claude Code and authenticate githits.",
-    cursor:
-      "Open Cursor's MCP panel and Authenticate GitHits, or run `cursor-agent mcp login GitHits`.",
+    cursor: `${CURSOR_MCP_UI_INSTRUCTION} If you use Cursor CLI, run \`${CURSOR_MCP_LOGIN_COMMAND}\`.`,
     "codex-cli": "Run `codex mcp login githits`.",
     "gemini-cli": "Run `/mcp auth githits` in Gemini CLI.",
     pi: "Run `/mcp-auth GitHits` in Pi.",
