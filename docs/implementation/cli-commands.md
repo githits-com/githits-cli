@@ -1096,10 +1096,12 @@ use top-level `githits search` instead.
 
 Repeat `--symbol-field` to hydrate enclosing symbol metadata; supported values
 are `symbol_ref`, `name`, `qualified_path`, `kind`, `category`, `arity`,
-`is_public`, `file_path`, `start_line`, `end_line`, `content_hash`, and
-`parent_path`, `file_content_hash`, and `is_implementation`. The last two have no
-GraphQL symbol output fields. Hints appear under each `--verbose` match, with the full payload
-in `--json`.
+`is_public`, `file_path`, `start_line`, `end_line`, `content_hash`,
+`parent_path`, `file_content_hash`, and `is_implementation`. The last two are
+accepted but return no metadata; requesting only those yields an empty symbol
+object when an enclosure exists. Hints appear under each `--verbose` match, with
+the full payload in `--json`. Both grep paths share the mask vocabulary and
+return no source bodies.
 
 **Plain output (default).** One `file:line:text` record per match on stdout, pipe-friendly and deterministic. `-C/--context`, `-A/--after-context`, and `-B/--before-context` add surrounding lines. Distinct match groups are separated by `--`.
 
@@ -1154,10 +1156,6 @@ Each command follows this pattern:
 2. **Testable action function** — Pure logic that accepts deps via parameter injection
 3. **Registration function** — `registerXxxCommand(program)` handles Commander setup with lazy `createContainer()` inside the action callback
 
-`--symbol-field` shares the unified grep mask vocabulary, including accepted
-native-only `file_content_hash` and `is_implementation` controls. Those two
-have no GraphQL symbol output fields; requesting only those yields an empty
-symbol object when an enclosure exists. Neither grep path returns source bodies.
 
 ### Shared Code with MCP Tools
 

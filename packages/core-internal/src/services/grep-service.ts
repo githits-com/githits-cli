@@ -637,7 +637,9 @@ export class GrepServiceImpl implements GrepService {
         );
       if (isGraphQLSchemaMismatchError({ message, code }))
         throw new GrepBackendError(
-          "Backend protocol mismatch: the endpoint must support unified grep. Run `githits update-check` to check your client version.",
+          params.symbolFields?.length
+            ? "Backend protocol mismatch: the endpoint must support unified grep with enclosing-symbol metadata. Retry without symbol fields, or use an endpoint that supports them."
+            : "Backend protocol mismatch: the endpoint must support unified grep. Run `githits update-check` to check your client version.",
           undefined,
           code,
           false,

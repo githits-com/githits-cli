@@ -28,7 +28,7 @@ describe("code grep help", () => {
       "Matching uses Unicode-aware case folding by default; pass --case-sensitive for exact casing.",
     );
     expect(help).toContain(
-      "file_content_hash and is_implementation have no GraphQL symbol output fields.",
+      "file_content_hash and is_implementation are accepted but return no metadata.",
     );
     expect(help).toContain("Enable exact case-sensitive matching");
     expect(help).not.toContain("ASCII");

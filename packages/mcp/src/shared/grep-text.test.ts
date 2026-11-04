@@ -894,6 +894,12 @@ describe("enclosing-symbol text", () => {
     const lean = formatGrepText(page);
     expect(lean).toContain("in: only_name");
     expect(lean).not.toMatch(/arity=|isPublic:|L0-0/);
+    hit.symbol = { startLine: 633 };
+    expect(formatGrepText(page)).toContain("startLine: 633");
+    expect(formatGrepText(page)).not.toContain("L633-");
+    hit.symbol = { endLine: 636 };
+    expect(formatGrepText(page)).toContain("endLine: 636");
+    expect(formatGrepText(page)).not.toContain("startLine:");
     hit.symbol = { name: "unsafe\u001b[31m", symbolRef: "ref\nnext" };
     const safe = formatGrepText(page);
     expect(safe).not.toContain("\u001b");

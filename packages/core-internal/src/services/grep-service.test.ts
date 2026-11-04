@@ -880,3 +880,25 @@ describe("unified grep enclosing-symbol wire contract", () => {
     ).toHaveProperty("symbol", {});
   });
 });
+
+it("explains an unavailable enclosing-symbol schema without recommending a client update or retrying", async () => {
+  const fetcher = mock(async () =>
+    response({
+      errors: [
+        {
+          message:
+            'Unknown argument "symbolFields" on field "grep" of type "RootQueryType".',
+        },
+      ],
+    }),
+  );
+  await expect(
+    service(fetcher).grep({ ...params, symbolFields: ["name"] }),
+  ).rejects.toMatchObject({
+    name: "GrepBackendError",
+    retryable: false,
+    message:
+      "Backend protocol mismatch: the endpoint must support unified grep with enclosing-symbol metadata. Retry without symbol fields, or use an endpoint that supports them.",
+  });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
