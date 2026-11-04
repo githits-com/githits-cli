@@ -1,0 +1,6 @@
+---
+"githits": minor
+"@githits/mcp": minor
+---
+
+- **Unified grep enclosing symbols** - Add explicit CLI `--symbol-field` and MCP `symbol_fields` controls with legacy-equivalent metadata in text and JSON, preserving exact symbol refs, ranges and cursor masks. Defaults remain lean; release requires the unified-symbol schema deployed to production before opt-in can work there. Legacy `code grep` also accepts the shared native-only masks. Native-only `file_content_hash` and `is_implementation` masks have no GraphQL symbol output fields.

@@ -874,6 +874,8 @@ export const GREP_REPO_SYMBOL_FIELDS = [
   "end_line",
   "content_hash",
   "parent_path",
+  "file_content_hash",
+  "is_implementation",
 ] as const;
 
 export type GrepRepoSymbolField = (typeof GREP_REPO_SYMBOL_FIELDS)[number];
@@ -2479,6 +2481,39 @@ query FetchCodeContext(
 
 // grepRepo -----------------------------------------------------------
 
+/** Shared requested-field symbol projection for both grep operations. */
+export const navigationSymbolSchema = z
+  .object({
+    symbolRef: z.string().optional(),
+    name: z.string().optional(),
+    qualifiedPath: z.string().nullable().optional(),
+    kind: z.string().nullable().optional(),
+    category: z.string().nullable().optional(),
+    arity: z.number().int().nullable().optional(),
+    isPublic: z.boolean().nullable().optional(),
+    filePath: z.string().nullable().optional(),
+    startLine: z.number().int().nullable().optional(),
+    endLine: z.number().int().nullable().optional(),
+    contentHash: z.string().nullable().optional(),
+    parentPath: z.string().nullable().optional(),
+  })
+  .transform(
+    (symbol): NavigationSymbol => ({
+      symbolRef: symbol.symbolRef,
+      name: symbol.name,
+      qualifiedPath: symbol.qualifiedPath ?? undefined,
+      kind: symbol.kind ?? undefined,
+      category: symbol.category ?? undefined,
+      arity: symbol.arity ?? undefined,
+      isPublic: symbol.isPublic ?? undefined,
+      filePath: symbol.filePath ?? undefined,
+      startLine: symbol.startLine ?? undefined,
+      endLine: symbol.endLine ?? undefined,
+      contentHash: symbol.contentHash ?? undefined,
+      parentPath: symbol.parentPath ?? undefined,
+    }),
+  );
+
 const grepRepoMatchSchema = z.object({
   filePath: z.string(),
   line: z.number().int(),
@@ -2490,23 +2525,7 @@ const grepRepoMatchSchema = z.object({
   fileContentHash: z.string().nullable().optional(),
   fileIntent: z.string().nullable().optional(),
   symbolRowId: z.string().nullable().optional(),
-  symbol: z
-    .object({
-      symbolRef: z.string().optional(),
-      name: z.string().optional(),
-      qualifiedPath: z.string().nullable().optional(),
-      kind: z.string().nullable().optional(),
-      category: z.string().nullable().optional(),
-      arity: z.number().int().nullable().optional(),
-      isPublic: z.boolean().nullable().optional(),
-      filePath: z.string().nullable().optional(),
-      startLine: z.number().int().nullable().optional(),
-      endLine: z.number().int().nullable().optional(),
-      contentHash: z.string().nullable().optional(),
-      parentPath: z.string().nullable().optional(),
-    })
-    .nullable()
-    .optional(),
+  symbol: navigationSymbolSchema.nullable().optional(),
 });
 
 const grepRepoResponseSchema = z.object({
@@ -2546,7 +2565,10 @@ const grepRepoGraphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
-const GREP_REPO_SYMBOL_SELECTIONS: Record<GrepRepoSymbolField, string> = {
+const GREP_REPO_SYMBOL_SELECTIONS: Record<
+  GrepRepoSymbolField,
+  string | undefined
+> = {
   symbol_ref: "symbolRef",
   name: "name",
   qualified_path: "qualifiedPath",
@@ -2559,16 +2581,29 @@ const GREP_REPO_SYMBOL_SELECTIONS: Record<GrepRepoSymbolField, string> = {
   end_line: "endLine",
   content_hash: "contentHash",
   parent_path: "parentPath",
+  // Native mask controls without NavigationSymbol scalar projections.
+  file_content_hash: undefined,
+  is_implementation: undefined,
 };
+
+/** Select only requested GraphQL fields; native-only masks still preserve enclosure absence. */
+export function buildGrepSymbolSelection(
+  symbolFields: readonly GrepRepoSymbolField[] | undefined,
+): string {
+  if (!symbolFields?.length) return "";
+  return (
+    symbolFields
+      .map((field) => GREP_REPO_SYMBOL_SELECTIONS[field])
+      .filter((field): field is string => Boolean(field))
+      .filter((field, index, fields) => fields.indexOf(field) === index)
+      .join("\n        ") || "__typename"
+  );
+}
 
 function buildGrepRepoQuery(
   symbolFields: readonly GrepRepoSymbolField[] | undefined,
 ): string {
-  const symbolSelection = (symbolFields ?? [])
-    .map((field) => GREP_REPO_SYMBOL_SELECTIONS[field])
-    .filter((field): field is string => Boolean(field))
-    .filter((field, index, fields) => fields.indexOf(field) === index)
-    .join("\n        ");
+  const symbolSelection = buildGrepSymbolSelection(symbolFields);
   const symbolBlock =
     symbolSelection.length > 0
       ? `\n      symbol {\n        ${symbolSelection}\n      }`
@@ -3532,22 +3567,7 @@ export class CodeNavigationServiceImpl
         fileContentHash: entry.fileContentHash ?? undefined,
         fileIntent: entry.fileIntent ?? undefined,
         symbolRowId: entry.symbolRowId ?? undefined,
-        symbol: entry.symbol
-          ? {
-              symbolRef: entry.symbol.symbolRef,
-              name: entry.symbol.name,
-              qualifiedPath: entry.symbol.qualifiedPath ?? undefined,
-              kind: entry.symbol.kind ?? undefined,
-              category: entry.symbol.category ?? undefined,
-              arity: entry.symbol.arity ?? undefined,
-              isPublic: entry.symbol.isPublic ?? undefined,
-              filePath: entry.symbol.filePath ?? undefined,
-              startLine: entry.symbol.startLine ?? undefined,
-              endLine: entry.symbol.endLine ?? undefined,
-              contentHash: entry.symbol.contentHash ?? undefined,
-              parentPath: entry.symbol.parentPath ?? undefined,
-            }
-          : undefined,
+        symbol: entry.symbol ?? undefined,
       })),
       nextCursor: data.nextCursor ?? undefined,
       hasMore: data.hasMore,

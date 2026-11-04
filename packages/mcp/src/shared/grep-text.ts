@@ -3,9 +3,11 @@ import type {
   GrepLineSlice,
   GrepResult,
   GrepTargetStatus,
+  NavigationSymbol,
 } from "@githits/core-internal";
 import { colors, highlightMatch } from "./colors.js";
 import { grepPreparationReason } from "./grep-preparation-text.js";
+import { formatGrepSymbolHint } from "./grep-repo-response.js";
 import { summarizeGrepPathWarnings } from "./grep-response.js";
 import { formatPreparationRow } from "./indexing-estimates-text.js";
 import { indexingWaitMs } from "./indexing-wait.js";
@@ -45,6 +47,7 @@ interface RenderLine {
   slice: GrepLineSlice;
   match: boolean;
   spans: MatchSpan[];
+  symbols: NavigationSymbol[];
 }
 interface FileGroup {
   first: GrepHit;
@@ -253,6 +256,25 @@ export function formatGrepText(
       lines.push(
         `${String(row.number).padStart(gutter)}${row.match ? ":" : "-"} ${renderSlice(row, options.useColors ?? false)}`,
       );
+      for (const symbol of row.symbols) {
+        const hint = formatGrepSymbolHint(symbol);
+        if (hint) prose(`  in: ${hint}`);
+        // Refs are copyable opaque identity; never wrap or reconstruct them.
+        if (symbol.symbolRef !== undefined)
+          lines.push(`  symbolRef: ${escapeControls(symbol.symbolRef)}`);
+        for (const [label, value] of Object.entries({
+          category: symbol.category,
+          isPublic: symbol.isPublic === false ? false : undefined,
+          filePath: symbol.filePath,
+          startLine:
+            symbol.endLine === undefined ? symbol.startLine : undefined,
+          endLine: symbol.startLine === undefined ? symbol.endLine : undefined,
+          contentHash: symbol.contentHash,
+          parentPath: symbol.parentPath,
+        })) {
+          if (value !== undefined) prose(`  ${label}: ${value}`);
+        }
+      }
       previous = row.number;
     }
     if (group.hits.some((hit) => hit.contentSafety.filtered))
@@ -619,6 +641,7 @@ function groupRows(hits: GrepHit[]): RenderLine[] {
     number: number,
     slice: GrepLineSlice,
     span?: MatchSpan,
+    symbol?: NavigationSymbol | null,
   ): void => {
     const key = JSON.stringify([
       number,
@@ -631,6 +654,13 @@ function groupRows(hits: GrepHit[]): RenderLine[] {
       if (span) {
         row.match = true;
         row.spans.push(span);
+        if (
+          symbol &&
+          !row.symbols.some(
+            (entry) => JSON.stringify(entry) === JSON.stringify(symbol),
+          )
+        )
+          row.symbols.push(symbol);
       }
     } else
       rows.set(key, {
@@ -638,16 +668,22 @@ function groupRows(hits: GrepHit[]): RenderLine[] {
         slice,
         match: span !== undefined,
         spans: span ? [span] : [],
+        symbols: symbol ? [symbol] : [],
       });
   };
   for (const hit of hits) {
     hit.contextBeforeSlices.forEach((slice, index) => {
       add(hit.line - hit.contextBeforeSlices.length + index, slice);
     });
-    add(hit.line, hit.lineSlice, {
-      start: hit.matchStartByte,
-      end: hit.matchEndByte,
-    });
+    add(
+      hit.line,
+      hit.lineSlice,
+      {
+        start: hit.matchStartByte,
+        end: hit.matchEndByte,
+      },
+      hit.__typename === "GrepRepositoryHit" ? hit.symbol : undefined,
+    );
     hit.contextAfterSlices.forEach((slice, index) => {
       add(hit.line + index + 1, slice);
     });

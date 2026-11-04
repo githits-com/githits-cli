@@ -848,3 +848,56 @@ function sortedCounts(counts: Map<string, number>): Record<string, number> {
     [...counts].sort(([left], [right]) => left.localeCompare(right)),
   );
 }
+
+describe("enclosing-symbol text", () => {
+  it("shows only supplied metadata beside matches without replacing exact read locators", () => {
+    const page = parseGrepResult(mixed100);
+    const hit = page.hits.find(
+      (hit) => hit.__typename === "GrepRepositoryHit",
+    )!;
+    if (hit.__typename !== "GrepRepositoryHit") throw new Error("fixture");
+    const ref =
+      "_repo:https://github.com/o/r:0123456789abcdef0123456789abcdef01234567:id:packages/x/a.ts";
+    hit.symbol = {
+      symbolRef: ref,
+      name: "listen",
+      kind: "function",
+      filePath: "a.ts",
+      startLine: 633,
+      endLine: 636,
+      category: "callable",
+      arity: 0,
+      isPublic: false,
+      contentHash: "hash",
+      parentPath: "app",
+    };
+    // The same physical row can carry several occurrences and context overlap.
+    page.hits = [hit, structuredClone(hit)];
+    page.totalMatches = 2;
+    const before = structuredClone(page);
+    const text = formatGrepText(page, { width: 60, syntax: "cli" });
+    expect(text.split("symbolRef:")).toHaveLength(2);
+    expect(text).toContain("in: listen (function) arity=0 L633-636");
+    expect(text.split("\n")).toContain(`  symbolRef: ${ref}`);
+    expect(text).toContain("filePath: a.ts");
+    expect(text).toContain("category: callable");
+    expect(text).toContain("isPublic: false");
+    expect(text).toContain("contentHash: hash");
+    expect(text).toContain("parentPath: app");
+    expect(text).toContain(hit.read.target);
+    expect(text).toContain(hit.read.path!);
+    expect(page).toEqual(before);
+    page.hits = [hit];
+    hit.symbol = { name: "only_name" };
+    const lean = formatGrepText(page);
+    expect(lean).toContain("in: only_name");
+    expect(lean).not.toMatch(/arity=|isPublic:|L0-0/);
+    hit.symbol = { name: "unsafe\u001b[31m", symbolRef: "ref\nnext" };
+    const safe = formatGrepText(page);
+    expect(safe).not.toContain("\u001b");
+    expect(safe).toContain("unsafe\\u001b[31m");
+    expect(safe).toContain("symbolRef: ref\\u000anext");
+    hit.symbol = null;
+    expect(formatGrepText(page)).not.toContain("in:");
+  });
+});

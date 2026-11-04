@@ -4,7 +4,7 @@
 
 - Overall: **IN PROGRESS**; Phase 1 merged in [#530](https://github.com/githits-com/githits-cli/pull/530);
   Phase 1a merged in [#533](https://github.com/githits-com/githits-cli/pull/533);
-  Phase 2 is complete pending merge; Phase 3 needs design.
+  Phase 2 merged in #535; Phase 3 needs design; Phase 4 adoption is ready.
 - Owner: this CLI worktree; backend investigations have separate child worktrees.
 - User direction, 2026-11-03: improve CLI ergonomics from the supplied feedback;
   exclude all skill changes because OP is reviewing those separately. Dispatch
@@ -128,8 +128,7 @@ Its typed limit scope and local search eligibility are verified. Grep operand
 recovery stays with [typed validation recovery](open-backlog.md#validation-error-recovery-after-pkgseer-phases-3-4):
 verify deployed producer shapes and preserve their facts before adding hints.
 Phase 3 still needs budget units, supported commands and exact replay semantics.
-Phase 4 needs the released producer contract and any separately approved body
-extension. These later unknowns do not block scoped Research recovery.
+Phase 4 has its producer contract; source bodies stay excluded. These later unknowns do not block scoped Research recovery.
 
 No migrations, dependencies, caches, queues, retry layers, feature flags or
 background processes. Defaults remain stable except acceptance of the documented
@@ -142,9 +141,9 @@ formatting alone. Obtain approval before introducing infrastructure.
 | --- | --- | --- | --- |
 | 1 — tolerate common arguments | COMPLETE; merged #530 | `--lines N` selects one line; excessive valid context becomes 10 with a visible notice; path flags are clear in help. | Existing read/grep paths only. |
 | 1a — compact regex guidance | COMPLETE; merged #533 | Both CLI grep helps distinguish alternation/literal pipes and qualify route-dependent literal-text requirements. | Merged #530 and verified regex investigation; no backend change. |
-| 2 — scoped Research recovery | COMPLETE; pending merge | Daily Research exhaustion shows a scoped search example with a fixed query placeholder when an explicit search-compatible target exists. | Merged #533, existing typed rate-limit scope and local parser/quoting. Grep validation adoption remains separately gated. |
+| 2 — scoped Research recovery | COMPLETE; merged #535 | Daily Research exhaustion shows a scoped search example with a fixed query placeholder when an explicit search-compatible target exists. | Merged #533, existing typed rate-limit scope and local parser/quoting. Grep validation adoption remains separately gated. |
 | 3 — bounded readable output | NEEDS DESIGN at phase boundary | Opt-in text budgets preserve trust facts and provide honest access to omitted evidence. | Phase 2; representative output and replay evidence. |
-| 4 — backend-assisted enclosing symbols | WAITING ON NATIVE CONTRACT | Unified grep can opt into legacy-equivalent enclosing-symbol metadata and exact source-read ranges; source bodies remain conditional on cost. | Native implementation/release, PkgSeer adoption and verified wire contract. |
+| 4 — backend-assisted enclosing symbols | READY; independent adoption lane | Unified grep can opt into legacy-equivalent enclosing-symbol metadata and exact source-read ranges; source bodies remain conditional on cost. | Producer contract verified on dev; independent of Phase 3. |
 
 ### Phase 1 — tolerate common arguments
 
@@ -163,7 +162,7 @@ and `cli-commands.md`; execution and review evidence is on #533. No open gate.
 
 ### Phase 2 — scoped Research recovery
 
-Status: **COMPLETE; pending merge**. Outcome: an agent hitting the daily
+Status: **COMPLETE; merged #535**. Outcome: an agent hitting the daily
 Research limit gets a scoped search example with the fixed `your query`
 placeholder. Assumptions: existing daily scope and search grammar remain stable.
 Unknowns/product decisions: **none**. Dependencies: merged #533 and existing
@@ -274,33 +273,121 @@ the preceding increment and captured output settle the contract.
 
 ### Phase 4 — backend-assisted enclosing symbols
 
-Status: **WAITING ON NATIVE CONTRACT**. Outcome: opt-in unified grep exposes
-legacy-equivalent enclosing-symbol identity/ranges with exact snapshot reads.
-Metadata is not a source body. The backend handoff records the user's accepted
-legacy-parity minimum; actual source bodies are conditional on a cheap, reviewed
-extension, not required for the first delivery.
-Assumptions: producer-owned bounds and read locators remain authoritative;
-default requests stay lean. Unknowns: released fields/API version, supported
-absence and any cheap body extension. Dependencies: aigrep implementation and
-release, PkgSeer adoption, then a verified client wire contract. This phase does
-not block independent CLI work, including Phase 1a's settled regex guidance.
+Status: **READY; independent adoption lane**. Outcome: top-level CLI grep and
+package-owned MCP grep offer explicit legacy-equivalent enclosing-symbol metadata
+in text and JSON without adding work to default requests. This phase is independent
+of Phase 3 and does not change its design or the separate ergonomics lane.
 
-Acceptance: requested symbol metadata and accurate source-read ranges survive
-CLI/MCP projection; absence, source identity, coverage and cursors remain honest;
-no hidden per-hit CLI fetches or unused default fields. Actual bodies, if adopted,
-need a separately settled omission/budget contract. Add tactical details and
-appropriate wire/parity/smoke/eval evidence after the producer contract arrives.
+Verified baseline: refreshed `origin/main` at `906b45c`; unified grep currently
+has no symbol control, selection or response field. Legacy code grep owns a
+12-field catalogue, validator, requested-field GraphQL projection and symbol hint.
+Core owns transport/schema/types; shared MCP helpers own request normalization,
+projection and text; root CLI and package-owned MCP own their explicit controls.
+Reuse those existing owners, not a second service or catalogue.
+
+Producer evidence: backend #3962 and the supplied authenticated dev
+receipt establish API61 inline hydration, exact snapshot refs, nullable absence,
+and cursor-bound masks. Source inspection confirms shared `NavigationSymbol`
+exposes the 12 legacy fields. Native masks additionally accept `file_content_hash`
+and `is_implementation`, but those have no GraphQL symbol fields; client output
+cannot expose them. Scope: accept all 14 producer-supported masks through the existing shared
+catalogue/validator; extend the legacy catalogue with the two native-only names.
+Project only the 12 GraphQL-exposed fields; for a native-only mask, select only
+`__typename`, stripped by validation to an empty metadata object (or null).
+Document this limitation rather than inventing output fields. No bodies.
+Read-only skipped-query validation accepts the new argument/projection on dev;
+production rejects both. Do not claim production availability or add fallback.
+
+Assumptions: one existing grep request performs all hydration; refs and full SHAs
+are opaque; selecting a symbol does not opt in; protobuf defaults are not facts.
+Evidence: verified producer contract and supplied dev receipt. Unknowns/product decisions: none. Native-only mask names are accepted but
+cannot be returned as scalar metadata under the current producer schema.
+Dependencies: available dev schema, existing client architecture. No native bump,
+backend edits, skill changes, release, deployment or new infrastructure.
+
+Implementation:
+1. Export/reuse legacy symbol validation; extract its existing inline
+   NavigationSymbol schema and requested-field selection helper for both services. Extend `GrepParams` and repository hits;
+   keep hosted hits symbol-free. Build the symbol argument, variable declaration
+   and block only for a nonempty explicit mask. Select only requested fields,
+   including text/JSON parity; never select `code` or fetch per hit.
+2. Add repeatable CLI `--symbol-field` and MCP `symbol_fields` via the same builder.
+   Omission/empty array stay off; unsupported/blank fields fail before service IO
+   as InvalidGrepRequestError with INVALID_ARGUMENT and CLI --symbol-field labels.
+   MCP cursor description explicitly requires repeating symbol_fields. Site-only
+   masks remain valid, matching the producer: hosted hits still have no symbol.
+   Forward the mask and cursor unchanged together on every page. Preserve ordinary
+   matched-line read actions, coverage, occurrence order and page-local counts.
+3. Retain nullable repository absence and exact requested metadata in shared JSON
+   projection. Reuse legacy symbol hint vocabulary in unified grouped text and
+   expose requested refs/remaining metadata without synthesizing identity or bounds.
+   Attach hints/metadata to each merged matching row, emit identical metadata once
+   on that row, and retain repetition across different lines (legacy semantics).
+   Refs are identity, not actions; hit.read owns the separate source-read locator.
+   Escaping/wrapping must preserve copyable opaque refs and terminal safety.
+4. Update unified-grep, tools.md MCP argument/result contracts and CLI command
+   docs (including legacy mask list/help and its expanded acceptance), public
+   client types as needed, and
+   an independent fragment (`githits: minor`, `@githits/mcp: minor`). No versions.
+
+Acceptance and focused verification:
+- Existing request tests prove default-off/empty masks, all 14 names, native-only
+  projection, invalid
+  and blank values. Wire tests prove no default symbol argument/block, exact
+  requested selections, mixed/nullable absence, no code, exact refs/ranges and
+  continuation forwarding in one request per page.
+- Existing CLI/MCP/parity tests prove explicit controls, text/JSON metadata, hosted
+  hits without symbols and preservation of read actions/coverage/cursors. Prove
+  once-per-merged-row metadata, repetition across different lines, escaped controls
+  and unwrapped copyable refs at width. Extend
+  structural smoke assertions for the new controls.
+- Run focused grep/legacy projection tests, typecheck, targeted lint/format,
+  `bun run build`, `GITHITS_ENV=dev bun run smoke:cli` and `smoke:mcp` (auth handling
+  remains valid without credentials). Qualify the affected dev CLI/MCP opt-in
+  paths when authentication is available; compare default/enriched bounded
+  express `app.listen` requests and continuation/rejected-mask behavior. Do not
+  assert equal enriched/default hit counts (metadata byte admission can differ).
+  Qualify one bounded subpath-package case when available; mocked package-relative
+  display versus repository-root identity coverage remains deterministic.
+- Run `GITHITS_ENV=dev bun run agent:e2e --agent codex --surface mcp
+  --server local --guidance-profile descriptors --workload
+  eval/agentic/workloads/code-grep-investigation.md` via the existing harness;
+  inspect tool calls, final answer, metrics and isolation violations.
+  Record any unavailable authentication/prerequisites and do not equate harness
+  completion with answer quality or proof the new control was used.
+- No performance optimization/claim or benchmark is needed: this is explicit
+  functionality with focused wire assertions proving no additional requests.
+
+Review adjudication (2026-11-04): direction sound. Accepted unified validation
+error translation, explicit MCP cursor copy, durable production prerequisite,
+merged-row text contract and targeted dev qualification. Rejected narrowing to
+12 masks: the handoff explicitly requires all 14 names and warns accepted masks
+need not map to output fields. Rejected site-only validation: producer accepts it
+and hosted symbol absence is explicitly required; rejection adds a new caller
+constraint. No cross-line symbol/body deduplication: repeated per-line identity
+is honest legacy behavior, while existing merged rows avoid duplicate hints.
+These rejections stand unless new evidence changes the contract.
+
+Completion: all scoped acceptance checks pass, internal and external reviews are
+clean, commit/push/draft PR. Retain the governing plan for remaining Phase 3;
+replace Phase 4 tactical detail with completion status and durable-doc pointers
+at final delivery. Execution receipts belong on the PR. Rollback is reverting
+client adoption; no migrations or operational step.
 
 ## Backend dependencies
 
 Regex investigation is complete: matching is correct and Phase 1a needs no
 backend change. The small backend schema-description correction remains in
 PkgSeer's backlog and is owned there; it does not gate CLI help.
-Enclosing-symbol work remains native -> PkgSeer -> client adoption, as described
-above. Agent handles, runtime progress and execution results belong on PRs, not
+Enclosing-symbol producer work is complete on dev; this lane owns client adoption
+as described above. Production availability remains a release prerequisite. Agent handles, runtime progress and execution results belong on PRs, not
 in this contract.
 
 ## Deferred feedback candidates
+
+- Enclosing source bodies: metadata adoption does not include bodies. A later
+  producer-owned extension requires a reviewed cost/omission/budget contract;
+  no hidden per-hit client reads or block-body deduplication are authorized.
 
 - Unified MCP grep context tolerance: the same normal-agent failure remains on
   MCP. `docs/implementation/agent-context-loading.md` records prior agents sending

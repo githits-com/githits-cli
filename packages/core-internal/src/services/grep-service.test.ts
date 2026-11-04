@@ -764,3 +764,119 @@ it("requires the canonical wire array and a non-null input resolution", () => {
     ).toThrow(MalformedGrepResponseError);
   }
 });
+
+describe("unified grep enclosing-symbol wire contract", () => {
+  it.each([
+    { symbolFields: undefined, includeDetailedFields: false },
+    { symbolFields: [], includeDetailedFields: false },
+    { symbolFields: undefined, includeDetailedFields: true },
+    { symbolFields: [], includeDetailedFields: true },
+  ])(
+    "omits hydration and selections for mask %j",
+    async ({ symbolFields, includeDetailedFields }) => {
+      let body:
+        | { query: string; variables: Record<string, unknown> }
+        | undefined;
+      const fetcher = mock(async (_url: unknown, init?: RequestInit) => {
+        body = JSON.parse(String(init?.body));
+        return response({ data: { grep: result() } });
+      });
+      await service(fetcher).grep({
+        ...params,
+        symbolFields: symbolFields ? [...symbolFields] : undefined,
+        includeDetailedFields,
+      });
+      expect(body!.query).not.toMatch(/symbolFields|symbol\s*\{/);
+      expect(body!.variables).not.toHaveProperty("symbolFields");
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([false, true])(
+    "selects only requested fields and forwards cursor (detailed=%s)",
+    async (includeDetailedFields) => {
+      const bodies: Array<{
+        query: string;
+        variables: Record<string, unknown>;
+      }> = [];
+      const page = includeDetailedFields ? detailedMixed() : mixed();
+      const hit = page.hits[0]!;
+      const symbol = {
+        symbolRef:
+          "_repo:https://github.com/o/r:0123456789abcdef0123456789abcdef01234567:id:packages/x/lib/a.ts",
+        name: "router",
+        startLine: 1,
+        endLine: 9,
+      };
+      Object.assign(hit, { symbol });
+      page.traversal = "RESUMABLE_LIMIT";
+      page.nextCursor = " opaque +/cursor= ";
+      const fetcher = mock(async (_url: unknown, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return response({ data: { grep: page } });
+      });
+      const client = service(fetcher);
+      const symbolFields = [
+        "symbol_ref",
+        "name",
+        "start_line",
+        "end_line",
+      ] as const;
+      const first = await client.grep({
+        ...params,
+        includeDetailedFields,
+        symbolFields: [...symbolFields],
+      });
+      const next = await client.grep({
+        ...params,
+        includeDetailedFields,
+        symbolFields: [...symbolFields],
+        cursor: first.nextCursor!,
+      });
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      for (const body of bodies) {
+        expect(body.variables.symbolFields).toEqual(symbolFields);
+        expect(body.query).toContain("symbolFields: $symbolFields");
+        expect(
+          body.query
+            .match(/symbol\s*\{([^}]+)\}/)?.[1]
+            ?.trim()
+            .split(/\s+/),
+        ).toEqual(["symbolRef", "name", "startLine", "endLine"]);
+        expect(body.query.match(/symbol\s*\{([^}]+)\}/)?.[1]).not.toMatch(
+          /\bcode\b|\barity\b|isPublic|parentSymbolRef/,
+        );
+      }
+      expect(bodies[1]!.variables.cursor).toBe(page.nextCursor);
+      expect(next.hits[0]).toEqual(hit);
+      expect(next.hits[0]).toHaveProperty("symbol", symbol);
+      expect(next.hits[1]).not.toHaveProperty("symbol");
+      expect(next.hits[0]!.read).toEqual(hit.read);
+      expect(next.targets).toEqual(page.targets);
+      expect(next.totalMatches).toBe(2);
+    },
+  );
+
+  it("keeps null enclosure and accepts native-only masks without inventing scalar projections", async () => {
+    let query = "";
+    const page = mixed();
+    Object.assign(page.hits[0]!, { symbol: null });
+    const client = service(async (_url, init) => {
+      query = JSON.parse(String(init?.body)).query;
+      return response({ data: { grep: page } });
+    });
+    const parsed = await client.grep({
+      ...params,
+      symbolFields: ["file_content_hash", "is_implementation"],
+    });
+    expect(query.match(/symbol\s*\{([^}]+)\}/)?.[1]?.trim()).toBe("__typename");
+    expect(parsed.hits[0]).toHaveProperty("symbol", null);
+    Object.assign(page.hits[0]!, {
+      symbol: { __typename: "NavigationSymbol" },
+    });
+    expect(
+      (await client.grep({ ...params, symbolFields: ["file_content_hash"] }))
+        .hits[0],
+    ).toHaveProperty("symbol", {});
+  });
+});

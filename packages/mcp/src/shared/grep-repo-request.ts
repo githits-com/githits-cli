@@ -32,7 +32,7 @@ const LIMIT_MAX = 1000;
 const LIMIT_DEFAULT = 50;
 const WAIT_MIN = 0;
 
-export const GREP_REPO_SYMBOL_FIELDS_NOTE: string = `Hydrate these enclosing-symbol fields on each match; omit for no symbol hydration. Valid values: ${GREP_REPO_SYMBOL_FIELDS.join(", ")}.`;
+export const GREP_REPO_SYMBOL_FIELDS_NOTE: string = `Hydrate these enclosing-symbol fields on each match; omit for no symbol hydration. Valid values: ${GREP_REPO_SYMBOL_FIELDS.join(", ")}. file_content_hash and is_implementation have no GraphQL symbol output fields.`;
 
 export const GREP_REPO_PATTERN_NOTE: string =
   "`literal` (default) does substring matching. `regex` uses RE2 syntax (no lookaround, no backreferences): foo|bar alternates; foo\\|bar matches a literal pipe. Content-index regex needs literal text; a single exact-file route accepts anchorless regex. Pattern max 200 UTF-8 bytes. Matching uses Unicode-aware case folding by default; pass case_sensitive: true for exact casing. When multiple selectors (`path`, `path_prefix`, `globs`) are combined, they are unioned; a file matches if any selector matches. Use `extensions` to intersect further.";
@@ -132,7 +132,7 @@ export function buildGrepRepoParams(
   );
   const waitTimeoutMs = normalizeWaitTimeoutMs(input.waitTimeoutMs);
   const cursor = normalizeOptionalNonEmpty(input.cursor, "cursor");
-  const symbolFields = normalizeSymbolFields(input.symbolFields);
+  const symbolFields = normalizeGrepSymbolFields(input.symbolFields);
 
   const pathSelectors = buildPathSelectors({ path, pathPrefix, globs });
   const hasPathSelectors = (pathSelectors?.length ?? 0) > 0;
@@ -227,7 +227,8 @@ function normalizeStringList(
   return out;
 }
 
-function normalizeSymbolFields(
+/** Validate the shared producer mask used by legacy and unified grep. */
+export function normalizeGrepSymbolFields(
   values: readonly string[] | undefined,
 ): GrepRepoSymbolField[] {
   const out = normalizeStringList([...(values ?? [])], "symbol_fields");
