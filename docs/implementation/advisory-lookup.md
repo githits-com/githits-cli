@@ -22,22 +22,24 @@ backend-normalized affected spans and source-reported fixes. Up to ten spans are
 shown, covering short branch lists without expanding redundant exact-version
 entries. Larger lists carry explicit truncation/counts; raw expressions are
 available with --verbose. Equal ordered raw expressions and equal normalized
-views share a group within a package; source facts appear once per result,
-explicitly labelled Advisory, Alias or Related advisory against the resolved
-record. Unresolved results use a neutral Source label. A single equivalent
-source appears beside the heading without numbered references or a separate
-source section; distinct source URLs remain visible. A common summary across
-equivalent sources fills a missing heading summary once in text, with explicit
-source attribution. JSON retains each original source summary. Multiple,
-unverified and verbose sources use numbered references; a merely related source
-never supplies the root summary. Live/local acquisition origin is verbose-only
-text except where repeated ID/URL rows need it to remain distinguishable. A sole
-same-ID source adds no repeated identity line unless it supplies additional
-facts or markers. Ambiguous/not-found diagnostics omit repeated
-acquisition-status wording. Package references carry withdrawn/malicious markers
-beside the number, so a caveat is visible without following the reference.
-Single-source evidence retains those markers without a reference number. Text
-source numbers start at 1.
+views share a group within a package; source facts appear once per result.
+Compact rows are labelled Advisory, Alias or Related advisory against the
+resolved record. Unresolved results use a neutral Source label. A single
+equivalent source appears beside the heading without numbered references or a
+separate source section; distinct source URLs remain visible. A common summary
+across equivalent sources fills a missing heading summary once in text, with
+explicit source attribution. JSON retains each original source summary.
+Multiple, unverified and verbose sources use numbered references; a merely
+related source never supplies the root summary. Acquisition origin appears only
+when repeated ID/URL rows need disambiguation. Verbose rows use `Package
+evidence sources` and describe confirmed alias records as `same vulnerability`;
+same-ID rows show the ID alone. JSON retains explicit relationship and origin
+fields. A compact sole same-ID source adds no repeated identity line unless it
+supplies additional facts or markers. Ambiguous/not-found diagnostics omit
+repeated acquisition-status wording. Package references carry
+withdrawn/malicious markers beside the number, so a caveat is visible without
+following the reference. Single-source evidence retains those markers without a
+reference number. Text source numbers start at 1.
 
 Disagreements remain separate, even for the same advisory ID. Null raw ranges
 are not grouped: a display fallback cannot establish equal underlying evidence.

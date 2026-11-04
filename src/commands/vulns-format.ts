@@ -115,8 +115,12 @@ export function formatVulns(
             : source.relationship === "related"
               ? "Related advisory"
               : "Source";
+      const identity =
+        options.verbose && isEquivalentSource(source)
+          ? `${source.id ?? "ID unavailable"}${source.relationship === "alias" ? " (same vulnerability)" : ""}`
+          : `${relationship}: ${source.id ?? "ID unavailable"}`;
       add(
-        `${numberedSources ? `  [${index + 1}] ` : ""}${relationship}: ${source.id ?? "ID unavailable"}${options.verbose || sameIdentity ? ` | ${source.origin === "live" ? "live source" : "local corpus"}` : ""}${source.severity && !isEquivalentSource(source) ? ` | ${source.severity.type.replace("CVSS_V", "CVSS v")}: ${source.severity.score}` : ""}${source.malicious ? " [MALICIOUS]" : ""}${source.withdrawnAt ? " [WITHDRAWN]" : ""}`,
+        `${numberedSources ? `  [${index + 1}] ` : ""}${identity}${sameIdentity ? ` | ${source.origin === "live" ? "live source" : "indexed record"}` : ""}${source.severity && !isEquivalentSource(source) ? ` | ${source.severity.type.replace("CVSS_V", "CVSS v")}: ${source.severity.score}` : ""}${source.malicious ? " [MALICIOUS]" : ""}${source.withdrawnAt ? " [WITHDRAWN]" : ""}`,
       );
       if (source.summary && source.summary !== summary)
         add(`${indent}${source.summary}`);
@@ -221,7 +225,7 @@ export function formatVulns(
           ? [`live source ${status(coverage.live)}`]
           : []),
         ...(coverage.local !== "AVAILABLE"
-          ? [`local corpus ${status(coverage.local)}`]
+          ? [`indexed records ${status(coverage.local)}`]
           : []),
       ];
       if (unavailable.length)
@@ -336,7 +340,8 @@ export function formatVulns(
     }
     if (report.sources?.length && numberedSources) {
       add();
-      if (report.sources.length > 1) add("Advisory records:");
+      if (options.verbose) add("Package evidence sources:");
+      else if (report.sources.length > 1) add("Advisory records:");
       report.sources.forEach(renderSource);
     }
     if (advisory && options.verbose) {

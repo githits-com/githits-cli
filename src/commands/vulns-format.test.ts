@@ -26,7 +26,7 @@ describe("vulns formatter", () => {
     expect(output).toContain("Alias: GHSA-example");
     expect(output).toContain("https://osv.dev/vulnerability/GHSA-example");
     expect(output).not.toMatch(
-      /Evidence:|Packages: 1\/1|githits pkg vulns|add --verbose|missing evidence does not establish safety|local corpus/,
+      /Evidence:|Packages: 1\/1|githits pkg vulns|add --verbose|missing evidence does not establish safety|indexed record/,
     );
     expect(output).not.toContain("Full source explanation");
   });
@@ -65,6 +65,32 @@ describe("vulns formatter", () => {
     expect(output).toContain("Full source explanation.\n\n  Second paragraph.");
     expect(output).toContain("FUTURE_REFERENCE:\n      URL unavailable");
     expect(output).not.toContain("add --verbose");
+  });
+
+  it("names the package evidence record and its relationship in verbose output", () => {
+    const item = result();
+    const before = JSON.stringify(
+      buildVulnsResponse([item], { verbose: true }),
+    );
+    const output = formatVulns([item], { verbose: true });
+    expect(output).toContain("Affected [1]");
+    expect(output).toContain(
+      "Package evidence sources:\n  [1] GHSA-example (same vulnerability)",
+    );
+    expect(output).not.toContain("[1] Alias:");
+    expect(output).not.toMatch(/local corpus|indexed record|live source/);
+    expect(output).toContain("https://osv.dev/vulnerability/GHSA-example");
+    expect(output).toContain("Updated: 2026-11-03T00:00:00Z");
+    expect(JSON.stringify(buildVulnsResponse([item], { verbose: true }))).toBe(
+      before,
+    );
+    item.lookup!.advisory!.aliases = [];
+    expect(formatVulns([item], { verbose: true })).toContain(
+      "[1] Related advisory: GHSA-example",
+    );
+    expect(formatVulns([item], { verbose: true })).not.toContain(
+      "(same vulnerability)",
+    );
   });
 
   it("sorts copied verbose version labels naturally while retaining JSON and compact source order", () => {
@@ -562,7 +588,7 @@ describe("vulns formatter", () => {
     expect(output.indexOf("Package coverage")).toBeLessThan(
       output.indexOf("npm:minimatch"),
     );
-    expect(output).not.toContain("local corpus available");
+    expect(output).not.toContain("indexed records available");
   });
 
   it("distinguishes live and local observations when their record identity repeats", () => {
@@ -581,7 +607,7 @@ describe("vulns formatter", () => {
     };
     const output = formatVulns([item]);
     expect(output).toContain("[1] Alias: GHSA-example | live source");
-    expect(output).toContain("[2] Alias: GHSA-example | local corpus");
+    expect(output).toContain("[2] Alias: GHSA-example | indexed record");
     expect(output).toContain("Affected [1, 2]");
   });
 
