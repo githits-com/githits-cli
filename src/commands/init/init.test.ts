@@ -4297,13 +4297,15 @@ describe("initAction", () => {
       checkbox: mock(() => Promise.resolve([])) as PromptService["checkbox"],
     });
 
+    const execService = createMockExecService();
+    const createLoginDeps = createAlreadyAuthLoginDeps();
     await initAction(
       { guidance: false },
       {
         fileSystemService: fs,
         promptService,
-        execService: createMockExecService(),
-        createLoginDeps: createAlreadyAuthLoginDeps(),
+        execService,
+        createLoginDeps,
       },
     );
 
@@ -4325,9 +4327,15 @@ describe("initAction", () => {
         (msg) => msg.includes("Windsurf") && msg.includes("created"),
       ),
     ).toBe(false);
-    expect(logCalls.some((msg) => msg.includes("cursor-agent mcp"))).toBe(
-      false,
-    );
+    expect(
+      logCalls.some((msg) => msg.includes("cursor-agent mcp login GitHits")),
+    ).toBe(true);
+    expect(
+      (execService.exec as ReturnType<typeof mock>).mock.calls.some(
+        ([command]) => command === "cursor-agent",
+      ),
+    ).toBe(false);
+    expect(createLoginDeps).not.toHaveBeenCalled();
   });
 
   it("configures only the agents selected in the checkbox", async () => {
