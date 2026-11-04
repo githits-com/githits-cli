@@ -729,7 +729,7 @@ const INIT_INTENT_CHOICES: SelectChoice<InitIntent>[] = [
     name: "Connect via remote MCP (recommended)",
     short: "Remote MCP",
     value: "remote-guided",
-    description: "Use the hosted GitHits server. Sign in through your agent.",
+    description: "Use hosted GitHits. Sign in through your agent.",
   },
   {
     name: "Run MCP locally (supports experimental features)",
@@ -756,15 +756,13 @@ const GUIDANCE_CHOICES: SelectChoice<"install" | "mcp-only">[] = [
     name: "Install skills and instructions (recommended)",
     short: "Skills and instructions",
     value: "install",
-    description:
-      "Help your agent know when and how to use GitHits.\nAdds GitHits skills and instructions for the selected agents.",
+    description: "Help your agent know when and how to use GitHits.",
   },
   {
     name: "Configure MCP only",
     short: "MCP only",
     value: "mcp-only",
-    description:
-      "Set up the MCP connection without adding skills or instruction files.",
+    description: "Connect without skills or instruction files.",
   },
 ];
 
@@ -5352,7 +5350,8 @@ export async function initAction(
             setupScope === "project" && choice.value === "install"
               ? {
                   ...choice,
-                  description: `${choice.description}\nWrites files into this project; they may be committed.`,
+                  description:
+                    "Help your agent use GitHits. Files may be committed.",
                 }
               : choice,
           ),
