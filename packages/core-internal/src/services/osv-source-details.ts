@@ -1,7 +1,18 @@
 import { z } from "zod";
 
 /** Typed current-source metadata shared by package and advisory projections. */
-export const osvSourceMetadataSchema = z.object({
+export const osvSourceMetadataSchema: z.ZodObject<{
+  schemaVersion: z.ZodString;
+  relatedIds: z.ZodArray<z.ZodString>;
+  upstreamIds: z.ZodArray<z.ZodString>;
+  credits: z.ZodArray<
+    z.ZodObject<{
+      name: z.ZodString;
+      contact: z.ZodArray<z.ZodString>;
+      type: z.ZodNullable<z.ZodString>;
+    }>
+  >;
+}> = z.object({
   schemaVersion: z.string(),
   relatedIds: z.array(z.string()),
   upstreamIds: z.array(z.string()),
@@ -22,7 +33,32 @@ export const OSV_SOURCE_DETAILS_FIELDS = `
   contentSafety { filtered modifications }
 `;
 
-export const osvSourceDetailsSchema = osvSourceMetadataSchema.extend({
+export const osvSourceDetailsSchema: z.ZodObject<
+  typeof osvSourceMetadataSchema.shape & {
+    osvId: z.ZodString;
+    aliases: z.ZodArray<z.ZodString>;
+    summary: z.ZodNullable<z.ZodString>;
+    details: z.ZodNullable<z.ZodString>;
+    sourceUrl: z.ZodString;
+    publishedAt: z.ZodNullable<z.ZodString>;
+    modifiedAt: z.ZodString;
+    withdrawnAt: z.ZodNullable<z.ZodString>;
+    severity: z.ZodArray<
+      z.ZodObject<{
+        type: z.ZodString;
+        score: z.ZodString;
+        source: z.ZodNullable<z.ZodString>;
+      }>
+    >;
+    references: z.ZodArray<
+      z.ZodObject<{ type: z.ZodString; url: z.ZodNullable<z.ZodString> }>
+    >;
+    contentSafety: z.ZodObject<{
+      filtered: z.ZodBoolean;
+      modifications: z.ZodArray<z.ZodString>;
+    }>;
+  }
+> = osvSourceMetadataSchema.extend({
   osvId: z.string(),
   aliases: z.array(z.string()),
   summary: z.string().nullable(),
