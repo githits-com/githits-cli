@@ -647,7 +647,7 @@ ranges/fixes mean unknown, while empty arrays mean none reported. Unevaluable
 source expressions are explicitly labelled, not treated as affected/safe
 versions.
 
-`affected` and `fixed` are independent source lists, not index-aligned; a range
+`affectedRanges` and `sourceFixVersions` are independent source lists, not index-aligned; a range
 boundary is not necessarily a fix. `--json` emits actionable packages, shared `sources`, zero-based `sourceIndexes`,
 coverage and ordered diagnostics/recovery actions. It omits source prose, transport
 objects and cursors by default. This replaces the initial unreleased raw lookup

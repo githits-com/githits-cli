@@ -16,6 +16,103 @@ function report(item = result(), verbose = false) {
 }
 
 describe("vulns response", () => {
+  it("exposes source fixes without a positional range mapping", () => {
+    const item = result();
+    const row = item.lookup!.affectedPackages!.entries[0]!.advisories[0]!;
+    row.affectedVersionDisplay = null;
+    row.affectedVersionRanges = ["<2", ">=3 <4", ">=5"];
+    row.fixedInVersions = ["4", "2"];
+    const evidence = report(item).packages![0]!.evidence[0]!;
+    expect(evidence).toMatchObject({
+      affectedRanges: ["<2", ">=3 <4", ">=5"],
+      sourceFixVersions: ["4", "2"],
+    });
+    expect(evidence).not.toHaveProperty("fixed");
+    expect(evidence).not.toHaveProperty("affected");
+  });
+
+  it("separates reported numeric scores, CVSS vectors and opaque severity values", () => {
+    const item = result();
+    item.lookup!.advisory!.severity!.push({
+      type: "FUTURE_SEVERITY",
+      score: "opaque-source-value",
+      source: "provider",
+    });
+    item.lookup!.advisory!.severity!.push({
+      type: "CVSS_V2",
+      score: "AV:L/AC:M/Au:N/C:N/I:P/A:C",
+      source: null,
+    });
+    item.lookup!.advisory!.affected![0]!.severity = [
+      { type: "CVSS_V3", score: "CVSS:3.1/AV:N", source: null },
+    ];
+    const output = report(item, true);
+    expect(output.sources![0]!.severity!.score).toBe(7.5);
+    expect(output.advisory!.severity).toEqual([
+      { type: "CVSS_V4", vector: "CVSS:4.0/AV:N/AC:L" },
+      {
+        type: "FUTURE_SEVERITY",
+        value: "opaque-source-value",
+        source: "provider",
+      },
+      { type: "CVSS_V2", vector: "AV:L/AC:M/Au:N/C:N/I:P/A:C" },
+    ]);
+    expect(output.advisory!.originalAffected![0]!.severity).toEqual([
+      { type: "CVSS_V3", vector: "CVSS:3.1/AV:N" },
+    ]);
+  });
+
+  it("reuses exact same-record originals in source order, without merging different observations", () => {
+    const item = result();
+    const root = item.lookup!.advisory!;
+    const first = structuredClone(root.affected![0]!);
+    const second = structuredClone(first);
+    second.versions = ["other-version"];
+    root.affected = [first, second];
+    const group = item.lookup!.affectedPackages!.entries[0]!;
+    const local = group.advisories[0]!;
+    const source = {
+      osvId: root.osvId,
+      sourceUrl: root.sourceUrl,
+      withdrawnAt: null,
+      affectedVersionRanges: local.affectedVersionRanges,
+      fixedInVersions: local.fixedInVersions!,
+      affectedVersionDisplay: local.affectedVersionDisplay,
+      contentSafety: { filtered: true, modifications: ["PACKAGE_ONLY"] },
+      affected: [
+        structuredClone(second),
+        structuredClone(first),
+        structuredClone(second),
+      ],
+    };
+    group.sourceEvidence = source;
+    const before = structuredClone(item);
+    const output = report(item, true);
+    const detail = output.packages![0]!.evidence[0]!.details![0]!;
+    expect(detail.advisoryAffectedIndexes).toEqual([1, 0, 1]);
+    expect(detail).not.toHaveProperty("originalAffected");
+    expect(detail.normalization).toEqual(source.contentSafety);
+    expect(
+      detail.advisoryAffectedIndexes!.map(
+        (i) => output.advisory!.originalAffected![i],
+      ),
+    ).toEqual([
+      output.advisory!.originalAffected![1],
+      output.advisory!.originalAffected![0],
+      output.advisory!.originalAffected![1],
+    ]);
+    expect(item).toEqual(before);
+    source.osvId = "OSV-another";
+    expect(
+      report(item, true).packages![0]!.evidence[0]!.details![0]!,
+    ).not.toHaveProperty("advisoryAffectedIndexes");
+    source.osvId = root.osvId;
+    source.affected![0]!.versions = ["different-observation"];
+    const different = report(item, true).packages![0]!.evidence[0]!
+      .details![0]!;
+    expect(different.originalAffected).toHaveLength(3);
+    expect(different).not.toHaveProperty("advisoryAffectedIndexes");
+  });
   it.each(["No summary available", "  NO SUMMARY AVAILABLE  "])(
     "omits placeholder summaries from text/JSON projections (%s)",
     (summary) => {
@@ -45,8 +142,8 @@ describe("vulns response", () => {
           url: "https://www.npmjs.com/package/minimatch",
           evidence: [
             {
-              affected: [">=10.0.0 <10.2.1"],
-              fixed: ["10.2.1"],
+              affectedRanges: [">=10.0.0 <10.2.1"],
+              sourceFixVersions: ["10.2.1"],
               sourceIndexes: [0],
             },
           ],
@@ -249,10 +346,9 @@ describe("vulns response", () => {
     group.advisories.push(second);
     group.advisories[0]!.fixedInVersions = null;
     second.fixedInVersions = [];
-    expect(report(item).packages![0]!.evidence.map((e) => e.fixed)).toEqual([
-      null,
-      [],
-    ]);
+    expect(
+      report(item).packages![0]!.evidence.map((e) => e.sourceFixVersions),
+    ).toEqual([null, []]);
     for (const row of group.advisories) {
       row.affectedVersionRanges = null;
       row.fixedInVersions = [];
@@ -269,7 +365,9 @@ describe("vulns response", () => {
       totalCount: 1,
       truncated: false,
     };
-    expect(report(item).packages![0]!.evidence[0]!.affected).toEqual(["<2"]);
+    expect(report(item).packages![0]!.evidence[0]!.affectedRanges).toEqual([
+      "<2",
+    ]);
     expect(
       report(item, true).packages![0]!.evidence[0]!.details,
     ).toBeUndefined();
@@ -291,7 +389,7 @@ describe("vulns response", () => {
       truncated: true,
     };
     expect(report(item).packages![0]!.evidence[0]).toMatchObject({
-      affected: null,
+      affectedRanges: null,
       affectedDisplay: { ranges: ["one"], truncated: true, totalCount: 3 },
     });
   });
@@ -308,7 +406,9 @@ describe("vulns response", () => {
       affectedTruncated: true,
       affectedTotal: 20,
     });
-    expect(report(item).packages![0]!.evidence[0]!.affected).toHaveLength(10);
+    expect(report(item).packages![0]!.evidence[0]!.affectedRanges).toHaveLength(
+      10,
+    );
   });
 
   it("keeps ambiguity and recovery once, with coverage independent of success", () => {

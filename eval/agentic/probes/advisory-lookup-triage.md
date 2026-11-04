@@ -7,6 +7,7 @@ Keep the requested CVE identities clear when source records use other IDs, and
 report numeric CVSS scores only when supplied, without substituting severity-label approximations.
 
 I also need to build a small triage card from machine-readable evidence: explain
-which fields connect each package's affected/fixed ranges to the advisory sources
-and how I can tell whether package coverage is incomplete. Keep the answer compact
+which fields attribute a package's evidence to advisory sources, what the JSON
+establishes about which fix addresses which range, and how to tell whether
+package coverage is incomplete. Keep the answer compact
 and distinguish source-reported fixes from verified safe upgrades. Do not change files.

@@ -24,9 +24,15 @@ export interface VulnsResult {
   packagePagination?: { complete: boolean; pagesRead: number };
   error?: VulnsError;
 }
+/** Preserve source severity text without overloading a numeric CVSS score. */
+export type VulnsReportedSeverity = {
+  type: string;
+  source?: string;
+} & ({ vector: string } | { value: string });
+
 export interface VulnsOriginalAffected {
   package?: { name: string; ecosystem: string; purl?: string };
-  severity?: Array<{ type: string; score: string; source?: string }>;
+  severity?: VulnsReportedSeverity[];
   versions?: string[];
   ranges?: Array<{
     type: string;
@@ -62,9 +68,9 @@ export interface VulnsSource extends VulnsSourceMetadata {
 }
 export interface VulnsEvidence {
   /** Backend-normalized spans; null means unavailable, [] means none reported. */
-  affected: string[] | null;
-  /** Independent source fix list, never index-aligned with affected. */
-  fixed: string[] | null;
+  affectedRanges: string[] | null;
+  /** Independent source fix list; no positional range-to-fix mapping is provided. */
+  sourceFixVersions: string[] | null;
   /** Zero-based indexes into this result's sources, never global or backend IDs. */
   sourceIndexes: number[];
   affectedTruncated?: true;
@@ -77,6 +83,8 @@ export interface VulnsEvidence {
   details?: Array<{
     sourceIndex: number;
     originalAffected?: VulnsOriginalAffected[];
+    /** Zero-based indexes into advisory.originalAffected, preserving source order. */
+    advisoryAffectedIndexes?: number[];
     normalization?: { filtered: boolean; modifications: string[] };
     reportedPackage?: { registry?: string; name?: string };
     rawAffected?: string[] | null;
@@ -117,7 +125,7 @@ export interface VulnsReport {
     summary?: string;
     withdrawnAt?: string;
     explanation?: string;
-    severity?: Array<{ type: string; score: string; source?: string }>;
+    severity?: VulnsReportedSeverity[];
     references?: Array<{ type: string; url: string | null }>;
   };
   sources?: VulnsSource[];
@@ -169,7 +177,7 @@ function buildReport(result: VulnsResult, verbose: boolean): VulnsReport {
             ...sourceDetail(advisory),
             ...(advisory.details ? { explanation: advisory.details } : {}),
             ...(advisory.severity?.length
-              ? { severity: advisory.severity.map(vector) }
+              ? { severity: advisory.severity.map(reportedSeverity) }
               : {}),
             ...(advisory.references?.length
               ? { references: advisory.references }
@@ -300,7 +308,18 @@ function buildReport(result: VulnsResult, verbose: boolean): VulnsReport {
           rawAffected !== null
             ? pkg.evidence.find((evidence) => rawKeys.get(evidence) === rawKey)
             : undefined;
-        const content = verbose ? sourceContent(row) : {};
+        const { originalAffected, ...content } = verbose
+          ? sourceContent(row)
+          : {};
+        const advisoryAffectedIndexes =
+          advisory && row.osvId === advisory.osvId
+            ? originalAffected?.map(
+                (entry) =>
+                  report.advisory?.originalAffected?.findIndex(
+                    (root) => JSON.stringify(root) === JSON.stringify(entry),
+                  ) ?? -1,
+              )
+            : undefined;
         const differentPackage =
           verbose &&
           "packageName" in row &&
@@ -308,6 +327,11 @@ function buildReport(result: VulnsResult, verbose: boolean): VulnsReport {
             (row.registry && row.registry !== group.package.registry));
         const detail = {
           ...content,
+          ...(originalAffected
+            ? advisoryAffectedIndexes?.every((index) => index >= 0)
+              ? { advisoryAffectedIndexes }
+              : { originalAffected }
+            : {}),
           ...(verbose &&
           !completeDisplay &&
           JSON.stringify(affected) !== JSON.stringify(rawAffected)
@@ -339,8 +363,8 @@ function buildReport(result: VulnsResult, verbose: boolean): VulnsReport {
           }
         } else {
           const evidence: VulnsEvidence = {
-            affected,
-            fixed,
+            affectedRanges: affected,
+            sourceFixVersions: fixed,
             sourceIndexes: [index],
             ...(scoped ? { details: [scoped] } : {}),
             ...(truncated
@@ -488,14 +512,14 @@ function sourceContent(
 function sourceDetail(row: SourceFields): VulnsSourceDetail {
   return { ...sourceMetadata(row), ...sourceContent(row) };
 }
-function vector(item: AdvisoryDetails["severity"][number]): {
-  type: string;
-  score: string;
-  source?: string;
-} {
+function reportedSeverity(
+  item: AdvisoryDetails["severity"][number],
+): VulnsReportedSeverity {
   return {
     type: item.type,
-    score: item.score,
+    ...(/^(CVSS:|AV:)/.test(item.score)
+      ? { vector: item.score }
+      : { value: item.score }),
     ...(item.source ? { source: item.source } : {}),
   };
 }
@@ -512,7 +536,9 @@ function originalAffected(
           },
         }
       : {}),
-    ...(entry.severity.length ? { severity: entry.severity.map(vector) } : {}),
+    ...(entry.severity.length
+      ? { severity: entry.severity.map(reportedSeverity) }
+      : {}),
     ...(entry.versions.length ? { versions: entry.versions } : {}),
     ...(entry.ranges.length
       ? {

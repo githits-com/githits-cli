@@ -249,10 +249,12 @@ Examples:
   githits vulns CVE-2026-26996 --verbose
 
 --json includes every package, source reference, coverage and recovery field,
-with up to ten normalized affected spans. The fixed and affected arrays are
-independent lists, not index-aligned; a range boundary is not necessarily a fix.
+with up to ten normalized affected spans. affectedRanges and sourceFixVersions
+are independent lists, not index-aligned; a range boundary is not necessarily a fix.
 Use --verbose only for original source detail, including package-less Git
-ranges, vectors, aliases, dates and references. Source fixes are unverified;
+ranges, vectors, aliases, dates and references. Verbose JSON uses zero-based
+advisoryAffectedIndexes into advisory.originalAffected for exact same-record
+copies. Source fixes are unverified;
 assess an installed version with githits pkg vulns <registry>:<name>@<version>.
 IDs are case-sensitive; input order and duplicates are preserved.`)
     .argument(

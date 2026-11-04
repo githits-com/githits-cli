@@ -85,8 +85,8 @@ outcomes. This replaces the initial **unreleased** raw `lookup` envelope.
       "target": "npm:minimatch",
       "url": "https://www.npmjs.com/package/minimatch",
       "evidence": [{
-        "affected": [">=10.0.0 <10.2.1"],
-        "fixed": ["10.2.1"],
+        "affectedRanges": [">=10.0.0 <10.2.1"],
+        "sourceFixVersions": ["10.2.1"],
         "sourceIndexes": [0]
       }]
     }],
@@ -110,13 +110,15 @@ outcomes. This replaces the initial **unreleased** raw `lookup` envelope.
 - `sourceIndexes` contains **zero-based** indexes into that result's `sources`.
   For example, `sources[packages[0].evidence[0].sourceIndexes[0]]` resolves the
   first source for the first package's first range group. No cross-result joins.
-- `affected` and `fixed` are **independent lists, not index-aligned**. Never pair
-  them by position or assume a span boundary is a fix event. `fixed` is a complete
-  source-reported fix list even when affected spans are truncated or some branches
-  have no fix. Both fields are always present. Affected spans use the backend display
-  when available, otherwise a bounded raw-expression fallback. `null` means unavailable/unknown;
+- `affectedRanges` and `sourceFixVersions` are **independent lists, not index-aligned**.
+  Never pair them by position or assume a span boundary is a fix event.
+  `sourceFixVersions` (`fixedIn` on `pkg vulns`) is a complete source-reported
+  fix list even when affected spans are truncated or some branches have no fix.
+  Both fields are always present. Affected spans use the backend display when
+  available, otherwise a bounded raw-expression fallback. `null` means unknown;
   `[]` means none reported, not that no affected/fixed version exists. Strings
   remain in source order, without sorting, deduplication or interpretation.
+  These two lists provide neither a range-to-fix mapping nor a verified safe upgrade.
 - If raw ranges are null but display evidence exists, `affectedDisplay` retains
   `ranges`, `totalCount`, and `truncated`. A truncated fallback is never silently
   presented as complete evidence. When known ranges exceed the display bound,
@@ -158,6 +160,10 @@ outcomes. This replaces the initial **unreleased** raw `lookup` envelope.
 curated detail fields: advisory explanation, aliases, dates, severity vectors,
 references, original affected/Git events and normalization changes. Null event
 properties are omitted while event order and string timestamp precision survive.
+Verbose raw severity entries use `vector` for strings beginning `CVSS:` or
+`AV:` (including CVSS v2), or `value` for other opaque source strings; `score`
+remains exclusively numeric on reported source CVSS. Type/source and exact
+strings are preserved without calculation.
 Limit/lastAffected boundaries are never described as fixes; CVSS vectors are not
 converted to numbers. Text names the detailed advisory and labels CVSS vectors
 explicitly. Displayed affected spans (including retained raw expressions),
@@ -174,12 +180,18 @@ already contained in the root advisory are omitted from package text; differing
 observations remain visible. Consecutive original entries for the same nonnull
 package share a heading/PURL; package-less entries keep separate headings, and
 non-Git events are compact ordered lines. Git events keep their per-event
-layout. JSON retains every source's original evidence without cross-record
-merging.
+layout. JSON preserves original evidence inline or through exact same-record
+references, without cross-record merging.
 
 Source-wide aliases/dates belong to `sources`. Package-scoped original affected
 entries, normalization changes and differing reported package identity belong to
-`packages[].evidence[].details[]`, keyed by `sourceIndex`. This preserves source
+`packages[].evidence[].details[]`, keyed by `sourceIndex`. When every original
+affected entry from the same advisory ID exactly matches a root entry,
+`advisoryAffectedIndexes` replaces `originalAffected`. Each zero-based index
+resolves to `advisory.originalAffected[index]`; array order and repeated indexes
+preserve the package observation exactly. A partly matching array or a different
+source ID stays entirely inline. Other detail, including normalization and
+reported package identity, remains beside these references. This preserves source
 metadata deduplication across verbose package results. No mode emits raw lookup
 or transport objects. Original prose/timelines are not fetched for default JSON.
 

@@ -262,9 +262,10 @@ export function formatVulns(
           : markers
             ? ` [${markers}]`
             : "";
-        const ranges = evidence.affected ?? evidence.affectedDisplay?.ranges;
+        const ranges =
+          evidence.affectedRanges ?? evidence.affectedDisplay?.ranges;
         const affected =
-          evidence.affected === null ? "unknown" : "none reported";
+          evidence.affectedRanges === null ? "unknown" : "none reported";
         if (ranges?.length)
           addItems(
             `    Affected${attribution}: `,
@@ -279,33 +280,26 @@ export function formatVulns(
         else add(`    Affected${attribution}: ${affected}`);
         if (evidence.affectedTruncated)
           add(
-            `    Showing ${evidence.affected?.length} of ${evidence.affectedTotal} spans; ${options.verbose ? "raw evidence follows." : "add --verbose for raw evidence."}`,
+            `    Showing ${evidence.affectedRanges?.length} of ${evidence.affectedTotal} spans; ${options.verbose ? "raw evidence follows." : "add --verbose for raw evidence."}`,
           );
         if (evidence.affectedDisplay?.truncated)
           add(
             `    Display: ${evidence.affectedDisplay.ranges.length} of ${evidence.affectedDisplay.totalCount} spans; truncated display-only evidence.`,
           );
-        if (evidence.fixed?.length)
+        if (evidence.sourceFixVersions?.length)
           addItems(
             "    Source fixes: ",
             options.verbose
-              ? orderedVersionLabels(evidence.fixed)
-              : evidence.fixed,
+              ? orderedVersionLabels(evidence.sourceFixVersions)
+              : evidence.sourceFixVersions,
             ",",
           );
         else
           add(
-            `    Source fixes: ${evidence.fixed === null ? "unknown" : "none reported"}`,
+            `    Source fixes: ${evidence.sourceFixVersions === null ? "unknown" : "none reported"}`,
           );
         for (const detail of evidence.details ?? []) {
-          const sharedOriginal =
-            detail.originalAffected &&
-            report.sources?.[detail.sourceIndex]?.id === advisory?.id &&
-            detail.originalAffected.every((entry) =>
-              advisory?.originalAffected?.some(
-                (root) => JSON.stringify(entry) === JSON.stringify(root),
-              ),
-            );
+          const sharedOriginal = detail.advisoryAffectedIndexes !== undefined;
           if (
             sharedOriginal &&
             !detail.reportedPackage &&
@@ -328,13 +322,7 @@ export function formatVulns(
             add(
               `      Raw affected: ${detail.rawAffected === null ? "unknown" : "none reported"}`,
             );
-          renderDetail(
-            sharedOriginal
-              ? { ...detail, originalAffected: undefined }
-              : detail,
-            add,
-            "      ",
-          );
+          renderDetail(detail, add, "      ");
         }
       }
     }
@@ -352,7 +340,10 @@ export function formatVulns(
           add(line.trim() ? `  ${line}` : "", "  ");
       for (const severity of advisory.severity ?? [])
         add(
-          `  ${originalSeverity(severity.type, severity.score)}${severity.source ? ` (${severity.source})` : ""}`,
+          `  ${originalSeverity(
+            severity.type,
+            "vector" in severity ? severity.vector : severity.value,
+          )}${severity.source ? ` (${severity.source})` : ""}`,
         );
       renderDetail(advisory, add, "  ", identifiedIds);
       const references = new Map<string, Set<string | null>>();
@@ -426,7 +417,10 @@ function renderAffected(
   }
   for (const severity of entry.severity ?? [])
     add(
-      `${indent}  ${originalSeverity(severity.type, severity.score)}${severity.source ? ` (${severity.source})` : ""}`,
+      `${indent}  ${originalSeverity(
+        severity.type,
+        "vector" in severity ? severity.vector : severity.value,
+      )}${severity.source ? ` (${severity.source})` : ""}`,
     );
   if (entry.versions?.length)
     add(

@@ -15,6 +15,19 @@ function result(): VulnsResult {
 }
 
 describe("vulns formatter", () => {
+  it("preserves the human label for a CVSS v2 vector without a CVSS prefix", () => {
+    const item = result();
+    item.lookup!.advisory!.severity = [
+      {
+        type: "CVSS_V2",
+        score: "AV:L/AC:M/Au:N/C:N/I:P/A:C",
+        source: null,
+      },
+    ];
+    const output = formatVulns([item], { verbose: true });
+    expect(output).toContain("CVSS v2: AV:L/AC:M/Au:N/C:N/I:P/A:C");
+    expect(output).not.toContain("CVSS v2 vector:");
+  });
   it("leads with requested identity and attributed CVSS, labels aliases and omits healthy boilerplate", () => {
     const output = formatVulns([result()]);
     expect(output).toStartWith(
@@ -112,8 +125,8 @@ describe("vulns formatter", () => {
     expect(formatVulns([item])).toContain("Source fixes: 10.0.0, 2.0.0");
     const json = buildVulnsResponse([item], { verbose: true }).results[0]!;
     expect(json.advisory!.originalAffected![0]!.versions).toEqual(versions);
-    expect(json.packages![0]!.evidence[0]!.fixed).toEqual(fixes);
-    expect(json.packages![0]!.evidence[0]!.affected).toEqual(
+    expect(json.packages![0]!.evidence[0]!.sourceFixVersions).toEqual(fixes);
+    expect(json.packages![0]!.evidence[0]!.affectedRanges).toEqual(
       row.affectedVersionRanges!,
     );
   });
@@ -151,7 +164,7 @@ describe("vulns formatter", () => {
     );
   });
 
-  it("omits repeated same-record original detail from text, retaining JSON and differing observations", () => {
+  it("omits repeated same-record detail from text and references root JSON, retaining differing observations", () => {
     const item = result();
     const group = item.lookup!.affectedPackages!.entries[0]!;
     const row = group.advisories[0]!;
@@ -169,8 +182,8 @@ describe("vulns formatter", () => {
     expect(output).not.toContain("Original package evidence");
     const json = buildVulnsResponse([item], { verbose: true }).results[0]!;
     expect(
-      json.packages![0]!.evidence[0]!.details![0]!.originalAffected,
-    ).toEqual(json.advisory!.originalAffected!);
+      json.packages![0]!.evidence[0]!.details![0]!.advisoryAffectedIndexes,
+    ).toEqual([0]);
     const other = structuredClone(item.lookup!.advisory!.affected![0]!);
     other.versions = ["other-observation"];
     item.lookup!.advisory!.affected!.push(other);
