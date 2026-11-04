@@ -283,6 +283,7 @@ export function createMockFileSystemService(
     }),
     isDirectory: mock(() => Promise.resolve(false)),
     isFile: mock(() => Promise.resolve(false)),
+    isSymbolicLink: mock(() => Promise.resolve(false)),
     atomicWriteFile: mock(
       (_path: string, _contents: string, _maximumMode?: number) =>
         Promise.resolve(),

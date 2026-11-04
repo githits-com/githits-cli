@@ -284,7 +284,7 @@ function normalizeHumanOutput(logCalls: string[] = getLogOutput()): string {
 
 function expectCursorRemoteNextSteps(logCalls: string[]): void {
   const output = normalizeHumanOutput(logCalls);
-  expect(logCalls.some((msg) => msg.includes("6. Next Steps"))).toBe(true);
+  expect(logCalls.some((msg) => msg.includes("Next Steps"))).toBe(true);
   expect(logCalls.some((msg) => msg.includes("GitHits is now connected"))).toBe(
     false,
   );
@@ -1451,10 +1451,10 @@ describe("initAction", () => {
         msg.includes("Found 1 tool. 1 supports project-level config."),
       ),
     ).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("6. Next Steps"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Next Steps"))).toBe(true);
     expectProjectAuthNotCheckedNextSteps(logCalls);
     expect(
-      logCalls.filter((msg) => msg.includes("5. Install and verify")),
+      logCalls.filter((msg) => msg.includes("Install and verify")),
     ).toHaveLength(1);
     expect(normalizeHumanOutput(logCalls)).toContain(
       "loads the project config and any supporting instructions",
@@ -3540,19 +3540,19 @@ describe("initAction", () => {
     expect(
       logCalls.some((msg) => msg.includes("https://docs.githits.com")),
     ).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("1. Detect tools"))).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("2. Choose tools"))).toBe(true);
-    expect(logCalls.some((msg) => msg.includes("3. Review and confirm"))).toBe(
+    expect(logCalls.some((msg) => msg.includes("Detect tools"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Choose tools"))).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Review and confirm"))).toBe(
       true,
     );
-    expect(logCalls.some((msg) => msg.includes("4. Sign in"))).toBe(false);
-    expect(logCalls.some((msg) => msg.includes("5. Install and verify"))).toBe(
+    expect(logCalls.some((msg) => msg.includes("Sign in"))).toBe(false);
+    expect(logCalls.some((msg) => msg.includes("Install and verify"))).toBe(
       true,
     );
     const output = logCalls.join("\n");
-    const installSectionIndex = output.indexOf("5. Install and verify");
+    const installSectionIndex = output.indexOf("Install and verify");
     const configuredCountIndex = output.indexOf("1 tool configured.");
-    const nextStepsIndex = output.indexOf("6. Next Steps");
+    const nextStepsIndex = output.indexOf("Next Steps");
     expect(configuredCountIndex).toBeGreaterThan(installSectionIndex);
     expect(nextStepsIndex).toBeGreaterThan(configuredCountIndex);
     const mcpSectionIndex = logCalls.findIndex((msg) => msg.trim() === "MCP");

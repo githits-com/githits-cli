@@ -93,9 +93,11 @@ and descendant tables. It preserves unrelated source, comments, formatting,
 BOM and line endings for user and project setup/removal. The existing parser
 validates the result against intended settings before atomic write. There is
 no whole-file rewrite fallback and no destructive TOML rewrite warning.
-Config-file setup/removal resolve an existing file's canonical path before
-atomic write, preserving dotfile-managed config symlinks. This policy belongs
-to config executors; credential storage keeps its own write semantics.
+Config and managed instruction setup/removal resolve an existing file's canonical
+path before atomic write, preserving dotfile-managed symlinks. Uninstall clears
+a linked instruction target when only the GitHits block remains; it retains the
+user-managed link. Ordinary empty instruction files are removed. Setup executors
+own this policy; credential storage keeps its own write semantics.
 
 Pi keeps its adapter installation and user `lifecycle: eager` / `directTools:
 true`; project `.mcp.json` uses the shared native shape. Claude Code and Pi read

@@ -193,6 +193,59 @@ function fixture(ids: string[], seed: Record<string, string> = {}) {
 }
 
 describe("remote init profile", () => {
+  it("discloses replacement of a local entry and its custom settings before migration", async () => {
+    const path = "/home/remote-test/.codeium/windsurf/mcp_config.json";
+    const f = fixture(["windsurf"], {
+      [path]: JSON.stringify({
+        mcpServers: {
+          GitHits: { ...LOCAL, env: { FOO: "DO_NOT_PRINT_TEST_VALUE" } },
+          other: { command: "keep" },
+        },
+      }),
+    });
+    const output = await f.run({ remote: true, guidance: false });
+    expect(output).toContain("Replaces existing GitHits settings: Windsurf");
+    expect(output).toContain("Custom settings on those");
+    expect(output).not.toContain("DO_NOT_PRINT_TEST_VALUE");
+    expect(JSON.parse(f.files[path]!).mcpServers.other).toEqual({
+      command: "keep",
+    });
+  });
+  it("keeps unchanged Cursor sign-in steps in a mixed local rerun without executing them", async () => {
+    const path = "/home/remote-test/.cursor/mcp.json";
+    const f = fixture(["cursor", "opencode"], {
+      [path]: JSON.stringify({ mcpServers: { GitHits: { url: MCP_URL } } }),
+    });
+    const output = await f.run({
+      local: true,
+      guidance: false,
+      skipLogin: true,
+    });
+    expect(output).toContain("cursor-agent mcp login GitHits");
+    expect(
+      (f.deps.execService.exec as ReturnType<typeof mock>).mock.calls.some(
+        ([command]) => command === "cursor-agent",
+      ),
+    ).toBe(false);
+    expect(f.createLoginDeps).not.toHaveBeenCalled();
+  });
+  it("prints shared hosted verification once while keeping each host action", async () => {
+    const f = fixture(["cline", "windsurf", "opencode"]);
+    const output = (await f.run({ remote: true, guidance: false })).replace(
+      /\s+/g,
+      " ",
+    );
+    expect(
+      output.split(
+        "Open a new agent session and verify that GitHits tools are available.",
+      ),
+    ).toHaveLength(2);
+    expect(output).toContain("Cline:");
+    expect(output).toContain("Windsurf:");
+    expect(output).toContain("OpenCode:");
+    expect(output.split("Each agent manages its own sign-in.")).toHaveLength(2);
+  });
+
   it("keeps successful host sign-in steps after a partial failure and exits nonzero", async () => {
     const f = fixture(["cline", "codex-cli"], { [CLINE]: "{ malformed" });
     const output = await f.run({ remote: true, guidance: false });
@@ -719,7 +772,7 @@ describe("remote next-step disclosures", () => {
     );
 
     expect(output).toContain(
-      "Cline uses https://mcp.githits.com; authentication is managed by the host.",
+      "Hosted GitHits MCP: https://mcp.githits.com. Each agent manages its own sign-in.",
     );
     expect(output).toContain(
       "Open Cline's MCP settings and use Authenticate/Authorize for GitHits.",
@@ -752,7 +805,7 @@ describe("staged mixed host auth disclosures", () => {
     );
 
     expect(output).toContain(
-      "Cline uses https://mcp.githits.com; authentication is managed by the host.",
+      "Hosted GitHits MCP: https://mcp.githits.com. Each agent manages its own sign-in.",
     );
     expect(output).toContain(
       "Open Cline's MCP settings and use Authenticate/Authorize for GitHits.",

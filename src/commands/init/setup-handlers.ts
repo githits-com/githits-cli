@@ -1867,8 +1867,8 @@ async function executeUninstallStep(
   return executeManagedBlockUninstall(step, fs);
 }
 
-/** Preserve dotfile-managed config symlinks without changing credential writes. */
-async function writeConfigFile(
+/** Preserve linked agent config/instruction documents; credential writes are separate. */
+async function writeAgentFile(
   path: string,
   content: string,
   fs: FileSystemService,
@@ -1948,7 +1948,7 @@ export async function executeConfigFileSetup(
 
     // Atomic write — result.status is "added" or "updated" here. A pre-existing
     // (even if empty) file counts as "updated"; only a missing file is "created".
-    await writeConfigFile(setup.configPath, result.content, fs);
+    await writeAgentFile(setup.configPath, result.content, fs);
 
     return {
       status: "success",
@@ -2095,7 +2095,7 @@ export async function executeManagedBlockSetup(
       };
     }
 
-    await fs.atomicWriteFile(setup.targetPath, result.content);
+    await writeAgentFile(setup.targetPath, result.content, fs);
     return {
       status: "success",
       message: "Guidance configured successfully",
@@ -2227,7 +2227,7 @@ export async function executeConfigFileUninstall(
 
     // The file is rewritten with the GitHits entry stripped — the file itself
     // is updated, not deleted.
-    await writeConfigFile(setup.configPath, result.content, fs);
+    await writeAgentFile(setup.configPath, result.content, fs);
 
     return {
       status: "removed",
@@ -2341,10 +2341,13 @@ export async function executeManagedBlockUninstall(
       };
     }
 
-    if (result.content.trim().length === 0) {
+    if (
+      result.content.trim().length === 0 &&
+      !(await fs.isSymbolicLink(setup.targetPath))
+    ) {
       await fs.deleteFile(setup.targetPath);
     } else {
-      await fs.atomicWriteFile(setup.targetPath, result.content);
+      await writeAgentFile(setup.targetPath, result.content, fs);
     }
     return {
       status: "removed",
