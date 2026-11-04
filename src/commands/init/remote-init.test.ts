@@ -994,3 +994,118 @@ describe("native hosted route regressions", () => {
       expect(extra in f.files).toBe(keepGuidance);
     });
 });
+
+describe("manual handoff completion reporting", () => {
+  for (const yes of [false, true]) {
+    for (const remote of [false, true]) {
+      it(`keeps unchanged sign-in guidance beside Desktop; yes=${yes}, remote=${remote}`, async () => {
+        const cline = JSON.stringify({
+          mcpServers: {
+            GitHits: remote ? { type: "streamableHttp", url: MCP_URL } : LOCAL,
+          },
+        });
+        const f = fixture(["claude-desktop", "cline"], { [CLINE]: cline });
+        const output = (
+          await f.run({
+            yes,
+            remote,
+            local: !remote,
+            guidance: false,
+            skipLogin: true,
+          })
+        ).replace(/\s+/g, " ");
+        expect(output).toContain(CLAUDE_DIRECTORY_URL);
+        expect(output).toContain(
+          remote
+            ? "Open Cline's MCP settings and use Authenticate/Authorize for GitHits."
+            : "Sign-in was not checked",
+        );
+        expect(output).toContain("Cline unchanged");
+        expect(f.fs.atomicWriteFile).not.toHaveBeenCalled();
+        expect(f.createLoginDeps).not.toHaveBeenCalled();
+      });
+    }
+  }
+  it("retains sign-in steps on the default guided rerun with Desktop", async () => {
+    const f = fixture(["claude-desktop", "cline"]);
+    await f.run({ installAgents: "cline", remote: true, guidance: true });
+    (f.fs.atomicWriteFile as ReturnType<typeof mock>).mockClear();
+    (f.fs.writeFile as ReturnType<typeof mock>).mockClear();
+    const output = (await f.run({})).replace(/\s+/g, " ");
+    expect(output).toContain(CLAUDE_DIRECTORY_URL);
+    expect(output).toContain(
+      "Open Cline's MCP settings and use Authenticate/Authorize for GitHits.",
+    );
+    expect(f.fs.atomicWriteFile).not.toHaveBeenCalled();
+    expect(f.fs.writeFile).not.toHaveBeenCalled();
+    expect(f.createLoginDeps).not.toHaveBeenCalled();
+  });
+  it("finishes without an empty install section when Desktop is deselected", async () => {
+    const f = fixture(["claude-desktop"]);
+    f.deps.promptService.checkbox = mock(async () => []);
+    const output = await f.run({ remote: true, guidance: false });
+    expect(output).toContain("Nothing selected, no changes made.");
+    expect(output).not.toContain("Install and verify");
+    expect(output).not.toContain("Review and confirm");
+    expect(output).not.toContain(CLAUDE_DIRECTORY_URL);
+    expect(f.fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+  it("keeps unchanged hosted instructions when all actionable tools are deselected", async () => {
+    const f = fixture(["cline", "opencode"], {
+      [CLINE]: JSON.stringify({
+        mcpServers: { GitHits: { type: "streamableHttp", url: MCP_URL } },
+      }),
+    });
+    f.deps.promptService.checkbox = mock(async () => []);
+    const output = (await f.run({ remote: true, guidance: false })).replace(
+      /\s+/g,
+      " ",
+    );
+    expect(output).toContain(
+      "Open Cline's MCP settings and use Authenticate/Authorize for GitHits.",
+    );
+    expect(output).not.toContain("OpenCode:");
+    expect(f.fs.atomicWriteFile).not.toHaveBeenCalled();
+  });
+  it("shares human detection instructions while keeping per-agent JSON complete", async () => {
+    const f = fixture(["cline", "windsurf", "opencode"], {
+      [CLINE]: JSON.stringify({
+        mcpServers: { GitHits: { type: "streamableHttp", url: MCP_URL } },
+      }),
+      [OPEN]: JSON.stringify({
+        mcp: { GitHits: { type: "remote", url: MCP_URL, enabled: true } },
+      }),
+      "/home/remote-test/.codeium/windsurf/mcp_config.json": JSON.stringify({
+        mcpServers: { GitHits: { serverUrl: MCP_URL } },
+      }),
+    });
+    const output = (
+      await f.run({ detectAgents: true, remote: true, guidance: false })
+    ).replace(/\s+/g, " ");
+    expect(
+      output.split(
+        "Open a new agent session and verify that GitHits tools are available.",
+      ),
+    ).toHaveLength(2);
+    expect(output.split("Hosted GitHits MCP:")).toHaveLength(2);
+    expect(output).toContain("Open Cline's MCP settings");
+    expect(output).toContain("Open Windsurf's MCP settings");
+    expect(output).toContain("opencode mcp auth GitHits");
+    await f.run({
+      detectAgents: true,
+      remote: true,
+      guidance: false,
+      json: true,
+    });
+    for (const entry of f
+      .json()
+      .agents.filter((entry: { id: string }) =>
+        ["cline", "windsurf", "opencode"].includes(entry.id),
+      )) {
+      expect(entry.status).toBe("already_configured");
+      expect(entry.verificationInstructions).toContain(
+        "Open a new agent session and verify that GitHits tools are available.",
+      );
+    }
+  });
+});

@@ -1789,6 +1789,7 @@ function printAgenticDetectSummary(
   detection: StagedDetection,
   useColors: boolean,
   scope: InitSetupScope,
+  configuredAgents: AgentDefinition[],
 ): void {
   const { entries, actionableIds, guidanceRequested, setupProfile } = detection;
   const commandOptions = { guidanceRequested, setupProfile };
@@ -1840,11 +1841,10 @@ function printAgenticDetectSummary(
   for (const entry of entries) {
     for (const instruction of entry.status === "manual_action_required"
       ? (entry.manualAction?.instructions ?? [])
-      : entry.status === "already_configured"
-        ? (entry.verificationInstructions ?? [])
-        : [])
+      : [])
       printInitProse(`  ${instruction}`);
   }
+  printRemoteInstructions(configuredAgents);
   console.log();
   console.log("Not detected:");
   console.log(
@@ -2543,7 +2543,12 @@ async function runDetectAgentsMode(
     return;
   }
 
-  printAgenticDetectSummary(detection, useColors, scope);
+  printAgenticDetectSummary(
+    detection,
+    useColors,
+    scope,
+    scan.alreadyConfigured,
+  );
 }
 
 async function runInstallAgentsMode(
@@ -5167,29 +5172,20 @@ export async function initAction(
   if (
     manualAgents.length &&
     selection.mcpAgents.length === 0 &&
-    selection.guidanceAgents.length === 0
+    selection.guidanceAgents.length === 0 &&
+    selection.unchangedAgents.length === 0
   )
     return;
   if (
-    detection.actionableIds.length > 0 &&
+    detection.actionableIds.length + detection.manualActionIds.length > 0 &&
     selection.mcpAgents.length === 0 &&
     selection.guidanceAgents.length === 0
   ) {
     console.log("  Nothing selected, no changes made.");
-    const unchangedOutcomes = describeAlreadyConfiguredAgents(
-      scan.alreadyConfigured,
-      fileSystemService,
-    );
-    printInstallOutcomeSections(
-      unchangedOutcomes,
-      scan.alreadyConfigured,
-      null,
-      fileSystemService,
-      useColors,
-      setupScope,
-    );
-    console.log();
-    return;
+    if (selection.unchangedAgents.length === 0) {
+      console.log();
+      return;
+    }
   }
 
   if (installSupportingGuidance && setupScope === "project" && !options.yes) {
