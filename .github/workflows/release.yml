@@ -236,27 +236,9 @@ jobs:
     trigger-docs-changelog:
         needs: release
         if: needs.release.outputs.released == 'true'
-        runs-on: aks-deployment-runner
+        uses: ./.github/workflows/mintlify-changelog-trigger.yml
         permissions: {}
-        timeout-minutes: 5
-        continue-on-error: true
-        steps:
-            - name: Trigger Mintlify Draft changelog
-              env:
-                  MINTLIFY_API_KEY: ${{ secrets.MINTLIFY_API_KEY }}
-                  MINTLIFY_PROJECT_ID: ${{ vars.MINTLIFY_PROJECT_ID }}
-                  MINTLIFY_DRAFT_CHANGELOG_WORKFLOW_ID: ${{ vars.MINTLIFY_DRAFT_CHANGELOG_WORKFLOW_ID }}
-                  VERSION: ${{ needs.release.outputs.version }}
-              run: |
-                  set -euo pipefail
-                  for name in MINTLIFY_API_KEY MINTLIFY_PROJECT_ID MINTLIFY_DRAFT_CHANGELOG_WORKFLOW_ID; do
-                    if [ -z "${!name}" ]; then
-                      echo "::notice::Skipping Mintlify Draft changelog: $name is missing."
-                      exit 0
-                    fi
-                  done
-
-                  echo "Triggering Mintlify Draft changelog for githits@$VERSION"
-                  curl -fsS --retry 2 -X POST \
-                    "https://api.mintlify.com/v1/workflow/${MINTLIFY_PROJECT_ID}/${MINTLIFY_DRAFT_CHANGELOG_WORKFLOW_ID}/trigger" \
-                    -H "Authorization: Bearer ${MINTLIFY_API_KEY}"
+        with:
+            version: ${{ needs.release.outputs.version }}
+        secrets:
+            MINTLIFY_API_KEY: ${{ secrets.MINTLIFY_API_KEY }}

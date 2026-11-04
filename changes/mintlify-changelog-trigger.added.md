@@ -3,4 +3,4 @@
 "@githits/mcp": none
 ---
 
-- **Release changelog drafts** - Successful CLI releases trigger Mintlify's Draft changelog automation when its repository secret and variables are configured; missing configuration skips with a notice, and trigger failures cannot fail the release.
+- **Release changelog drafts** - Successful CLI releases call a reusable Mintlify Draft changelog workflow that also supports manual runs; missing configuration skips with a notice, and failed Mintlify requests cannot fail the release.

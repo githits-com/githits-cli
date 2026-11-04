@@ -154,11 +154,15 @@ matching changelog section must fail before release.
 
 ## Mintlify Changelog Drafts
 
-After a successful CLI release, `release.yml` runs `trigger-docs-changelog`
-to trigger only Mintlify's **Draft changelog** automation. It skips when the
-release artifacts already exist. The job has no GitHub token permissions;
-missing configuration produces a notice and skips the request, and a trigger
-failure cannot fail the release.
+After a successful CLI release, `release.yml` calls the reusable
+`mintlify-changelog-trigger.yml` workflow to trigger only Mintlify's **Draft
+changelog** automation. It skips when the release artifacts already exist.
+The workflow also supports manual runs through `workflow_dispatch`. Both
+entrypoints accept an optional `version` string used only for logging.
+The release caller passes the API key explicitly. Both workflows grant the
+trigger no GitHub token permissions. Missing configuration produces a notice
+and skips the request; the trigger step uses `continue-on-error: true`, so a
+failed Mintlify request does not fail the called workflow or the release.
 
 The job uses `aks-deployment-runner` for its fixed public IP ranges
 `52.153.186.208/28` and `172.185.36.80/28`, so the Mintlify key can be restricted
