@@ -137,5 +137,5 @@ guidance repair and then declining keeps that chosen host in the unchanged
 report without writes or login attempts. Ordinary tool choices use names;
 transport and replacement details belong in the review before confirmation.
 Already-configured rows remain disabled when another tool needs setup or a
-manual handoff. Use `githits init --detect-agents` to see sign-in steps for those
-existing connections.
+manual handoff. Use `githits init --detect-agents` to see hosted sign-in steps for
+those existing connections.

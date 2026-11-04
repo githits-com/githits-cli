@@ -36,13 +36,12 @@ review is clean; implementation docs contain the durable contract.
 
 ## Review boundary
 
-The combined refresh reached its three-round external review limit. The final
-round's ordinary findings are fixed and verified inline; no subsequent clean
-external round is claimed. Exact review and verification evidence belongs on
-PR505/514. Retain this plan until a clean review permits retirement; durable
-behavior is already documented in docs/implementation/.
+The original broad refresh reached its three-round limit; its historical
+verdict stays on PR505/514. The subsequent user-testing increment corrected the
+selected-tool intent and passed its bounded review. The final child retires
+this plan; permanent contracts and deferred release work are documented.
 
-## User testing corrections (IN PROGRESS)
+## User testing corrections (COMPLETE IN STACK)
 
 The user observed multiline option help, opaque MCP/transport suffixes,
 next steps for unselected tools, and outdated Cursor instructions. This is a
@@ -50,7 +49,7 @@ bounded feedback increment on the existing stack. Init owns selected-target
 reporting; the host catalog owns Cursor command/UI metadata. Correct both
 branches and replay the child without changing install/auth policy.
 
-Verified: unchangedAgents currently includes every configured tool; Cursor
+Verified: unchangedAgents now follows the selected tools; Cursor
 current docs use Customize > MCPs and agent mcp, confirmed by installed Cursor
 CLI 2026.09.18-9a7762b help. Assumption: one-line help targets ordinary 80-column
 terminals; narrower terminals keep word wrapping. A scan with no selectable
