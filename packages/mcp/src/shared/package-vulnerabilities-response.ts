@@ -1088,15 +1088,16 @@ export function formatPackageVulnerabilitiesTerminal(
   const verbose = options.verbose ?? false;
   const surface = options.surface ?? "cli";
 
+  const width = normaliseTerminalWidth(options.terminalWidth);
   const sourceBlock =
     payload.sourceDetails !== undefined
-      ? formatPackageSourceDetails(payload.sourceDetails, options.terminalWidth)
+      ? formatPackageSourceDetails(payload.sourceDetails, width)
       : payload.advisories?.length
         ? wrapTerminalProse(
             surface === "mcp"
               ? "Full current OSV Markdown: use source_details=true (direct advisories)."
               : "Full current OSV Markdown: add --source-details.\nOne ID: githits vulns <id> --verbose.",
-            options.terminalWidth,
+            width,
           ).join("\n")
         : undefined;
   const dependencySourceHint =
@@ -1106,7 +1107,7 @@ export function formatPackageVulnerabilitiesTerminal(
           surface === "mcp"
             ? "Source details cover direct advisories. For dependency explanations, call pkg_vulns on the dependency registry:name@resolvedVersion with source_details=true."
             : "Source details cover direct advisories. For dependency explanations: githits vulns <advisory-id> --verbose.",
-          options.terminalWidth,
+          width,
         ).join("\n")
       : undefined;
   const headerLine = formatHeader(payload, useColors);

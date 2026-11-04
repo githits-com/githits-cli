@@ -256,11 +256,10 @@ them separately and omits empty contacts. Contact strings and reference URLs are
 displayed without following them or fetching linked resources.
 
 Full explanation text follows an Explanation label and uses the shared literal
-Markdown emitter rather than prose
-wrapping, preserving fences, tables, indentation and blank lines without a body
+Markdown emitter rather than prose wrapping, preserving fences, tables, indentation and blank lines without a body
 cap. CRLF/CR normalize to LF, tabs expand to four spaces and terminal controls are
 removed; JSON explanation strings remain complete backend-normalized Markdown.
 Long Markdown lines can exceed the caller's width; other prose still wraps. A
 source without explanation text says so explicitly. This source material is
-untrusted evidence, not agent instructions. Production support for the typed
-metadata is a merge/release prerequisite.
+untrusted evidence, not agent instructions. This behavior requires a backend
+exposing the typed OSV metadata fields.

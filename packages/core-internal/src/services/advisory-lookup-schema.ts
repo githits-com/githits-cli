@@ -1,35 +1,20 @@
 import { z } from "zod";
 import {
   type OsvSourceMetadata,
+  osvSourceDetailsSchema,
   osvSourceMetadataSchema,
 } from "./osv-source-details.js";
 
-const severitySchema = z.object({
-  type: z.string(),
-  score: z.string(),
-  source: z.string().nullable(),
-});
+const severitySchema = osvSourceDetailsSchema.shape.severity.element;
 const packageSchema = z.object({
   name: z.string(),
   ecosystem: z.string(),
   purl: z.string().nullable().optional(),
 });
-const advisorySchema = z.object({
-  osvId: z.string(),
-  aliases: z.array(z.string()),
-  summary: z.string().nullable(),
-  details: z.string().nullable().optional(),
-  sourceUrl: z.string(),
-  publishedAt: z.string().nullable(),
-  modifiedAt: z.string(),
-  withdrawnAt: z.string().nullable(),
-  severity: z.array(severitySchema),
-  references: z
-    .array(z.object({ type: z.string(), url: z.string().nullable() }))
-    .optional(),
+const fullAdvisorySchema = osvSourceDetailsSchema.extend({
   affected: z.array(
     z.object({
-      package: packageSchema.nullable(),
+      package: packageSchema.required({ purl: true }).nullable(),
       severity: z.array(severitySchema),
       versions: z.array(z.string()),
       ranges: z.array(
@@ -48,24 +33,10 @@ const advisorySchema = z.object({
       ),
     }),
   ),
-  contentSafety: z.object({
-    filtered: z.boolean(),
-    modifications: z.array(z.string()),
-  }),
 });
-const fullAdvisorySchema = advisorySchema
-  .extend(osvSourceMetadataSchema.shape)
-  .required({ details: true, references: true })
-  .extend({
-    affected: z.array(
-      advisorySchema.shape.affected.element.extend({
-        package: packageSchema.required({ purl: true }).nullable(),
-      }),
-    ),
-  });
 
 const strings = z.array(z.string());
-const safety = advisorySchema.shape.contentSafety;
+const safety = osvSourceDetailsSchema.shape.contentSafety;
 const display = z
   .object({
     ranges: strings,
@@ -102,7 +73,7 @@ const local = z.object({
   isMalicious: z.boolean().nullable().optional(),
   contentSafety: safety.optional(),
 });
-const compactAdvisory = advisorySchema.pick({
+const compactAdvisory = osvSourceDetailsSchema.pick({
   osvId: true,
   aliases: true,
   summary: true,
@@ -144,8 +115,8 @@ const lookupSchema = z.object({
       details: z.string().nullable().optional(),
       publishedAt: z.string().nullable().optional(),
       modifiedAt: z.string().optional(),
-      severity: advisorySchema.shape.severity.optional(),
-      references: advisorySchema.shape.references,
+      severity: osvSourceDetailsSchema.shape.severity.optional(),
+      references: osvSourceDetailsSchema.shape.references.optional(),
       affected: fullAdvisorySchema.shape.affected.optional(),
       contentSafety: safety.optional(),
     })

@@ -9,6 +9,14 @@ import {
   wrapTerminalProse,
 } from "./terminal-text.js";
 
+/** Metadata whitespace separates words; source Markdown uses its literal emitter. */
+function sourceProseLines(value: string, width: number): string[] {
+  return wrapTerminalProse(
+    sanitizeTerminalText(value.replace(/[\t\r\n]+/g, " ")),
+    width,
+  );
+}
+
 /** Shared new OSV metadata for package explanations and advisory-wide detail. */
 export function formatOsvSourceMetadata(
   source: Partial<OsvSourceMetadata>,
@@ -16,12 +24,7 @@ export function formatOsvSourceMetadata(
 ): string[] {
   const lines: string[] = [];
   const add = (value: string): void => {
-    lines.push(
-      ...wrapTerminalProse(
-        sanitizeTerminalText(value.replace(/[\t\r\n]+/g, " ")),
-        width,
-      ),
-    );
+    lines.push(...sourceProseLines(value, width));
   };
   if (source.schemaVersion) add(`  OSV schema: ${source.schemaVersion}`);
   if (source.relatedIds?.length)
@@ -48,12 +51,7 @@ export function formatOsvSourceDetails(
 ): string[] {
   const lines: string[] = [];
   const add = (value: string): void => {
-    lines.push(
-      ...wrapTerminalProse(
-        sanitizeTerminalText(value.replace(/[\t\r\n]+/g, " ")),
-        width,
-      ),
-    );
+    lines.push(...sourceProseLines(value, width));
   };
   add(`${source.osvId}${source.withdrawnAt !== null ? " [WITHDRAWN]" : ""}`);
   add(`  ${source.sourceUrl}`);

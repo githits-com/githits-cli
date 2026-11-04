@@ -1,3 +1,5 @@
+import { OSV_SOURCE_DETAILS_FIELDS } from "./osv-source-details.js";
+
 const unknown = `unknownDetails { section code message retryable candidateIds candidateIdsTruncated }`;
 const display = (max: number): string =>
   `affectedVersionDisplay(maxRanges: ${max}) { ranges totalCount truncated }`;
@@ -14,10 +16,8 @@ export function buildAdvisoryLookupQuery(
   const root = detailed
     ? `
     advisory {
-      osvId aliases summary details sourceUrl publishedAt modifiedAt withdrawnAt
-      schemaVersion relatedIds upstreamIds credits { name contact type }
-      severity { type score source } references { type url }
-      affected { ...LookupAffected } contentSafety { filtered modifications }
+      ${OSV_SOURCE_DETAILS_FIELDS}
+      affected { ...LookupAffected }
     }`
     : `advisory { osvId aliases summary sourceUrl withdrawnAt }`;
   const source = detailed

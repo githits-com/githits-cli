@@ -155,3 +155,14 @@ it("keeps metadata word boundaries and labels source Markdown separately", () =>
     buildPackageVulnerabilitiesSuccessPayload(item).sourceDetails![0]!.source,
   ).toEqual(source);
 });
+
+it("normalizes zero-column terminal widths for full source metadata and default hints", () => {
+  const item = report();
+  expect(formatPackageVulnerabilitiesTerminal(item, { terminalWidth: 0 })).toBe(
+    formatPackageVulnerabilitiesTerminal(item, { terminalWidth: 20 }),
+  );
+  delete item.sourceDetails;
+  expect(formatPackageVulnerabilitiesTerminal(item, { terminalWidth: 0 })).toBe(
+    formatPackageVulnerabilitiesTerminal(item, { terminalWidth: 20 }),
+  );
+});

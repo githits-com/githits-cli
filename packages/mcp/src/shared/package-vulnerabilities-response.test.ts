@@ -3013,3 +3013,21 @@ describe("round 1 transitive count projection", () => {
     expect(report).toEqual(original);
   });
 });
+
+it("normalizes zero-column widths for dependency source follow-ups", () => {
+  const report = transitiveVulnerabilityFixture();
+  report.sourceDetails = [];
+  for (const surface of ["cli", "mcp"] as const) {
+    expect(
+      formatPackageVulnerabilitiesTerminal(report, {
+        surface,
+        terminalWidth: 0,
+      }),
+    ).toBe(
+      formatPackageVulnerabilitiesTerminal(report, {
+        surface,
+        terminalWidth: 20,
+      }),
+    );
+  }
+});
