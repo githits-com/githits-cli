@@ -4227,7 +4227,12 @@ describe("initAction", () => {
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toBeUndefined();
     expect(output).not.toContain("Codex CLI guidance");
-    expect(output).not.toContain("cursor-agent mcp");
+    expect(output).toContain("cursor-agent mcp login GitHits");
+    expect(
+      (execService.exec as ReturnType<typeof mock>).mock.calls.some(
+        ([command]) => command === "cursor-agent",
+      ),
+    ).toBe(false);
   });
 
   it("recomputes selection when project guidance repair is declined", async () => {

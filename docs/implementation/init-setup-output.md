@@ -117,6 +117,8 @@ does not claim to disconnect that account-level connector.
 
 Interactive setup exits nonzero when any selected setup fails. It retains
 sign-in/discovery instructions for successfully configured hosted targets even
-when another tool fails. Probe failures name known configuration paths and
+when another tool fails. Already-configured hosted targets also retain those
+steps during a rerun or guidance-only failure; configuration status does not
+prove OAuth readiness. These are instructions, not automatic sign-in attempts. Probe failures name known configuration paths and
 explain that permissions, syntax and the GitHits entry need checking; they
 leave existing config untouched and never echo config contents.
