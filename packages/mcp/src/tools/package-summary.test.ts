@@ -19,12 +19,10 @@ describe("createPackageSummaryTool — metadata", () => {
       createMockPackageIntelligenceService(),
     );
     expect(tool.name).toBe("pkg_info");
-    expect(tool.description).toContain(
-      "Assess latest package health and adoption",
-    );
+    expect(tool.description).toContain("Assess package health and adoption");
     expect(tool.description).toContain("[ARCHIVED]");
     expect(tool.description).toContain("verbose: true");
-    expect(tool.description).toContain("latest affected count");
+    expect(tool.description).toContain("selected-release affected count");
     expect(tool.description).toContain("package-wide advisory history count");
     expect(tool.description).toContain(
       "separate package-wide advisory history count",
@@ -201,14 +199,14 @@ describe("createPackageSummaryTool — compact target validation", () => {
   it.each([
     [
       "npm:express@5.2.1",
-      "pkg_info always returns the latest version; omit @5.2.1.",
+      "pkg_info returns the default selected release; omit @5.2.1.",
     ],
     [
       "npm:@types/node@22.0.0",
-      "pkg_info always returns the latest version; omit @22.0.0.",
+      "pkg_info returns the default selected release; omit @22.0.0.",
     ],
   ])(
-    "rejects latest-only pinned target %s without calling service",
+    "rejects pinned target %s without calling service",
     async (target, error) => {
       const packageSummary = mock(() => Promise.resolve(defaultPackageSummary));
       const tool = createPackageSummaryTool(

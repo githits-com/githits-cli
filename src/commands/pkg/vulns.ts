@@ -34,7 +34,7 @@ export interface PkgVulnsCommandDependencies {
 
 /**
  * Core `pkg vulns` action. Accepts `<spec>@<version>` (unlike `pkg
- * info`, which always returns latest). Version flows through to the
+ * info`, which selects the default release). Version flows through to the
  * backend; `minSeverity`, `includeWithdrawn`, and opt-in `includeTransitive`
  * likewise go to the wire. No client-side filtering — backend is single
  * source of truth.

@@ -51,6 +51,8 @@ const HAPPY_BODY = {
         name: "express",
         registry: "NPM",
         description: "Fast web framework",
+        version: "4.18.2",
+        publishedAt: "2023-05-28T00:00:00Z",
         latestVersion: "4.18.2",
         latestVersionPublishedAt: "2023-05-28T00:00:00Z",
         versionCount: 42,
@@ -269,11 +271,11 @@ describe("PackageIntelligenceServiceImpl", () => {
     ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
   });
 
-  it("throws MalformedPackageIntelligenceResponseError when latestVersion is null", async () => {
+  it("accepts a selected release when latestVersion is null", async () => {
     const body = {
       data: {
         packageSummary: {
-          package: { name: "x", latestVersion: null },
+          package: { name: "x", version: "1.0.0", latestVersion: null },
           security: null,
           latestChangelogs: null,
         },
@@ -286,9 +288,12 @@ describe("PackageIntelligenceServiceImpl", () => {
       asFetchFn(fetchFn),
     );
 
-    await expect(
-      service.packageSummary({ registry: "NPM", packageName: "x" }),
-    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+    const result = await service.packageSummary({
+      registry: "NPM",
+      packageName: "x",
+    });
+    expect(result.package.version).toBe("1.0.0");
+    expect(result.package.latestVersion).toBeUndefined();
   });
 
   it.each([

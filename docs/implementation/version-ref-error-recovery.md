@@ -54,7 +54,7 @@ Actions cannot be constructed when the original invocation has no matching
 operand. Root color switches, grep short switches, unversioned upgrade-review
 package operands and canonical package casing are supported.
 
-`pkg info` remains latest-only. `resolve` still rejects canonical targets
+`pkg info` remains unpinned. `resolve` still rejects canonical targets
 locally. These tools preserve unexpected structured errors without inventing
 new version parameters. Grep `target_issues`, validation, indexing and auth
 recovery follow their existing contracts.

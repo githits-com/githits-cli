@@ -174,12 +174,12 @@ const DESCRIPTION_ROUTING: Record<
     ],
   },
   pkg_info: {
-    prefix: /^Assess latest package health and adoption/,
+    prefix: /^Assess package health and adoption/,
     exactPrefix:
-      "Assess latest package health and adoption: license, downloads, and activity. Pro",
+      "Assess package health and adoption: license, downloads, and activity. Provide an",
     body: [
       "unpinned package target",
-      "always returns latest",
+      "default selected release",
       "Historical counts are not current-version risk",
     ],
   },

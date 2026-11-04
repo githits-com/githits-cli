@@ -20,6 +20,7 @@ import type {
   ChangelogEntry,
   PackageSecurityOverview,
   PackageSummary,
+  RegistryLatestDifference,
   RegistryRepository,
   VulnerabilityOverview,
 } from "@githits/core-internal";
@@ -77,7 +78,10 @@ export interface LeanRecentChange {
 export interface LeanPackageSummary {
   registry: string;
   name: string;
-  version: string;
+  version?: string;
+  latestVersion?: string;
+  latestVersionPublishedAt?: string;
+  registryLatestDifference?: RegistryLatestDifference;
   registryRepository?: RegistryRepository;
   versionCount?: number;
   description?: string;
@@ -104,20 +108,27 @@ export function buildPackageSummarySuccessPayload(
   const payload: LeanPackageSummary = {
     registry: lowerRegistry(pkg.registry),
     name: pkg.name,
-    version: pkg.latestVersion,
   };
 
+  assignIfDefined(payload, "version", pkg.version);
+  assignIfDefined(payload, "latestVersion", pkg.latestVersion);
+  assignIfDefined(
+    payload,
+    "latestVersionPublishedAt",
+    toIsoDate(pkg.latestVersionPublishedAt),
+  );
+  assignIfDefined(
+    payload,
+    "registryLatestDifference",
+    pkg.registryLatestDifference,
+  );
   assignIfDefined(payload, "versionCount", pkg.versionCount);
   assignIfDefined(payload, "description", pkg.description);
   assignIfDefined(payload, "license", pkg.license);
   assignIfDefined(payload, "homepage", pkg.homepage);
   assignIfDefined(payload, "repository", pkg.repositoryUrl);
   assignIfDefined(payload, "registryRepository", pkg.registryRepository);
-  assignIfDefined(
-    payload,
-    "publishedAt",
-    toIsoDate(pkg.latestVersionPublishedAt),
-  );
+  assignIfDefined(payload, "publishedAt", toIsoDate(pkg.publishedAt));
 
   const downloads = buildDownloads(
     pkg.downloadsLastMonth,
@@ -325,10 +336,13 @@ export function formatPackageSummaryTerminal(
   const sections: string[] = [];
 
   // Header — `name @ version | license`
-  const header = lean.license
-    ? `${colorize(lean.name, "bold", useColors)} @ ${lean.version} | ${lean.license}`
-    : `${colorize(lean.name, "bold", useColors)} @ ${lean.version}`;
-  sections.push(header);
+  const identity = lean.version
+    ? `${colorize(lean.name, "bold", useColors)} @ ${lean.version}`
+    : `${colorize(lean.name, "bold", useColors)} (no selected version)`;
+  sections.push(lean.license ? `${identity} | ${lean.license}` : identity);
+
+  const difference = formatRegistryLatestDifference(lean);
+  if (difference) sections.push(wrapText(difference, width));
 
   // Description, wrapped.
   if (lean.description) {
@@ -354,6 +368,35 @@ export function formatPackageSummaryTerminal(
   }
 
   return `${sections.join("\n\n")}\n`;
+}
+
+/** Explain API selection without choosing a different release in the client. */
+function formatRegistryLatestDifference(
+  lean: LeanPackageSummary,
+): string | undefined {
+  const difference = lean.registryLatestDifference;
+  if (!difference) return undefined;
+  const reasons: Record<RegistryLatestDifference["reason"], string> = {
+    DEPRECATED: "is deprecated",
+    YANKED: "is yanked",
+    NO_FILES: "has no files",
+    UNLISTED: "is unlisted",
+    PRERELEASE_EXCLUDED: "is a prerelease",
+  };
+  const prefix = `latest ${difference.version} ${reasons[difference.reason]}`;
+  if (
+    difference.reason === "PRERELEASE_EXCLUDED" &&
+    (!lean.version || lean.version === difference.version)
+  ) {
+    return `${prefix}; no default release; installing it requires an explicit version`;
+  }
+  if (!lean.version || lean.version === difference.version)
+    return `${prefix}; no default release`;
+  const installHint =
+    lean.registry === "npm" && difference.reason === "DEPRECATED"
+      ? " (what npm installs)"
+      : "";
+  return `${prefix}; showing ${lean.version}${installHint}`;
 }
 
 function resolveWidth(explicit: number | undefined): number {
@@ -445,10 +488,7 @@ function buildFieldList(
     });
   }
 
-  const publishedRelative = toRelativeDate(
-    summary.package.latestVersionPublishedAt,
-    now,
-  );
+  const publishedRelative = toRelativeDate(summary.package.publishedAt, now);
   if (publishedRelative) {
     fields.push({ label: "Published", value: publishedRelative });
   }
@@ -486,6 +526,7 @@ function buildFieldList(
       value: formatVulnerabilityStatus(
         lean.vulnerabilities,
         lean.advisoryHistory,
+        lean.registryLatestDifference !== undefined,
       ),
     });
   }
@@ -536,14 +577,16 @@ function formatGithubPopularity(
 function formatVulnerabilityStatus(
   vulns: LeanVulnerabilities | undefined,
   history: LeanAdvisoryHistory,
+  hasDifference: boolean,
 ): string {
+  const label = hasDifference ? "Selected" : "Latest";
   let latest: string;
   if (!vulns) {
-    latest = "Latest: unavailable";
+    latest = `${label}: unavailable`;
   } else if (vulns.total === 0) {
-    latest = "Latest: none affected";
+    latest = `${label}: none affected`;
   } else {
-    latest = `Latest: ${vulns.total} affected`;
+    latest = `${label}: ${vulns.total} affected`;
   }
 
   const historyNoun = history.total === 1 ? "advisory" : "advisories";

@@ -315,6 +315,8 @@ export const defaultPackageSummary: PackageSummary = {
     name: "express",
     registry: "NPM",
     description: "Fast, unopinionated, minimalist web framework for Node.js",
+    version: "4.18.2",
+    publishedAt: "2023-05-28T00:00:00Z",
     latestVersion: "4.18.2",
     latestVersionPublishedAt: "2023-05-28T00:00:00Z",
     versionCount: 214,
