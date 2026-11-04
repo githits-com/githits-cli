@@ -491,11 +491,9 @@ function expectGuidancePrompt(
 ): void {
   const call = selectCalls(f).find(([message]) => message === GUIDANCE_PROMPT);
   const installDescription =
-    "Help your agent know when and how to use GitHits.\n" +
-    "Adds GitHits skills and instructions for the selected agents." +
-    (scope === "project"
-      ? "\nWrites files into this project; they may be committed."
-      : "");
+    scope === "project"
+      ? "Help your agent use GitHits. Files may be committed."
+      : "Help your agent know when and how to use GitHits.";
 
   expect(call).toBeDefined();
   expect(call?.[1]).toEqual([
@@ -509,8 +507,7 @@ function expectGuidancePrompt(
       name: "Configure MCP only",
       short: "MCP only",
       value: "mcp-only",
-      description:
-        "Set up the MCP connection without adding skills or instruction files.",
+      description: "Connect without skills or instruction files.",
     },
   ]);
   expect(call?.[2]).toBe("install");
@@ -583,11 +580,7 @@ describe("MCP guidance consent", () => {
         (choice) => choice.name,
       );
 
-      expect(labels).toEqual([
-        scope.name === "user"
-          ? "Cline (MCP setup; remote)"
-          : "Claude Code (MCP setup; remote)",
-      ]);
+      expect(labels).toEqual([scope.name === "user" ? "Cline" : "Claude Code"]);
       expect(JSON.parse(f.files[scope.configPath]!).mcpServers.GitHits).toEqual(
         scope.expectedMcp,
       );
@@ -1397,6 +1390,23 @@ describe("selected-host next steps", () => {
         else process.env.CODEX_HOME = oldCodex;
         if (oldClaude === undefined) delete process.env.CLAUDE_CONFIG_DIR;
         else process.env.CLAUDE_CONFIG_DIR = oldClaude;
+      }
+    });
+  }
+});
+
+describe("compact setup choice help", () => {
+  for (const project of [false, true]) {
+    it(`keeps all selector descriptions on one 80-column line; project=${project}`, async () => {
+      const f = fixture(project ? ["opencode"] : ["cline"]);
+      await f.run({ project });
+      for (const [, choices] of selectCalls(f)) {
+        for (const choice of choices as Array<{ description?: string }>) {
+          if (choice.description) {
+            expect(choice.description).not.toContain("\n");
+            expect(choice.description.length).toBeLessThanOrEqual(79);
+          }
+        }
       }
     });
   }
