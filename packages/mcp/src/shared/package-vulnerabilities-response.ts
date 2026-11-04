@@ -1482,7 +1482,7 @@ function severityColumnLabel(advisory: LeanAdvisory): string {
  * and the JSON envelope doesn't leak a placeholder string to
  * agents. Absence of the field is the signal.
  */
-function isPlaceholderSummary(summary: string): boolean {
+export function isPlaceholderSummary(summary: string): boolean {
   return /^\s*no summary available\s*$/i.test(summary);
 }
 

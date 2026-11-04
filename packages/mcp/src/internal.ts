@@ -94,6 +94,7 @@ export {
   sanitizeTerminalText,
   wrapTerminalProse,
 } from "./shared/terminal-text.js";
+export { terminalWidth } from "./shared/terminal-width.js";
 export * from "./shared/unified-search-request.js";
 export * from "./shared/unified-search-response.js";
 export * from "./shared/unified-search-status-text.js";

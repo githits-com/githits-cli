@@ -11,11 +11,12 @@ import {
   buildCliMappedErrorPayload,
   formatMappedErrorForTerminal,
 } from "./format-mapped-error.js";
+import { formatVulns } from "./vulns-format.js";
 import {
-  formatVulns,
+  buildVulnsResponse,
   type VulnsError,
   type VulnsResult,
-} from "./vulns-format.js";
+} from "./vulns-response.js";
 
 export interface VulnsOptions {
   json?: boolean;
@@ -120,117 +121,96 @@ export async function readAdvisoryReports(
     }
   }
   let stopped: VulnsError | undefined;
-  const batchSize = detailed ? 1 : 5;
-  for (let offset = 0; offset < pending.length; offset += batchSize) {
-    const batch = pending.slice(offset, offset + batchSize);
+  for (const input of pending) {
+    const { result } = input;
     if (stopped) {
-      for (const input of batch)
-        input.result.error = {
-          ...stopped,
-          details: { ...stopped.details, notAttempted: true },
-        };
+      result.error = {
+        ...stopped,
+        details: { ...stopped.details, notAttempted: true },
+      };
       continue;
     }
-    let items: AdvisoryLookup[];
+    let lookup: AdvisoryLookup;
     try {
-      items = await service.lookup(
-        batch.map((input) => input.id),
-        detailed,
+      lookup = structuredClone(
+        // biome-ignore lint/style/noNonNullAssertion: service validates cardinality and input order.
+        (await service.lookup([input.id], detailed))[0]!,
       );
     } catch (error) {
-      const mapped = mapVulnsError(error);
-      for (const input of batch) input.result.error = mapped;
-      if (stopsAdmission(mapped)) stopped = mapped;
+      result.error = mapVulnsError(error);
+      if (stopsAdmission(result.error)) stopped = result.error;
       continue;
     }
-    // Store every initial success before any continuation can fail or stop admission.
-    const admitted = batch.map((input, i) => {
-      // biome-ignore lint/style/noNonNullAssertion: the core service validates cardinality and input order.
-      const lookup = structuredClone(items[i]!);
-      input.result.lookup = lookup;
-      input.result.packagePagination = lookup.affectedPackages
-        ? {
-            complete: !lookup.affectedPackages.pageInfo.hasNextPage,
-            pagesRead: 1,
-          }
-        : undefined;
-      return { ...input, lookup };
-    });
-    for (const input of admitted) {
-      const { result, lookup } = input;
-      const connection = lookup.affectedPackages;
-      if (!connection || !result.packagePagination) {
-        classify(result);
-        continue;
-      }
-      while (connection.pageInfo.hasNextPage) {
-        try {
-          if (stopped) {
-            result.error = {
-              ...stopped,
-              details: { ...stopped.details, notAttempted: true },
-            };
-            break;
-          }
-          const cursor = connection.pageInfo.endCursor;
-          if (!cursor)
-            throw new AdvisoryLookupError(
-              "UPSTREAM_ERROR",
-              "Package continuation has no cursor.",
-            );
-          // biome-ignore lint/style/noNonNullAssertion: service validates one result for this one input.
-          const next = (await service.lookup([input.id], detailed, cursor))[0]!;
-          // A stale/null page can include a newer source observation. Keep the original
-          // report intact and retain only diagnostics from that failed continuation.
-          const page = next.affectedPackages;
-          lookup.unknownDetails.push(
-            ...next.unknownDetails
-              .filter((detail) => !page || detail.path)
-              .map((detail) =>
-                detail.path
-                  ? {
-                      ...detail,
-                      path: [
-                        ...detail.path.slice(0, 2),
-                        (detail.path[2] as number) + connection.entries.length,
-                        ...detail.path.slice(3),
-                      ],
-                    }
-                  : detail,
-              ),
+    result.lookup = lookup;
+    result.packagePagination = lookup.affectedPackages
+      ? {
+          complete: !lookup.affectedPackages.pageInfo.hasNextPage,
+          pagesRead: 1,
+        }
+      : undefined;
+    const connection = lookup.affectedPackages;
+    if (!connection || !result.packagePagination) {
+      continue;
+    }
+    while (connection.pageInfo.hasNextPage) {
+      try {
+        const cursor = connection.pageInfo.endCursor;
+        if (!cursor)
+          throw new AdvisoryLookupError(
+            "UPSTREAM_ERROR",
+            "Package continuation has no cursor.",
           );
-          if (!page) {
-            const problem =
-              next.unknownDetails.find(
-                (detail) => detail.section === "AFFECTED_PACKAGES",
-              ) ?? next.unknownDetails[0];
-            result.error = problem
-              ? typedError(problem)
-              : {
-                  code: "INCOMPLETE_PACKAGES",
-                  error:
-                    "Package continuation failed; earlier evidence is retained.",
-                  retryable: false,
-                };
-            break;
-          }
-          connection.entries.push(...page.entries);
-          connection.pageInfo = page.pageInfo;
-          result.packagePagination.pagesRead += 1;
-          result.packagePagination.complete = !page.pageInfo.hasNextPage;
-        } catch (error) {
-          result.error = mapVulnsError(error);
-          if (stopsAdmission(result.error)) stopped = result.error;
+        // biome-ignore lint/style/noNonNullAssertion: service validates one result for this one input.
+        const next = (await service.lookup([input.id], detailed, cursor))[0]!;
+        // A stale/null page can include a newer source observation. Keep the original
+        // report intact and retain only diagnostics from that failed continuation.
+        const page = next.affectedPackages;
+        lookup.unknownDetails.push(
+          ...next.unknownDetails
+            .filter((detail) => !page || detail.path)
+            .map((detail) =>
+              detail.path
+                ? {
+                    ...detail,
+                    path: [
+                      ...detail.path.slice(0, 2),
+                      (detail.path[2] as number) + connection.entries.length,
+                      ...detail.path.slice(3),
+                    ],
+                  }
+                : detail,
+            ),
+        );
+        if (!page) {
+          const problem =
+            next.unknownDetails.find(
+              (detail) => detail.section === "AFFECTED_PACKAGES",
+            ) ?? next.unknownDetails[0];
+          result.error = problem
+            ? typedError(problem)
+            : {
+                code: "INCOMPLETE_PACKAGES",
+                error:
+                  "Package continuation failed; earlier evidence is retained.",
+                retryable: false,
+              };
           break;
         }
+        connection.entries.push(...page.entries);
+        connection.pageInfo = page.pageInfo;
+        result.packagePagination.pagesRead += 1;
+        result.packagePagination.complete = !page.pageInfo.hasNextPage;
+      } catch (error) {
+        result.error = mapVulnsError(error);
+        if (stopsAdmission(result.error)) stopped = result.error;
+        break;
       }
-      classify(result);
     }
   }
   return results.map(classify);
 }
 
-/** JSON is the complete selected core projection; text is presentation of the same evidence. */
+/** Text and curated JSON share source attribution and explicit coverage/diagnostics. */
 export async function vulnsAction(
   ids: string[],
   options: VulnsOptions,
@@ -238,10 +218,11 @@ export async function vulnsAction(
 ): Promise<void> {
   const results = await readAdvisoryReports(
     ids,
-    options.verbose === true || options.json === true,
+    options.verbose === true,
     deps.advisoryService,
   );
-  if (options.json) console.log(JSON.stringify({ results }));
+  if (options.json)
+    console.log(JSON.stringify(buildVulnsResponse(results, options)));
   else
     process.stdout.write(
       formatVulns(results, {
@@ -257,38 +238,36 @@ export function registerVulnsCommand(program: Command): Command {
   return program
     .command("vulns")
     .summary("Look up CVE/OSV IDs and their known affected packages")
-    .description(`Look up one or several CVE/OSV IDs with attributed affected packages, ranges
-and source-reported fixed versions. Examples:
+    .description(`Find packages linked to one or several CVE/OSV advisory IDs.
+Shows package links, affected ranges, source-reported fixes and attributed
+sources. Reads every available package page; partial results retain evidence
+and exit nonzero. Coverage is acquisition evidence, not a safety verdict.
+
+Examples:
   githits vulns CVE-2026-26996 GHSA-3ppc-4f35-3m26
+  githits vulns CVE-2026-26996 --json
   githits vulns CVE-2026-26996 --verbose
 
-IDs are trimmed, case-preserving, at most 512 UTF-8 bytes, with no embedded
-whitespace or control/format characters. Exact source IDs win; recorded aliases
-may resolve to a different served ID. Source and imported local advisories stay
-separate, including withdrawn records. Unknown ecosystems keep their source names.
-
-All available package pages are read. Partial failures retain successful evidence
-and exit nonzero; stale continuation never silently restarts. Coverage describes
-current source/local acquisition, not worldwide completeness. Empty mappings do
-not prove safety. Display truncation is explicit. Source fix strings are not
-verified releases or safe upgrades. Assess an installed version with
-'githits pkg vulns <registry>:<name>@<installed-version>'.
-
---verbose adds original source evidence (including package-less Git ranges),
-prose, vectors, references, raw ranges and revision/safety details. --json emits
-lossless defined core evidence with one ordered result per input and explicit
-partial/error outcomes; optional release/related-advisory metadata is not acquired.`)
+--json includes every package, source reference, coverage and recovery field,
+with up to ten normalized affected spans. affectedRanges and sourceFixVersions
+are independent lists, not index-aligned; a range boundary is not necessarily a fix.
+Use --verbose only for original source detail, including package-less Git
+ranges, vectors, aliases, dates and references. Verbose JSON uses zero-based
+advisoryAffectedIndexes into advisory.originalAffected for exact same-record
+copies. Source fixes are unverified;
+assess an installed version with githits pkg vulns <registry>:<name>@<version>.
+IDs are case-sensitive; input order and duplicates are preserved.`)
     .argument(
       "<ids...>",
       "CVE/OSV IDs or recorded aliases; order and duplicates are preserved",
     )
     .option(
       "-v, --verbose",
-      "Show complete core source/local evidence and provenance",
+      "Add original source evidence, vectors, dates and references",
     )
     .option(
       "--json",
-      "Emit ordered core evidence, coverage, diagnostics and pagination state",
+      "Emit compact package evidence, sources, coverage and recovery actions",
     )
     .action(async (ids: string[], options: VulnsOptions) => {
       const deps = await createContainer();

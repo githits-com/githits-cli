@@ -18,20 +18,20 @@ export function buildAdvisoryLookupQuery(
       severity { type score source } references { type url }
       affected { ...LookupAffected } contentSafety { filtered modifications }
     }`
-    : `advisory { osvId summary sourceUrl withdrawnAt }`;
+    : `advisory { osvId aliases summary sourceUrl withdrawnAt }`;
   const source = detailed
     ? `
     osvId sourceUrl modifiedAt withdrawnAt affected { ...LookupAffected }
     affectedVersionRanges fixedInVersions ${display(10)} contentSafety { filtered modifications }
   `
-    : `osvId sourceUrl modifiedAt withdrawnAt affectedVersionRanges fixedInVersions ${display(3)}`;
+    : `osvId sourceUrl withdrawnAt affectedVersionRanges fixedInVersions ${display(10)}`;
   const local = detailed
     ? `
     osvId sourceUrl registry packageName summary severityScore severityType
     affectedVersionRanges fixedInVersions publishedAt modifiedAt withdrawnAt aliases isMalicious
     ${display(10)} contentSafety { filtered modifications }
   `
-    : `osvId sourceUrl summary severityScore severityType withdrawnAt affectedVersionRanges fixedInVersions ${display(3)}`;
+    : `osvId aliases sourceUrl summary severityScore severityType withdrawnAt isMalicious affectedVersionRanges fixedInVersions ${display(10)}`;
   return `query AdvisoryLookup($ids: [String!]!, $first: Int!, $after: String) {
     vulnerabilityLookup(ids: $ids) {
       requestedId ${continuation ? "" : root}

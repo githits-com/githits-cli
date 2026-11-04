@@ -1223,9 +1223,13 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
     );
     for (const item of advisoryEnvelope.results as unknown[]) {
       assertRecord(item, "advisory auth item");
-      assertRecord(item.error, "advisory auth error");
+      assert(Array.isArray(item.diagnostics), "advisory auth diagnostics");
+      const diagnostic = (item.diagnostics as unknown[])[0];
+      assertRecord(diagnostic, "advisory auth error");
       assert(
-        item.status === "error" && item.error.code === "AUTH_REQUIRED",
+        item.status === "error" &&
+          diagnostic.code === "AUTH_REQUIRED" &&
+          diagnostic.action === "githits login",
         "advisory auth result must retain auth guidance",
       );
     }

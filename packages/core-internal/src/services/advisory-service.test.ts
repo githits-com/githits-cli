@@ -112,8 +112,8 @@ describe("advisory identifier grammar", () => {
 
 describe("cohesive advisory lookup", () => {
   it.each([
-    [false, undefined, 2, 3],
-    [false, "opaque-next", 10, 3],
+    [false, undefined, 5, 10],
+    [false, "opaque-next", 5, 10],
     [true, undefined, 5, 10],
     [true, "opaque-next", 5, 10],
   ] as const)(
@@ -130,6 +130,10 @@ describe("cohesive advisory lookup", () => {
         after: after ?? null,
       });
       const query = requests[0]!.query;
+      if (after === undefined) expect(query).toContain("osvId aliases");
+      expect(query.match(/\baliases\b/g)).toHaveLength(
+        after === undefined ? 2 : 1,
+      );
       if (after !== undefined) expect(query).not.toContain("advisory {");
       expect(
         query.match(
@@ -154,23 +158,20 @@ describe("cohesive advisory lookup", () => {
           "publishedAt modifiedAt withdrawnAt aliases isMalicious",
         );
       } else {
+        expect(query).toContain(
+          "withdrawnAt isMalicious affectedVersionRanges",
+        );
+        expect(query).not.toMatch(/\bmodifiedAt\b/);
         expect(query).not.toMatch(
           /\bdetails\b|\breferences\b|\bpurl\b|\bcontentSafety\b/,
         );
       }
     },
   );
-  it("preserves five ordered IDs including duplicates in a single compact request", async () => {
-    const ids = ["a", "b", "a", "d", "e"];
-    const { service, requests } = setup([success(ids)]);
-    expect(
-      (await service.lookup(ids, false)).map((x) => x.requestedId),
-    ).toEqual(ids);
-    expect(requests).toHaveLength(1);
-  });
   it.each([
     [[], false, undefined],
     [["a", "b"], true, undefined],
+    [["a", "b"], false, undefined],
     [["a", "b"], false, "cursor"],
     [Array(6).fill("a"), false, undefined],
   ] as const)(
@@ -444,11 +445,38 @@ describe("request failure provenance", () => {
 });
 
 describe("selected compact wire shape", () => {
+  it("accepts missing source revision only in compact mode and preserves malicious markers", async () => {
+    const fixture = structuredClone(defaultAdvisoryLookup);
+    fixture.affectedPackages!.entries[0]!.sourceEvidence = {
+      osvId: "OSV-example",
+      sourceUrl: "https://osv.dev/vulnerability/OSV-example",
+      withdrawnAt: null,
+      affectedVersionRanges: ["<2"],
+      fixedInVersions: ["2"],
+      affectedVersionDisplay: null,
+      affected: [],
+      contentSafety: { filtered: false, modifications: [] },
+    };
+    fixture.affectedPackages!.entries[0]!.advisories[0]!.isMalicious = true;
+    const { service } = setup([
+      { body: { data: { vulnerabilityLookup: [fixture] } } },
+      { body: { data: { vulnerabilityLookup: [fixture] } } },
+    ]);
+    expect(
+      (await service.lookup(["CVE-example"], false))[0]!.affectedPackages!
+        .entries[0]!.advisories[0]!.isMalicious,
+    ).toBe(true);
+    await expect(service.lookup(["CVE-example"], true)).rejects.toMatchObject({
+      code: "UPSTREAM_ERROR",
+    });
+  });
+
   it("accepts exactly selected compact fields without requiring detailed evidence", async () => {
     const fixture = structuredClone(defaultAdvisoryLookup);
     const advisory = fixture.advisory!;
     fixture.advisory = {
       osvId: advisory.osvId,
+      aliases: advisory.aliases,
       summary: advisory.summary,
       sourceUrl: advisory.sourceUrl,
       withdrawnAt: advisory.withdrawnAt,
@@ -459,8 +487,6 @@ describe("selected compact wire shape", () => {
         delete local.packageName;
         delete local.publishedAt;
         delete local.modifiedAt;
-        delete local.aliases;
-        delete local.isMalicious;
         delete local.contentSafety;
       }
     }
@@ -471,14 +497,14 @@ describe("selected compact wire shape", () => {
   });
 });
 
-describe("batched diagnostic attribution", () => {
-  it("makes a non-first compact input display error relative to that result", async () => {
-    const response = success(["a", "b"]);
-    response.body.data.vulnerabilityLookup[1]!.affectedPackages!.entries[0]!
+describe("display diagnostic attribution", () => {
+  it("makes a compact display diagnostic relative to its result", async () => {
+    const response = success(["b"]);
+    response.body.data.vulnerabilityLookup[0]!.affectedPackages!.entries[0]!
       .advisories[0]!.affectedVersionDisplay = null;
     const path = [
       "vulnerabilityLookup",
-      1,
+      0,
       "affectedPackages",
       "entries",
       0,
@@ -500,8 +526,7 @@ describe("batched diagnostic attribution", () => {
         },
       },
     ]);
-    const [first, second] = await service.lookup(["a", "b"], false);
-    expect(first?.unknownDetails).toEqual([]);
+    const [second] = await service.lookup(["b"], false);
     expect(second?.unknownDetails[0]?.path).toEqual([
       "affectedPackages",
       "entries",
