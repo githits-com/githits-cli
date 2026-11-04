@@ -15,8 +15,9 @@ Use this skill for CLI work. With an available hosted GitHits connector, use `gi
 
 | Need | Command |
 | --- | --- |
-| Metadata, registry source, latest version, or maintenance | `githits pkg info <registry:name>` |
-| Advisory status | `githits pkg vulns <registry:name@version>` |
+| Metadata, registry source, default release, or maintenance | `githits pkg info <registry:name>` |
+| Advisory ID and affected packages | `githits vulns <ids...>` (CLI-only) |
+| Installed-version advisory status | `githits pkg vulns <registry:name@version>` |
 | Dependencies | `githits pkg deps <registry:name@version>` |
 | Release notes | `githits pkg changelog <registry:name@version>` or `<registry:name@from..to>` |
 | Upgrade assessment | `githits pkg upgrade-review <registry:name@current> --to <target>` |
@@ -38,7 +39,7 @@ Keep default text; use `--json` only when code consumes raw fields or text lacks
 
 ## Versions, uncertainty, and upgrades
 
-`pkg info` takes an unversioned package and reports latest known metadata, not historical release facts. Retrieval time does not prove registry freshness. Missing fields are unavailable, not evidence of absence.
+`pkg info` takes an unversioned package, describes the default selected release and explains a skipped registry latest. JSON separates `version`/`publishedAt` from `latestVersion`/`latestVersionPublishedAt` and `registryLatestDifference`; no selected release means no `version`. These are not historical release facts. Retrieval time does not prove registry freshness. Missing fields are unavailable, not evidence of absence.
 
 Preserve inspected versions, unknown advisory assessments, withdrawn status, and coverage limits. Unknown does not mean unaffected. No matching advisory does not establish safety; resolver CLEAR is not a vulnerability assessment. Page counts are not necessarily inventory totals. Preserve served provenance and diff scope; never guess tags or infer package-wide absence from capped or sibling-only changes.
 

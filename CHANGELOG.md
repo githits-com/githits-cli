@@ -5,6 +5,30 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.39.0] - 2026-11-04
+
+### Added
+
+- **Advisory ID lookup** - Add CLI-only `githits vulns <ids...>` for CVE and OSV IDs, with attributed affected packages, normalized ranges, source-reported fixes, and explicit partial outcomes. Text and JSON read all available package pages; `--verbose` adds original source evidence, including with `--json`. Requires the cohesive PkgSeer lookup backend; MCP has no equivalent tool.
+
+### Changed
+
+- **Compact advisory lookup** - Lead with reported CVSS and linked affected packages, preserve source disagreements and trust markers, and show recovery actions and truncation explicitly. JSON separates package evidence, shared sources, coverage, and diagnostics; source fix lists do not establish safe upgrades.
+
+### Fixed
+
+- **Show the selected package release** - CLI package overviews use the default selected release and its publish date, and explain a skipped registry latest. JSON adds `latestVersion`, `latestVersionPublishedAt`, and `registryLatestDifference`; `version` is omitted when no release is selected. Requires the public API's selected-release fields.
+- **Advisory eval telemetry** - Count CLI-only `vulns` calls in agent-eval traces.
+
+## [@githits/mcp 0.39.0] - 2026-11-04
+
+Requires the public API's selected-release fields. Hosted clients receive this
+change after the released package is adopted and deployed by `remote-mcp`.
+
+### Fixed
+
+- **Show the selected package release** - Package overviews use the default selected release and its publish date, and explain a skipped registry latest. JSON adds `latestVersion`, `latestVersionPublishedAt`, and `registryLatestDifference`; `version` is omitted when no release is selected. Custom service implementations must supply the selected `version` and `publishedAt` rather than relying on `latestVersion` for the overview.
+
 ## [githits 0.38.1] - 2026-11-03
 
 ### Changed
