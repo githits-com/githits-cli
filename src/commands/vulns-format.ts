@@ -339,9 +339,9 @@ export function formatVulns(
       add(`Details: ${advisory.id}`);
       lines.push(...formatOsvSourceMetadata(advisory, width));
       if (advisory.explanation) {
-        add("  Explanation:");
+        add("  Advisory text:");
         lines.push(...literalMarkdownLines(advisory.explanation));
-      } else add("  No explanation supplied by source.");
+      } else add("  No advisory text supplied by source.");
       for (const severity of advisory.severity ?? [])
         add(
           `  ${originalSeverity(
@@ -362,6 +362,10 @@ export function formatVulns(
         for (const url of urls) add(`      ${url || "URL unavailable"}`);
       }
     }
+  }
+  if (!options.verbose && reports.some((report) => report.advisory)) {
+    add();
+    add("Full advisory report: add --verbose.");
   }
   return `${lines.map(sanitizeTerminalText).join("\n")}\n`;
 }

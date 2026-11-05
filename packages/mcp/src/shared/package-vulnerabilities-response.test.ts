@@ -1413,7 +1413,11 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
       line.startsWith("... (+2"),
     );
     expect(hintIndex).toBeGreaterThan(-1);
-    const hintLines = sectionLines.slice(hintIndex);
+    const hintLines = sectionLines
+      .slice(hintIndex)
+      .join("\n")
+      .split("\n\n")[0]!
+      .split("\n");
     expect(hintLines.every((line) => line.length <= 20)).toBe(true);
     expect(hintLines.join(" ").replace(/\s+/g, " ")).toContain(
       "... (+2 more; use verbose=true or format=json)",
@@ -1555,7 +1559,9 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
       line.includes("body-parser@1.19.0  [non-affecting]"),
     );
     expect(headlineIndex).toBeGreaterThan(-1);
-    const historicalLines = lines.slice(headlineIndex + 1).filter(Boolean);
+    const historicalLines = lines
+      .slice(headlineIndex + 1)
+      .filter((line) => line.startsWith(" "));
     expect(historicalLines).toEqual([
       "            advisory ranges >= 1.0.0, < 1.20.3",
       "            advisory fixes  1.20.3, 2.0.0",
@@ -1956,7 +1962,7 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     expect(output).toContain("6 vulnerabilities affect this version");
     expect(output).toContain("MALWARE");
     expect(output).toContain("GHSA-mmmm-mmmm-mmmm");
-    expect(output).toContain("Fix version: 4.18.2.");
+    expect(output).toContain("Candidate fix version: 4.18.2.");
   });
 
   it("shows MALWARE | crit combined label for malicious + severe advisory", () => {
@@ -2001,7 +2007,7 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     expect(output).toContain("(requested v4.18.0)");
   });
 
-  it("renders Fix versions: A, B, C. for multiple paths", () => {
+  it("renders Candidate fix versions: A, B, C. for multiple paths", () => {
     const fixture = cloneFixture();
     if (fixture.security) {
       fixture.security.upgradePaths = ["4.17.4", "4.18.2"];
@@ -2009,7 +2015,7 @@ describe("formatPackageVulnerabilitiesTerminal", () => {
     const output = formatPackageVulnerabilitiesTerminal(fixture, {
       useColors: false,
     });
-    expect(output).toContain("Fix versions: 4.17.4, 4.18.2.");
+    expect(output).toContain("Candidate fix versions: 4.17.4, 4.18.2.");
   });
 
   it("omits fix-version footer when no paths", () => {

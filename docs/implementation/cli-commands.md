@@ -37,7 +37,7 @@ remains human-readable.
 | `settings terms accept` | — | `--yes`, `--json` | Confirm and accept the current Terms of Service |
 | `pkg info <spec>` | package spec | `--verbose`, `--json` | Show a package overview (default selected release, downloads, license, vulnerabilities) |
 | `vulns <ids...>` | one or several CVE/OSV IDs or recorded aliases | `--verbose`, `--json` | Attributed source and backend-grouped affected packages across IDs; reads all available package pages with explicit partial outcomes |
-| `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--transitive`, `--source-details`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift/pub), optionally including affected versions resolved in its dependency graph |
+| `pkg vulns <spec>` | package spec (optional `@version`) | `--severity`, `--scope`, `--include-withdrawn`, `--transitive`, `--details`, `--verbose`, `--json` | List known vulnerabilities for a package (npm/pypi/hex/crates/nuget/maven/packagist/rubygems/go/swift/pub), optionally including affected versions resolved in its dependency graph |
 | `pkg deps <spec>` | package spec (optional `@version`) | `--lifecycle`, `--depth`, `--issues`, `--verbose`, `--json` | Analyse dependencies: direct runtime deps, structured groups, optional capped transitive graph, and opt-in dependency issue analysis (npm/pypi/hex/crates/nuget/maven/zig/vcpkg/packagist/rubygems/go/swift/pub) |
 | `pkg changelog <spec>` | package spec (`registry:name[@version\|@from..to]`) | `--from`, `--to`, `--limit`, `--changes`, `--no-body`, `--verbatim`, `--verbose`, `--json` | All parsed statements with available classifications. `--changes` filters; `--verbatim` shows original notes instead, `--verbose` is its deprecated alias; `--no-body` shows only the timeline. |
 | `pkg upgrade-review [spec]` | single package spec with current version plus `--to`, positional package range, OR repeatable `--package` ranges | `--to`, repeatable `--package`, `--changes <view>`, `--no-transitive-security`, `--dependency-issues`, `--min-severity`, `--verbose`, `--json` | Compare current and target versions for vulnerabilities, release-note statements, compatibility and dependency changes, and security evidence. `--changes` filters detailed quotes; whole-range counters and batch ranking remain unchanged. Reports evidence without a package verdict. |
@@ -682,10 +682,10 @@ field selection, partial-envelope handling and continuation.
 ### `githits pkg vulns`
 
 Full current OSV source Markdown is available with
-`githits pkg vulns <spec> --source-details` for selected direct rows, or
-`githits vulns <advisory-id> --verbose` for one source explanation and original
+`githits pkg vulns <spec> --details` for selected direct rows, or
+`githits vulns <advisory-id> --verbose` for one advisory report and original
 affected evidence. Add `--json` for complete normalized Markdown and typed source
-metadata. Package `--verbose` and `--json` alone do not add live source reads.
+metadata. Compact package text ends with a quoted runnable command using the first displayed direct ID and advertises `--details` for all selected direct reports. With only dependency findings it links to a concrete dependency ID instead. Compact `vulns` prints `Full advisory report: add --verbose.` once when any input resolves an advisory, including partial results. Package `--verbose` and `--json` alone do not add live source reads.
 
 ```
 githits pkg vulns npm:express
@@ -702,7 +702,7 @@ Lists known CVE / OSV advisories for a package: severity, affected version
 ranges, fix versions, and upgrade targets. CLI text shows every selected direct
 and transitive advisory row. `--verbose` adds aliases, dates where relevant,
 malicious-advisory markers, and complete range/fix evidence without changing row
-completeness. `--json` emits the complete structured envelope. MCP compact text
+completeness. `--json` emits structured assessment data; combine it with `--details` for source reports. MCP compact text
 retains its five-row cap and MCP-native completion hint; MCP verbose text is
 complete. Malicious-package advisories (supply-chain attacks flagged by OSV)
 surface in a separate `MALWARE` bucket that sorts above all CVE advisories.
@@ -769,11 +769,13 @@ that boundary.
 
 **Affected-range truncation (terminal-width aware).** The `affected` detail row under each advisory caps at 4 ranges on narrow terminals (≤119 cols), 6 on standard-wide (120–159 cols), and 8 on ultrawide (≥160 cols). The remainder collapses into a dim `... (+N more; use -v)` hint. Verbose mode (`-v`) shows every range. JSON output is never truncated — machine consumers get the full list.
 
+**Matched ranges.** Affecting direct rows show backend-provided `matchedAffectedVersionRanges` as `matched` when it differs from the complete advisory-wide affected list or that list is truncated. Identical full lists are not repeated. The client does not evaluate versions or ranges.
+
 **Unrated severity column.** Advisories with no CVSS score (common on RUSTSEC / PYSEC upstreams) render with a dim `unrated` label in the severity column rather than an empty gutter, matching the header-breakdown vocabulary. They sort below banded advisories within the active bucket.
 
 **Placeholder summary stripping.** When the upstream advisory feed returns the literal string `No summary available` (an OSV convention), both the JSON envelope and the terminal row drop the field entirely — absence of `summary` is the signal, and the advisory row is shorter as a result.
 
-**Upgrade-path ordering.** `upgradePaths` are de-duplicated and sorted ascending by semver-ish comparison (pre-release suffixes rank below the matching base release), so the footer presents the minimum-churn upgrade first: `Upgrade options: 3.11.0, 4.0.0-rc1, 4.5.0, 4.19.2, …` rather than the backend's advisory-iteration order.
+**Upgrade-path ordering.** `upgradePaths` are de-duplicated and sorted ascending by semver-ish comparison (pre-release suffixes rank below the matching base release), for predictable display as `Candidate fix versions: 3.11.0, 4.0.0-rc1, 4.5.0, 4.19.2, ...`. The backend filters these candidates against merged affected ranges across selected advisories, excluding uncertain candidates. It does not verify release existence in package catalogs. Display order does not establish upgrade suitability or minimum churn; per-advisory `fixed in` remains source-reported evidence.
 
 **Output envelope.** `{registry, name, version, requestedVersion?, filter?, summary: {total, affected?, bySeverity?}, advisories?, upgradePaths?}`. `filter` echoes only explicit caller filters and non-default advisory scope. Each direct advisory: `{id?, aliases?, summary?, severity?, severityLabel?, affectedRanges?, affectsInspectedVersion?, matchedAffectedVersionRanges?, fixedIn?, publishedAt?, modifiedAt?, withdrawnAt?, isMalicious?}`. Transitive occurrences additionally use optional advisory-wide `affectedRanges` and `fixedIn`, while required `matchedAffectedVersionRanges` and `fixVersionsAboveResolved` remain occurrence-specific evidence. `modifiedAt` included only when it differs from `publishedAt`. `isMalicious` included only when `true`.
 

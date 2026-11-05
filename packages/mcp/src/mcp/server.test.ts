@@ -184,9 +184,10 @@ const DESCRIPTION_ROUTING: Record<
     ],
   },
   pkg_vulns: {
-    prefix: /^Check current package advisories\./,
+    prefix:
+      /^Check package vulnerabilities and full advisory reports; never rely on memory\./,
     exactPrefix:
-      "Check current package advisories. Do not trust your memory for vulnerabilities. ",
+      "Check package vulnerabilities and full advisory reports; never rely on memory. A",
     body: [
       "a cutoff disclaimer is not current evidence",
       '`advisory_scope:"all"`',
@@ -573,11 +574,11 @@ describe("MCP compact target schemas", () => {
       "pkg_vulns",
       [
         "advisory_scope",
+        "details",
         "format",
         "include_transitive",
         "include_withdrawn",
         "min_severity",
-        "source_details",
         "target",
         "verbose",
       ],

@@ -73,7 +73,7 @@ describe("pkg vulns help", () => {
       "CLI text shows every selected direct and transitive advisory row",
     );
     expect(singleLineDescription).toContain(
-      "without changing row completeness. --json emits the complete structured envelope",
+      "row count is unchanged. --json returns structured assessment data",
     );
     expect(verboseOption?.description).toContain("complete range/fix evidence");
     expect(verboseOption?.description).toContain("row count is unchanged");
@@ -84,14 +84,14 @@ describe("pkg vulns help", () => {
     const help = command.helpInformation();
     expect(help).toContain("--transitive");
     expect(command.description()).toContain(
-      "npm-audit-style evidence covering vulnerabilities in versions",
+      "Use --transitive for vulnerabilities in versions",
     );
     expect(command.description()).toContain("adds graph-analysis cost");
     expect(command.description()).toContain(
       "--severity and --scope apply to direct",
     );
     expect(command.description()).toContain(
-      "--include-withdrawn affects direct package rows only",
+      "affects direct rows only; transitive withdrawn advisories remain excluded.",
     );
   });
 });
@@ -128,7 +128,7 @@ describe("pkgVulnsAction", () => {
     expect(combined).toContain("express @ 4.18.0 | npm");
     expect(combined).toContain("6 vulnerabilities affect this version");
     expect(combined).toContain("MALWARE");
-    expect(combined).toContain("Fix version: 4.18.2.");
+    expect(combined).toContain("Candidate fix version: 4.18.2.");
     expect(combined).toContain("GHSA-nnnn-nnnn-nnnn");
     writeSpy.mockRestore();
   });
@@ -828,4 +828,17 @@ describe("pkgVulnsAction", () => {
     errorSpy.mockRestore();
     exitSpy.mockRestore();
   });
+});
+
+it("advertises --details as full source reports, separately from assessment verbosity", () => {
+  const command = registerPkgVulnsCommand(new Command().command("pkg"));
+  const details = command.options.find((option) => option.long === "--details");
+  expect(details?.description).toContain(
+    "full advisory text and source metadata from OSV",
+  );
+  expect(
+    command.options.some((option) => option.long === "--source-details"),
+  ).toBe(false);
+  expect(command.description()).not.toContain("three-row pages");
+  expect(command.description()).not.toContain("complete structured envelope");
 });

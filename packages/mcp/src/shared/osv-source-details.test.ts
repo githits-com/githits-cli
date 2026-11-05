@@ -10,6 +10,16 @@ import {
 function report(): VulnerabilityReport {
   const report = structuredClone(defaultVulnerabilityReport);
   const { affected: _, ...source } = structuredClone(defaultAdvisoryDetails);
+  report.security!.vulnerabilities = [
+    {
+      ...report.security!.vulnerabilities![0]!,
+      osvId: source.osvId,
+      aliases: [],
+      isMalicious: false,
+    },
+  ];
+  report.security!.affectedVulnerabilityCount = 1;
+  report.security!.allVulnerabilityCount = 1;
   report.sourceDetails = [
     {
       advisoryId: source.osvId,
@@ -61,8 +71,8 @@ describe("full package source evidence", () => {
       expect(output).toContain("Researcher [FUTURE_ROLE]");
       expect(output).toContain("researcher@example.org");
       expect(output).toContain("Another");
-      expect(output).not.toContain("source_details=true");
-      expect(output).not.toContain("--source-details");
+      expect(output).not.toContain("details=true");
+      expect(output).not.toContain("--details");
       expect(
         buildPackageVulnerabilitiesSuccessPayload(item).sourceDetails,
       ).toEqual(item.sourceDetails);
@@ -75,15 +85,25 @@ describe("full package source evidence", () => {
       { ...first, osvId: "A", aliases: ["B"] },
       { ...first, osvId: "B", aliases: ["A"] },
     ];
-    item.sourceDetails!.push(
-      structuredClone(item.sourceDetails![0]!),
-      { advisoryId: null, source: null },
-      { advisoryId: null, source: null },
-    );
+    const source = item.sourceDetails![0]!.source!;
+    item.security!.vulnerabilities!.push({ ...first, osvId: "A" }, {}, {});
+    item.sourceDetails = ["A", "B", "A", null, null].map((id) => ({
+      advisoryId: id,
+      source: id ? { ...source, osvId: id } : null,
+    }));
     const payload = buildPackageVulnerabilitiesSuccessPayload(item);
-    expect(payload.advisories).toHaveLength(1);
+    expect(payload.advisories).toHaveLength(3);
     expect(payload.sourceDetails).toEqual(item.sourceDetails);
-    expect(payload.sourceDetails).toHaveLength(4);
+    expect(payload.sourceDetails).toHaveLength(5);
+    const text = formatPackageVulnerabilitiesTerminal(item).replace(
+      /\s+/g,
+      " ",
+    );
+    expect(text).toContain("[1/5] A");
+    expect(text).toContain("[2/5] B");
+    expect(text).toContain("[3/5] A");
+    expect(text).toContain("[4/5] (no source ID)");
+    expect(text).toContain("[5/5] (no source ID)");
   });
   it("does not cap source bodies at the MCP assessment cap", () => {
     const item = report();
@@ -92,6 +112,9 @@ describe("full package source evidence", () => {
       ...entry,
       advisoryId: `OSV-${i}`,
       source: { ...entry.source!, osvId: `OSV-${i}`, details: `BODY-${i}` },
+    }));
+    item.security!.vulnerabilities = item.sourceDetails.map((entry) => ({
+      osvId: entry.advisoryId ?? undefined,
     }));
     const output = formatPackageVulnerabilitiesTerminal(item, {
       surface: "mcp",
@@ -114,9 +137,13 @@ describe("full package source evidence", () => {
         },
       },
     );
+    item.security!.vulnerabilities = item.sourceDetails!.map((entry) => ({
+      osvId: entry.advisoryId ?? undefined,
+      severityScore: 7.5,
+    }));
     const output = formatPackageVulnerabilitiesTerminal(item);
-    expect(output).toContain("No explanation supplied by source.");
-    expect(output).toContain("MISSING: Current OSV source unavailable.");
+    expect(output).toContain("No advisory text supplied by source.");
+    expect(output).toContain("Current OSV source unavailable.");
     expect(output).toContain("RATE_LIMITED");
     expect(output.replace(/\s+/g, " ")).toContain("Retry after 1.5s.");
     const { sourceDetails: _, ...without } = item;
@@ -129,13 +156,13 @@ describe("full package source evidence", () => {
     delete item.sourceDetails;
     expect(
       formatPackageVulnerabilitiesTerminal(item, { surface: "cli" }),
-    ).toContain("githits vulns <id> --verbose");
+    ).toContain("githits vulns --verbose -- 'OSV-example'");
     const mcp = formatPackageVulnerabilitiesTerminal(item, { surface: "mcp" });
-    expect(mcp).toContain("source_details=true");
-    expect(mcp).not.toContain("--source-details");
+    expect(mcp).toContain("details=true");
+    expect(mcp).not.toContain("--details");
     item.security!.vulnerabilities = [];
     expect(formatPackageVulnerabilitiesTerminal(item)).not.toContain(
-      "Full current OSV",
+      "Full advisory report:",
     );
   });
 });
@@ -150,7 +177,7 @@ it("keeps metadata word boundaries and labels source Markdown separately", () =>
   expect(output).toContain("First line Second line tabbed");
   expect(output).toContain("    A B");
   expect(output).toContain("      first second");
-  expect(output).toContain("  Explanation:\n  Modified: 1999-01-01");
+  expect(output).toContain("  Advisory text:\n  Modified: 1999-01-01");
   expect(
     buildPackageVulnerabilitiesSuccessPayload(item).sourceDetails![0]!.source,
   ).toEqual(source);
@@ -165,4 +192,161 @@ it("normalizes zero-column terminal widths for full source metadata and default 
   expect(formatPackageVulnerabilitiesTerminal(item, { terminalWidth: 0 })).toBe(
     formatPackageVulnerabilitiesTerminal(item, { terminalWidth: 20 }),
   );
+});
+
+it("offers a real advisory command and the details option in native text", () => {
+  const item = report();
+  delete item.sourceDetails;
+  const first = buildPackageVulnerabilitiesSuccessPayload(
+    item,
+  ).advisories!.find((a) => a.id)!.id!;
+  const cli = formatPackageVulnerabilitiesTerminal(item, {
+    surface: "cli",
+  }).replace(/\s+/g, " ");
+  expect(cli).toContain(
+    `Full advisory report: githits vulns --verbose -- '${first}'`,
+  );
+  expect(cli).toContain("--details");
+  expect(cli).not.toContain("<id>");
+  const mcp = formatPackageVulnerabilitiesTerminal(item, { surface: "mcp" });
+  expect(mcp).toContain("details=true");
+  expect(mcp).not.toContain("githits vulns");
+});
+
+it.each([false, true])(
+  "orders source reports by actual alias groups and retains raw context (alias=%s)",
+  (alias) => {
+    const item = report();
+    const template = item.sourceDetails![0]!.source!;
+    const raw = [
+      {
+        osvId: "LOW",
+        severityScore: 3,
+        aliases: alias ? ["HIGH"] : [],
+        duplicateIds: ["HIGH"],
+        assessmentStatus: "AFFECTED",
+        affectsInspectedVersion: true,
+      },
+      {
+        osvId: "HIGH",
+        severityScore: 9.5,
+        aliases: [],
+        assessmentStatus: "NON_AFFECTING",
+        affectsInspectedVersion: false,
+      },
+      {
+        severityScore: 1,
+        aliases: [],
+        assessmentStatus: "UNKNOWN",
+        affectsInspectedVersion: false,
+      },
+      {
+        severityScore: 8,
+        aliases: [],
+        assessmentStatus: "AFFECTED",
+        affectsInspectedVersion: true,
+      },
+    ];
+    item.security!.vulnerabilities = raw;
+    item.security!.affectedVulnerabilityCount = 2;
+    item.security!.nonAffectingVulnerabilityCount = 1;
+    item.security!.unknownVulnerabilityCount = 1;
+    item.security!.allVulnerabilityCount = 4;
+    item.sourceDetails = raw.map((row) => ({
+      advisoryId: row.osvId ?? null,
+      source: row.osvId
+        ? {
+            ...template,
+            osvId: row.osvId,
+            sourceUrl: `https://osv.dev/vulnerability/${row.osvId}`,
+            details: `BODY-${row.osvId}`,
+          }
+        : null,
+    }));
+    const before = JSON.stringify(item);
+    const output = formatPackageVulnerabilitiesTerminal(item).replace(
+      /\s+/g,
+      " ",
+    );
+    const reports = output.split("Current advisory reports from OSV")[1]!;
+    expect(reports).toBeDefined();
+    if (alias)
+      expect(reports.indexOf("BODY-LOW")).toBeLessThan(
+        reports.indexOf("BODY-HIGH"),
+      );
+    else
+      expect(reports.indexOf("BODY-HIGH")).toBeLessThan(
+        reports.indexOf("BODY-LOW"),
+      );
+    expect(reports).toContain("LOW | Assessment: low; affects this version");
+    expect(reports).toContain("HIGH | Assessment: critical; non-affecting");
+    expect(reports).toContain("Unlinked source records:");
+    expect(reports).toContain(
+      "[3/4] (no source ID) | Assessment: low; unknown",
+    );
+    expect(reports).toContain(
+      "[4/4] (no source ID) | Assessment: high; affects this version",
+    );
+    expect(
+      buildPackageVulnerabilitiesSuccessPayload(item).sourceDetails,
+    ).toEqual(item.sourceDetails);
+    expect(JSON.stringify(item)).toBe(before);
+  },
+);
+
+it.each([
+  "$(touch /tmp/unwanted)",
+  "-GHSA-leading",
+  "GHSA-quote'and;semicolon",
+])("quotes the real advisory ID in runnable commands: %s", (id) => {
+  const item = report();
+  delete item.sourceDetails;
+  item.security!.vulnerabilities = [{ osvId: id }];
+  const output = formatPackageVulnerabilitiesTerminal(item, {
+    terminalWidth: 160,
+  });
+  const quoted = `'${id.replaceAll("'", `'"'"'`)}'`;
+  expect(output).toContain(`githits vulns --verbose -- ${quoted}`);
+});
+
+it("links null-ID source outcomes only through recorded aliases", () => {
+  const item = report();
+  const source = item.sourceDetails![0]!.source!;
+  item.security!.vulnerabilities = [
+    { aliases: [source.osvId], severityScore: 3 },
+    { osvId: source.osvId, severityScore: 9 },
+  ];
+  item.sourceDetails = [
+    { advisoryId: null, source: null },
+    { advisoryId: source.osvId, source },
+  ];
+  const output = formatPackageVulnerabilitiesTerminal(item).replace(
+    /\s+/g,
+    " ",
+  );
+  expect(output).toContain("[1/2] (no source ID) | Assessment: low");
+  expect(output).toContain(`[2/2] ${source.osvId} | Assessment: critical`);
+  expect(output).not.toContain("Unlinked source records:");
+});
+
+it("shows backend matched strings only for affecting rows with distinct evidence", () => {
+  const item = report();
+  delete item.sourceDetails;
+  const row = {
+    osvId: "A",
+    assessmentStatus: "AFFECTED",
+    affectsInspectedVersion: true,
+    affectedVersionRanges: ["first backend range", "second backend range"],
+    matchedAffectedVersionRanges: ["second backend range"],
+  };
+  item.security!.vulnerabilities = [row];
+  expect(formatPackageVulnerabilitiesTerminal(item)).toContain(
+    "matched  second backend range",
+  );
+  row.matchedAffectedVersionRanges = [...row.affectedVersionRanges];
+  expect(formatPackageVulnerabilitiesTerminal(item)).not.toContain("matched ");
+  row.assessmentStatus = "UNKNOWN";
+  row.affectsInspectedVersion = false;
+  row.matchedAffectedVersionRanges = ["second backend range"];
+  expect(formatPackageVulnerabilitiesTerminal(item)).not.toContain("matched ");
 });

@@ -63,15 +63,7 @@ const base: LeanVulnerabilityReport = JSON.parse(
 );
 assert.equal(base.sourceDetails, undefined);
 const full: LeanVulnerabilityReport = JSON.parse(
-  await cli([
-    "pkg",
-    "vulns",
-    target,
-    "--scope",
-    "all",
-    "--source-details",
-    "--json",
-  ]),
+  await cli(["pkg", "vulns", target, "--scope", "all", "--details", "--json"]),
 );
 check(full);
 const { sourceDetails: _, ...assessment } = full;
@@ -80,14 +72,7 @@ assert.deepEqual(
   base,
   "Current source must not change imported assessment",
 );
-const text = await cli([
-  "pkg",
-  "vulns",
-  target,
-  "--scope",
-  "all",
-  "--source-details",
-]);
+const text = await cli(["pkg", "vulns", target, "--scope", "all", "--details"]);
 for (const entry of full.sourceDetails) {
   const source = entry.source;
   const direct: VulnsResponse = JSON.parse(
@@ -131,7 +116,7 @@ try {
     arguments: {
       target,
       advisory_scope: "all",
-      source_details: true,
+      details: true,
       format: "json",
     },
   });
@@ -144,7 +129,7 @@ try {
   assert.deepEqual(mcp, full);
   const responseText = await client.callTool({
     name: "pkg_vulns",
-    arguments: { target, advisory_scope: "all", source_details: true },
+    arguments: { target, advisory_scope: "all", details: true },
   });
   assert(!responseText.isError);
   const textBlock = (
@@ -158,7 +143,21 @@ try {
       for (const line of entry.source.details.split(/\r\n|\r|\n/))
         if (line) assert(mcpText.includes(line.replace(/\t/g, "    ")));
   }
-  assert(!mcpText.includes("--source-details"));
+  const compactResponse = await client.callTool({
+    name: "pkg_vulns",
+    arguments: { target, advisory_scope: "all" },
+  });
+  assert(!compactResponse.isError);
+  const compactBlock = (
+    compactResponse.content as Array<{ type: string; text?: string }>
+  )[0];
+  assert(
+    compactBlock?.type === "text" && typeof compactBlock.text === "string",
+  );
+  const footer = compactBlock.text.split("Full advisory report:")[1];
+  assert(footer);
+  assert(footer.includes("details=true"));
+  assert(!footer.includes("githits vulns"));
 } finally {
   await client.close();
 }
