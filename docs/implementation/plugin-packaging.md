@@ -54,6 +54,10 @@ outputs instead of creating or deleting them.
 The Claude manifest points to the root SVG icon and the public GitHits privacy
 policy. It also declares `displayName: "GitHits"`, the publisher contact
 `support@githits.com`, and an author URL derived from the package homepage.
+Directory listing links explicitly point to GitHits support and terms of service;
+`documentationUrl` follows the package homepage. These directory-only fields
+belong in the Claude manifest, not the marketplace entry. Classification remains
+directory-assigned.
 The icon is the Pulse monogram avatar from the GitHits product-context
 brand assets. Keep these manifest fields in the generator so regenerated manifests
 retain them. The root npm `files` allow-list includes `githits-icon.svg`;

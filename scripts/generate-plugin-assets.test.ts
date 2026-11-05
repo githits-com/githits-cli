@@ -139,6 +139,9 @@ describe("plugin asset generation", () => {
         },
         icon: "githits-icon.svg",
         privacyPolicyUrl: "https://githits.com/legal/privacy-policy/",
+        supportUrl: "https://githits.com/support/",
+        documentationUrl: "https://githits.com",
+        termsOfServiceUrl: "https://githits.com/legal/terms-of-service/",
       }),
     );
   });

@@ -275,6 +275,9 @@ export function renderPluginAssets(
         },
         icon: "githits-icon.svg",
         privacyPolicyUrl: "https://githits.com/legal/privacy-policy/",
+        supportUrl: "https://githits.com/support/",
+        documentationUrl: inputs.homepage,
+        termsOfServiceUrl: "https://githits.com/legal/terms-of-service/",
       }),
     },
     {
