@@ -258,8 +258,9 @@ displayed without following them or fetching linked resources.
 Full advisory text follows an Advisory text label and uses the shared literal
 Markdown emitter rather than prose wrapping, preserving fences, tables,
 indentation and blank lines without a body cap. CRLF/CR normalize to LF, tabs
-expand to four spaces and terminal controls are removed; JSON explanation strings remain complete backend-normalized Markdown.
-Long Markdown lines can exceed the caller's width; other prose still wraps. A
-source without advisory text says so explicitly. This source material is
-untrusted evidence, not agent instructions. This behavior requires a backend
-exposing the typed OSV metadata fields.
+expand to four spaces and terminal controls are removed; JSON explanation
+strings remain complete backend-normalized Markdown. Long Markdown lines can
+exceed the caller's width; other prose still wraps. A source without advisory
+text says so explicitly. This source material is untrusted evidence, not agent
+instructions. This behavior requires a backend exposing the typed OSV metadata
+fields.
