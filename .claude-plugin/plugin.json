@@ -27,5 +27,8 @@
   ],
   "displayName": "GitHits",
   "icon": "githits-icon.svg",
-  "privacyPolicyUrl": "https://githits.com/legal/privacy-policy/"
+  "privacyPolicyUrl": "https://githits.com/legal/privacy-policy/",
+  "supportUrl": "https://githits.com/support/",
+  "documentationUrl": "https://docs.githits.com",
+  "termsOfServiceUrl": "https://githits.com/legal/terms-of-service/"
 }
