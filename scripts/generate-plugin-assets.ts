@@ -13,6 +13,7 @@ export const CANONICAL_SKILL_NAMES = [
 export const AGENT_PLUGINS_VERSION = "1.0.0";
 export const AGENT_PLUGINS_SCHEMA_URL = `https://agent-plugins.org/schemas/${AGENT_PLUGINS_VERSION}/plugin.schema.json`;
 export const AGENT_PLUGINS_MCP_SCHEMA_URL = `https://agent-plugins.org/schemas/${AGENT_PLUGINS_VERSION}/mcp.schema.json`;
+export const CLAUDE_PLUGIN_ROOT = "plugins/claude";
 
 export const GENERATED_PLUGIN_ASSET_PATHS = [
   ".plugin/plugin.json",
@@ -92,7 +93,7 @@ export interface PluginAssetInputs {
 }
 
 export interface GeneratedPluginAsset {
-  path: (typeof GENERATED_PLUGIN_ASSET_PATHS)[number];
+  path: string;
   content: string;
 }
 
@@ -292,8 +293,9 @@ export function renderPluginAssets(
           {
             ...sharedManifest,
             source: {
-              source: "url",
+              source: "git-subdir",
               url: "https://github.com/githits-com/githits-cli.git",
+              path: CLAUDE_PLUGIN_ROOT,
             },
             category: "developer-tools",
           },
@@ -397,6 +399,78 @@ async function readJson<T>(path: string): Promise<T> {
   return JSON.parse(await readFile(path, "utf8")) as T;
 }
 
+/** Enumerate regular payload files; directory submissions cannot load symlinks. */
+async function listPayloadFiles(
+  root: string,
+  directory: string,
+): Promise<string[]> {
+  const paths: string[] = [];
+  const entries = await readdir(join(root, directory), { withFileTypes: true });
+  for (const entry of entries) {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory()) {
+      paths.push(...(await listPayloadFiles(root, path)));
+    } else if (entry.isFile()) {
+      paths.push(path);
+    } else {
+      throw new Error(`Plugin payload must contain regular files: ${path}`);
+    }
+  }
+  return paths.sort();
+}
+
+/** Package Claude without the monorepo manifests that trigger dependency installs. */
+async function renderClaudePayload(
+  root: string,
+  assets: GeneratedPluginAsset[],
+  skillNames: string[],
+): Promise<GeneratedPluginAsset[]> {
+  const payload = assets
+    .filter((asset) =>
+      [".claude-plugin/plugin.json", ".mcp.json"].includes(asset.path),
+    )
+    .map((asset) => ({
+      ...asset,
+      path: `${CLAUDE_PLUGIN_ROOT}/${asset.path}`,
+    }));
+  const paths = ["LICENSE", "githits-icon.svg"];
+  for (const name of skillNames) {
+    paths.push(...(await listPayloadFiles(root, `skills/${name}`)));
+  }
+  for (const path of paths) {
+    payload.push({
+      path: `${CLAUDE_PLUGIN_ROOT}/${path}`,
+      content: await readFile(join(root, path), "utf8"),
+    });
+  }
+  payload.push({
+    path: `${CLAUDE_PLUGIN_ROOT}/README.md`,
+    content: `# GitHits for Claude
+
+GitHits connects Claude to public open-source code, documentation, package
+metadata, vulnerabilities, changelogs, and implementation examples. The plugin
+includes four skills for MCP research, CLI code and package research, and setup.
+
+Install in Claude Code:
+
+    /plugin install githits --marketplace githits-com/githits-cli
+
+The connector uses the hosted MCP server at https://mcp.githits.com. Sign in to
+GitHits when prompted. Research requests send public repository or package
+targets and search queries to GitHits; do not send private code or credentials.
+Some research tools consume credits and save results or research threads.
+
+The CLI skills require shell access and an installed GitHits CLI. The onboarding
+skill can guide CLI installation, sign-in, and coding-tool configuration when
+requested. Installing this plugin does not install the CLI or Node dependencies.
+
+Documentation: https://docs.githits.com
+Privacy policy: https://githits.com/legal/privacy-policy/
+`,
+  });
+  return payload;
+}
+
 async function discoverSkillNames(root: string): Promise<string[]> {
   const skillsRoot = join(root, "skills");
   const entries = await readdir(skillsRoot, { withFileTypes: true });
@@ -474,6 +548,29 @@ export async function generatePluginAssets(
   const assets = renderPluginAssets(
     createPluginAssetInputs(packageJson, serverJson, skillNames),
   );
+  const claudePayload = await renderClaudePayload(root, assets, skillNames);
+  assets.push(...claudePayload);
+
+  // Reject obsolete or accidental additions, including package manifests and locks.
+  let existingPayloadPaths: string[] = [];
+  try {
+    existingPayloadPaths = await listPayloadFiles(root, CLAUDE_PLUGIN_ROOT);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw error;
+    }
+  }
+  const expectedPayloadPaths = new Set(
+    claudePayload.map((asset) => asset.path),
+  );
+  const unexpectedPaths = existingPayloadPaths.filter(
+    (path) => !expectedPayloadPaths.has(path),
+  );
+  if (unexpectedPaths.length > 0) {
+    throw new Error(
+      `Unexpected Claude plugin files:\n${unexpectedPaths.join("\n")}`,
+    );
+  }
 
   const stalePaths: string[] = [];
   for (const asset of assets) {

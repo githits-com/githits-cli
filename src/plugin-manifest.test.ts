@@ -6,13 +6,13 @@ import { GITHITS_SKILL_CATALOG } from "./commands/init/guidance-assets.js";
 describe("plugin manifest wiring", () => {
   const root = join(import.meta.dir, "..");
 
-  it("points the first-party Claude marketplace at the root payload", async () => {
+  it("points the first-party Claude marketplace at the dependency-free payload", async () => {
     const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
     const contents = await readFile(marketplacePath, "utf8");
     const parsed = JSON.parse(contents) as {
       plugins?: Array<{
         name?: string;
-        source?: { source?: string; url?: string };
+        source?: { source?: string; url?: string; path?: string };
       }>;
     };
 
@@ -21,9 +21,42 @@ describe("plugin manifest wiring", () => {
     );
     expect(githitsPlugin).toBeDefined();
     expect(githitsPlugin?.source).toEqual({
-      source: "url",
+      source: "git-subdir",
       url: "https://github.com/githits-com/githits-cli.git",
+      path: "plugins/claude",
     });
+  });
+
+  it("ships a self-contained Claude payload with canonical skill bytes", async () => {
+    const payloadRoot = join(root, "plugins", "claude");
+    const paths = (await readdir(payloadRoot, { recursive: true })).map(
+      (path) => path.replaceAll("\\", "/"),
+    );
+    const files: string[] = [];
+    for (const path of paths) {
+      const stats = await lstat(join(payloadRoot, path));
+      expect(stats.isSymbolicLink()).toBe(false);
+      if (stats.isFile()) files.push(path);
+    }
+    const skills = (await readdir(join(root, "skills"), { recursive: true }))
+      .map((path) => path.replaceAll("\\", "/"))
+      .filter((path) => path.endsWith(".md"))
+      .map((path) => `skills/${path}`);
+    const copiedPaths = [
+      ".claude-plugin/plugin.json",
+      ".mcp.json",
+      "LICENSE",
+      "githits-icon.svg",
+      ...skills,
+    ];
+    expect(files.sort()).toEqual([...copiedPaths, "README.md"].sort());
+    for (const path of copiedPaths) {
+      expect(await readFile(join(payloadRoot, path), "utf8")).toBe(
+        await readFile(join(root, path), "utf8"),
+      );
+    }
+    const readme = await readFile(join(payloadRoot, "README.md"), "utf8");
+    expect(readme.trim().split(/\s+/).length).toBeGreaterThanOrEqual(40);
   });
 
   it("keeps generated host manifest versions aligned", async () => {
@@ -123,10 +156,7 @@ describe("plugin manifest wiring", () => {
       "githits-package",
     ]);
 
-    for (const legacyPath of [
-      join(root, "plugins", "claude"),
-      join(root, "commands"),
-    ]) {
+    for (const legacyPath of [join(root, "commands")]) {
       try {
         const entries = await readdir(legacyPath, {
           recursive: true,

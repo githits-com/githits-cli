@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "githits": {
+      "type": "http",
+      "url": "https://mcp.githits.com"
+    }
+  }
+}
