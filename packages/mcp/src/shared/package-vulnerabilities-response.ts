@@ -1119,8 +1119,8 @@ export function formatPackageVulnerabilitiesTerminal(
     (payload.sourceDetails !== undefined || !payload.advisories?.length)
       ? wrapTerminalProse(
           surface === "mcp"
-            ? `${payload.sourceDetails !== undefined ? "Embedded reports cover selected direct advisories. " : ""}For dependency advisory reports, call pkg_vulns on the dependency registry:name@resolvedVersion with details=true.`
-            : `${payload.sourceDetails !== undefined ? "Embedded reports cover selected direct advisories. " : ""}${dependencyId ? `Full dependency advisory report: ${advisoryReportCommand(dependencyId)}` : ""}`,
+            ? `${payload.sourceDetails?.length ? "Source results cover selected direct advisories. " : ""}For dependency advisory reports, call pkg_vulns on the dependency registry:name@resolvedVersion with details=true.`
+            : `${payload.sourceDetails?.length ? "Source results cover selected direct advisories. " : ""}${dependencyId ? `Full dependency advisory report: ${advisoryReportCommand(dependencyId)}` : ""}`,
           width,
         ).join("\n")
       : undefined;

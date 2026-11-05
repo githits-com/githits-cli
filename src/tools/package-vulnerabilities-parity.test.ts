@@ -1142,11 +1142,19 @@ it.each([false, true])(
       {},
     );
     const mcp = (result.content[0]?.text ?? "").replace(/\s+/g, " ");
-    expect(cli).toContain("Embedded reports cover selected direct advisories.");
+    expect(
+      cli.includes("Source results cover selected direct advisories."),
+    ).toBe(directRows);
     expect(cli).toContain("githits vulns --verbose -- 'GHSA-body-parser'");
-    expect(mcp).toContain("Embedded reports cover selected direct advisories.");
+    expect(
+      mcp.includes("Source results cover selected direct advisories."),
+    ).toBe(directRows);
     expect(mcp).toContain("registry:name@resolvedVersion with details=true");
     expect(mcp).not.toContain("githits vulns");
+    if (directRows) {
+      expect(cli).toContain("Current OSV source unavailable.");
+      expect(mcp).toContain("Current OSV source unavailable.");
+    }
   },
 );
 
@@ -1171,23 +1179,52 @@ it.each([undefined, false, true])(
   },
 );
 
-it("offers dependency reports on MCP without claiming unrequested reports are embedded", async () => {
-  const report = transitiveVulnerabilityReport();
-  report.security!.vulnerabilities = [];
-  report.security!.affectedVulnerabilityCount = 0;
-  report.security!.allVulnerabilityCount = 0;
-  const tool = createParityMcpTool("pkg_vulns", {
-    packageIntelligenceService: createMockPackageIntelligenceService({
+it.each([undefined, true])(
+  "offers dependency-only reports with details=%s without claiming empty reports are embedded",
+  async (details) => {
+    const report = transitiveVulnerabilityReport();
+    report.security!.vulnerabilities = [];
+    report.security!.affectedVulnerabilityCount = 0;
+    report.security!.allVulnerabilityCount = 0;
+    if (details) report.sourceDetails = [];
+    const service = createMockPackageIntelligenceService({
       packageVulnerabilities: mock(async () => report),
-    }),
-  });
-  const response = await tool.handler(
-    { target: "npm:express", include_transitive: true },
-    {},
-  );
-  const text = (response.content[0]?.text ?? "").replace(/\s+/g, " ");
-  expect(text).toContain("For dependency advisory reports, call pkg_vulns");
-  expect(text).toContain("with details=true");
-  expect(text).not.toContain("Embedded reports");
-  expect(text).not.toContain("githits vulns");
-});
+    });
+    const writes: string[] = [];
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      (chunk) => {
+        writes.push(String(chunk));
+        return true;
+      },
+    );
+    try {
+      await pkgVulnsAction(
+        "npm:express",
+        { details, transitive: true },
+        cliDeps({ packageIntelligenceService: service }),
+      );
+    } finally {
+      writeSpy.mockRestore();
+    }
+    const cli = stripVTControlCharacters(writes.join("")).replace(/\s+/g, " ");
+    expect(cli).toContain(
+      "Full dependency advisory report: githits vulns --verbose -- 'GHSA-body-parser'",
+    );
+    expect(cli).not.toContain("Source results cover");
+    expect(cli).not.toContain("--details");
+    const tool = createParityMcpTool("pkg_vulns", {
+      packageIntelligenceService: createMockPackageIntelligenceService({
+        packageVulnerabilities: mock(async () => report),
+      }),
+    });
+    const response = await tool.handler(
+      { target: "npm:express", include_transitive: true, details },
+      {},
+    );
+    const text = (response.content[0]?.text ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("For dependency advisory reports, call pkg_vulns");
+    expect(text).toContain("with details=true");
+    expect(text).not.toContain("Source results cover");
+    expect(text).not.toContain("githits vulns");
+  },
+);

@@ -264,7 +264,7 @@ IDs are case-sensitive; input order and duplicates are preserved.`)
     )
     .option(
       "-v, --verbose",
-      "Add full source Markdown, typed metadata, original evidence, vectors, dates and references",
+      "Add the full advisory report: source text, source metadata, original evidence, vectors, dates and references",
     )
     .option(
       "--json",

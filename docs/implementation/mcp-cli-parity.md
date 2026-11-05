@@ -626,10 +626,12 @@ When a new tool lands with both MCP and CLI surfaces:
   Independent top-level `sourceDetails` preserves original row order/identity
   despite assessment dedup, including complete Markdown and per-source errors.
   Typed source errors retain useful assessments: CLI exits 1; MCP returns the
-  result without `isError`. When dependency occurrences are also present, text
-  explains that embedded source details cover direct rows and gives a native
+  result without `isError`. When reports were requested and dependency occurrences
+  are also present, text explains that embedded source details cover direct rows and gives a native
   follow-up: CLI `vulns <advisory-id> --verbose`, or MCP `pkg_vulns` on the
-  dependency's `registry:name@resolvedVersion` with `details: true`.
+  dependency's `registry:name@resolvedVersion` with `details: true`. Transitive-only
+  results also advertise the native dependency report route without claiming
+  source reports were already embedded.
 
 - **Permissive MCP schema + in-handler validation.**
   `buildPackageVulnerabilitiesParams` is the single validator.
