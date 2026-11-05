@@ -35,8 +35,9 @@
         "implementation examples"
       ],
       "source": {
-        "source": "url",
-        "url": "https://github.com/githits-com/githits-cli.git"
+        "source": "git-subdir",
+        "url": "https://github.com/githits-com/githits-cli.git",
+        "path": "plugins/claude"
       },
       "category": "developer-tools"
     }

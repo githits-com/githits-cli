@@ -143,7 +143,7 @@ describe("plugin asset generation", () => {
     );
   });
 
-  it("points the first-party Claude marketplace at the root payload", () => {
+  it("points the first-party Claude marketplace at the dependency-free payload", () => {
     const inputs = createPluginAssetInputs(packageJson, serverJson, [
       ...CANONICAL_SKILL_NAMES,
     ]);
@@ -153,13 +153,14 @@ describe("plugin asset generation", () => {
       )?.content ?? "{}",
     ) as {
       plugins?: Array<{
-        source?: { source?: string; url?: string };
+        source?: { source?: string; url?: string; path?: string };
       }>;
     };
 
     expect(marketplace.plugins?.[0]?.source).toEqual({
-      source: "url",
+      source: "git-subdir",
       url: "https://github.com/githits-com/githits-cli.git",
+      path: "plugins/claude",
     });
   });
 
@@ -190,6 +191,8 @@ describe("plugin asset generation", () => {
     try {
       await writeFile(join(root, "package.json"), JSON.stringify(packageJson));
       await writeFile(join(root, "server.json"), JSON.stringify(serverJson));
+      await writeFile(join(root, "LICENSE"), "License fixture\n");
+      await writeFile(join(root, "githits-icon.svg"), "<svg/>\n");
       for (const skillName of CANONICAL_SKILL_NAMES) {
         const skillRoot = join(root, "skills", skillName);
         await mkdir(skillRoot, { recursive: true });
@@ -198,6 +201,11 @@ describe("plugin asset generation", () => {
           `---\nname: ${skillName}\ndescription: Public skill.\n---\n`,
         );
       }
+      await mkdir(join(root, "skills/githits-code/references"));
+      await writeFile(
+        join(root, "skills/githits-code/references/example.md"),
+        "Reference fixture\n",
+      );
       const internalSkillRoot = join(
         root,
         ".agents",
@@ -214,7 +222,36 @@ describe("plugin asset generation", () => {
       await generatePluginAssets({ root });
       await expect(
         generatePluginAssets({ root, check: true }),
-      ).resolves.toHaveLength(10);
+      ).resolves.toHaveLength(20);
+      expect(
+        await readFile(
+          join(
+            root,
+            "plugins/claude/skills/githits-code/references/example.md",
+          ),
+          "utf8",
+        ),
+      ).toBe("Reference fixture\n");
+
+      const copiedSkillPath = join(
+        root,
+        "plugins/claude/skills/githits-mcp/SKILL.md",
+      );
+      await writeFile(copiedSkillPath, "stale\n");
+      await expect(generatePluginAssets({ root, check: true })).rejects.toThrow(
+        "- plugins/claude/skills/githits-mcp/SKILL.md",
+      );
+      await generatePluginAssets({ root });
+      expect(await readFile(copiedSkillPath, "utf8")).toBe(
+        await readFile(join(root, "skills/githits-mcp/SKILL.md"), "utf8"),
+      );
+
+      const unwantedPath = join(root, "plugins/claude/package.json");
+      await writeFile(unwantedPath, "{}\n");
+      await expect(generatePluginAssets({ root, check: true })).rejects.toThrow(
+        "Unexpected Claude plugin files:\nplugins/claude/package.json",
+      );
+      await rm(unwantedPath);
 
       await writeFile(join(root, ".mcp.json"), "{}\n");
       await expect(generatePluginAssets({ root, check: true })).rejects.toThrow(

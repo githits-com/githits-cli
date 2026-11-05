@@ -44,6 +44,8 @@ The generator owns:
 - `gemini-extension.json`
 - `plugin.json`
 - `mcp_config.json`
+- `plugins/claude/`: Claude manifest, remote MCP config, README, license, icon,
+  and regular-file copies of the canonical public skills and their references
 
 Generated files are committed because Git-hosted marketplaces inspect repository
 contents without running npm lifecycle scripts. `prepack` validates committed
@@ -187,35 +189,55 @@ plugin marketplace describe the product consistently.
 
 ## Marketplace Layout
 
-The repository root is the plugin root for Agent Plugins clients, the Anthropic
-community marketplace, the first-party Claude marketplace, direct Codex
+The repository root is the plugin root for Agent Plugins clients, direct Codex
 installs, Cursor, the Gemini extension gallery, VS Code/GitHub Copilot
 OpenPlugin installs, and a manually installed Antigravity plugin.
 
-The first-party Claude marketplace entry uses the public HTTPS Git URL for
-`githits-com/githits-cli`. Claude clones that repository as the plugin root and
-installs the root `.claude-plugin/plugin.json`, root skills, and remote root
-`.mcp.json` as one payload. A relative `source: "."` is not accepted by Claude's marketplace
-validator, while the `github` shorthand can require users to have working SSH
-credentials.
+The first-party Claude marketplace entry uses `source: "git-subdir"` with the
+public HTTPS Git URL and `path: "plugins/claude"`. This preserves installation
+from a standalone marketplace file, including the one shipped in the npm
+package, without needing another copy of the payload in npm. Claude installs
+only this generated folder. It contains no `package.json`, lockfile, workspace packages,
+or symlinks. The root Claude manifest remains available for existing root-based
+consumers. Other hosts retain their existing root layout.
+
+The generator copies the canonical skills and references byte-for-byte and
+renders the plugin README. Edit the generator or canonical inputs, never the
+files under `plugins/claude`. Both generation and `plugins:check` reject
+unexpected payload files; remove obsolete generated files explicitly when
+removing or renaming canonical inputs. Checks also detect stale copied content.
 
 The obsolete standalone Claude and Gemini repositories are migration-only. They
 must be archived after legacy installation migration is verified.
 
 ## Validation
 
-### Claude directory review (2026-09-29)
+### Claude directory review (2026-11-05)
 
-Keep the existing repository-root submission and release structure. Do not add
-a dedicated plugin folder or distribution branch. The hosted GitHits connector
-is already live in the directory (publisher-confirmed); this plugin review does
-not require another connector submission.
+The v0.38.1 repository-root submission was blocked with
+`COMPONENT_PATH_IN_NODE_MODULES` findings on `package.json` and `bun.lock`:
+the monorepo workspace dependencies do not meet the directory's install policy.
+This supersedes the earlier decision to retain the root submission. Submit
+`plugins/claude` so the plugin does not carry the CLI's dependency install.
 
-The [Claude plugin reference](https://code.claude.com/docs/en/plugins-reference)
-audit found no missing required manifest fields. The current manifest passes
-`claude plugin validate .claude-plugin/plugin.json --strict` with Claude Code
-2.1.284. Target the manifest explicitly: `claude plugin validate .` selects
-the marketplace manifest in this repository.
+The [directory checklist](https://claude.com/docs/plugins/pre-submission-checklist)
+allows a plugin subfolder, requires regular files for loaded components and a
+README of at least 40 words, and disallows component paths outside that folder.
+The payload includes its own README, license, icon, MCP config, and skills.
+The [marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference#git-subdir-plugin-source)
+documents the Git subdirectory source used by this repository's marketplace.
+
+Run `claude plugin validate plugins/claude --strict` for local schema checks.
+The portal's validation and scan are still required to confirm directory
+acceptance; local validation does not perform those checks.
+
+After the change is pushed, create a new plugin submission using repository
+`githits-com/githits-cli` and plugin path `plugins/claude`, and validate that
+folder. Claude's [submission guidelines](https://claude.com/docs/plugins/submit#change-the-tracked-branch-or-tag)
+state that an existing submission's repository and folder cannot be changed.
+Pushing this change alone does not redirect the old root submission. The hosted
+GitHits connector is already live in the directory (publisher-confirmed); this
+plugin review does not require another connector submission.
 
 `skills/` and `.mcp.json` are default discovery locations. Hooks, agents,
 commands, LSP servers, and user configuration are optional components; add them
@@ -224,14 +246,6 @@ context, and `AGENTS.md` is not a documented plugin instruction entrypoint.
 Runtime instructions belong in skills. The shared public tree includes the MCP
 skill plus CLI code, package, and onboarding skills; the latter require shell
 access and are not hosted-MCP-only workflows.
-
-The directory reviews the repository-root payload, including dependency files,
-development documentation, and other hosts' assets. The reported lockfile,
-unread-asset, and binary-inspection holds require reviewer clearance for the
-held version; passing local manifest validation does not clear them. The
-[directory checklist](https://claude.com/docs/plugins/pre-submission-checklist)
-distinguishes these holds from blocking findings. Keep the existing submission
-path and use the portal's validation and review results to assess each version.
 
 ### Repository checks
 
