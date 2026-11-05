@@ -64,7 +64,7 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
     );
     expect(tool.description).toContain("vcpkg and Zig");
     expect(tool.description).toContain(
-      "Check current package advisories. Do not trust your memory for vulnerabilities.",
+      "Check package vulnerabilities and full advisory reports; never rely on memory.",
     );
     expect(tool.description).toContain(
       "Advisories can be published or revised after training; a cutoff disclaimer is not current evidence.",
@@ -89,6 +89,7 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
     );
     expect(Object.keys(tool.schema).sort()).toEqual([
       "advisory_scope",
+      "details",
       "format",
       "include_transitive",
       "include_withdrawn",
@@ -107,10 +108,12 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
       createMockPackageIntelligenceService(),
     );
     const firstSentence = tool.description.match(/^[^.]+\./)?.[0] ?? "";
-    expect(firstSentence).toBe("Check current package advisories.");
+    expect(firstSentence).toBe(
+      "Check package vulnerabilities and full advisory reports; never rely on memory.",
+    );
     expect(firstSentence.length).toBeLessThanOrEqual(79);
     expect(tool.description.slice(0, 80)).toBe(
-      "Check current package advisories. Do not trust your memory for vulnerabilities. ",
+      "Check package vulnerabilities and full advisory reports; never rely on memory. A",
     );
   });
 });

@@ -1,4 +1,6 @@
 import {
+  formatOsvSourceMetadata,
+  literalMarkdownLines,
   sanitizeTerminalText,
   terminalWidth,
   wrapTerminalProse,
@@ -335,9 +337,11 @@ export function formatVulns(
     if (advisory && options.verbose) {
       add();
       add(`Details: ${advisory.id}`);
-      if (advisory.explanation)
-        for (const line of advisory.explanation.split("\n"))
-          add(line.trim() ? `  ${line}` : "", "  ");
+      lines.push(...formatOsvSourceMetadata(advisory, width));
+      if (advisory.explanation) {
+        add("  Advisory text:");
+        lines.push(...literalMarkdownLines(advisory.explanation));
+      } else add("  No advisory text supplied by source.");
       for (const severity of advisory.severity ?? [])
         add(
           `  ${originalSeverity(
@@ -358,6 +362,10 @@ export function formatVulns(
         for (const url of urls) add(`      ${url || "URL unavailable"}`);
       }
     }
+  }
+  if (!options.verbose && reports.some((report) => report.advisory)) {
+    add();
+    add("Full advisory report: add --verbose.");
   }
   return `${lines.map(sanitizeTerminalText).join("\n")}\n`;
 }

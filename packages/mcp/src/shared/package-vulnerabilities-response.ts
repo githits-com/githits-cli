@@ -44,15 +44,21 @@ import type {
   TransitiveVulnerabilityAuditCounts,
   VulnerabilityDetail,
   VulnerabilityReport,
+  VulnerabilitySourceEntry,
 } from "@githits/core-internal";
 import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { colorize, dim } from "./colors.js";
 import { toIsoDate } from "./format-date.js";
+import {
+  formatPackageSourceDetails,
+  type PackageSourceDetailDisplay,
+} from "./osv-source-details.js";
 import type {
   AdvisoryScopeLabel,
   PackageVulnerabilitiesFilterEcho,
 } from "./package-vulnerabilities-request.js";
-import { sanitizeTerminalText } from "./terminal-text.js";
+import { shellQuoteExact } from "./shell-quote.js";
+import { sanitizeTerminalText, wrapTerminalProse } from "./terminal-text.js";
 import { terminalWidth as measureTerminalWidth } from "./terminal-width.js";
 import {
   formatAdvisoryAssessment,
@@ -152,6 +158,7 @@ export interface LeanVulnerabilitySummary {
 }
 
 export interface LeanVulnerabilityReport {
+  sourceDetails?: VulnerabilitySourceEntry[];
   registry: string;
   name: string;
   version: string;
@@ -201,6 +208,8 @@ export function buildPackageVulnerabilitiesSuccessPayload(
     version: pkg.version,
     summary: buildSummary(total, security, dedupedAdvisories),
   };
+  if (report.sourceDetails !== undefined)
+    payload.sourceDetails = report.sourceDetails;
   if (pkg.registryRepository)
     payload.registryRepository = pkg.registryRepository;
 
@@ -224,10 +233,8 @@ export function buildPackageVulnerabilitiesSuccessPayload(
   const upgradePaths = security?.upgradePaths;
   if (upgradePaths && upgradePaths.length > 0) {
     // Ascending semver-ish order (pre-releases sort below their base
-    // version) so the CLI footer reads `Fix versions: 3.11.0, 4.5.0,
-    // 4.19.2, …` — presenting the minimum-churn fix first. Without
-    // this sort the backend's advisory-iteration order produced
-    // jarring mixes like `3.11.0, 4.5.0, 4.20.0, 5.0.0, 4.0.0-rc1`.
+    // version) for predictable display of backend-filtered candidate fixes.
+    // This ordering does not establish release existence or upgrade suitability.
     const unique = Array.from(new Set(upgradePaths));
     unique.sort(compareVersionsAscending);
     payload.upgradePaths = unique;
@@ -1083,6 +1090,40 @@ export function formatPackageVulnerabilitiesTerminal(
   const verbose = options.verbose ?? false;
   const surface = options.surface ?? "cli";
 
+  const width = normaliseTerminalWidth(options.terminalWidth);
+  const directId = payload.advisories?.find((advisory) => advisory.id)?.id;
+  const dependencyId = payload.transitive
+    ? flattenTransitiveRows(payload.transitive).find((row) => row.occurrence.id)
+        ?.occurrence.id
+    : undefined;
+  const sourceBlock =
+    payload.sourceDetails !== undefined
+      ? formatPackageSourceDetails(sourceReportDisplay(report, payload), width)
+      : payload.advisories?.length
+        ? wrapTerminalProse(
+            surface === "mcp"
+              ? "Full advisory report: use details=true for all selected direct advisories (can be long)."
+              : [
+                  directId
+                    ? `Full advisory report: ${advisoryReportCommand(directId)}`
+                    : undefined,
+                  "Full reports for all selected direct advisories: add --details (can be long).",
+                ]
+                  .filter(Boolean)
+                  .join("\n"),
+            width,
+          ).join("\n")
+        : undefined;
+  const dependencySourceHint =
+    (payload.transitive?.summary.occurrenceCount ?? 0) > 0 &&
+    (payload.sourceDetails !== undefined || !payload.advisories?.length)
+      ? wrapTerminalProse(
+          surface === "mcp"
+            ? `${payload.sourceDetails?.length ? "Source results cover selected direct advisories. " : ""}For dependency advisory reports, call pkg_vulns on the dependency registry:name@resolvedVersion with details=true.`
+            : `${payload.sourceDetails?.length ? "Source results cover selected direct advisories. " : ""}${dependencyId ? `Full dependency advisory report: ${advisoryReportCommand(dependencyId)}` : ""}`,
+          width,
+        ).join("\n")
+      : undefined;
   const headerLine = formatHeader(payload, useColors);
   const requestedLine = payload.requestedVersion
     ? dim(
@@ -1125,6 +1166,8 @@ export function formatPackageVulnerabilitiesTerminal(
       );
     }
     if (transitiveBlock) lines.push("", transitiveBlock);
+    if (sourceBlock) lines.push("", sourceBlock);
+    if (dependencySourceHint) lines.push("", dependencySourceHint);
     return `${lines.join("\n")}\n`;
   }
 
@@ -1167,8 +1210,60 @@ export function formatPackageVulnerabilitiesTerminal(
   const upgradeFooter = formatUpgradeFooter(payload.upgradePaths);
   if (upgradeFooter) blocks.push(upgradeFooter);
   if (transitiveBlock) blocks.push(transitiveBlock);
+  if (sourceBlock) blocks.push(sourceBlock);
+  if (dependencySourceHint) blocks.push(dependencySourceHint);
 
   return `${blocks.join("\n\n")}\n`;
+}
+
+/** Package presentation owns group order; raw source JSON remains in backend order. */
+function sourceReportDisplay(
+  report: VulnerabilityReport,
+  payload: LeanVulnerabilityReport,
+): PackageSourceDetailDisplay[] {
+  const positions = new Map<string, number>();
+  payload.advisories?.forEach((advisory, index) => {
+    for (const id of [advisory.id, ...(advisory.aliases ?? [])])
+      if (id) positions.set(id, index);
+  });
+  return (report.sourceDetails ?? [])
+    .map((entry, index) => {
+      // The service derives both arrays from the same page entries, without filtering.
+      const row = report.security?.vulnerabilities?.[index];
+      const keys = [row?.osvId, ...(row?.aliases ?? [])];
+      const position = keys
+        .map((id) => (id ? positions.get(id) : undefined))
+        .find((value) => value !== undefined);
+      const advisory = row ? buildAdvisory(row) : undefined;
+      const assessment = advisory
+        ? formatAdvisoryAssessment(
+            advisory.assessmentStatus,
+            advisory.affectsInspectedVersion,
+          )
+        : undefined;
+      return {
+        index,
+        position: position ?? Number.MAX_SAFE_INTEGER,
+        display: {
+          ...entry,
+          unlinked: position === undefined,
+          ...(advisory
+            ? {
+                assessmentLabel: [severityColumnLabel(advisory), assessment]
+                  .filter(Boolean)
+                  .join("; "),
+              }
+            : {}),
+        },
+      };
+    })
+    .sort((a, b) => a.position - b.position || a.index - b.index)
+    .map((row) => row.display);
+}
+
+/** Quote source IDs as shell arguments and keep options outside the positional separator. */
+function advisoryReportCommand(id: string): string {
+  return `githits vulns --verbose -- ${shellQuoteExact(id)}`;
 }
 
 function formatHeader(
@@ -1573,6 +1668,34 @@ function formatAdvisoryLines(
         surface,
         advisory.affectedVersionRangesCount,
         advisory.affectedVersionRangesTruncated,
+      ),
+    );
+  }
+  const matched = advisory.matchedAffectedVersionRanges;
+  if (
+    formatAdvisoryAssessment(
+      advisory.assessmentStatus,
+      advisory.affectsInspectedVersion,
+    ) === "affects this version" &&
+    matched?.length &&
+    (advisory.affectedVersionRangesTruncated ||
+      matched.length !== advisory.affectedRanges?.length ||
+      matched.some((range) => !advisory.affectedRanges?.includes(range)))
+  ) {
+    pushRow(
+      "matched",
+      formatRangeList(
+        matched.map((range) =>
+          range.startsWith("osv-invalid:")
+            ? "(unevaluable source range)"
+            : range,
+        ),
+        verbose,
+        useColors,
+        rangeLimit,
+        surface,
+        undefined,
+        undefined,
       ),
     );
   }
@@ -2146,6 +2269,6 @@ function resolveAffectedRangesLimit(terminalWidth: number | undefined): number {
 function formatUpgradeFooter(paths: string[] | undefined): string | undefined {
   if (!paths || paths.length === 0) return undefined;
   const safePaths = paths.map(sanitizeIdentity);
-  if (safePaths.length === 1) return `Fix version: ${safePaths[0]}.`;
-  return `Fix versions: ${safePaths.join(", ")}.`;
+  if (safePaths.length === 1) return `Candidate fix version: ${safePaths[0]}.`;
+  return `Candidate fix versions: ${safePaths.join(", ")}.`;
 }

@@ -39,7 +39,7 @@ describe("vulns formatter", () => {
     expect(output).toContain("Alias: GHSA-example");
     expect(output).toContain("https://osv.dev/vulnerability/GHSA-example");
     expect(output).not.toMatch(
-      /Evidence:|Packages: 1\/1|githits pkg vulns|add --verbose|missing evidence does not establish safety|indexed record/,
+      /Evidence:|Packages: 1\/1|githits pkg vulns|missing evidence does not establish safety|indexed record/,
     );
     expect(output).not.toContain("Full source explanation");
   });
@@ -484,7 +484,9 @@ describe("vulns formatter", () => {
     expect(formatVulns([item])).not.toContain(
       "missing evidence does not establish safety",
     );
-    expect(formatVulns([item])).not.toContain("add --verbose");
+    expect(formatVulns([item])).toContain(
+      "Full advisory report: add --verbose.",
+    );
     expect(formatVulns([item], { verbose: true })).not.toContain(
       "add --verbose",
     );
@@ -685,4 +687,47 @@ describe("vulns formatter", () => {
     item.status = "error";
     expect(formatVulns([item])).not.toContain("Missing evidence:");
   });
+});
+
+it("preserves complete source Markdown structure through final verbose output", () => {
+  const item = result();
+  const markdown =
+    "## Impact\r\n\r\n```go\r\n\tif affected {\r\n\t\treturn err\r\n\t}\r\n```\r\n\r\n| A | B |\r| --- | --- |\r| value | more |\r\n" +
+    "Long source paragraph. ".repeat(500) +
+    "END-OF-SOURCE\u001b[31m";
+  item.lookup!.advisory!.details = markdown;
+  const output = formatVulns([item], { verbose: true, width: 48 });
+  expect(output).toContain(
+    "  ## Impact\n\n  ```go\n      if affected {\n          return err\n      }\n  ```\n\n  | A | B |\n  | --- | --- |\n  | value | more |\n",
+  );
+  expect(output).toContain(
+    `${"Long source paragraph. ".repeat(500)}END-OF-SOURCE`,
+  );
+  expect(output).not.toContain("\u001b");
+  expect(
+    buildVulnsResponse([item], { verbose: true }).results[0]!.advisory!
+      .explanation,
+  ).toBe(markdown);
+});
+
+it("advertises the full report only on compact resolved advisory output", () => {
+  const item = result();
+  expect(formatVulns([item])).toContain("Full advisory report: add --verbose.");
+  expect(formatVulns([item], { verbose: true })).not.toContain(
+    "Full advisory report: add --verbose.",
+  );
+  item.lookup!.advisory = null;
+  expect(formatVulns([item])).not.toContain(
+    "Full advisory report: add --verbose.",
+  );
+});
+
+it("shows one full-report hint for a multi-ID invocation including partial results", () => {
+  const partial = result();
+  partial.status = "partial";
+  expect(
+    formatVulns([result(), partial]).match(
+      /Full advisory report: add --verbose\./g,
+    ),
+  ).toHaveLength(1);
 });

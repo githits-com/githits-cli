@@ -3,6 +3,7 @@ import {
   type AdvisoryLookup,
   type LookupPackage,
   type LookupUnknown,
+  type OsvSourceMetadata,
   parsePkgseerRegistryArg,
   toPkgseerRegistry,
 } from "@githits/core-internal";
@@ -119,15 +120,16 @@ export interface VulnsDiagnostic {
 export interface VulnsReport {
   inputId: string;
   status: VulnsResult["status"];
-  advisory?: VulnsSourceDetail & {
-    id: string;
-    url: string;
-    summary?: string;
-    withdrawnAt?: string;
-    explanation?: string;
-    severity?: VulnsReportedSeverity[];
-    references?: Array<{ type: string; url: string | null }>;
-  };
+  advisory?: VulnsSourceDetail &
+    Partial<OsvSourceMetadata> & {
+      id: string;
+      url: string;
+      summary?: string;
+      withdrawnAt?: string;
+      explanation?: string;
+      severity?: VulnsReportedSeverity[];
+      references?: Array<{ type: string; url: string | null }>;
+    };
   sources?: VulnsSource[];
   packages?: VulnsPackage[];
   coverage?: {
@@ -175,6 +177,10 @@ function buildReport(result: VulnsResult, verbose: boolean): VulnsReport {
       ...(verbose
         ? {
             ...sourceDetail(advisory),
+            schemaVersion: advisory.schemaVersion,
+            relatedIds: advisory.relatedIds,
+            upstreamIds: advisory.upstreamIds,
+            credits: advisory.credits,
             ...(advisory.details ? { explanation: advisory.details } : {}),
             ...(advisory.severity?.length
               ? { severity: advisory.severity.map(reportedSeverity) }

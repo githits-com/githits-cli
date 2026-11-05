@@ -17,6 +17,7 @@ import {
 } from "../format-mapped-error.js";
 
 export interface PkgVulnsCommandOptions {
+  details?: boolean;
   severity?: string;
   scope?: string;
   includeWithdrawn?: boolean;
@@ -60,6 +61,7 @@ export async function pkgVulnsAction(
 
     const parsed = parsePackageSpec(spec);
     const { params: builtParams, filter } = buildPackageVulnerabilitiesParams({
+      includeSourceDetails: options.details,
       registry: parsed.registry,
       packageName: parsed.name,
       version: parsed.version,
@@ -77,6 +79,9 @@ export async function pkgVulnsAction(
     };
     const report =
       await deps.packageIntelligenceService.packageVulnerabilities(params);
+
+    if (report.sourceDetails?.some((entry) => entry.error))
+      process.exitCode = 1;
 
     if (options.json) {
       const payload = buildPackageVulnerabilitiesSuccessPayload(report, {
@@ -113,31 +118,32 @@ function handlePkgVulnsCommandError(error: unknown, json: boolean): never {
   process.exit(1);
 }
 
-const PKG_VULNS_DESCRIPTION = `Show known vulnerabilities for a package. Lists CVE / OSV advisories
-with severity, affected version ranges, and fix versions. CLI text shows every
-selected direct and transitive advisory row. --verbose adds aliases, dates where
-relevant, malicious-advisory markers, and complete range/fix evidence without
-changing row completeness. --json emits the complete structured envelope.
+const PKG_VULNS_DESCRIPTION = `Show known vulnerabilities for a package, with severity, affected ranges and fix evidence.
+CLI text shows every selected direct and transitive advisory row. --verbose expands
+assessment fields, including aliases, dates and complete range/fix evidence; row
+count is unchanged. --json returns structured assessment data.
+
+Use --details to include full advisory text and source metadata from OSV for every
+selected direct advisory. This adds live source reads and can produce long output;
+pipe to a pager or redirect as needed. --verbose and --json alone do not request
+source reports. Source reports do not recompute the assessment or recommend
+upgrades. Source failures retain assessments and exit nonzero.
+For one advisory report, including dependency advisories: githits vulns <id> --verbose.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
 npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, pub. vcpkg and zig are not supported.
 Omit @<version> to check the latest release.
-For an advisory ID across packages, use githits vulns <ids...>.
 Example: githits pkg vulns npm:lodash@4.17.20 --severity high
 
-Severity filter (--severity) and withdrawn-advisory visibility
-(--include-withdrawn) are passed through to the backend; the
-returned count reflects whatever survived the filter and active filters
-are echoed in text and JSON output. Use --scope non_affecting to list
-non-affecting advisories that do not affect the inspected version, or --scope all
-to list all package advisories, including unknown assessments. Use --scope unknown
-to list advisories that could not be evaluated, with reasons.
+--severity and --include-withdrawn are passed through to the backend; active
+filters are echoed in text and JSON. Use --scope non_affecting for advisories
+that do not affect this version, --scope unknown for unevaluated advisories with
+reasons, or --scope all for all package advisory assessments.
 
-Use --transitive for npm-audit-style evidence covering vulnerabilities in versions
-resolved by the dependency graph. This opt-in adds graph-analysis cost and is
-distinct from package-wide advisory history. --severity and --scope apply to direct
-and transitive rows. --include-withdrawn affects direct package rows only; transitive
-withdrawn advisories remain excluded.`;
+Use --transitive for vulnerabilities in versions resolved by the dependency graph.
+This adds graph-analysis cost and is separate from package-wide advisory history.
+--severity and --scope apply to direct and transitive rows. --include-withdrawn
+affects direct rows only; transitive withdrawn advisories remain excluded.`;
 
 export function registerPkgVulnsCommand(pkgCommand: Command): Command {
   return pkgCommand
@@ -163,9 +169,16 @@ export function registerPkgVulnsCommand(pkgCommand: Command): Command {
     )
     .option(
       "-v, --verbose",
-      "Add aliases, dates where relevant, malicious-advisory markers, and complete range/fix evidence; row count is unchanged",
+      "Expand assessment fields: aliases, dates, malicious-advisory markers and complete range/fix evidence; row count is unchanged",
     )
-    .option("--json", "Emit the lean JSON envelope")
+    .option(
+      "--details",
+      "Include full advisory text and source metadata from OSV (selected direct advisories; extra source reads)",
+    )
+    .option(
+      "--json",
+      "Emit structured assessment data; combine with --details for source reports",
+    )
     .action(async (spec: string, options: PkgVulnsCommandOptions) => {
       const deps = await createContainer();
       await pkgVulnsAction(spec, options, {

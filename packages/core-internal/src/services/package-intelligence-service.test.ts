@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { FetchTimeoutError } from "../shared/fetch-timeout.js";
+import { defaultAdvisoryDetails } from "./advisory-test-helpers.js";
 import {
   AuthenticationError,
   TermsAcceptanceRequiredError,
@@ -1419,6 +1420,45 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     expect(wire.query).toContain(
       "assessmentReasons @include(if: $includeTransitiveAdvisoryDetails)",
     );
+  });
+
+  it("keeps lazy sources off unbounded transitive rows when direct source details are enabled", async () => {
+    const body = structuredClone(VULNS_HAPPY_BODY);
+    const { affected: _, ...source } = structuredClone(defaultAdvisoryDetails);
+    for (const entry of body.data.packageVulnerabilities.security.advisories
+      .entries) {
+      Object.assign(entry, {
+        sourceDetails: { ...source, osvId: entry.osvId },
+      });
+    }
+    const queries: string[] = [];
+    const fetchFn = mock((_url: string, init?: RequestInit) => {
+      const query = JSON.parse(String(init?.body)).query as string;
+      queries.push(query);
+      return Promise.resolve(
+        jsonResponse(
+          query.includes("PackageTransitiveVulnerabilityAudit")
+            ? TRANSITIVE_AUDIT_BODY
+            : body,
+        ),
+      );
+    });
+    const service = new PackageIntelligenceServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(fetchFn),
+    );
+    const report = await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+      includeTransitive: true,
+      includeSourceDetails: true,
+    });
+    expect(queries).toHaveLength(2);
+    expect(queries[0]).toContain("sourceDetails {");
+    expect(queries[1]).not.toContain("sourceDetails");
+    expect(report.sourceDetails).toHaveLength(2);
+    expect(report.transitive).toBeDefined();
   });
 
   it("maps a happy-path response to VulnerabilityReport", async () => {

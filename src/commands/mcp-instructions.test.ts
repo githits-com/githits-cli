@@ -201,7 +201,7 @@ describe("buildMcpQuickStart", () => {
       "Find regex or literal matches across source and documentation.",
     );
     expect(descriptions.get("pkg_vulns")).toStartWith(
-      "Check current package advisories. Do not trust your memory for vulnerabilities.",
+      "Check package vulnerabilities and full advisory reports; never rely on memory.",
     );
   });
 });

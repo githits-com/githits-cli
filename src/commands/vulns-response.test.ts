@@ -581,3 +581,27 @@ describe("vulns response", () => {
     expect(JSON.stringify(output)).not.toContain('"fixed":null');
   });
 });
+
+it("attributes typed source metadata to verbose advisory only, preserving roles and contacts", () => {
+  const item = result();
+  Object.assign(item.lookup!.advisory!, {
+    relatedIds: ["RELATED-ID"],
+    upstreamIds: ["UPSTREAM-ID"],
+    credits: [
+      {
+        name: "Source author",
+        contact: ["", "author@example.org"],
+        type: "FUTURE_ROLE",
+      },
+    ],
+  });
+  const compact = report(item).advisory!;
+  expect(compact).not.toHaveProperty("schemaVersion");
+  expect(compact).not.toHaveProperty("credits");
+  expect(report(item, true).advisory).toMatchObject({
+    schemaVersion: "1.9.0",
+    relatedIds: ["RELATED-ID"],
+    upstreamIds: ["UPSTREAM-ID"],
+    credits: item.lookup!.advisory!.credits,
+  });
+});

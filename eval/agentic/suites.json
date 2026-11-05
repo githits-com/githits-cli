@@ -182,6 +182,12 @@
       "suites": ["smoke", "stable-full"]
     },
     {
+      "id": "package-vulnerability-explanation",
+      "path": "eval/agentic/workloads/package-vulnerability-explanation.md",
+      "safety": "stable",
+      "suites": ["stable-full"]
+    },
+    {
       "id": "package-vulnerability-filter",
       "path": "eval/agentic/workloads/package-vulnerability-filter.md",
       "safety": "stable",

@@ -393,10 +393,10 @@ describe("agent eval suites", () => {
   it("loads the checked-in manifest with the exact workload inventory", () => {
     const manifest = loadSuiteManifest();
     expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.workloads).toHaveLength(43);
+    expect(manifest.workloads).toHaveLength(44);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stable"),
-    ).toHaveLength(42);
+    ).toHaveLength(43);
     expect(
       manifest.workloads.filter((workload) => workload.safety === "stateful"),
     ).toHaveLength(1);
@@ -501,6 +501,7 @@ describe("agent eval suites", () => {
       "package-overview-vulnerabilities",
       "package-upgrade-poor-changelog",
       "package-upgrade-safety",
+      "package-vulnerability-explanation",
       "package-vulnerability-filter",
       "package-vulnerability-history",
       "package-vulnerability-rubygems",

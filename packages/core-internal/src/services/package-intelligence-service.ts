@@ -43,6 +43,11 @@ import {
   INDEXING_ESTIMATES_SELECTION,
   indexingEstimatesSchema,
 } from "./indexing-estimates.js";
+import {
+  OSV_SOURCE_DETAILS_FIELDS,
+  osvSourceDetailsSchema,
+  type VulnerabilitySourceEntry,
+} from "./osv-source-details.js";
 import { promoteGenericVersionNotFound } from "./promote-version-not-found.js";
 import { type ReadTarget, readTargetSchema } from "./read-target.js";
 import {
@@ -142,6 +147,8 @@ export interface PackageSummary {
 }
 
 export interface PackageVulnerabilitiesParams {
+  /** Opt in to full current OSV explanations on bounded direct advisory pages. */
+  includeSourceDetails?: boolean;
   registry: PkgseerRegistry;
   packageName: string;
   /** Optional — backend defaults to latest when omitted. */
@@ -207,6 +214,7 @@ export interface VulnerabilitySecurityDetails {
 }
 
 export interface VulnerabilityReport {
+  sourceDetails?: VulnerabilitySourceEntry[];
   package: PackageVersionIdentity;
   security?: VulnerabilitySecurityDetails;
   transitive?: TransitiveVulnerabilityAudit;
@@ -1298,6 +1306,7 @@ const packageVersionIdentitySchema = z.object({
 });
 
 const vulnerabilityDetailSchema = z.object({
+  sourceDetails: osvSourceDetailsSchema.nullable().optional(),
   assessmentStatus: z.string().nullable().optional(),
   assessmentReasons: z.array(z.string()).nullable().optional(),
   osvId: z.string().nullable().optional(),
@@ -1442,7 +1451,8 @@ const transitiveAuditGraphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
-const PACKAGE_VULNERABILITIES_QUERY = `
+function packageVulnerabilitiesQuery(includeSourceDetails: boolean): string {
+  return `
 query PackageVulnerabilities(
   $registry: Registry!
   $name: String!
@@ -1473,7 +1483,7 @@ query PackageVulnerabilities(
       allVulnerabilityCount
       currentVersionAffected
       upgradePaths
-      advisories(scope: $scope, first: 100, after: $after) {
+      advisories(scope: $scope, first: ${includeSourceDetails ? 3 : 100}, after: $after) {
         entries {
           osvId
           summary
@@ -1493,6 +1503,7 @@ query PackageVulnerabilities(
           assessmentReasons
           matchedAffectedVersionRanges
           duplicateIds
+          ${includeSourceDetails ? `sourceDetails { ${OSV_SOURCE_DETAILS_FIELDS} }` : ""}
         }
         pageInfo {
           hasNextPage
@@ -1503,6 +1514,7 @@ query PackageVulnerabilities(
     }
   }
 }`;
+}
 
 const TRANSITIVE_AUDIT_SCOPE_FIELDS = {
   AFFECTED: { summary: "affected", packageCount: "affectedCount" },
@@ -3501,6 +3513,7 @@ export class PackageIntelligenceServiceImpl
       | z.infer<typeof vulnerabilityReportResponseSchema>
       | undefined;
     const entries: z.infer<typeof vulnerabilityDetailSchema>[] = [];
+    const sourceDetails: VulnerabilitySourceEntry[] = [];
     const seenCursors = new Set<string>();
 
     do {
@@ -3511,6 +3524,7 @@ export class PackageIntelligenceServiceImpl
         signal,
       );
       if (!firstPage) firstPage = page;
+      sourceDetails.push(...(page.sourceDetails ?? []));
 
       const advisoryPage = page.security?.advisories;
       if (!advisoryPage) {
@@ -3567,6 +3581,8 @@ export class PackageIntelligenceServiceImpl
       : firstPage;
 
     const report = this.normaliseVulnerabilityReport(data);
+    if (params.includeSourceDetails === true)
+      report.sourceDetails = sourceDetails;
     if (params.includeTransitive === true) {
       report.transitive = await this.fetchTransitiveVulnerabilityAudit(
         token,
@@ -3585,13 +3601,19 @@ export class PackageIntelligenceServiceImpl
     params: PackageVulnerabilitiesParams,
     after: string | null,
     signal: AbortSignal | undefined,
-  ): Promise<z.infer<typeof vulnerabilityReportResponseSchema>> {
+  ): Promise<
+    z.infer<typeof vulnerabilityReportResponseSchema> & {
+      sourceDetails?: VulnerabilitySourceEntry[];
+    }
+  > {
     let response: PkgseerGraphqlResponse;
     try {
       response = await postPkgseerGraphql({
         endpointUrl: this.endpointUrl,
         token,
-        query: PACKAGE_VULNERABILITIES_QUERY,
+        query: packageVulnerabilitiesQuery(
+          params.includeSourceDetails === true,
+        ),
         variables: {
           registry: params.registry,
           name: params.packageName,
@@ -3627,21 +3649,78 @@ export class PackageIntelligenceServiceImpl
       );
     }
 
-    if (parsed.data.errors && parsed.data.errors.length > 0) {
+    const data = parsed.data.data?.packageVulnerabilities;
+    const sourceDetails =
+      params.includeSourceDetails === true
+        ? (data?.security?.advisories.entries.map(
+            (entry): VulnerabilitySourceEntry => {
+              if (
+                entry.sourceDetails === undefined ||
+                (entry.sourceDetails !== null &&
+                  entry.sourceDetails.osvId !== entry.osvId)
+              ) {
+                throw new MalformedPackageIntelligenceResponseError(
+                  "Vulnerability source response omitted selected data or changed the representative ID.",
+                );
+              }
+              return {
+                advisoryId: entry.osvId ?? null,
+                source: entry.sourceDetails,
+              };
+            },
+          ) ?? [])
+        : undefined;
+    const fatalErrors: PackageIntelligenceGraphQLResponseError[] = [];
+    for (const error of parsed.data.errors ?? []) {
+      const path = error.path;
+      const code = error.extensions?.code;
+      const index = path?.[4];
+      const source =
+        typeof index === "number" && Number.isInteger(index) && index >= 0
+          ? sourceDetails?.[index]
+          : undefined;
+      if (
+        path?.length !== 6 ||
+        path[0] !== "packageVulnerabilities" ||
+        path[1] !== "security" ||
+        path[2] !== "advisories" ||
+        path[3] !== "entries" ||
+        path[5] !== "sourceDetails" ||
+        !source ||
+        source.source !== null ||
+        typeof code !== "string" ||
+        !["NOT_FOUND", "RATE_LIMITED", "TIMEOUT", "UPSTREAM_ERROR"].includes(
+          code,
+        )
+      ) {
+        fatalErrors.push(error);
+        continue;
+      }
+      const retryAfterMs = error.extensions?.retry_after_ms;
+      source.error = {
+        code,
+        message: `Current OSV source unavailable (${code}).`,
+        retryable: error.extensions?.retryable === true,
+        ...(typeof retryAfterMs === "number" &&
+        Number.isFinite(retryAfterMs) &&
+        retryAfterMs >= 0
+          ? { retryAfterSeconds: retryAfterMs / 1000 }
+          : {}),
+      };
+    }
+    if (fatalErrors.length) {
       throw promoteGenericVersionNotFound(
-        this.createGraphQLError(parsed.data.errors),
+        this.createGraphQLError(fatalErrors),
         params,
       );
     }
-
-    const data = parsed.data.data?.packageVulnerabilities;
     if (!data) {
       throw new MalformedPackageIntelligenceResponseError(
         "Empty response from the package-intelligence service.",
       );
     }
 
-    return data;
+    return { ...data, ...(sourceDetails ? { sourceDetails } : {}) };
   }
 
   private normaliseVulnerabilityReport(

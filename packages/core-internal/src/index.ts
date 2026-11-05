@@ -9,6 +9,12 @@ export * from "./services/githits-service.js";
 export * from "./services/grep-service.js";
 export * from "./services/indexing-estimates.js";
 export * from "./services/list-service.js";
+export type {
+  OsvCredit,
+  OsvSourceDetails,
+  OsvSourceMetadata,
+  VulnerabilitySourceEntry,
+} from "./services/osv-source-details.js";
 export * from "./services/package-intelligence-service.js";
 export * from "./services/progress-request.js";
 export * from "./services/promote-version-not-found.js";
