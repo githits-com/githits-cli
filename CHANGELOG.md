@@ -5,6 +5,12 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.40.1] - 2026-11-05
+
+### Fixed
+
+- **Claude plugin listing links** - Declare support, documentation, and terms of service URLs in the generated Claude plugin manifests.
+
 ## [githits 0.40.0] - 2026-11-05
 
 ### Added
