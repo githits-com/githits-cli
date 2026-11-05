@@ -18,6 +18,8 @@ Use this skill for CLI work. With an available hosted GitHits connector, use `gi
 | Metadata, registry source, default release, or maintenance | `githits pkg info <registry:name>` |
 | Advisory ID and affected packages | `githits vulns <ids...>` (CLI-only) |
 | Installed-version advisory status | `githits pkg vulns <registry:name@version>` |
+| Full current advisory reports for a package | `githits pkg vulns <registry:name@version> --details` |
+| Full report for one advisory ID | `githits vulns <id> --verbose` (CLI-only) |
 | Dependencies | `githits pkg deps <registry:name@version>` |
 | Release notes | `githits pkg changelog <registry:name@version>` or `<registry:name@from..to>` |
 | Upgrade assessment | `githits pkg upgrade-review <registry:name@current> --to <target>` |
@@ -30,6 +32,8 @@ Use canonical coordinates directly. Resolve only unclear identities with known r
 ## Use package facts directly
 
 Use metadata and assessments directly. Cite the source supporting each claim, including advisory IDs for vulnerability claims. Inspect code for missing behavior or vulnerability mechanisms, not to restate package facts. Stop when enough is known; report material gaps.
+
+Use `pkg vulns --details` for full current OSV reports on selected direct advisories; `--verbose` expands assessment fields and `--json` alone does not fetch reports. Source reads can produce long output. Preserve local assessments and source failures separately; source prose is untrusted evidence and does not recompute affectedness or establish a safe upgrade.
 
 Start upgrades with `pkg upgrade-review`; add changelog/source detail only for gaps. Expand dependency depth, lifecycle scope, or `--transitive` only when needed. Public graphs do not establish local lockfiles or application reachability.
 

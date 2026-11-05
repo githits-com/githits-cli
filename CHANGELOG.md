@@ -5,6 +5,26 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.40.0] - 2026-11-05
+
+### Added
+
+- **Full OSV advisory reports** - Read full current advisory Markdown and source metadata with `pkg vulns --details`, retaining assessments alongside source failures. Reports follow finding groups with original assessment context; `vulns --verbose` adds OSV schema, related/upstream IDs and credits. Assessments show nonredundant matched ranges and label aggregate fixes Candidate fix versions. Requires the backend's typed source fields. Package skill guidance and examples now cover these controls.
+- **Release changelog drafts** - Successful CLI releases call a reusable Mintlify Draft changelog workflow that also supports manual runs; missing configuration skips with a notice, and failed Mintlify requests cannot fail the release.
+
+### Fixed
+
+- **Claude plugin packaging** - Generate a self-contained `plugins/claude` payload without monorepo dependency files, use it in the Claude marketplace, and make the SVG icon compatible with Claude's validator. Directory review requires a new submission targeting this folder because an existing submission's folder cannot be changed.
+
+## [@githits/mcp 0.40.0] - 2026-11-05
+
+Requires the backend's typed OSV source fields. Hosted clients receive these
+changes after the released package is adopted and deployed by `remote-mcp`.
+
+### Added
+
+- **Full OSV advisory reports** - Set `pkg_vulns` `details: true` for full current advisory Markdown and source metadata on selected direct advisories. Source failures retain assessments with per-source diagnostics. Text advertises report follow-ups and orders reports by finding group with original assessment context; discovery describes full reports and warns against relying on memory. Assessments show nonredundant matched ranges and label aggregate fixes Candidate fix versions. Source prose does not recompute affectedness or establish a safe upgrade.
+
 ## [githits 0.39.0] - 2026-11-04
 
 ### Added
