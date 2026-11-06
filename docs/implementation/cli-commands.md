@@ -164,7 +164,7 @@ Downstream REST and GraphQL clients recognize the structured
 `TERMS_ACCEPTANCE_REQUIRED` response, refresh OAuth at most once, and retry at
 most once. A still-gated request returns the stable
 `githits settings terms accept` remediation plus the authenticated web
-acceptance URL; `ghi-*` credentials never enter a refresh loop.
+acceptance URL; personal and project API keys in either prefix generation never enter a refresh loop.
 
 ### `githits example`
 
