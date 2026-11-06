@@ -4,7 +4,8 @@
 
 - Overall: **IN PROGRESS**; Phase 1 merged in [#530](https://github.com/githits-com/githits-cli/pull/530);
   Phase 1a merged in [#533](https://github.com/githits-com/githits-cli/pull/533);
-  Phase 2 is complete pending merge; Phase 3 needs design.
+  Phase 2 merged in [#535](https://github.com/githits-com/githits-cli/pull/535);
+  Phase 3 is parked by user decision; Phase 4 awaits the backend contract.
 - Owner: this CLI worktree; backend investigations have separate child worktrees.
 - User direction, 2026-11-03: improve CLI ergonomics from the supplied feedback;
   exclude all skill changes because OP is reviewing those separately. Dispatch
@@ -13,12 +14,13 @@
   retain their contract and evidence gates; all skill changes remain excluded.
 - User direction after #530 merged: plan compact CLI regex guidance. Matching
   is correct; explain alternation versus literal pipes in help, not runtime hints.
+- User decision, 2026-11-03: park built-in output limits. Frequent use of `head`
+  in one feedback report does not establish a need for another output control.
 
 When complete, common valid CLI near-misses work without another call, failures
-provide a relevant next command when the request supplies enough information,
-and callers can bound large text responses without discarding trust facts or
-losing access to omitted evidence. Unified grep can expose legacy-equivalent
-enclosing-symbol metadata after its backend establishes that contract; actual
+provide a relevant next command when the request supplies enough information.
+Unified grep can expose legacy-equivalent enclosing-symbol metadata after its
+backend establishes that contract; actual
 source bodies are a separate, cost-dependent improvement. Regex guidance is
 compact and accurate without silently changing caller intent.
 
@@ -66,10 +68,13 @@ Its separate backend schema-documentation note remains in PkgSeer's backlog.
 ## Scope and boundaries
 
 Included: context tolerance, exact single-line reads, path-operand guidance,
-compact CLI regex help, Research recovery, optional bounded text output, and
-later adoption of verified backend enclosing-symbol capabilities. Existing
+compact CLI regex help, Research recovery, and later adoption of verified backend
+enclosing-symbol capabilities. Existing
 command help and permanent implementation docs may change; skills, shared MCP
 instructions and plugin assets must not change as a side effect.
+
+Built-in output limits are parked, outside active implementation scope. Phase 3
+records the evidence required to reconsider them.
 
 Phase 2 additionally excludes MCP descriptors/instructions, shared error-map
 or generic formatter changes, and public API changes. Its action is CLI-only;
@@ -103,13 +108,10 @@ and authoritative read actions; aigrep owns matching and parsed source blocks.
 3. Keep input-derived correction actions at the request-aware CLI boundary;
    do not move request discovery or service calls into a formatter. Reuse exact
    shell quoting and terminal sanitization. Backend locators remain authoritative.
-4. Extend each affected shared formatter with explicit presentation inputs when
-   adding text budgets; do not wrap finished stdout in a generic `head` filter.
-   Preserve machine JSON and make omission distinct from backend incompleteness.
-5. Backend-dependent controls follow a verified, versioned producer contract.
+4. Backend-dependent controls follow a verified, versioned producer contract.
    Never hydrate blocks through hidden per-hit read requests or synthesize bounds
    from regex/indentation in the CLI.
-6. CLI owns command-specific syntax guidance and mode names. Completed Phase 1a
+5. CLI owns command-specific syntax guidance and mode names. Completed Phase 1a
    updated registration text and its CLI-only legacy note in place, preserving
    argument-name translations without a new replacement layer or helper. Phase 2
    adds its small request-aware action helper at the same CLI ownership level.
@@ -127,7 +129,7 @@ Unknowns/product decisions: **none for Phase 2's Research increment**.
 Its typed limit scope and local search eligibility are verified. Grep operand
 recovery stays with [typed validation recovery](open-backlog.md#validation-error-recovery-after-pkgseer-phases-3-4):
 verify deployed producer shapes and preserve their facts before adding hints.
-Phase 3 still needs budget units, supported commands and exact replay semantics.
+Phase 3 is parked; no output-budget design or implementation is scheduled.
 Phase 4 needs the released producer contract and any separately approved body
 extension. These later unknowns do not block scoped Research recovery.
 
@@ -142,8 +144,8 @@ formatting alone. Obtain approval before introducing infrastructure.
 | --- | --- | --- | --- |
 | 1 — tolerate common arguments | COMPLETE; merged #530 | `--lines N` selects one line; excessive valid context becomes 10 with a visible notice; path flags are clear in help. | Existing read/grep paths only. |
 | 1a — compact regex guidance | COMPLETE; merged #533 | Both CLI grep helps distinguish alternation/literal pipes and qualify route-dependent literal-text requirements. | Merged #530 and verified regex investigation; no backend change. |
-| 2 — scoped Research recovery | COMPLETE; pending merge | Daily Research exhaustion shows a scoped search example with a fixed query placeholder when an explicit search-compatible target exists. | Merged #533, existing typed rate-limit scope and local parser/quoting. Grep validation adoption remains separately gated. |
-| 3 — bounded readable output | NEEDS DESIGN at phase boundary | Opt-in text budgets preserve trust facts and provide honest access to omitted evidence. | Phase 2; representative output and replay evidence. |
+| 2 — scoped Research recovery | COMPLETE; merged #535 | Daily Research exhaustion shows a scoped search example with a fixed query placeholder when an explicit search-compatible target exists. | Merged #533, existing typed rate-limit scope and local parser/quoting. Grep validation adoption remains separately gated. |
+| 3 — bounded readable output | PARKED by user decision | No built-in output limits; reconsider only with demonstrated harm or repeated avoidable cost from current previews. | New evidence and a decision to resume. |
 | 4 — backend-assisted enclosing symbols | WAITING ON NATIVE CONTRACT | Unified grep can opt into legacy-equivalent enclosing-symbol metadata and exact source-read ranges; source bodies remain conditional on cost. | Native implementation/release, PkgSeer adoption and verified wire contract. |
 
 ### Phase 1 — tolerate common arguments
@@ -163,114 +165,32 @@ and `cli-commands.md`; execution and review evidence is on #533. No open gate.
 
 ### Phase 2 — scoped Research recovery
 
-Status: **COMPLETE; pending merge**. Outcome: an agent hitting the daily
-Research limit gets a scoped search example with the fixed `your query`
-placeholder. Assumptions: existing daily scope and search grammar remain stable.
-Unknowns/product decisions: **none**. Dependencies: merged #533 and existing
-pure parser/quoting/error contracts; no backend change or release.
-
-User correction on open PR #535: a conversational Research question is not a
-useful BM25 query. Show a fixed `your query` placeholder, labelled as an example,
-without keyword extraction or copying the original question. The caller fills
-in search terms; the CLI makes no automatic follow-up call.
-
-Ownership: root `src/commands/research.ts` naturally owns this policy because it
-has the resolved explicit subject. One exported pure helper there is covered
-by the existing command tests; a separate module has no
-second consumer. Keep the shared transport mapper and generic formatter stable.
-No context needs threading into MCP or services, and no new runtime facility.
-
-Implementation contract:
-
-1. Generate an example only for mapped `RATE_LIMITED` with
-   `details.rateLimitScope === "daily"`, an explicit subject target, and a target
-   accepted by `parseUnifiedSearchTargetSpec()`. Do not infer a target from the
-   question, thread, cwd or manifest. Invalid/bare targets keep generic guidance;
-   failed eligibility must never replace the original Research error.
-2. Build exactly one template from the original target:
-   `githits search --in 'npm:express' -- 'your query'`. Use `shellQuoteExact()`
-   for the target, preserving its original bytes. The query is always the fixed
-   placeholder, independent of the original question. Document the existing
-   CLI argv input domain; add no unreachable NUL guard or synthetic NUL test.
-3. In `researchAction()`'s existing failure branch, derive the example once.
-   Human output adds one `Example: COMMAND` line alongside the unchanged diagnostic
-   and identifiers; JSON adds that same template as `details.example` in its
-   existing single stderr envelope. Keep stdout empty on failure, exit status 1,
-   and preserve message/reset advice, retryable flag, status, retry timing,
-   mapped details, `tool_call_id` and `thread_id`. Do not expand shared formatter
-   behavior merely to print this one request-aware example.
-4. Targetless and thread calls, malformed/bare explicit targets, request-rate
-   limits, absent/unknown rate scopes and other errors retain current behavior.
-   No automatic search, retry, target resolution, fallback, extra network call
-   or new CLI flag. Preserve spinner/progress completion and cancellation paths.
-5. Update `docs/implementation/research.md` and the Research section of
-   `cli-commands.md` with the conditional CLI example and fixed query placeholder.
-   Do not imply MCP also emits it or edit public skills/instructions. Add
-   `changes/research-daily-limit-recovery.fixed.md` with `githits: patch` and
-   `@githits/mcp: none` during implementation.
-
-Acceptance and targeted validation:
-
-- Extend `src/commands/research.test.ts` using its existing interface mocks;
-  no new fixture files. Prove human/JSON example identity for one canonical
-  target with preserved IDs/details and exactly one failed Ask call. Cover
-  package/repository/site eligibility, unscoped/thread/bare/invalid targets,
-  daily/request/unknown scopes, and no example for other errors. Verify that the
-  original question is still sent to Ask but is absent from the example.
-- One quote/Unicode target case and one accepted control-whitespace target case
-  prove exact target quoting. The fixed query remains unchanged in both. Reuse existing
-  shell-quote and target-parser coverage instead of a new shell parser/harness.
-  Explicitly assert the suggestion is not executed and stdout stays empty.
-- Run `bun test src/commands/research.test.ts src/commands/format-mapped-error.test.ts
-  packages/mcp/src/shared/agentic-ask-error-map.test.ts
-  packages/mcp/src/shared/shell-quote.test.ts
-  packages/mcp/src/shared/unified-search-target.test.ts`, typecheck, targeted
-  lint/format, build, and the four source/built CLI/MCP smoke modes. Keep smoke
-  auth handling isolated with the dev preset; never exhaust a real allowance
-  to exercise this branch. Mocked command tests gate daily-limit behavior;
-  normal live-smoke skips do not prove that branch.
-- Run one targeted qualitative CLI agent check using the existing harness:
-  `bun run agent:e2e --agent codex --surface skills --server local --workload
-  eval/agentic/workloads/express-router.md`, with the dev preset and established
-  isolated eval credentials when available. Inspect raw tool calls, final answer,
-  metrics and isolation violations. The existing workload may not encounter a
-  daily limit: report whether it did, and do not claim it validates the new
-  example if it did not. Report unavailable prerequisites honestly; no quota
-  manipulation, new eval infrastructure or agent-quality/call-reduction claim.
-- Keep added instruction text to the single command line. Original backend copy
-  stays intact; no model-token or latency improvement is promised. No changes
-  to backend API fields, persistence, migrations or successful command output. Rollback
-  is reverting the CLI example/docs; no operational rollout is needed.
-
-The scoped internal/external plan review is clean. During implementation, use
-the normal scoped review and draft-PR workflow. Retain the
-plan while later phases remain; after merge replace this detail with completion
-links and keep the durable contract in implementation docs.
+Status: **COMPLETE; merged #535**. Eligible CLI daily-limit errors show a scoped
+search template with the fixed `your query` placeholder, labelled `Example:`
+and exposed as `details.example`. Original request/error facts and diagnostic
+IDs remain; no inferred target, question replay or automatic follow-up call.
+Durable contracts live in `docs/implementation/research.md` and
+`cli-commands.md`; review and verification evidence is on #535. No open gate.
 
 ### Phase 3 — bounded readable output
 
-Status: **NEEDS DESIGN**. Outcome: callers avoid external `head` while keeping
-trust/coverage facts, read locators and an explicit route to omitted evidence.
-Ordering: follows Phase 2. Design dependencies are reorientation against current
-formatter ownership and representative captured output.
-Assumption: opt-in presentation controls can improve ergonomics without changing
-default output or machine JSON. Unknowns: first command, line/character units,
-budget scope, large-line handling and replay semantics. Resolve from one grep
-page and one source/docs read with existing fixtures plus real served output;
-do not create a cross-tool truncation framework or add two competing knobs by
-default. Coordinate with `search-output-ux.md` rather than duplicating its work.
+Status: **PARKED by user decision, 2026-11-03**. No design or implementation is
+scheduled, and this phase does not gate enclosing-symbol adoption.
 
-Acceptance: a reviewed first-command design distinguishes locally omitted output
-from backend partial coverage; preserves provenance/warnings/actions outside the
-evidence budget; never slices ANSI/Unicode/source lines into misleading evidence;
-leaves JSON complete; and provides an exact retry/read path for omitted content.
-Before claiming an efficiency improvement, name and compare the same cases:
-one existing mixed-source 100-hit grep page and one selected large-file read,
-with identical inputs and recorded HTTP calls/selected fields plus output bytes
-and lines before/after. Presentation-only savings must not be described as less
-backend work. Runtime performance claims additionally require a narrow release
-build benchmark and same-case baseline/candidate comparison. Detail only after
-the preceding increment and captured output settle the contract.
+Evidence: the supplied report says agents piped output through `head` more than
+half the time. This establishes frequent previewing, not failure of that workflow.
+`head` already keeps discarded text out of the agent's context. A formatter-only
+limit would still fetch the same backend response. Grep's trailing continuation
+cursor and read guidance can be discarded, but the report does not demonstrate
+that this caused failed tasks or additional calls.
+
+The earlier assumption that built-in budgets would improve ergonomics enough to
+justify a new control remains unproven. Reconsider only when traces demonstrate
+lost continuation information causing problems or repeated avoidable refetching,
+and compare the smallest remedy with existing request controls and shell previews.
+No budget units, commands, formatter architecture or acceptance contract are
+selected. A decision to resume requires new evidence; coordinate any resulting
+design with `search-output-ux.md` rather than duplicating its work.
 
 ### Phase 4 — backend-assisted enclosing symbols
 
