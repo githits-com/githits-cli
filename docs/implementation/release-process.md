@@ -152,41 +152,12 @@ shape during development, and require release sections for the versions
 currently declared in both public package manifests. A version bump without a
 matching changelog section must fail before release.
 
-## Mintlify Changelog Drafts
+## Documentation Changelog
 
-After a successful CLI release, `release.yml` calls the reusable
-`mintlify-changelog-trigger.yml` workflow to trigger only Mintlify's **Draft
-changelog** automation. It skips when the release artifacts already exist.
-The workflow also supports manual runs through `workflow_dispatch`. Both
-entrypoints accept an optional `version` string used only for logging.
-The release caller passes the API key explicitly. Both workflows grant the
-trigger no GitHub token permissions. Missing configuration produces a notice
-and skips the request; the trigger step uses `continue-on-error: true`, so a
-failed Mintlify request does not fail the called workflow or the release.
-Connection, request, and retry time limits keep API failures within the
-five-minute job timeout.
-
-The job uses `aks-deployment-runner` for its fixed public IP ranges
-`52.153.186.208/28` and `172.185.36.80/28`, so the Mintlify key can be restricted
-to those ranges. Mintlify sets the
-[IP allowlist at key creation](https://www.mintlify.com/docs/api/introduction#restrict-keys-by-ip-address);
-replace a key created without the required ranges to add them. Grant
-`githits-cli` access to the runner group containing this runner in organization
-Settings > Actions > Runner groups, including access for this public repository.
-Without a matching accessible runner, the job stays queued and eventually fails,
-marking the Release run failed even though npm, MCP registry, and GitHub release
-publication have already succeeded. Manual runs of the Mintlify workflow check
-runner access and connectivity; inspect the step outcome and confirm a Draft
-changelog run appears in Mintlify,
-since a green workflow alone does not prove the non-fatal request succeeded.
-
-Configure the repository secret `MINTLIFY_API_KEY` with a Mintlify admin API key
-that has write scope and an expiry. Set repository variables
-`MINTLIFY_PROJECT_ID` and `MINTLIFY_DRAFT_CHANGELOG_WORKFLOW_ID`; copy the latter
-from the Draft changelog automation's settings panel. Keep this automation on a
-custom schedule, with its Friday schedule as a backstop: the
-[trigger API](https://www.mintlify.com/docs/api/automations/trigger) only supports
-scheduled automations. The MCP release workflow does not trigger it.
+Mintlify Autopilot starts changelog runs on merges to `main` that change
+`CHANGELOG.md`. The integration is configured in Mintlify; GitHub release
+workflows do not call it. Release preparation updates `CHANGELOG.md`, so the
+release PR merge supplies the changelog change that starts the run.
 
 ## npm Publication Completion and Recovery
 
