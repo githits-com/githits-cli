@@ -812,3 +812,31 @@ describe("unified grep CLI", () => {
     },
   );
 });
+
+it("rejects unsupported symbol fields with the CLI flag label before IO", async () => {
+  const error = spyOn(console, "error").mockImplementation(() => {});
+  const exit = spyOn(process, "exit").mockImplementation(() => {
+    throw new Error("exit");
+  });
+  const d = deps();
+  try {
+    for (const field of ["code", "unknown", " "]) {
+      await expect(
+        grepAction(
+          "router",
+          ["npm:express"],
+          { symbolField: [field], json: true },
+          d,
+        ),
+      ).rejects.toThrow("exit");
+      expect(JSON.parse(String(error.mock.calls.at(-1)![0]))).toMatchObject({
+        code: "INVALID_ARGUMENT",
+        error: expect.stringContaining("`--symbol-field`"),
+      });
+    }
+    expect(d.grepService.grep).not.toHaveBeenCalled();
+  } finally {
+    error.mockRestore();
+    exit.mockRestore();
+  }
+});

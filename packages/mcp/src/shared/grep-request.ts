@@ -5,7 +5,11 @@ import type {
 } from "@githits/core-internal";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { GREP_CONTEXT_MAX } from "./grep-context.js";
-import { InvalidArgumentError } from "./package-spec.js";
+import { normalizeGrepSymbolFields } from "./grep-repo-request.js";
+import {
+  InvalidArgumentError,
+  InvalidPackageSpecError,
+} from "./package-spec.js";
 
 const MAX_TARGETS = 20;
 const MAX_PATTERN_BYTES = 200;
@@ -38,6 +42,7 @@ export interface GrepRequestInput {
   maxMatches?: number;
   waitTimeoutMs?: number;
   cursor?: string;
+  symbolFields?: readonly string[];
 }
 
 /** A caller-input error raised while normalizing a unified grep request. */
@@ -108,6 +113,14 @@ export function buildGrepParams(input: GrepRequestInput): GrepParams {
     300_000,
   );
   const cursor = normalizeCursor(input.cursor);
+  let symbolFields: ReturnType<typeof normalizeGrepSymbolFields>;
+  try {
+    symbolFields = normalizeGrepSymbolFields(input.symbolFields);
+  } catch (error) {
+    if (error instanceof InvalidPackageSpecError)
+      throw new InvalidGrepRequestError("symbol_fields", error.message);
+    throw error;
+  }
 
   const targets = input.targets.map((targetInput, index) => {
     const field = `targets[${index}]`;
@@ -166,6 +179,7 @@ export function buildGrepParams(input: GrepRequestInput): GrepParams {
     contextLinesAfter: contextLinesAfter ?? 0,
     ...(maxMatches !== undefined ? { maxMatches } : {}),
     ...(cursor !== undefined ? { cursor } : {}),
+    ...(symbolFields.length ? { symbolFields } : {}),
     waitTimeoutMs: waitTimeoutMs ?? (cursor ? 0 : DEFAULT_WAIT_TIMEOUT_MS),
     includeDetailedFields: input.includeDetailedFields,
   };

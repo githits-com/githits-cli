@@ -84,6 +84,7 @@ export function mapGrepError(error: unknown): MappedError {
       graphqlCode === "GREP_TARGET_PREPARATION_REQUIRED"
         ? preparationErrorCode(ext.target_issues, ext.retryable)
         : graphqlCode === "GREP_CURSOR_INVALID" ||
+            graphqlCode === "MULTI_GREP_CURSOR_INVALID" ||
             graphqlCode === "VALIDATION_ERROR" ||
             graphqlCode === "INVALID_ARGUMENT"
           ? "INVALID_ARGUMENT"
@@ -151,7 +152,10 @@ export function mapGrepError(error: unknown): MappedError {
       });
       if (hints.length) details.hint = hints.join("\n");
     }
-    if (graphqlCode === "GREP_CURSOR_INVALID")
+    if (
+      graphqlCode === "GREP_CURSOR_INVALID" ||
+      graphqlCode === "MULTI_GREP_CURSOR_INVALID"
+    )
       details.hint =
         "Restart explicitly without the cursor, using the same targets and controls.";
     return {

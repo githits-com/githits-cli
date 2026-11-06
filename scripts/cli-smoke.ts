@@ -1353,6 +1353,7 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
     assert(
       grepHelp.exitCode === 0 &&
         grepHelp.stdout.includes("--fixed-strings") &&
+        grepHelp.stdout.includes("--symbol-field") &&
         grepHelp.stdout.includes("global page cap") &&
         grepHelp.stdout.includes("capped at 10") &&
         grepHelp.stdout.includes("--path lib/express.js") &&

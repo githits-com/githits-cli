@@ -478,7 +478,7 @@ function buildRenderBlocks(matches: LeanGrepRepoMatch[]): RenderBlock[] {
             clampCharacterOffset(match.lineContent, match.matchEndByte),
           ],
         ],
-        symbolHint: formatSymbolHint(match.symbol),
+        symbolHint: formatGrepSymbolHint(match.symbol),
       });
     }
 
@@ -585,7 +585,8 @@ function renderVerboseLine(
   return `  ${dim(gutter, useColors)}  ${dim(line.content, useColors)}`;
 }
 
-function formatSymbolHint(
+/** Shared concise hint; only supplied fields carry facts. */
+export function formatGrepSymbolHint(
   symbol: LeanGrepRepoMatch["symbol"],
 ): string | undefined {
   if (!symbol) return undefined;
