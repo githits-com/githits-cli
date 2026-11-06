@@ -7,12 +7,7 @@ const pinnedBunVersion = '"1.4.4"';
 const matrixBunVersion = "$" + "{{ matrix.bun-version }}";
 const pinnedAction = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40}$/;
 const versionComment = /^v\d+\.\d+\.\d+$/;
-const workflowsWithoutBun = new Set([
-  "gitleaks.yml",
-  "main.yml",
-  "mintlify-changelog-trigger.yml",
-  "pr.yml",
-]);
+const workflowsWithoutBun = new Set(["gitleaks.yml", "main.yml", "pr.yml"]);
 const privilegedJobs = new Map<string, string>([
   ["release.yml", "release"],
   ["mcp-release.yml", "publish"],
@@ -53,7 +48,6 @@ describe("GitHub Actions supply-chain pins", () => {
       "gitleaks.yml",
       "main.yml",
       "mcp-release.yml",
-      "mintlify-changelog-trigger.yml",
       "pr.yml",
       "release.yml",
     ]);
@@ -66,11 +60,7 @@ describe("GitHub Actions supply-chain pins", () => {
       const uses = [...source.matchAll(/^[ \t]*uses:[ \t]*(.+)$/gm)].map(
         (match) => match[1] ?? "",
       );
-      if (workflowName === "mintlify-changelog-trigger.yml") {
-        expect(uses).toEqual([]);
-      } else {
-        expect(uses.length).toBeGreaterThan(0);
-      }
+      expect(uses.length).toBeGreaterThan(0);
 
       for (const rawUse of uses) {
         const [action, comment] = rawUse.split(/\s+#\s*/);
@@ -121,13 +111,7 @@ describe("GitHub Actions supply-chain pins", () => {
           expect(job.uses).toBeUndefined();
           continue;
         }
-        expect(job.permissions).toEqual(
-          (workflowName === "release.yml" ||
-            workflowName === "mintlify-changelog-trigger.yml") &&
-            jobName === "trigger-docs-changelog"
-            ? {}
-            : { contents: "read" },
-        );
+        expect(job.permissions).toEqual({ contents: "read" });
       }
 
       if (workflowName === "release.yml") {
