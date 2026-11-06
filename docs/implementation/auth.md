@@ -12,10 +12,17 @@ The two methods exist because OAuth provides full access but requires a browser,
 
 ## Authentication Methods
 
+API credentials accept both generations: personal `ghi-` / `sk-githits-` and
+project `gh-proj-` / `sk-githits-proj-`. `GITHITS_API_TOKEN` is forwarded unchanged.
+These credentials never enter OAuth refresh, even when a new-format key is
+malformed; a failure must not silently substitute a stored OAuth identity.
+Reader compatibility ships before Supabase changes issuance. Existing keys do not
+need rotation, and project keys retain their existing endpoint restrictions.
+
 | Method | Source | Endpoints | Use case |
 |---|---|---|---|
 | **OAuth JWT** | `githits login` | REST example search (`/search`) | Interactive development |
-| **API token** (`ghi-*`) | `GITHITS_API_TOKEN` env var | REST example search (`/search`) | CI, automation, quick setup |
+| **Personal API token** (`ghi-*` or `sk-githits-*`) | `GITHITS_API_TOKEN` env var | REST example search (`/search`) | CI, automation, quick setup |
 
 > **The container resolves auth at startup.** The `createContainer()` function checks for `GITHITS_API_TOKEN` first — if set, it takes precedence even when OAuth tokens are stored. If not set, it loads stored OAuth tokens and attempts auto-refresh if expired. See `src/container.ts` for the resolution logic.
 
@@ -191,7 +198,7 @@ The MCP server starts without a synchronous auth gate. Tool calls resolve tokens
 ## Troubleshooting
 
 - **"Authentication required" from a command or MCP tool** — No valid token found. Run `githits login` or set `GITHITS_API_TOKEN`.
-- **"Terms acceptance required"** — Run `githits settings terms accept` or open the environment-specific `acceptance_url` returned by the backend. OAuth sessions refresh after acceptance; static `ghi-*` tokens remain unchanged and are re-evaluated server-side without token refresh.
+- **"Terms acceptance required"** — Run `githits settings terms accept` or open the environment-specific `acceptance_url` returned by the backend. OAuth sessions refresh after acceptance; static personal API tokens in either prefix generation remain unchanged and are re-evaluated server-side without token refresh.
 - **Different auth behavior across terminals or agents** — Run `githits doctor` or `githits doctor --json` to compare redacted runtime, environment, config, and auth-storage diagnostics without exposing token values.
 - **"Already logged in."** — Token is still valid. Use `githits login --force` to re-authenticate.
 - **Port conflicts on login** — The callback server uses the port from the stored client registration. On first login, a random port (8000–9999) is chosen and saved. Use `--port <port>` to change it (triggers re-registration).

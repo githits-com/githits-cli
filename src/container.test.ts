@@ -399,20 +399,29 @@ describe("createContainer", () => {
       ),
     );
   });
-  it("constructs private experimental services for environment-token auth", async () => {
-    await withoutProxyEnv(async () =>
-      withApiToken("ghi-test", async () => {
-        const deps = await createContainer({ resolveStoredToken: false });
-        expect(deps.resolveTargetService).toBeInstanceOf(
-          ResolveTargetServiceImpl,
-        );
-        expect(typeof deps.agenticAskService.ask).toBe("function");
-        expect(deps.readService).toBeInstanceOf(ReadServiceImpl);
-        expect(deps.listService).toBeInstanceOf(ListServiceImpl);
-        expect(deps.grepService).toBeInstanceOf(GrepServiceImpl);
-      }),
-    );
-  });
+  it.each([
+    "ghi-test",
+    `sk-githits-${"A".repeat(43)}`,
+    `sk-githits-proj-${"A".repeat(43)}`,
+  ])(
+    "constructs services using the unchanged environment token %s",
+    async (token) => {
+      await withoutProxyEnv(async () =>
+        withApiToken(token, async () => {
+          const deps = await createContainer({ resolveStoredToken: false });
+          expect(deps.apiToken).toBe(token);
+          expect(await deps.tokenProvider.getToken()).toBe(token);
+          expect(deps.resolveTargetService).toBeInstanceOf(
+            ResolveTargetServiceImpl,
+          );
+          expect(typeof deps.agenticAskService.ask).toBe("function");
+          expect(deps.readService).toBeInstanceOf(ReadServiceImpl);
+          expect(deps.listService).toBeInstanceOf(ListServiceImpl);
+          expect(deps.grepService).toBeInstanceOf(GrepServiceImpl);
+        }),
+      );
+    },
+  );
 
   it("constructs private experimental services for stored-token auth", async () => {
     await withoutProxyEnv(async () =>

@@ -6,25 +6,52 @@ import {
 } from "./githits-service.js";
 
 describe("executeWithTokenRefresh", () => {
-  it.each(["ghi-static-token", "gh-proj-static-token"])(
-    "never calls the refresh hook for opaque API token %s",
-    async (token) => {
-      const forceRefresh = mock(() => Promise.resolve("unexpected-token"));
-      const executeWithToken = mock(() =>
-        Promise.reject(new TermsAcceptanceRequiredError()),
-      );
+  it.each([
+    "ghi-static-token",
+    "gh-proj-static-token",
+    `sk-githits-${"A".repeat(43)}`,
+    `sk-githits-proj-${"A".repeat(43)}`,
+    `sk-githits-proj-${"A".repeat(38)}`,
+    "sk-githits-malformed",
+  ])("never calls the refresh hook for opaque API token %s", async (token) => {
+    const forceRefresh = mock(() => Promise.resolve("unexpected-token"));
+    const executeWithToken = mock(() =>
+      Promise.reject(new TermsAcceptanceRequiredError()),
+    );
 
+    await expect(
+      executeWithTokenRefresh({
+        getToken: mock(() => Promise.resolve(token)),
+        forceRefresh,
+        executeWithToken,
+        shouldRefresh: () => true,
+      }),
+    ).rejects.toBeInstanceOf(TermsAcceptanceRequiredError);
+
+    expect(forceRefresh).not.toHaveBeenCalled();
+    expect(executeWithToken).toHaveBeenCalledTimes(1);
+    expect(executeWithToken).toHaveBeenCalledWith(token);
+  });
+  it.each(["ghi-", "gh-proj-", "sk-githits-", "sk-githits-proj-"])(
+    "preserves authentication failures for %s without refreshing",
+    async (prefix) => {
+      const token = prefix + "B".repeat(43);
+      const failure = new AuthenticationError();
+      const forceRefresh = mock(async () => "saved-oauth-jwt");
+      const executeWithToken = mock(async () => {
+        throw failure;
+      });
       await expect(
         executeWithTokenRefresh({
-          getToken: mock(() => Promise.resolve(token)),
+          getToken: async () => token,
           forceRefresh,
           executeWithToken,
           shouldRefresh: () => true,
         }),
-      ).rejects.toBeInstanceOf(TermsAcceptanceRequiredError);
-
+      ).rejects.toBe(failure);
       expect(forceRefresh).not.toHaveBeenCalled();
       expect(executeWithToken).toHaveBeenCalledTimes(1);
+      expect(executeWithToken).toHaveBeenCalledWith(token);
     },
   );
   it("rejects with an already-aborted caller reason before reading a token", async () => {

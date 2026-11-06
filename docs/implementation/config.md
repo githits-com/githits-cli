@@ -69,7 +69,7 @@ The container (`src/container.ts`) resolves authentication in priority order:
 
 ### Auth Mode Capabilities
 
-| Endpoint | OAuth JWT | API Token (`ghi-*`) | Unauthenticated |
+| Endpoint | OAuth JWT | Personal API Token (both generations) | Unauthenticated |
 |---|---|---|---|
 | `/search` | Full access | Full access | Blocked |
 | `/functions/v1/settings/me` | Full access | Full access | Blocked |
@@ -85,7 +85,7 @@ Package/source access uses the OSS service URL selected by `GITHITS_ENV` unless 
 | `GITHITS_API_URL` | Override REST API URL | `http://localhost:8000` |
 | `GITHITS_CODE_NAV_URL` | Override package/source service URL | `http://localhost:4000` |
 | `GITHITS_ACCOUNTS_URL` | Override account settings origin | `https://accounts.example.test` |
-| `GITHITS_API_TOKEN` | API token for authentication | `ghi-abc123...` |
+| `GITHITS_API_TOKEN` | API token for authentication | `<complete-issued-token>` |
 | `GITHITS_AUTH_STORAGE` | Override OAuth credential storage for the current process (`keychain` or `file`) | `file` |
 | `GITHITS_DISABLE_SKILL_UPDATE` | Disable local MCP skill maintenance when non-empty | `1` |
 | `GITHITS_SESSION_ID` | Override automatic session detection (`[A-Za-z0-9_-]{1,64}`) | `factory_run-42_agent-a` |
