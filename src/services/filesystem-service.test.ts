@@ -217,3 +217,18 @@ describe("FileSystemServiceImpl.deleteDirIfEmpty", () => {
     }
   });
 });
+
+describe("FileSystemServiceImpl.isSymbolicLink", () => {
+  it("distinguishes a file link, regular file and missing path", async () => {
+    await withTempDirectory(async (root) => {
+      const target = join(root, "target.md");
+      const link = join(root, "link.md");
+      await writeFile(target, "text");
+      await symlink(target, link, "file");
+      const fs = new FileSystemServiceImpl();
+      expect(await fs.isSymbolicLink(target)).toBe(false);
+      expect(await fs.isSymbolicLink(link)).toBe(true);
+      expect(await fs.isSymbolicLink(join(root, "missing"))).toBe(false);
+    });
+  });
+});

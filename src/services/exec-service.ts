@@ -77,6 +77,8 @@ export interface ExecResult {
 }
 
 export interface ExecOptions {
+  /** Explicit child-only environment overrides; inherited values remain available. */
+  env?: Record<string, string>;
   timeoutMs?: number;
   /** Working directory for the spawned command. */
   cwd?: string;
@@ -128,7 +130,7 @@ export class ExecServiceImpl implements ExecService {
       const spawnCommand = normalizeSpawnCommand(command, args);
       const child = spawn(spawnCommand.command, spawnCommand.args, {
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env },
+        env: { ...process.env, ...options?.env },
         ...(options.cwd !== undefined && { cwd: options.cwd }),
         ...(spawnCommand.shell !== undefined && { shell: spawnCommand.shell }),
         ...(spawnCommand.windowsVerbatimArguments !== undefined && {
