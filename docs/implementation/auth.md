@@ -16,8 +16,8 @@ API credentials accept both generations: personal `ghi-` / `sk-githits-` and
 project `gh-proj-` / `sk-githits-proj-`. `GITHITS_API_TOKEN` is forwarded unchanged.
 These credentials never enter OAuth refresh, even when a new-format key is
 malformed; a failure must not silently substitute a stored OAuth identity.
-Reader compatibility ships before Supabase changes issuance. Existing keys do not
-need rotation, and project keys retain their existing endpoint restrictions.
+Existing keys do not need rotation, and project keys retain their existing
+endpoint restrictions.
 
 | Method | Source | Endpoints | Use case |
 |---|---|---|---|
