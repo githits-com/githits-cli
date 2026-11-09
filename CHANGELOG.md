@@ -9,13 +9,13 @@ are historical records and change only to correct blatant factual errors.
 
 ### Changed
 
-- **Provider-owned token refresh** - Ship the shared request-recovery cleanup in the CLI and local MCP server, removing API-key prefix checks. Static credentials still preserve backend errors without retrying, and OAuth refresh is unchanged.
+- **API key handling** - Simplify API key handling. Existing keys and browser sign-in continue to work as before, with no changes needed from you.
 
 ## [@githits/mcp 0.40.2] - 2026-11-09
 
 ### Changed
 
-- **Provider-owned token refresh** - Remove API-key prefix checks from request recovery. Built-in static credentials still preserve backend errors without retrying, and OAuth refresh is unchanged. Custom token providers now control refresh regardless of token format and must return `undefined` when refresh is unsupported.
+- **API key handling** - Handle API keys consistently across formats. Custom authentication integrations now decide whether credentials can be refreshed.
 
 ## [githits 0.40.2] - 2026-11-09
 
