@@ -1,5 +1,5 @@
 ---
-"githits": patch
+"githits": none
 "@githits/mcp": patch
 ---
 
