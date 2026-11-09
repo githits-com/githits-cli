@@ -403,6 +403,7 @@ describe("createContainer", () => {
     "ghi-test",
     `sk-githits-${"A".repeat(43)}`,
     `sk-githits-proj-${"A".repeat(43)}`,
+    "future-format-token",
   ])(
     "constructs services using the unchanged environment token %s",
     async (token) => {
@@ -411,6 +412,7 @@ describe("createContainer", () => {
           const deps = await createContainer({ resolveStoredToken: false });
           expect(deps.apiToken).toBe(token);
           expect(await deps.tokenProvider.getToken()).toBe(token);
+          expect(await deps.tokenProvider.forceRefresh()).toBeUndefined();
           expect(deps.resolveTargetService).toBeInstanceOf(
             ResolveTargetServiceImpl,
           );

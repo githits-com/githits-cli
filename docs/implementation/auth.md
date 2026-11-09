@@ -195,10 +195,17 @@ Per API call (via RefreshingGitHitsService):
 
 The MCP server starts without a synchronous auth gate. Tool calls resolve tokens through the shared token provider and return per-tool auth errors when no valid token is available.
 
+Clients treat tokens as opaque values. After a refreshable error, the request
+wrapper delegates to `TokenProvider.forceRefresh()` without inspecting the token
+format. Static providers return `undefined` without I/O, preserving the original
+backend error without retrying. Custom providers must implement the same no-op
+when their credentials cannot refresh; refresh hooks are no longer suppressed
+based on known API-key prefixes.
+
 ## Troubleshooting
 
 - **"Authentication required" from a command or MCP tool** — No valid token found. Run `githits login` or set `GITHITS_API_TOKEN`.
-- **"Terms acceptance required"** — Run `githits settings terms accept` or open the environment-specific `acceptance_url` returned by the backend. OAuth sessions refresh after acceptance; static personal API tokens in either prefix generation remain unchanged and are re-evaluated server-side without token refresh.
+- **"Terms acceptance required"** — Run `githits settings terms accept` or open the environment-specific `acceptance_url` returned by the backend. OAuth sessions refresh after acceptance; static API tokens remain unchanged because their provider has no refresh flow and the backend re-evaluates them server-side.
 - **Different auth behavior across terminals or agents** — Run `githits doctor` or `githits doctor --json` to compare redacted runtime, environment, config, and auth-storage diagnostics without exposing token values.
 - **"Already logged in."** — Token is still valid. Use `githits login --force` to re-authenticate.
 - **Port conflicts on login** — The callback server uses the port from the stored client registration. On first login, a random port (8000–9999) is chosen and saved. Use `--port <port>` to change it (triggers re-registration).

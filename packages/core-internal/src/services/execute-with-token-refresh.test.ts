@@ -4,6 +4,8 @@ import {
   AuthenticationError,
   TermsAcceptanceRequiredError,
 } from "./githits-service.js";
+import { createMockTokenProvider } from "./test-helpers.js";
+import { createStaticTokenProvider } from "./token-provider.js";
 
 describe("executeWithTokenRefresh", () => {
   it.each([
@@ -13,47 +15,51 @@ describe("executeWithTokenRefresh", () => {
     `sk-githits-proj-${"A".repeat(43)}`,
     `sk-githits-proj-${"A".repeat(38)}`,
     "sk-githits-malformed",
-  ])("never calls the refresh hook for opaque API token %s", async (token) => {
-    const forceRefresh = mock(() => Promise.resolve("unexpected-token"));
-    const executeWithToken = mock(() =>
-      Promise.reject(new TermsAcceptanceRequiredError()),
-    );
+    "future-format-token",
+    "header.payload.signature",
+  ])(
+    "preserves static-token failures without retrying for %s",
+    async (token) => {
+      for (const failure of [
+        new AuthenticationError(),
+        new TermsAcceptanceRequiredError(),
+      ]) {
+        const executeWithToken = mock(async () => {
+          throw failure;
+        });
+        await expect(
+          executeWithTokenRefresh({
+            ...createStaticTokenProvider(token),
+            executeWithToken,
+            shouldRefresh: () => true,
+          }),
+        ).rejects.toBe(failure);
+        expect(executeWithToken).toHaveBeenCalledTimes(1);
+        expect(executeWithToken).toHaveBeenCalledWith(token);
+      }
+    },
+  );
+
+  it("uses the provider refresh contract regardless of the token prefix", async () => {
+    const token = "sk-githits-custom-provider-token";
+    const provider = createMockTokenProvider({
+      getToken: mock(async () => token),
+    });
+    const executeWithToken = mock(async (value: string) => {
+      if (value === token) throw new AuthenticationError();
+      return value;
+    });
 
     await expect(
       executeWithTokenRefresh({
-        getToken: mock(() => Promise.resolve(token)),
-        forceRefresh,
+        ...provider,
         executeWithToken,
         shouldRefresh: () => true,
       }),
-    ).rejects.toBeInstanceOf(TermsAcceptanceRequiredError);
-
-    expect(forceRefresh).not.toHaveBeenCalled();
-    expect(executeWithToken).toHaveBeenCalledTimes(1);
-    expect(executeWithToken).toHaveBeenCalledWith(token);
+    ).resolves.toBe("mock-refreshed-token");
+    expect(provider.forceRefresh).toHaveBeenCalledTimes(1);
+    expect(executeWithToken).toHaveBeenCalledTimes(2);
   });
-  it.each(["ghi-", "gh-proj-", "sk-githits-", "sk-githits-proj-"])(
-    "preserves authentication failures for %s without refreshing",
-    async (prefix) => {
-      const token = prefix + "B".repeat(43);
-      const failure = new AuthenticationError();
-      const forceRefresh = mock(async () => "saved-oauth-jwt");
-      const executeWithToken = mock(async () => {
-        throw failure;
-      });
-      await expect(
-        executeWithTokenRefresh({
-          getToken: async () => token,
-          forceRefresh,
-          executeWithToken,
-          shouldRefresh: () => true,
-        }),
-      ).rejects.toBe(failure);
-      expect(forceRefresh).not.toHaveBeenCalled();
-      expect(executeWithToken).toHaveBeenCalledTimes(1);
-      expect(executeWithToken).toHaveBeenCalledWith(token);
-    },
-  );
   it("rejects with an already-aborted caller reason before reading a token", async () => {
     const controller = new AbortController();
     const reason = new Error("already cancelled");
