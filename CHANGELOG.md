@@ -5,6 +5,18 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.40.3] - 2026-11-09
+
+### Changed
+
+- **API key handling** - Simplify API key handling. Existing keys and browser sign-in continue to work as before, with no changes needed from you.
+
+## [@githits/mcp 0.40.2] - 2026-11-09
+
+### Changed
+
+- **API key handling** - Handle API keys consistently across formats. Custom authentication integrations now decide whether credentials can be refreshed.
+
 ## [githits 0.40.2] - 2026-11-09
 
 ### Removed

@@ -1,6 +1,6 @@
 {
   "name": "githits",
-  "version": "0.40.2",
+  "version": "0.40.3",
   "description": "The infrastructure layer connecting agents to the open-source ecosystem",
   "author": {
     "name": "GitHits"
