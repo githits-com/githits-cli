@@ -5,6 +5,12 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [@githits/mcp 0.40.2] - 2026-11-09
+
+### Changed
+
+- **Provider-owned token refresh** - Remove API-key prefix checks from request recovery. Built-in static credentials still preserve backend errors without retrying, and OAuth refresh is unchanged. Custom token providers now control refresh regardless of token format and must return `undefined` when refresh is unsupported.
+
 ## [githits 0.40.2] - 2026-11-09
 
 ### Removed
