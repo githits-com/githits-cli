@@ -5,6 +5,26 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.40.2] - 2026-11-09
+
+### Fixed
+
+- **API key compatibility** - Treat `sk-githits-` personal keys and `sk-githits-proj-` project keys as non-refreshable credentials, skipping OAuth refresh attempts in the shared CLI/MCP request wrapper. Existing `ghi-` and `gh-proj-` keys continue to work.
+
+### Removed
+
+- **Documentation changelog automation** - Remove the release-time Mintlify trigger; Autopilot now starts changelog runs on merges to main that change CHANGELOG.md.
+
+### Security
+
+- **Patch the CLI HTTP client** - Published `githits` now depends on undici 7.30.2, fixing cache and redirect response leaks between users, an SRI bypass, and cache denial of service (CVE-2026-116592, CVE-2026-116630, CVE-2026-120474, CVE-2026-120415, CVE-2026-120222, and CVE-2026-120423).
+
+## [@githits/mcp 0.40.1] - 2026-11-09
+
+### Fixed
+
+- **API key compatibility** - Treat `sk-githits-` personal keys and `sk-githits-proj-` project keys as non-refreshable credentials, skipping OAuth refresh attempts in the shared CLI/MCP request wrapper. Existing `ghi-` and `gh-proj-` keys continue to work.
+
 ## [githits 0.40.1] - 2026-11-05
 
 ### Fixed
