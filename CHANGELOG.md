@@ -7,13 +7,13 @@ are historical records and change only to correct blatant factual errors.
 
 ## [githits 0.40.2] - 2026-11-09
 
-### Fixed
-
-- **API key compatibility** - Treat `sk-githits-` personal keys and `sk-githits-proj-` project keys as non-refreshable credentials, skipping OAuth refresh attempts in the shared CLI/MCP request wrapper. Existing `ghi-` and `gh-proj-` keys continue to work.
-
 ### Removed
 
 - **Documentation changelog automation** - Remove the release-time Mintlify trigger; Autopilot now starts changelog runs on merges to main that change CHANGELOG.md.
+
+### Fixed
+
+- **API key compatibility** - Treat `sk-githits-` personal keys and `sk-githits-proj-` project keys as non-refreshable credentials, skipping OAuth refresh attempts in the shared CLI/MCP request wrapper. Existing `ghi-` and `gh-proj-` keys continue to work.
 
 ### Security
 
