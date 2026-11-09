@@ -200,8 +200,8 @@ or transport objects. Original prose/timelines are not fetched for default JSON.
 The backend contract is PR3918/head
 `1bc64a0486dc2d0d1c0417ed57389bc41ef50375` (SDL hash `27116f8dd2a5`).
 The existing authenticated GraphQL transport, token refresh, client headers and
-host diagnostics are reused. OAuth/terms failures can refresh once; opaque API
-tokens do not refresh. Network configuration is validated at request time.
+host diagnostics are reused. OAuth/terms failures can refresh once; static token
+providers do not refresh. Network configuration is validated at request time.
 
 | Mode | IDs/request | Package groups | Display fallback |
 | --- | --- | --- | --- |

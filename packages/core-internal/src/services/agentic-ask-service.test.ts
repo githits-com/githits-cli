@@ -15,6 +15,7 @@ import {
 } from "./agentic-ask-service.js";
 import displayContract from "./fixtures/ask-display-contract.json";
 import { createMockTokenProvider } from "./test-helpers.js";
+import { createStaticTokenProvider } from "./token-provider.js";
 
 const TOOL_CALL_ID = "018f47a6-7b32-7a1e-8f45-6a2d39c81720";
 const THREAD_ID = "018f47a6-7b32-7b1e-8f45-6a2d39c81720";
@@ -487,22 +488,17 @@ describe("AgenticAskServiceImpl", () => {
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
-  it("does not attempt local refresh for an opaque API token", async () => {
-    const forceRefresh = mock(() => Promise.resolve("unexpected"));
+  it("preserves authentication failures without retrying a static token", async () => {
     const fetchFn = mock(() =>
       Promise.resolve(new Response("", { status: 401 })),
     ) as unknown as typeof fetch;
     const service = createService(fetchFn, {
-      tokenProvider: createMockTokenProvider({
-        getToken: mock(() => Promise.resolve("ghi-static-token")),
-        forceRefresh,
-      }),
+      tokenProvider: createStaticTokenProvider("ghi-static-token"),
     });
 
     await expect(
       service.ask({ target: "npm:example", question: "How?" }),
     ).rejects.toMatchObject({ code: "AUTH_REQUIRED", status: 401 });
-    expect(forceRefresh).not.toHaveBeenCalled();
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 

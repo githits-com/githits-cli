@@ -9,6 +9,7 @@ import {
   createMockGitHitsService,
   createMockTokenProvider,
 } from "./test-helpers.js";
+import { createStaticTokenProvider } from "./token-provider.js";
 
 describe("RefreshingGitHitsService", () => {
   const API_URL = "https://api.githits.com";
@@ -237,26 +238,20 @@ describe("RefreshingGitHitsService", () => {
     });
 
     it("does not retry terms gating when a static token cannot refresh", async () => {
+      const failure = new TermsAcceptanceRequiredError();
       const gatedService = createMockGitHitsService({
-        search: mock(() => Promise.reject(new TermsAcceptanceRequiredError())),
+        search: mock(() => Promise.reject(failure)),
       });
       const factory = mock(() => gatedService);
-      const forceRefresh = mock(() => Promise.resolve(undefined));
-      const tokenProvider = createMockTokenProvider({
-        getToken: mock(() => Promise.resolve("ghi-static-token")),
-        forceRefresh,
-      });
+      const tokenProvider = createStaticTokenProvider("ghi-static-token");
       const service = new RefreshingGitHitsService(
         API_URL,
         tokenProvider,
         factory,
       );
 
-      await expect(service.search({ query: "test" })).rejects.toBeInstanceOf(
-        TermsAcceptanceRequiredError,
-      );
+      await expect(service.search({ query: "test" })).rejects.toBe(failure);
       expect(factory).toHaveBeenCalledTimes(1);
-      expect(forceRefresh).not.toHaveBeenCalled();
     });
   });
 

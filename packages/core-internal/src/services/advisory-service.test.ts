@@ -9,6 +9,11 @@ import {
   AuthenticationError,
   TermsAcceptanceRequiredError,
 } from "./githits-service.js";
+import { createMockTokenProvider } from "./test-helpers.js";
+import {
+  createStaticTokenProvider,
+  type TokenProvider,
+} from "./token-provider.js";
 
 function success(ids = ["CVE-example"]) {
   return {
@@ -39,7 +44,7 @@ function setup(
   responses: Array<{ body?: unknown; status?: number; error?: Error }> = [
     success(),
   ],
-  token = "test-jwt",
+  token: string | TokenProvider = "test-jwt",
 ) {
   const requests: Array<{
     query: string;
@@ -58,10 +63,14 @@ function setup(
       status: next.status ?? 200,
     });
   });
-  const provider = {
-    getToken: mock(async () => token || undefined),
-    forceRefresh: mock(async () => "test-refreshed-jwt"),
-  };
+  const provider = createMockTokenProvider(
+    typeof token === "string"
+      ? {
+          getToken: mock(async () => token || undefined),
+          forceRefresh: mock(async () => "test-refreshed-jwt"),
+        }
+      : token,
+  );
   const debug = mock(() => {});
   const service = new AdvisoryServiceImpl(
     "https://example.com",
@@ -218,7 +227,7 @@ describe("cohesive advisory lookup", () => {
     expect(provider.forceRefresh).toHaveBeenCalledTimes(1);
     expect(requests).toHaveLength(2);
   });
-  it("retains terms and local/server auth after refresh and does not refresh opaque tokens", async () => {
+  it("retains terms and local/server auth after refresh and does not retry static tokens", async () => {
     const terms = setup([
       failure("TERMS_ACCEPTANCE_REQUIRED"),
       failure("TERMS_ACCEPTANCE_REQUIRED"),
@@ -237,12 +246,12 @@ describe("cohesive advisory lookup", () => {
     );
     const opaque = setup(
       [failure("AUTHENTICATION_REQUIRED")],
-      "ghi-test-fixture",
+      createStaticTokenProvider("ghi-test-fixture"),
     );
     await expect(opaque.service.lookup(["x"], false)).rejects.toBeInstanceOf(
       AuthenticationError,
     );
-    expect(opaque.provider.forceRefresh).not.toHaveBeenCalled();
+    expect(opaque.requests).toHaveLength(1);
   });
   it.each([403, 429, 500, 400])(
     "classifies HTTP failures without raw bodies",
@@ -420,11 +429,14 @@ describe("operation-local partial envelope", () => {
   it("keeps auth fatal even at a supporting path", async () => {
     const response = partial(localPath);
     response.body.errors[0]!.extensions.code = "AUTHENTICATION_REQUIRED";
-    const { service, provider } = setup([response], "ghi-test-fixture");
+    const { service, requests } = setup(
+      [response],
+      createStaticTokenProvider("ghi-test-fixture"),
+    );
     await expect(service.lookup(["CVE-example"], false)).rejects.toBeInstanceOf(
       AuthenticationError,
     );
-    expect(provider.forceRefresh).not.toHaveBeenCalled();
+    expect(requests).toHaveLength(1);
   });
 });
 
