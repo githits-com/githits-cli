@@ -5,6 +5,12 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.40.3] - 2026-11-09
+
+### Changed
+
+- **Provider-owned token refresh** - Ship the shared request-recovery cleanup in the CLI and local MCP server, removing API-key prefix checks. Static credentials still preserve backend errors without retrying, and OAuth refresh is unchanged.
+
 ## [@githits/mcp 0.40.2] - 2026-11-09
 
 ### Changed
