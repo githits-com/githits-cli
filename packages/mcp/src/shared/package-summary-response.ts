@@ -383,38 +383,50 @@ function formatLifecycle(
   lifecycle: PackageLifecycle | undefined,
   width: number,
 ): string {
-  if (!lifecycle) return "Lifecycle unavailable";
+  if (!lifecycle) return wrapText("Lifecycle unavailable", width);
   const lines: string[] = ["Lifecycle"];
+  const append = (text: string, indent = 0): void => {
+    const prefix = " ".repeat(Math.min(indent, width - 1));
+    const continuation = " ".repeat(Math.min(indent + 2, width - 1));
+    const wrapped = wrapText(text, width - continuation.length).split("\n");
+    lines.push(
+      wrapped
+        .map((line, index) => `${index === 0 ? prefix : continuation}${line}`)
+        .join("\n"),
+    );
+  };
   if (
     lifecycle.findings.length === 0 &&
     lifecycle.retainedWarnings.length === 0
   ) {
-    lines.push("No native findings reported.");
+    append("No native findings reported.");
   }
   for (const finding of lifecycle.findings) {
     const identity = `${finding.registry}:${finding.name}${finding.version != null ? `@${finding.version}` : ""}`;
-    lines.push(
+    append(
       `${finding.kind} (${finding.category}; scope ${finding.scope}): ${identity}`,
     );
-    lines.push(
+    append(
       `Source: ${finding.source}${finding.sourceVersion != null ? `; source version ${finding.sourceVersion}` : ""}`,
+      2,
     );
     if (finding.observedAt != null)
-      lines.push(`Acquired: ${finding.observedAt}`);
+      append(`Acquired: ${finding.observedAt}`, 2);
     if (finding.reason != null)
-      lines.push(`Publisher reason: ${finding.reason}`);
+      append(`Publisher reason: ${finding.reason}`, 2);
     if (finding.reasonCodes.length > 0)
-      lines.push(`Publisher reason codes: ${finding.reasonCodes.join(", ")}`);
+      append(`Publisher reason codes: ${finding.reasonCodes.join(", ")}`, 2);
     if (finding.replacement != null)
-      lines.push(
+      append(
         `Publisher replacement advice: ${finding.replacement} (not an upgrade recommendation)`,
+        2,
       );
   }
   for (const warning of lifecycle.retainedWarnings) {
-    lines.push(
+    append(
       `${warning.classification}: ${warning.registry}:${warning.name}@${warning.version}`,
     );
-    lines.push(`Retained publisher warning: ${warning.reason}`);
+    append(`Retained publisher warning: ${warning.reason}`, 2);
   }
   const labels: Record<keyof PackageLifecycle["checks"], string> = {
     deprecation: "deprecation",
@@ -430,14 +442,14 @@ function formatLifecycle(
     group.push(labels[key]);
     groups.set(status, group);
   }
-  lines.push(
+  append(
     `Lifecycle checks: ${Array.from(groups, ([status, names]) => `${status}: ${names.join(", ")}`).join("; ")}`,
   );
   if (lifecycle.contentSafety.filtered)
-    lines.push(
+    append(
       "Content safety: filtered by the backend; publisher text remains untrusted.",
     );
-  return lines.map((line) => wrapText(line, width)).join("\n");
+  return lines.join("\n");
 }
 
 /** Explain API selection without choosing a different release in the client. */

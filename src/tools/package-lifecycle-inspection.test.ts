@@ -464,6 +464,53 @@ describe("native lifecycle inspection causal path", () => {
     },
   );
 
+  it("groups multiple findings and wraps their details with hanging indentation", async () => {
+    const first = {
+      ...finding(
+        "GO",
+        "example.test/module",
+        null,
+        "DEPRECATED",
+        "DEPRECATION",
+        "PACKAGE",
+      ),
+      reason:
+        "A long publisher reason that wraps across several lines for layout verification",
+    };
+    const second = finding(
+      "GO",
+      "example.test/module",
+      "v1.2.0",
+      "RETRACTED",
+      "WITHDRAWAL",
+    );
+    const { service } = serviceFor(
+      bodyFor({
+        ...cases[0]!,
+        lifecycle: assessment([first, second], "CHECKED", "CHECKED"),
+      }),
+    );
+    const summary = await service.packageSummary({
+      registry: "NPM",
+      packageName: "request",
+    });
+    const text = formatPackageSummaryTerminal(summary, { terminalWidth: 38 });
+    const lines = text.slice(text.indexOf("Lifecycle")).trimEnd().split("\n");
+    expect(lines.some((line) => line.startsWith("DEPRECATED"))).toBe(true);
+    expect(lines.some((line) => line.startsWith("RETRACTED"))).toBe(true);
+    expect(lines.some((line) => line.startsWith("  Source:"))).toBe(true);
+    expect(lines.some((line) => line.startsWith("  Publisher reason:"))).toBe(
+      true,
+    );
+    expect(lines.some((line) => line.startsWith("    "))).toBe(true);
+    expect(lines.every((line) => line.length <= 38)).toBe(true);
+    const checks = lines.findIndex((line) =>
+      line.startsWith("Lifecycle checks:"),
+    );
+    expect(checks).toBeGreaterThan(0);
+    expect(lines[checks + 1]!.startsWith("  ")).toBe(true);
+  });
+
   it("preserves access failure from the optional lifecycle root", async () => {
     const body = bodyFor(cases[0]!);
     (body.data as Record<string, unknown>).provenance = null;

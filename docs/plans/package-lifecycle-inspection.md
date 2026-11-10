@@ -130,9 +130,9 @@ documentation and release fragment are implemented. The core schema module owns
 wire evidence; the existing shared formatter owns presentation, with no new policy
 interpreter or network operation.
 
-- 18 causal-path cases pass; all required registry behaviors covered through HTTP
+- 19 causal-path/layout cases pass; all required registry behaviors covered through HTTP
   fixture decoding and real CLI/MCP handlers. Existing targeted suite: 315 pass.
-- Final full bun test: 7313 pass, 2 existing platform skips, 0 fail.
+- Final full bun test after review fix: 7314 pass, 2 existing platform skips, 0 fail.
 - Typecheck, build, isolated source CLI/MCP smoke, built Node CLI/MCP smoke and
   public-package validation pass. Changed TypeScript Biome check passes.
 - Free dev metadata attempt produced no response while sampled in existing
@@ -147,3 +147,19 @@ No remaining product decisions or deferred implementation. Final internal/extern
 code review, stable commit, draft PR and CI observation remain. After clean review,
 delete this plan in the final delivery changes; durable contract is already in the
 pkg_info section of docs/implementation/mcp-cli-parity.md.
+
+## Implementation review closure
+
+External code round one: direction sound. Accepted low readability finding:
+flat lifecycle detail/wrapped lines obscured grouping across multiple findings.
+Root cause: every line was independently wrapped at column zero. Checked all
+finding details, retained warnings, check lines and filtered-content text; now
+explicit detail indentation and hanging continuations apply throughout this
+block. Added multi-finding/long-reason/check-continuation regression coverage.
+Kept complete native affected identity on each finding: it provides registry
+context missing from the overview header and avoids implicit scope identity.
+Minor fragment wording corrected to describe showing evidence and retain only
+the durable backend-before-release precondition; execution availability stays
+on the PR. Affected six-file tests (232 pass), full suite (7314 pass, 2 existing skips),
+build, both source smoke modes and internal full-delta re-review pass. Awaiting
+second external code review.
