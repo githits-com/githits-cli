@@ -6130,9 +6130,9 @@ describe("initAction", () => {
       );
 
       const logCalls = getLogOutput();
-      expect(
-        logCalls.some((msg) => msg.includes("sign-in is still needed")),
-      ).toBe(true);
+      expect(logCalls.some((msg) => msg.includes("Sign-in is required"))).toBe(
+        true,
+      );
       expect(logCalls.some((msg) => msg.includes("GitHits is connected"))).toBe(
         false,
       );

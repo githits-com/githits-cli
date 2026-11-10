@@ -1824,7 +1824,7 @@ function printAgenticDetectSummary(
       : [])
       printInitProse(`  ${instruction}`);
   }
-  printRemoteInstructions(configuredAgents);
+  if (printRemoteInstructions(configuredAgents)) printTroubleshootingLink();
   console.log();
   console.log("Not detected:");
   console.log(
@@ -2712,6 +2712,7 @@ async function runInstallAgentsMode(
       console.log(`  ${getAgenticVerifyInstruction(scope, commandOptions)}`);
     }
   }
+  printTroubleshootingLink();
   console.log();
 }
 
@@ -3054,18 +3055,24 @@ function printScopedNextSteps(
     printSection("Next Steps", useColors);
     printRemoteInstructions(remoteAgents);
     if (localAuthApplicable) {
-      if (shouldPrintReady(authStatus))
+      console.log(
+        `  ${colorize("GitHits CLI (local integrations)", "bold", useColors)}`,
+      );
+      if (shouldPrintReady(authStatus)) {
+        printInitProse("    Already signed in.");
+      } else {
         printInitProse(
-          "  Local GitHits CLI authentication is available for the local integrations.",
+          authStatus === "failed_continue"
+            ? "    Sign-in is required. Run:"
+            : "    Sign-in was not checked. If needed, run:",
         );
-      else if (scope === "project") {
-        if (authStatus === "failed_continue")
-          printProjectAuthRequiredNextSteps(useColors);
-        else printProjectAuthNotCheckedNextSteps(useColors);
-      } else if (authStatus === "failed_continue")
-        printAuthRequiredNextSteps(useColors);
-      else printAuthNotCheckedNextSteps(useColors);
+        console.log(
+          `      ${formatCommand(INTERACTIVE_LOGIN_COMMAND, useColors)}`,
+        );
+      }
+      console.log();
     }
+    printTroubleshootingLink();
     return;
   }
   if (scope === "project") {
@@ -5478,13 +5485,18 @@ export async function initAction(
   if (failed > 0) {
     process.exitCode = 1;
     console.log("  Setup completed with errors.");
-    printRemoteInstructions([
-      ...configuredMcpAgents,
-      ...selection.unchangedAgents,
-      ...selection.guidanceAgents.filter((agent) =>
-        scan.alreadyConfigured.some((configured) => configured.id === agent.id),
-      ),
-    ]);
+    if (
+      printRemoteInstructions([
+        ...configuredMcpAgents,
+        ...selection.unchangedAgents,
+        ...selection.guidanceAgents.filter((agent) =>
+          scan.alreadyConfigured.some(
+            (configured) => configured.id === agent.id,
+          ),
+        ),
+      ])
+    )
+      printTroubleshootingLink();
   } else if (
     configured > 0 ||
     alreadyDone > 0 ||
@@ -5712,14 +5724,15 @@ function remoteInstructions(agents: AgentDefinition[]): string[] {
   );
 }
 /** Human completion focuses on sign-in; structured instructions retain verification. */
-function printRemoteInstructions(agents: AgentDefinition[]): void {
+function printRemoteInstructions(agents: AgentDefinition[]): boolean {
   const remote = [
     ...new Map(
       agents.filter(usesHostedMcp).map((agent) => [agent.id, agent]),
     ).values(),
   ];
-  if (!remote.length) return;
+  if (!remote.length) return false;
   const useColors = shouldUseColors();
+  console.log("\n  Complete sign-in in each tool:\n");
   for (const agent of remote) {
     console.log(`  ${colorize(agent.name, "bold", useColors)}`);
     if (agent.id === "cursor") {
@@ -5738,6 +5751,10 @@ function printRemoteInstructions(agents: AgentDefinition[]): void {
     }
     console.log();
   }
+  return true;
+}
+
+function printTroubleshootingLink(): void {
   console.log(`  Troubleshooting: ${TROUBLESHOOTING_URL}`);
 }
 

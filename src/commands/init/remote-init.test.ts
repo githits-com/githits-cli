@@ -1494,3 +1494,40 @@ describe("authentication completion layout", () => {
     ).toBe(true);
   });
 });
+
+describe("authentication block context", () => {
+  for (const project of [false, true]) {
+    it(`finishes mixed local/hosted sign-in steps with one troubleshooting link; project=${project}`, async () => {
+      const f = fixture(["cursor", "opencode"]);
+      const output = await f.run({
+        local: true,
+        project,
+        guidance: false,
+        skipLogin: true,
+      });
+      const nextSteps = output.slice(output.lastIndexOf("Next Steps"));
+      expect(nextSteps).toContain("GitHits CLI (local integrations)");
+      expect(nextSteps).toContain("Sign-in was not checked");
+      expect(nextSteps).toContain("agent mcp login GitHits");
+      expect(nextSteps).toContain("npx githits@latest login");
+      const lines = nextSteps.split("\n").filter((line: string) => line.trim());
+      expect(lines.at(-1)).toBe(
+        "  Troubleshooting: https://github.com/githits-com/githits-cli/blob/main/TROUBLESHOOTING.md",
+      );
+      expect(nextSteps.split("TROUBLESHOOTING.md")).toHaveLength(2);
+      expect(
+        nextSteps.indexOf("GitHits CLI (local integrations)"),
+      ).toBeLessThan(nextSteps.indexOf("TROUBLESHOOTING.md"));
+      expect(f.createLoginDeps).not.toHaveBeenCalled();
+    });
+  }
+  it("introduces sign-in actions after a setup error", async () => {
+    const f = fixture(["cursor", "cline"], { [CLINE]: "{ malformed" });
+    const output = await f.run({ remote: true, guidance: false });
+    expect(output).toContain(
+      "Setup completed with errors.\n\n  Complete sign-in in each tool:\n\n  Cursor\n",
+    );
+    expect(output).toContain("TROUBLESHOOTING.md");
+    expect(process.exitCode).toBe(1);
+  });
+});

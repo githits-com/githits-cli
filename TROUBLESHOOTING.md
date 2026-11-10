@@ -10,10 +10,10 @@ agent has signed in or loaded the tools.
 To inspect the detected connections without changing configuration:
 
 ```sh
-npx githits@latest init --detect-agents --no-guidance
+npx githits@latest init --detect-agents
 ```
 
-For project-level setup, add `--project`. This reports the connection settings;
+For project-level setup, add `--project`. This reports configuration status;
 it does not test an authenticated MCP tool call.
 
 ## Cursor
@@ -40,7 +40,8 @@ sign Cursor in.
 
 Use the sign-in action in the selected agent. Claude Code exposes it through
 `/mcp`; Codex CLI uses `codex mcp login githits`; Gemini CLI uses
-`/mcp auth githits`; OpenCode uses `opencode mcp auth GitHits`. Other supported
+`/mcp auth githits`; OpenCode uses `opencode mcp auth GitHits`; Pi uses
+`/mcp-auth GitHits`; Kilo Code uses `kilo mcp auth GitHits`. Other supported
 editors expose GitHits authentication in their MCP settings.
 
 After sign-in, open a new agent session and check that GitHits tools are

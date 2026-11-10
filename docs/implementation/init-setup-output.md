@@ -41,8 +41,11 @@ It never displays configuration values.
 After selection, the MCP summary groups the actual local and hosted targets.
 Hosted connections use https://mcp.githits.com; each host owns OAuth and the
 new-session tool-discovery step. CLI login only applies to local integrations.
-Human hosted-MCP next steps contain only authentication actions, grouped under
-bold tool names with indented prose and standalone CLI commands. Blank lines
+Human hosted-MCP next steps introduce the sign-in block and contain only
+authentication actions, grouped under
+bold tool names with indented prose and standalone CLI commands. Mixed hosted
+and local runs group local authentication under GitHits CLI. The troubleshooting
+link follows all sign-in actions. Blank lines
 separate tools, and the layout also works without color. Cursor shows its UI
 sign-in route and the CLI login alternative. A single link points to the root
 `TROUBLESHOOTING.md` for verification and recovery, including Cursor list and
