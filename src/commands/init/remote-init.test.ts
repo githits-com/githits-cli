@@ -9,6 +9,7 @@ import {
 } from "bun:test";
 import { readFileSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import { ExitPromptError } from "@inquirer/core";
 import { parse as parseToml } from "smol-toml";
 import { version } from "../../../package.json";
@@ -232,7 +233,7 @@ describe("remote init profile", () => {
     ).toBe(false);
     expect(f.createLoginDeps).not.toHaveBeenCalled();
   });
-  it("prints shared hosted verification once while keeping each host action", async () => {
+  it("groups hosted sign-in actions and links to verification help", async () => {
     const f = fixture(["cline", "windsurf", "opencode"]);
     const output = (await f.run({ remote: true, guidance: false })).replace(
       /\s+/g,
@@ -242,11 +243,12 @@ describe("remote init profile", () => {
       output.split(
         "Open a new agent session and verify that GitHits tools are available.",
       ),
-    ).toHaveLength(2);
-    expect(output).toContain("Cline:");
-    expect(output).toContain("Windsurf:");
-    expect(output).toContain("OpenCode:");
-    expect(output.split("Each agent manages its own sign-in.")).toHaveLength(2);
+    ).toHaveLength(1);
+    expect(output).toContain("Cline");
+    expect(output).toContain("Windsurf");
+    expect(output).toContain("OpenCode");
+    expect(output.split("TROUBLESHOOTING.md")).toHaveLength(2);
+    expect(output).not.toContain("Each agent manages its own sign-in.");
   });
 
   it("keeps successful host sign-in steps after a partial failure and exits nonzero", async () => {
@@ -602,9 +604,7 @@ describe("MCP guidance consent", () => {
       expect(output).toContain(
         scope.name === "user" ? "Cline unchanged" : "Claude Code unchanged",
       );
-      expect(output).toContain(
-        "Open a new agent session and verify that GitHits tools are available.",
-      );
+      expect(output).toContain("TROUBLESHOOTING.md");
       expect(f.files).toEqual({ [scope.configPath]: initial });
       expect(f.fs.atomicWriteFile).not.toHaveBeenCalled();
       expect(f.fs.writeFile).not.toHaveBeenCalled();
@@ -1043,15 +1043,11 @@ describe("staged mixed host auth disclosures", () => {
       await f.run({ installAgents: "cline,opencode", guidance: false }),
     );
 
-    expect(output).toContain(
-      "Hosted GitHits MCP: https://mcp.githits.com. Each agent manages its own sign-in.",
-    );
+    expect(output).toContain("TROUBLESHOOTING.md");
     expect(output).toContain(
       "Open Cline's MCP settings and use Authenticate/Authorize for GitHits.",
     );
-    expect(output).toContain(
-      "Open a new agent session and verify that GitHits tools are available.",
-    );
+    expect(output).toContain("TROUBLESHOOTING.md");
     expect(output).toContain(
       "If the user is not already signed in, ask before running: npx -y githits@latest login",
     );
@@ -1321,8 +1317,8 @@ describe("manual handoff completion reporting", () => {
       output.split(
         "Open a new agent session and verify that GitHits tools are available.",
       ),
-    ).toHaveLength(2);
-    expect(output.split("Hosted GitHits MCP:")).toHaveLength(2);
+    ).toHaveLength(1);
+    expect(output.split("TROUBLESHOOTING.md")).toHaveLength(2);
     expect(output).toContain("Open Cline's MCP settings");
     expect(output).toContain("Open Windsurf's MCP settings");
     expect(output).toContain("opencode mcp auth GitHits");
@@ -1425,4 +1421,76 @@ it("prints current Cursor instructions once during human detection", async () =>
   expect(output.split("In Cursor, open Customize > MCPs")).toHaveLength(2);
   expect(output.split("agent mcp login GitHits")).toHaveLength(2);
   expect(output).not.toContain("cursor-agent");
+});
+
+describe("authentication completion layout", () => {
+  for (const useColors of [false, true]) {
+    it(`groups authentication actions without troubleshooting commands; colors=${useColors}`, async () => {
+      const oldTty = Object.getOwnPropertyDescriptor(process.stdout, "isTTY");
+      const oldNoColor = process.env.NO_COLOR;
+      Object.defineProperty(process.stdout, "isTTY", {
+        configurable: true,
+        value: useColors,
+      });
+      if (useColors) delete process.env.NO_COLOR;
+      else process.env.NO_COLOR = "1";
+      try {
+        const f = fixture(["cursor", "vscode", "opencode", "zed"]);
+        const output = await f.run({ remote: true });
+        const nextSteps = output.slice(output.lastIndexOf("Next Steps"));
+        for (const name of ["Cursor", "VS Code / Copilot", "OpenCode", "Zed"]) {
+          expect(nextSteps).toContain(
+            useColors ? `  \x1b[1m${name}\x1b[0m\n` : `  ${name}\n`,
+          );
+        }
+        const plain = stripVTControlCharacters(nextSteps);
+        expect(plain).toContain(
+          "\n\n  OpenCode\n    opencode mcp auth GitHits\n\n",
+        );
+        expect(plain).toContain("Or, if you use Cursor CLI:");
+        expect(plain).toContain("      agent mcp login GitHits");
+        expect(plain).toContain("In Cursor, open Customize > MCPs");
+        expect(plain.split("TROUBLESHOOTING.md")).toHaveLength(2);
+        expect(plain).not.toContain("agent mcp list");
+        expect(plain).not.toContain("verify");
+        expect(plain).not.toContain("Hosted GitHits MCP:");
+        expect(plain).not.toContain(".agents/skills");
+        expect(output.indexOf("GitHits skills in")).toBeLessThan(
+          output.lastIndexOf("Next Steps"),
+        );
+        expect(
+          readFileSync(
+            new URL("../../../TROUBLESHOOTING.md", import.meta.url),
+            "utf8",
+          ),
+        ).toContain("agent mcp list-tools GitHits");
+        expect(f.createLoginDeps).not.toHaveBeenCalled();
+      } finally {
+        if (oldTty) Object.defineProperty(process.stdout, "isTTY", oldTty);
+        else Reflect.deleteProperty(process.stdout, "isTTY");
+        if (oldNoColor === undefined) delete process.env.NO_COLOR;
+        else process.env.NO_COLOR = oldNoColor;
+      }
+    });
+  }
+  it("retains structured Cursor verification fields", async () => {
+    const f = fixture(["cursor"]);
+    await f.run({
+      remote: true,
+      installAgents: "cursor",
+      guidance: false,
+      json: true,
+    });
+    expect(f.json().auth.verificationCommands).toEqual([
+      "agent mcp list",
+      "agent mcp list-tools GitHits",
+    ]);
+    expect(
+      f
+        .json()
+        .instructions.some((line: string) =>
+          line.includes("agent mcp list-tools GitHits"),
+        ),
+    ).toBe(true);
+  });
 });

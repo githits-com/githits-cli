@@ -285,29 +285,17 @@ function normalizeHumanOutput(logCalls: string[] = getLogOutput()): string {
 function expectCursorRemoteNextSteps(logCalls: string[]): void {
   const output = normalizeHumanOutput(logCalls);
   expect(logCalls.some((msg) => msg.includes("Next Steps"))).toBe(true);
-  expect(logCalls.some((msg) => msg.includes("GitHits is now connected"))).toBe(
-    false,
-  );
-  expect(output).toContain("Cursor is ready only after its separate OAuth");
+  expect(logCalls.some((msg) => msg.trim() === "Cursor")).toBe(true);
   expect(output).toContain(
     "open Customize > MCPs, select GitHits and follow the sign-in prompts",
   );
-  expect(output).toContain("agent mcp login GitHits");
-  expect(output).toContain("Cursor manages sign-in for hosted GitHits");
-  expect(
-    logCalls.some(
-      (msg) =>
-        msg.trim() !== "agent mcp login GitHits" &&
-        msg.includes("agent mcp login GitHits"),
-    ),
-  ).toBe(false);
   expect(logCalls.some((msg) => msg.trim() === "agent mcp login GitHits")).toBe(
     true,
   );
-  expect(logCalls.some((msg) => msg.trim() === "agent mcp list")).toBe(true);
-  expect(
-    logCalls.some((msg) => msg.trim() === "agent mcp list-tools GitHits"),
-  ).toBe(true);
+  expect(output).toContain("TROUBLESHOOTING.md");
+  expect(output).not.toContain("agent mcp list");
+  expect(output).not.toContain("Verify with:");
+  expect(output).not.toContain("GitHits is ready");
 }
 
 function expectAuthNotCheckedNextSteps(logCalls: string[]): void {
@@ -317,27 +305,6 @@ function expectAuthNotCheckedNextSteps(logCalls: string[]): void {
   expect(logCalls.some((msg) => msg.includes("npx githits@latest login"))).toBe(
     true,
   );
-}
-
-function expectProjectAuthNotCheckedNextSteps(logCalls: string[]): void {
-  expect(
-    logCalls.some((msg) =>
-      msg.includes(
-        "GitHits MCP is configured for this project. Sign-in was not checked.",
-      ),
-    ),
-  ).toBe(true);
-  expect(logCalls.some((msg) => msg.includes("loads the project config"))).toBe(
-    true,
-  );
-  expect(logCalls.some((msg) => msg.includes("npx githits@latest login"))).toBe(
-    false,
-  );
-  expect(
-    logCalls.some((msg) =>
-      msg.includes("GitHits MCP is configured. Sign-in was not checked."),
-    ),
-  ).toBe(false);
 }
 
 function createProjectScopeSelectMock(): PromptService["select"] {
@@ -1319,7 +1286,7 @@ describe("initAction", () => {
     ).toBe(false);
     expect(
       getLogOutput().some((msg) =>
-        msg.includes("Cursor manages sign-in for hosted GitHits"),
+        msg.includes("In Cursor, open Customize > MCPs"),
       ),
     ).toBe(true);
     expect(
@@ -1446,13 +1413,11 @@ describe("initAction", () => {
       ),
     ).toBe(true);
     expect(logCalls.some((msg) => msg.includes("Next Steps"))).toBe(true);
-    expectProjectAuthNotCheckedNextSteps(logCalls);
+    expectCursorRemoteNextSteps(logCalls);
     expect(
       logCalls.filter((msg) => msg.includes("Install and verify")),
     ).toHaveLength(1);
-    expect(normalizeHumanOutput(logCalls)).toContain(
-      "loads the project config and any supporting instructions",
-    );
+
     expect(JSON.parse(configFiles["/repo/.cursor/mcp.json"] ?? "{}")).toEqual({
       mcpServers: {
         GitHits: {
@@ -1565,11 +1530,7 @@ describe("initAction", () => {
 
     const logCalls = getLogOutput();
     expectCursorRemoteNextSteps(logCalls);
-    expect(
-      logCalls.some((msg) =>
-        msg.includes("GitHits MCP is configured for this project."),
-      ),
-    ).toBe(true);
+    expect(logCalls.some((msg) => msg.includes("Verify with:"))).toBe(false);
     expect(logCalls.some((msg) => msg.includes("loads .mcp.json"))).toBe(false);
     expect(fs.atomicWriteFile).toHaveBeenCalledWith(
       "/repo/.cursor/mcp.json",
@@ -3528,9 +3489,7 @@ describe("initAction", () => {
     expect(mcpSectionIndex).toBeGreaterThanOrEqual(0);
     expect(logCalls.some((msg) => msg.trim() === "Skills")).toBe(false);
     expect(cursorRowIndex).toBeGreaterThan(mcpSectionIndex);
-    expect(normalizeHumanOutput(logCalls)).toContain(
-      "reloads MCP configuration and any supporting instructions",
-    );
+    expectCursorRemoteNextSteps(logCalls);
   });
 
   it("wraps narrow-terminal prose without changing commands or paths", async () => {
@@ -3615,17 +3574,22 @@ describe("initAction", () => {
         },
       );
       const cursorLines = getLogOutput();
-      const cursorProseLines = cursorLines.filter(
-        (line) =>
-          line.includes("Cursor manages sign-in") ||
-          line.includes("manages") ||
-          line.includes("OAuth"),
+      const cursorProseStart = cursorLines.findIndex((line) =>
+        line.includes("In Cursor, open"),
+      );
+      const cursorProseEnd = cursorLines.findIndex(
+        (line, index) => index > cursorProseStart && line.includes("Or, if"),
+      );
+      const cursorProseLines = cursorLines.slice(
+        cursorProseStart,
+        cursorProseEnd,
       );
       expect(cursorProseLines.length).toBeGreaterThan(1);
       expect(cursorProseLines.every((line) => line.length <= 40)).toBe(true);
-      expect(cursorLines).toContain("    agent mcp login GitHits");
-      expect(cursorLines).toContain("    agent mcp list");
-      expect(cursorLines).toContain("    agent mcp list-tools GitHits");
+      expect(cursorLines).toContain("      agent mcp login GitHits");
+      expect(cursorLines.some((line) => line.includes("agent mcp list"))).toBe(
+        false,
+      );
     } finally {
       Object.defineProperty(process.stdout, "columns", {
         configurable: true,

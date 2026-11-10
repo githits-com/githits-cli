@@ -41,10 +41,15 @@ It never displays configuration values.
 After selection, the MCP summary groups the actual local and hosted targets.
 Hosted connections use https://mcp.githits.com; each host owns OAuth and the
 new-session tool-discovery step. CLI login only applies to local integrations.
-The human report prints the shared endpoint and verification step once, with
-each host's sign-in action. Per-agent structured instructions remain complete.
-Configuration is never presented as proof of hosted readiness. Cursor retains
-its copyable login/list/list-tools commands and separate OAuth instructions.
+Human hosted-MCP next steps contain only authentication actions, grouped under
+bold tool names with indented prose and standalone CLI commands. Blank lines
+separate tools, and the layout also works without color. Cursor shows its UI
+sign-in route and the CLI login alternative. A single link points to the root
+`TROUBLESHOOTING.md` for verification and recovery, including Cursor list and
+list-tools commands. Structured agent output retains its complete verification
+instructions and command fields; this presentation change does not alter them.
+Configuration is never presented as proof of hosted readiness. Shared skill-root
+visibility belongs in the installation report before Next Steps.
 
 Claude Desktop directory actions are shown in a separate external-action group,
 with https://claude.ai/directory/githits. They are not automatic installation

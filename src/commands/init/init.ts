@@ -321,6 +321,8 @@ const INSTALL_REVIEW_ITEMS = [
 ] as const;
 
 const CURSOR_REMOTE_MCP_URL = "https://mcp.githits.com";
+const TROUBLESHOOTING_URL =
+  "https://github.com/githits-com/githits-cli/blob/main/TROUBLESHOOTING.md";
 
 type SafeScanResult =
   | { ok: true; scan: ScanResult }
@@ -830,20 +832,6 @@ function printInitProse(text: string): void {
   for (const line of wrapInitProse(text, columns)) {
     console.log(line);
   }
-}
-
-/** Print Cursor's current UI action with copyable CLI commands. */
-function printCursorRemoteVerificationInstructions(useColors: boolean): void {
-  printInitProse(`  ${CURSOR_REMOTE_VERIFICATION_INSTRUCTIONS[0]}`);
-  printInitProse(`  ${CURSOR_MCP_UI_INSTRUCTION}`);
-  printInitProse("  If you use Cursor CLI, sign in with:");
-  console.log(`    ${formatCommand(CURSOR_MCP_LOGIN_COMMAND, useColors)}`);
-  printInitProse("  Verify with:");
-  for (const command of CURSOR_MCP_VERIFICATION_COMMANDS)
-    console.log(`    ${formatCommand(command, useColors)}`);
-  printInitProse(
-    "  Open a new Cursor Agent chat and check that GitHits tools are available.",
-  );
 }
 
 function printTask(
@@ -3004,11 +2992,9 @@ function printPostSetupNextSteps(
   authStatus: InitAuthStatus,
   useColors: boolean,
   changesMade: boolean,
-  cursorConfigured: boolean,
   localAuthApplicable: boolean,
-  sharedGuidanceReady: boolean,
 ): void {
-  const ready = shouldPrintReady(authStatus) && !cursorConfigured;
+  const ready = shouldPrintReady(authStatus);
   printSection(ready ? "Ready" : "Next Steps", useColors);
   if (changesMade) {
     printInitProse(
@@ -3016,30 +3002,7 @@ function printPostSetupNextSteps(
     );
     console.log();
   }
-  if (sharedGuidanceReady) {
-    printSharedGuidanceVisibility("user");
-  }
-  if (cursorConfigured) {
-    printCursorRemoteVerificationInstructions(useColors);
-    console.log();
-  }
-  if (cursorConfigured && shouldPrintReady(authStatus)) {
-    printInitProse(
-      "  Local GitHits CLI authentication is active for non-Cursor integrations only. Cursor still requires its separate OAuth and tool-discovery checks.",
-    );
-  } else if (cursorConfigured && authStatus === "failed_continue") {
-    printInitProse(
-      "  Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
-    );
-    printAuthRequiredNextSteps(useColors);
-  } else if (cursorConfigured) {
-    printInitProse(
-      "  Sign-in was not checked. Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
-    );
-    if (localAuthApplicable) {
-      printAuthNotCheckedNextSteps(useColors);
-    }
-  } else if (!localAuthApplicable) {
+  if (!localAuthApplicable) {
     printInitProse(
       "  GitHits MCP was unchanged; supporting guidance was repaired.",
     );
@@ -3056,11 +3019,9 @@ function printProjectNextSteps(
   authStatus: InitAuthStatus,
   useColors: boolean,
   changesMade: boolean,
-  cursorConfigured: boolean,
   localAuthApplicable: boolean,
-  sharedGuidanceReady: boolean,
 ): void {
-  const ready = shouldPrintReady(authStatus) && !cursorConfigured;
+  const ready = shouldPrintReady(authStatus);
   printSection(ready ? "Ready" : "Next Steps", useColors);
   if (changesMade) {
     printInitProse(
@@ -3068,30 +3029,7 @@ function printProjectNextSteps(
     );
     console.log();
   }
-  if (sharedGuidanceReady) {
-    printSharedGuidanceVisibility("project");
-  }
-  if (cursorConfigured) {
-    printCursorRemoteVerificationInstructions(useColors);
-    console.log();
-  }
-  if (cursorConfigured && shouldPrintReady(authStatus)) {
-    printInitProse(
-      "  Local GitHits CLI authentication is active for non-Cursor integrations only. Cursor still requires its separate OAuth and tool-discovery checks.",
-    );
-  } else if (cursorConfigured && authStatus === "failed_continue") {
-    printInitProse(
-      "  Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
-    );
-    printProjectAuthRequiredNextSteps(useColors);
-  } else if (cursorConfigured) {
-    printInitProse(
-      "  GitHits MCP is configured for this project. Sign-in was not checked. Cursor is ready only after its separate OAuth and tool-discovery checks succeed.",
-    );
-    if (localAuthApplicable) {
-      printProjectAuthNotCheckedNextSteps(useColors);
-    }
-  } else if (!localAuthApplicable) {
+  if (!localAuthApplicable) {
     printInitProse(
       "  GitHits MCP was unchanged for this project; supporting guidance was repaired.",
     );
@@ -3109,14 +3047,11 @@ function printScopedNextSteps(
   authStatus: InitAuthStatus,
   useColors: boolean,
   changesMade: boolean,
-  cursorConfigured: boolean,
   localAuthApplicable: boolean,
-  sharedGuidanceReady: boolean,
   remoteAgents: AgentDefinition[] = [],
 ): void {
-  if (remoteAgents.some((agent) => agent.id !== "cursor")) {
+  if (remoteAgents.length > 0) {
     printSection("Next Steps", useColors);
-    if (sharedGuidanceReady) printSharedGuidanceVisibility(scope);
     printRemoteInstructions(remoteAgents);
     if (localAuthApplicable) {
       if (shouldPrintReady(authStatus))
@@ -3138,20 +3073,16 @@ function printScopedNextSteps(
       authStatus,
       useColors,
       changesMade,
-      cursorConfigured,
       localAuthApplicable,
-      sharedGuidanceReady,
     );
-    return;
+  } else {
+    printPostSetupNextSteps(
+      authStatus,
+      useColors,
+      changesMade,
+      localAuthApplicable,
+    );
   }
-  printPostSetupNextSteps(
-    authStatus,
-    useColors,
-    changesMade,
-    cursorConfigured,
-    localAuthApplicable,
-    sharedGuidanceReady,
-  );
 }
 
 function getConfigFileSetups(setup: SetupConfig): ConfigFileSetup[] {
@@ -5499,16 +5430,6 @@ export async function initAction(
       selection.mcpAgents.find((agent) => agent.id === outcome.id),
     )
     .filter((agent): agent is AgentDefinition => Boolean(agent));
-  const cursorConfigured =
-    outcomes.some(
-      (outcome) =>
-        outcome.id === "cursor" &&
-        (outcome.status === "success" ||
-          outcome.status === "already_configured"),
-    ) ||
-    selection.selectedEntries.some(
-      (entry) => entry.id === "cursor" && entry.status === "already_configured",
-    );
   const localAuthApplicable = [
     ...selection.mcpAgents,
     ...selection.unchangedAgents,
@@ -5552,6 +5473,8 @@ export async function initAction(
     }
   }
 
+  if (sharedGuidanceReady) printSharedGuidanceVisibility(setupScope);
+
   if (failed > 0) {
     process.exitCode = 1;
     console.log("  Setup completed with errors.");
@@ -5577,9 +5500,7 @@ export async function initAction(
       authStatus,
       useColors,
       configured > 0 || guidanceOutcome?.status === "success",
-      cursorConfigured,
       localAuthApplicable,
-      sharedGuidanceReady,
       [
         ...summaryMcpAgents,
         ...selection.guidanceAgents,
@@ -5790,26 +5711,36 @@ function remoteInstructions(agents: AgentDefinition[]): string[] {
         ],
   );
 }
+/** Human completion focuses on sign-in; structured instructions retain verification. */
 function printRemoteInstructions(agents: AgentDefinition[]): void {
-  if (agents.some((agent) => agent.id === "cursor" && usesHostedMcp(agent)))
-    printCursorRemoteVerificationInstructions(shouldUseColors());
   const remote = [
     ...new Map(
-      agents
-        .filter((agent) => agent.id !== "cursor" && usesHostedMcp(agent))
-        .map((agent) => [agent.id, agent]),
+      agents.filter(usesHostedMcp).map((agent) => [agent.id, agent]),
     ).values(),
   ];
   if (!remote.length) return;
-  printInitProse(
-    `  Hosted GitHits MCP: ${CURSOR_REMOTE_MCP_URL}. Each agent manages its own sign-in.`,
-  );
-  for (const agent of remote)
-    for (const instruction of agent.remoteInstructions ?? [])
-      if (instruction !== REMOTE_MCP_VERIFICATION_INSTRUCTION)
-        printInitProse(`  ${agent.name}: ${instruction}`);
-  printInitProse(`  ${REMOTE_MCP_VERIFICATION_INSTRUCTION}`);
+  const useColors = shouldUseColors();
+  for (const agent of remote) {
+    console.log(`  ${colorize(agent.name, "bold", useColors)}`);
+    if (agent.id === "cursor") {
+      printInitProse(`    ${CURSOR_MCP_UI_INSTRUCTION}`);
+      printInitProse("    Or, if you use Cursor CLI:");
+      console.log(
+        `      ${formatCommand(CURSOR_MCP_LOGIN_COMMAND, useColors)}`,
+      );
+    } else {
+      for (const instruction of agent.remoteInstructions ?? []) {
+        if (instruction === REMOTE_MCP_VERIFICATION_INSTRUCTION) continue;
+        const command = instruction.match(/^Run `([^`]+)`\.$/)?.[1];
+        if (command) console.log(`    ${formatCommand(command, useColors)}`);
+        else printInitProse(`    ${instruction}`);
+      }
+    }
+    console.log();
+  }
+  console.log(`  Troubleshooting: ${TROUBLESHOOTING_URL}`);
 }
+
 function directoryAction(agent: AgentDefinition): {
   url: string;
   instructions: string[];
