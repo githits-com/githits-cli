@@ -9,7 +9,10 @@ import {
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
 } from "./package-intelligence-service.js";
-import { createMockTokenProvider } from "./test-helpers.js";
+import {
+  createMockPackageLifecycle,
+  createMockTokenProvider,
+} from "./test-helpers.js";
 
 const GOOGLE = {
   id: "maven:google",
@@ -77,6 +80,7 @@ function overviewBody(
       provenance: {
         selectedVersion: {
           resolvedVersion: version,
+          lifecycle: createMockPackageLifecycle(),
           registryRepository: repository,
         },
       },

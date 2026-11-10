@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { type GrepResult, parseGrepResult } from "@githits/core-internal";
+import { createMockPackageLifecycle } from "../../core-internal/src/services/test-helpers.js";
 import mixedGrepPageFixture from "./shared/fixtures/grep-text/mixed-100.json";
 import { formatGrepText } from "./shared/grep-text.js";
 import {
@@ -496,6 +497,24 @@ describe("runMcpSmoke", () => {
     await expect(
       runMcpSmoke(caller, { includeLiveTools: false }),
     ).rejects.toThrow("listTools missing search_status");
+  });
+
+  it("rejects lifecycle JSON that loses a required check", async () => {
+    const caller = createCaller(async (name, args) => {
+      const result = smokeResponse(name, args);
+      if (name !== "pkg_info" || args.format !== "json") return result;
+      const payload = JSON.parse(resultText(result, "fixture"));
+      payload.lifecycle = {
+        findings: [],
+        retainedWarnings: [],
+        checks: {},
+        contentSafety: { filtered: false },
+      };
+      return jsonResult(payload);
+    });
+    await expect(runMcpSmoke(caller)).rejects.toThrow(
+      "pkg_info lifecycle deprecation",
+    );
   });
 
   it("checks readable auth errors before skipping the live corpus", async () => {
@@ -1565,7 +1584,7 @@ function smokeResponse(
     case "pkg_info":
       return textResult(
         "express\nRepository 1 stars\n" +
-          "Vulnerabilities  Latest: none affected\n                 History: 5 known advisories across all versions",
+          "Vulnerabilities  Latest: none affected\n                 History: 5 known advisories across all versions\nLifecycle unavailable",
       );
     case "pkg_deps":
       if (args.include_issues === true) {
@@ -1725,6 +1744,7 @@ function smokeJsonResponse(
         versionCount: 42,
         downloads: { refreshedAt: "2024-06-15" },
         advisoryHistory: { total: 5 },
+        lifecycle: createMockPackageLifecycle(),
       });
     case "pkg_deps":
       if (args.include_issues === true) {

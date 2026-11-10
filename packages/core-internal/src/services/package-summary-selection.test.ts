@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { PackageIntelligenceServiceImpl } from "./package-intelligence-service.js";
-import { createMockTokenProvider } from "./test-helpers.js";
+import {
+  createMockPackageLifecycle,
+  createMockTokenProvider,
+} from "./test-helpers.js";
 
 describe("package summary release selection", () => {
   it.each([
@@ -49,6 +52,7 @@ describe("package summary release selection", () => {
               provenance: {
                 selectedVersion: {
                   resolvedVersion: version ?? "other",
+                  lifecycle: createMockPackageLifecycle(),
                   registryRepository: {
                     id: "registry",
                     name: "Registry",

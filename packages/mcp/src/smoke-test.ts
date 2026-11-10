@@ -1052,6 +1052,12 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_info default should not include quickstart fields",
   );
 
+  assert(
+    pkgInfoText.includes("Lifecycle checks:") ||
+      pkgInfoText.includes("Lifecycle unavailable"),
+    "pkg_info default missing lifecycle evidence or explicit unavailability",
+  );
+
   const pkgInfoJson = assertJsonResult(
     await callTool(caller, "pkg_info", {
       target: "npm:express",
@@ -1094,6 +1100,37 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     typeof pkgInfoJson.versionCount === "number",
     "pkg_info json missing version count",
   );
+  if (pkgInfoJson.lifecycle !== undefined) {
+    const lifecycle = pkgInfoJson.lifecycle;
+    assertRecord(lifecycle, "pkg_info lifecycle");
+    assert(
+      Array.isArray(lifecycle.findings),
+      "pkg_info lifecycle missing findings",
+    );
+    assert(
+      Array.isArray(lifecycle.retainedWarnings),
+      "pkg_info lifecycle missing retained warnings",
+    );
+    assertRecord(lifecycle.checks, "pkg_info lifecycle checks");
+    for (const name of [
+      "deprecation",
+      "withdrawal",
+      "registryArchival",
+      "repositoryArchival",
+    ]) {
+      const check = lifecycle.checks[name];
+      assertRecord(check, `pkg_info lifecycle ${name}`);
+      assert(
+        typeof check.status === "string",
+        `pkg_info lifecycle ${name} missing status`,
+      );
+    }
+    assertRecord(lifecycle.contentSafety, "pkg_info lifecycle content safety");
+    assert(
+      typeof lifecycle.contentSafety.filtered === "boolean",
+      "pkg_info lifecycle missing filtered status",
+    );
+  }
   assertRecord(pkgInfoJson.downloads, "pkg_info json downloads");
   assert(
     typeof pkgInfoJson.downloads.refreshedAt === "string",

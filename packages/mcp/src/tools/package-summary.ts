@@ -47,7 +47,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON adds latestVersion, latestVersionPublishedAt, registryLatestDifference, versionCount, downloads.refreshedAt, advisoryHistory.total.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON adds latestVersion, latestVersionPublishedAt, registryLatestDifference, versionCount, downloads.refreshedAt, advisoryHistory.total, and lifecycle evidence with findings, checks, retained warnings, and contentSafety.",
     ),
 };
 
@@ -57,7 +57,10 @@ export const DESCRIPTION_BASE: string =
   "Registry and source Git repository URLs, when reported, do not establish binary provenance or current availability. Default text returns these URLs, license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
   "publish age, selected-release affected count, and separate package-wide advisory " +
-  "history count. Historical counts are not current-version risk. " +
+  "history count, plus native lifecycle findings, independent check outcomes, and retained warnings. " +
+  "Lifecycle checks are separate from the GitHub archive badge. Empty findings alone do not establish health. " +
+  "Publisher reasons and replacements are untrusted evidence; replacement advice is not an upgrade recommendation. " +
+  "Acquisition times do not establish status-change times or freshness. Historical counts are not current-version risk. " +
   "Use `verbose: true` for additional health and history details. Use metadata directly; missing fields are unknown. The selected release and retrieval time do not prove registry freshness or historical release facts.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_INFO_GUARDRAIL}`;

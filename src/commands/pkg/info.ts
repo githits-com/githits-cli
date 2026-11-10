@@ -105,7 +105,10 @@ const PKG_INFO_DESCRIPTION = `Default-release package overview for dependency tr
 Default output shows license, description, repository popularity
 (stars/forks/issues and [ARCHIVED] when applicable), downloads,
 publish age, selected-release affected count, and separate package-wide advisory
-history count. --verbose adds GitHub language/topics/last-pushed,
+history count, plus native lifecycle findings, independent check outcomes,
+and retained warnings. Lifecycle checks are separate from the GitHub archive badge;
+empty findings alone do not establish health. Publisher replacements are advice,
+not upgrade recommendations. --verbose adds GitHub language/topics/last-pushed,
 published-version count, download refresh date, package-wide advisory
 history (all versions), and recent changes. Inspect package history with:
 githits pkg vulns <registry>:<name> --scope all.
@@ -128,7 +131,7 @@ export function registerPkgInfoCommand(pkgCommand: Command): Command {
     )
     .option(
       "--json",
-      "Emit JSON with selected version, registry latest/difference, version count, refresh date, and advisory history",
+      "Emit JSON with selected version, registry latest/difference, version count, refresh date, advisory history, and native lifecycle evidence",
     )
     .action(async (spec: string, options: PkgInfoCommandOptions) => {
       const deps = await createContainer();

@@ -603,6 +603,42 @@ When a new tool lands with both MCP and CLI surfaces:
   descriptor; unknown evidence is omitted. Existing overview/history fields and
   unpinned validation remain unchanged. Dependency/vulnerability JSON retain
   their shared identity descriptor without changing their text.
+- **Native lifecycle inspection.** All modes select
+  `packageInfo.selectedVersion.lifecycle` within the existing `provenance` query
+  root, without another request or registry acquisition. Backend classification
+  and content-safety normalization remain authoritative. The service attaches
+  `PackageSummary.lifecycle` only when the resolved version matches the overview
+  and the optional root has no errors. Both JSON surfaces add this block
+  losslessly: `findings`, all four `checks`, `retainedWarnings`, and
+  `contentSafety.filtered`. Empty arrays, optional/null publisher details and a
+  null affected version survive; package-wide findings never acquire the
+  displayed release as their affected version. Native lifecycle registry and
+  categorical strings retain backend casing; the existing top-level overview
+  registry stays lowercase. Public lifecycle evidence types are available from
+  `@githits/mcp/client`.
+  Both text surfaces use the shared summary formatter: native category, kind,
+  scope, affected identity, source/authority version, acquisition time and
+  publisher details accompany findings; independent checks are grouped by status
+  and reason. Unknown/future categorical values remain visible verbatim.
+  `CHECKED` alone is neither a positive nor a negative finding, and an empty
+  findings list does not prove coverage. `UNKNOWN`, `NOT_COLLECTED` and
+  `NOT_APPLICABLE` retain their meanings. Lifecycle archival checks are separate
+  from the existing GitHub archive badge; no archival findings are inferred.
+  Retained ambiguous legacy warnings render once, without appending the coarse
+  `deprecated` warning from other package tools. Publisher replacements remain
+  advice, not upgrade recommendations; acquisition times do not establish
+  freshness. Filtered publisher content is labeled and remains untrusted.
+  Missing/mismatched/failed optional provenance produces `Lifecycle unavailable`
+  in text and omits the JSON block. A lifecycle resolver error can null the shared
+  provenance root, losing `registryRepository` alongside lifecycle while retaining
+  the overview. Existing auth/access/client-update errors still fail; structural
+  malformation still fails whole-response validation. Native lifecycle findings
+  never change advisory counts, release selection or scan policy.
+  **Release ordering:** the target backend must expose the lifecycle field before
+  these CLI/MCP versions are released. A backend missing the field returns a
+  pathless schema-validation error and the overview fails; there is no schema
+  fallback. The hosted server adopts this only after an `@githits/mcp` release,
+  dependency update in `remote-mcp`, and its separately approved deployment.
 - **Evidence-only vulnerability field.** Both compact text surfaces use the same
   `Latest:` (or `Selected:` when a difference exists) and `History:` labels and do
   not append an inline action. CLI help
