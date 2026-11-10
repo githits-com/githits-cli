@@ -5464,6 +5464,8 @@ export async function initAction(
       `  ${alreadyDone + reportingAlreadyDone} tool${alreadyDone + reportingAlreadyDone !== 1 ? "s" : ""} already configured.`,
     );
   }
+  if (sharedGuidanceReady) printSharedGuidanceVisibility(setupScope);
+
   if (failed > 0) {
     console.log(
       `  ${failed} tool${failed !== 1 ? "s" : ""} failed to configure.`,
@@ -5479,8 +5481,6 @@ export async function initAction(
       );
     }
   }
-
-  if (sharedGuidanceReady) printSharedGuidanceVisibility(setupScope);
 
   if (failed > 0) {
     process.exitCode = 1;

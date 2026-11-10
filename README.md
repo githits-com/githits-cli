@@ -352,7 +352,9 @@ npx githits@latest doctor
 ```
 
 See the [authentication docs](https://docs.githits.com/authentication) for
-keychain behavior, file storage mode and CI setup. See [setup troubleshooting](./TROUBLESHOOTING.md) for missing tools, host sign-in and configuration errors.
+keychain behavior, file storage mode and CI setup. See
+[setup troubleshooting](./TROUBLESHOOTING.md) for missing tools, host sign-in
+and configuration errors.
 
 ## Manual MCP Setup
 

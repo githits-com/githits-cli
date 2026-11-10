@@ -1523,11 +1523,18 @@ describe("authentication block context", () => {
   }
   it("introduces sign-in actions after a setup error", async () => {
     const f = fixture(["cursor", "cline"], { [CLINE]: "{ malformed" });
-    const output = await f.run({ remote: true, guidance: false });
+    const output = await f.run({ remote: true, guidance: true });
     expect(output).toContain(
       "Setup completed with errors.\n\n  Complete sign-in in each tool:\n\n  Cursor\n",
     );
     expect(output).toContain("TROUBLESHOOTING.md");
+    const skillNotice = output.indexOf("GitHits skills in");
+    const errorCount = output.indexOf("1 tool failed to configure.");
+    expect(skillNotice).toBeGreaterThanOrEqual(0);
+    expect(errorCount).toBeGreaterThan(skillNotice);
+    expect(
+      output.slice(errorCount, output.indexOf("Setup completed with errors.")),
+    ).not.toContain("GitHits skills in");
     expect(process.exitCode).toBe(1);
   });
 });
