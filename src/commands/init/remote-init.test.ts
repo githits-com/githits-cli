@@ -1047,7 +1047,7 @@ describe("staged mixed host auth disclosures", () => {
     expect(output).toContain(
       "Open Cline's MCP settings and use Authenticate/Authorize for GitHits.",
     );
-    expect(output).toContain("TROUBLESHOOTING.md");
+    expect(output.split("TROUBLESHOOTING.md")).toHaveLength(2);
     expect(output).toContain(
       "If the user is not already signed in, ask before running: npx -y githits@latest login",
     );
