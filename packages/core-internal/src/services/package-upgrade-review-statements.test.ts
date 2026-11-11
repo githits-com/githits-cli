@@ -98,14 +98,10 @@ function review(statements = page()) {
       },
       entries: [],
       sampledEntries: [],
-      keywordEntries: [],
-      totalKeywordEntries: 0,
       totalEntries: 1,
       totalEntriesWithBodies: 1,
       truncated: true,
       hasReleaseNoteBodies: true,
-      breakingSignals: [],
-      migrationSignals: [],
     },
   };
 }
@@ -113,7 +109,6 @@ const summary = {
   total: 1,
   withUnknowns: 0,
   withAddedAdvisories: 0,
-  withBreakingSignals: 0,
   withDirectDependencyChanges: 0,
   withTransitiveVulnerabilityAdditions: 0,
 };
@@ -200,6 +195,50 @@ function setup(
 }
 
 describe("complete upgrade statement retrieval", () => {
+  for (const legacyExtras of [false, true])
+    it(`accepts upgrade evidence without deprecated fields and strips legacy extras=${legacyExtras}`, async () => {
+      const row = review(page(101));
+      const entry = { detailSource: "RELEASES", version: "1.0.0" };
+      Object.assign(row.changelog, {
+        entries: [entry],
+        sampledEntries: [entry],
+      });
+      const body = initial([row]);
+      if (legacyExtras) {
+        Object.assign(body.data.packageUpgradeReview.summary, {
+          withBreakingSignals: 7,
+        });
+        Object.assign(row.changelog, {
+          keywordEntries: [{ ...entry, signals: ["legacy"] }],
+          totalKeywordEntries: 7,
+          breakingSignals: ["legacy"],
+          migrationSignals: ["legacy"],
+        });
+        Object.assign(entry, { signals: ["legacy"] });
+      }
+      const { run, requests } = setup([body, continuation()]);
+      const result = await run();
+      expect(result.reviews[0]!.changelog.entries).toEqual([
+        {
+          detailSource: "RELEASES",
+          version: "1.0.0",
+        },
+      ]);
+      expect(result.reviews[0]!.changelog.statements!.items).toHaveLength(101);
+      for (const field of [
+        "signals",
+        "keywordEntries",
+        "totalKeywordEntries",
+        "breakingSignals",
+        "migrationSignals",
+        "withBreakingSignals",
+      ]) {
+        expect(JSON.stringify(result)).not.toContain(`"${field}":`);
+        for (const request of requests)
+          expect(request.query).not.toMatch(new RegExp(`\\b${field}\\b`));
+      }
+      expect(requests).toHaveLength(2);
+    });
   for (const filtered of [false, true]) {
     it(`accepts generated statements with matching counters, filtered=${filtered}`, async () => {
       const body = initial([review(page(1))]);
@@ -529,12 +568,7 @@ describe("complete upgrade statement retrieval", () => {
   it("triage omits selected arrays without fabricating empty evidence", async () => {
     const body = initial([review(page(1))]);
     const changelog = body.data.packageUpgradeReview.reviews[0]!.changelog;
-    for (const field of [
-      "statements",
-      "entries",
-      "sampledEntries",
-      "keywordEntries",
-    ])
+    for (const field of ["statements", "entries", "sampledEntries"])
       Reflect.deleteProperty(changelog, field);
     const { run, requests } = setup([body], { changelogView: "triage" });
     const result = await run();
@@ -666,6 +700,15 @@ describe("upgrade statement projections", () => {
       };
       const query = packageUpgradeReviewQuery(params);
       expect(query).toMatch(/migrationGuides\s*\{\s*url\s+label\s*\}/);
+      for (const field of [
+        "signals",
+        "keywordEntries",
+        "totalKeywordEntries",
+        "breakingSignals",
+        "migrationSignals",
+        "withBreakingSignals",
+      ])
+        expect(query).not.toMatch(new RegExp(`\\b${field}\\b`));
       expect(query).not.toContain("riskItems");
       expect(query).not.toContain("itemsOmitted");
       expect(query.includes("statements(")).toBe(view !== "triage");
@@ -679,9 +722,6 @@ describe("upgrade statement projections", () => {
       expect(query.includes("sourcePosition")).toBe(view === "json");
       if (view === "text") {
         expect(query.match(/entries \{([^}]+)\}/)?.[1]).not.toContain("body");
-        expect(query.match(/keywordEntries \{([^}]+)\}/)?.[1]).toContain(
-          "body",
-        );
         expect(query).not.toContain("bodyPreview");
       }
       if (view === "triage")

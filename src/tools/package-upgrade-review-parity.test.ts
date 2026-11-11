@@ -367,7 +367,6 @@ describe("package_upgrade_review parity", () => {
         withUnknowns: 1,
         withDirectDependencyChanges: 1,
         withAddedAdvisories: 0,
-        withBreakingSignals: 0,
         withTransitiveVulnerabilityAdditions: 0,
       },
       reviews: [
@@ -467,7 +466,6 @@ describe("package_upgrade_review parity", () => {
             total: 2,
             withUnknowns: 1,
             withAddedAdvisories: 0,
-            withBreakingSignals: 0,
             withDirectDependencyChanges: 0,
             withTransitiveVulnerabilityAdditions: 0,
           },
@@ -628,7 +626,6 @@ describe("complete statement CLI/MCP parity", () => {
           delete result.reviews[0]!.changelog.statements;
           delete result.reviews[0]!.changelog.entries;
           delete result.reviews[0]!.changelog.sampledEntries;
-          delete result.reviews[0]!.changelog.keywordEntries;
         } else if (params.changelogView !== "json")
           for (const item of result.reviews[0]!.changelog.statements!.items) {
             delete item.fullText;
@@ -728,6 +725,9 @@ describe("complete statement CLI/MCP parity", () => {
         );
         const mcp = await mcpText({ ...args, changes, verbose }, service);
         expect(cli.trimEnd()).toBe(mcp);
+        expect(mcp).not.toContain("Keyword matches");
+        expect(mcp).not.toContain("heuristic change signals");
+        expect(mcp).not.toContain("keyword entries");
         expect(mcp).toContain("* [!behavior] Changed behavior");
         expect(mcp).toContain("* [deprecation] (uncertain)");
         expect(mcp).toContain("https://example.com/History.md#section");
@@ -743,6 +743,15 @@ describe("complete statement CLI/MCP parity", () => {
       );
       const mcp = await mcpJson({ ...args, changes }, service);
       expect(cli).toEqual(mcp.json);
+      for (const field of [
+        "signals",
+        "keywordEntries",
+        "totalKeywordEntries",
+        "breakingSignals",
+        "migrationSignals",
+        "withBreakingSignals",
+      ])
+        expect(JSON.stringify(cli)).not.toContain(`"${field}":`);
       const payload = cli as {
         filter?: { changes: string };
         reviews: {

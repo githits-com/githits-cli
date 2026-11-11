@@ -92,14 +92,13 @@ filters before pagination. All matching pages are retrieved for detailed views.
 
 | Host view | Selected changelog evidence |
 | --- | --- |
-| Compact multi-package text | Whole-range coverage/tier counters, source/fallback, entry and keyword totals/signals; no statement pages or entry arrays |
-| Single text / verbose batch | Bounded statements, context, classification tier/kind/ambiguity, full assessment coverage and entry locator metadata; keyword bodies for actual lexical excerpts |
-| JSON | Complete matching pages with uncut statement/context text, source positions, confidence and per-item model/formulation; ordinary entry/keyword bodies and metadata retained |
+| Compact multi-package text | Whole-range coverage/tier counters, source/fallback, entry totals; no statement pages or entry arrays |
+| Single text / verbose batch | Bounded statements, context, classification tier/kind/ambiguity, full assessment coverage and entry locator metadata |
+| JSON | Complete matching pages with uncut statement/context text, source positions, confidence and per-item model/formulation; ordinary entry bodies and metadata retained |
 | Continuation | One review identity and statement page/progress/coverage only |
 
 Text does not fetch `fullText`, confidence, model or formulation. It omits
-ordinary note bodies and duplicate sampled previews. `keywordEntries.body` is
-required in detailed text: a keyword match can occur beyond its preview.
+ordinary note bodies and duplicate sampled previews.
 Optional transitive security and dependency issues retain their existing request
 controls. Complexity counts directives conservatively; runtime omission does not
 prove a lower admission cost.
@@ -169,14 +168,14 @@ hint. `--verbose` / `verbose: true` expands all bounded quotes, batch reports an
 security/dependency examples. It does not fetch uncut text or original notes.
 Backend text/context truncation separately points to JSON full text.
 
-Existing `breakingSignals`, `migrationSignals` and entry `signals` remain
-functional. Additional keyword excerpts appear as lexical evidence within the
-version; a complete chunk already contained in a displayed same-source statement
-is not repeated. A filtered-out statement does not suppress separate keyword
-facts. Keyword quotes normalize Markdown list markers and sanitize text/signals;
-URLs already shown for the version or statement sources are not repeated. Source
-groups nest beneath the version header. The client does not infer classifications
-from keywords or invent URLs.
+The API deprecated the keyword heuristic in favour of classified changelog
+statements. Upgrade reviews no longer request or expose entry `signals`,
+`keywordEntries`, `totalKeywordEntries`, `breakingSignals`, `migrationSignals`
+or summary `withBreakingSignals`. Detailed text renders classified and generated
+statements without keyword quotes or signal lists; compact text omits keyword
+counts. Version dates and fallback URLs come from ordinary entry metadata.
+Metadata available only through deprecated keyword entries is no longer shown.
+Source groups nest beneath the version header; the client does not invent URLs.
 
 All untrusted quotes, headings, context, dates, versions and URLs follow terminal
 sanitization and prose wrapping. Formatter punctuation is ASCII; backend Unicode
@@ -185,12 +184,13 @@ is retained. Long locators remain intact. Color only styles trusted annotations.
 Compact batches show one triage row per review, sorted by whole-range confident
 MUST_ACT counts. Uncertain counts are separate and never a secondary ranking key;
 ties retain backend order. JSON order remains backend order. Rows retain target
-deprecation, security, keyword, compatibility, dependency and unknown facts.
+deprecation, security, compatibility, dependency and unknown facts.
 
 ## JSON migration
 
 The top-level summary/reviews envelope and security, compatibility, dependency,
-unknown and ordinary entry/keyword facts remain. Enum spelling is normalized to
+unknown and ordinary entry facts remain. Deprecated keyword heuristic fields
+are omitted from JSON. Enum spelling is normalized to
 lowercase. Existing null omission conventions apply to optional evidence, while
 `classification: null` remains explicit and distinct from NO_IMPACT. False
 ambiguity and zero numeric values remain evidence.
@@ -338,7 +338,7 @@ three-package compact/verbose text parity also passed. Biome all returned all
 875 statements. Source and built CLI/MCP smoke modes passed. Unit coverage
 includes pagination past 100, filtered gaps, nullable/oversize/truncated evidence,
 zero/pending coverage, counter agreement and changes, canonical/duplicate review
-identity, sanitization, source/keyword preservation and mode-specific over-fetch
+identity, sanitization, source preservation and mode-specific over-fetch
 controls. Standalone changelog regression behavior remains covered.
 
 Built Node Biome all, with the explicitly requested dev URLs, completed in
