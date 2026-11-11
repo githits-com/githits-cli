@@ -184,3 +184,47 @@ describe("transparent cargo grep targets", () => {
     },
   );
 });
+
+describe("unified grep symbol mask", () => {
+  it("defaults off, keeps empty arrays off and preserves the explicit cursor mask", () => {
+    expect(buildGrepParams(input)).not.toHaveProperty("symbolFields");
+    expect(buildGrepParams({ ...input, symbolFields: [] })).not.toHaveProperty(
+      "symbolFields",
+    );
+    const fields = [
+      "symbol_ref",
+      "name",
+      "qualified_path",
+      "kind",
+      "category",
+      "arity",
+      "is_public",
+      "file_path",
+      "start_line",
+      "end_line",
+      "content_hash",
+      "parent_path",
+      "file_content_hash",
+      "is_implementation",
+    ];
+    expect(
+      buildGrepParams({
+        ...input,
+        symbolFields: fields,
+        cursor: " exact cursor ",
+      }),
+    ).toMatchObject({ symbolFields: fields, cursor: " exact cursor " });
+  });
+  it.each([
+    "code",
+    "caller_count",
+    "parent_symbol_ref",
+    "qualifiedPath",
+    "unknown",
+    " ",
+  ])("rejects unsupported field %s", (field) => {
+    expect(() => buildGrepParams({ ...input, symbolFields: [field] })).toThrow(
+      /symbol_fields/,
+    );
+  });
+});

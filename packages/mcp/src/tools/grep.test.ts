@@ -132,10 +132,25 @@ describe("unified MCP grep", () => {
       "context_lines_after",
       "max_matches",
       "cursor",
+      "symbol_fields",
       "wait_timeout_ms",
       "format",
     ]);
+    expect(inputSchema.properties?.symbol_fields).toHaveProperty(
+      "description",
+      expect.stringContaining(
+        "use format json for complete requested metadata",
+      ),
+    );
+    expect(inputSchema.properties?.format).toHaveProperty(
+      "description",
+      expect.stringContaining("complete requested symbol metadata"),
+    );
     expect(inputSchema.required).toEqual(["targets", "pattern"]);
+    expect(inputSchema.properties?.cursor).toHaveProperty(
+      "description",
+      expect.stringContaining("symbol_fields unchanged"),
+    );
     expect(inputSchema.properties?.targets).toMatchObject({
       minItems: 1,
       maxItems: 20,
@@ -485,4 +500,32 @@ describe("unified MCP grep", () => {
       expect(text).not.toContain(reason);
     },
   );
+});
+
+describe("MCP grep symbol controls", () => {
+  it("keeps empty masks off and rejects invalid fields before service IO", async () => {
+    const grep = mock(async (_params: GrepParams) => emptyPage);
+    const tool = createGrepTool({ grep });
+    const args = { targets: [{ target: "npm:express" }], pattern: "router" };
+    await tool.handler({ ...args, symbol_fields: [] });
+    expect(grep.mock.calls[0]![0]).not.toHaveProperty("symbolFields");
+    for (const field of [
+      "code",
+      "caller_count",
+      "parent_symbol_ref",
+      "unknown",
+      " ",
+    ]) {
+      const result = await tool.handler({
+        ...args,
+        symbol_fields: [field],
+        format: "json",
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0]!.text)).toMatchObject({
+        code: "INVALID_ARGUMENT",
+      });
+    }
+    expect(grep).toHaveBeenCalledTimes(1);
+  });
 });

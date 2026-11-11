@@ -1,6 +1,8 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import type { GrepParams, GrepResult } from "@githits/core-internal";
+import { parseGrepResult } from "@githits/core-internal";
 import { Command } from "commander";
+import mixedSymbolPage from "../../packages/mcp/src/shared/fixtures/grep-text/mixed-100.json";
 import { registerGrepCommand } from "../commands/grep.js";
 import {
   createMockGrepService,
@@ -492,3 +494,76 @@ it.each(["ready", "pending"] as const)(
     }
   },
 );
+
+describe("enclosing-symbol CLI/MCP parity", () => {
+  it("forwards explicit masks and preserves exact metadata, hosted absence and continuation in JSON", async () => {
+    const page = parseGrepResult(mixedSymbolPage);
+    const repository = page.hits.find(
+      (hit) => hit.__typename === "GrepRepositoryHit",
+    )!;
+    Object.assign(repository, {
+      symbol: {
+        symbolRef:
+          "_repo:https://github.com/o/r:0123456789abcdef0123456789abcdef01234567:id:packages/x/a.ts",
+        name: "listen",
+        filePath: "a.ts",
+        startLine: 633,
+        endLine: 636,
+      },
+    });
+    const grep = mock((_params: GrepParams) => Promise.resolve(page));
+    const grepService = createMockGrepService({ grep });
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const program = new Command("githits");
+      registerGrepCommand(program, async () => ({
+        grepService,
+        hasValidToken: true,
+        mcpUrl: "https://example.test",
+        createSpinner: () => ({ stop: () => {} }),
+      }));
+      const fields = [
+        "symbol_ref",
+        "name",
+        "file_path",
+        "start_line",
+        "end_line",
+      ];
+      await program.parseAsync(
+        [
+          "grep",
+          "router",
+          "npm:express",
+          "--cursor",
+          " exact cursor ",
+          ...fields.flatMap((field) => ["--symbol-field", field]),
+          "--json",
+        ],
+        { from: "user" },
+      );
+      const mcp = await createParityMcpTool("grep", { grepService }).handler({
+        targets: [{ target: "npm:express" }],
+        pattern: "router",
+        cursor: " exact cursor ",
+        symbol_fields: fields,
+        format: "json",
+      });
+      expect(grep).toHaveBeenCalledTimes(2);
+      expect(grep.mock.calls[0]![0]).toMatchObject({
+        symbolFields: fields,
+        cursor: " exact cursor ",
+      });
+      expect(grep.mock.calls[1]![0]).toEqual(grep.mock.calls[0]![0]);
+      const cli = JSON.parse(String(log.mock.calls[0]![0]));
+      expect(JSON.parse(String(mcp.content[0]?.text))).toEqual(cli);
+      expect(cli).toEqual(page);
+      expect(
+        cli.hits.find(
+          (hit: { __typename: string }) => hit.__typename === "GrepSiteHit",
+        ),
+      ).not.toHaveProperty("symbol");
+    } finally {
+      log.mockRestore();
+    }
+  });
+});

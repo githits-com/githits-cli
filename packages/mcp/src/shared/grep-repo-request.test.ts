@@ -126,6 +126,8 @@ describe("buildGrepRepoParams", () => {
       "end_line",
       "content_hash",
       "parent_path",
+      "file_content_hash",
+      "is_implementation",
     ]);
   });
 
