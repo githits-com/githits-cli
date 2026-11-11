@@ -16,6 +16,17 @@ export type {
   VulnerabilitySourceEntry,
 } from "./services/osv-source-details.js";
 export * from "./services/package-intelligence-service.js";
+export type {
+  PackageLifecycle,
+  PackageLifecycleCategory,
+  PackageLifecycleCheck,
+  PackageLifecycleCheckReason,
+  PackageLifecycleCheckStatus,
+  PackageLifecycleFinding,
+  PackageLifecycleKind,
+  PackageLifecycleRetainedWarning,
+  PackageLifecycleScope,
+} from "./services/package-lifecycle.js";
 export * from "./services/progress-request.js";
 export * from "./services/promote-version-not-found.js";
 export * from "./services/read-service.js";

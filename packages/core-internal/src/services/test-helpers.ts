@@ -1,5 +1,6 @@
 import { mock } from "bun:test";
 import type { GitHitsService } from "./githits-service.js";
+import type { PackageLifecycle } from "./package-lifecycle.js";
 import type { TokenProvider } from "./token-provider.js";
 
 export function createMockGitHitsService(
@@ -42,4 +43,19 @@ export function abortDuringRequest(
     );
   }
   return Promise.reject(signal.reason);
+}
+
+/** Minimal held-evidence projection for unrelated overview wire fixtures. */
+export function createMockPackageLifecycle(): PackageLifecycle {
+  return {
+    findings: [],
+    retainedWarnings: [],
+    contentSafety: { filtered: false },
+    checks: {
+      deprecation: { status: "NOT_COLLECTED", reason: null },
+      withdrawal: { status: "NOT_COLLECTED", reason: null },
+      registryArchival: { status: "NOT_COLLECTED", reason: null },
+      repositoryArchival: { status: "NOT_COLLECTED", reason: null },
+    },
+  };
 }

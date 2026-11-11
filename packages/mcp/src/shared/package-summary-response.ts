@@ -10,7 +10,8 @@
  *   omitted.
  * - **Null-omitted.** Scalars go missing when null; blocks go missing
  *   when every leaf is null; arrays go missing when empty. Agent
- *   callers receive present data only, not a skeleton.
+ *   callers receive present data only, not a skeleton. Lifecycle evidence is
+ *   retained losslessly, including empty arrays and nullable affected versions.
  * - **Stable.** Two identical queries produce byte-identical output
  *   (no clock-dependent fields, no iteration-order tricks), so the
  *   parity test can deep-equal across surfaces.
@@ -18,6 +19,7 @@
 
 import type {
   ChangelogEntry,
+  PackageLifecycle,
   PackageSecurityOverview,
   PackageSummary,
   RegistryLatestDifference,
@@ -94,6 +96,8 @@ export interface LeanPackageSummary {
   vulnerabilities?: LeanVulnerabilities;
   advisoryHistory?: LeanAdvisoryHistory;
   recentChanges?: LeanRecentChange[];
+  /** Backend native evidence: preserve empty arrays, null scope identity, and checks. */
+  lifecycle?: PackageLifecycle;
 }
 
 /**
@@ -145,6 +149,8 @@ export function buildPackageSummarySuccessPayload(
 
   const advisoryHistory = buildAdvisoryHistory(summary.security);
   if (advisoryHistory) payload.advisoryHistory = advisoryHistory;
+
+  if (summary.lifecycle) payload.lifecycle = summary.lifecycle;
 
   const recent = buildRecentChanges(summary.latestChangelogs);
   if (recent) payload.recentChanges = recent;
@@ -362,12 +368,88 @@ export function formatPackageSummaryTerminal(
     sections.push(fields.join("\n"));
   }
 
+  sections.push(formatLifecycle(lean.lifecycle, width));
+
   if (options.verbose) {
     const verbose = buildVerboseSections(lean, useColors);
     if (verbose.length > 0) sections.push(verbose);
   }
 
   return `${sections.join("\n\n")}\n`;
+}
+
+/** Present backend classifications verbatim; never infer policy from empty findings. */
+function formatLifecycle(
+  lifecycle: PackageLifecycle | undefined,
+  width: number,
+): string {
+  if (!lifecycle) return wrapText("Lifecycle unavailable", width);
+  const lines: string[] = ["Lifecycle"];
+  const append = (text: string, indent = 0): void => {
+    const prefix = " ".repeat(Math.min(indent, width - 1));
+    const continuation = " ".repeat(Math.min(indent + 2, width - 1));
+    const wrapped = wrapText(text, width - continuation.length).split("\n");
+    lines.push(
+      wrapped
+        .map((line, index) => `${index === 0 ? prefix : continuation}${line}`)
+        .join("\n"),
+    );
+  };
+  if (
+    lifecycle.findings.length === 0 &&
+    lifecycle.retainedWarnings.length === 0
+  ) {
+    append("No native findings reported.");
+  }
+  for (const finding of lifecycle.findings) {
+    const identity = `${finding.registry}:${finding.name}${finding.version != null ? `@${finding.version}` : ""}`;
+    append(
+      `${finding.kind} (${finding.category}; scope ${finding.scope}): ${identity}`,
+    );
+    append(
+      `Source: ${finding.source}${finding.sourceVersion != null ? `; source version ${finding.sourceVersion}` : ""}`,
+      2,
+    );
+    if (finding.observedAt != null)
+      append(`Acquired: ${finding.observedAt}`, 2);
+    if (finding.reason != null)
+      append(`Publisher reason: ${finding.reason}`, 2);
+    if (finding.reasonCodes.length > 0)
+      append(`Publisher reason codes: ${finding.reasonCodes.join(", ")}`, 2);
+    if (finding.replacement != null)
+      append(
+        `Publisher replacement advice: ${finding.replacement} (not an upgrade recommendation)`,
+        2,
+      );
+  }
+  for (const warning of lifecycle.retainedWarnings) {
+    append(
+      `${warning.classification}: ${warning.registry}:${warning.name}@${warning.version}`,
+    );
+    append(`Retained publisher warning: ${warning.reason}`, 2);
+  }
+  const labels: Record<keyof PackageLifecycle["checks"], string> = {
+    deprecation: "deprecation",
+    withdrawal: "withdrawal",
+    registryArchival: "registry archival",
+    repositoryArchival: "repository archival",
+  };
+  const groups = new Map<string, string[]>();
+  for (const key of Object.keys(labels) as Array<keyof typeof labels>) {
+    const check = lifecycle.checks[key];
+    const status = `${check.status}${check.reason != null ? ` (${check.reason})` : ""}`;
+    const group = groups.get(status) ?? [];
+    group.push(labels[key]);
+    groups.set(status, group);
+  }
+  append(
+    `Lifecycle checks: ${Array.from(groups, ([status, names]) => `${status}: ${names.join(", ")}`).join("; ")}`,
+  );
+  if (lifecycle.contentSafety.filtered)
+    append(
+      "Content safety: filtered by the backend; publisher text remains untrusted.",
+    );
+  return lines.join("\n");
 }
 
 /** Explain API selection without choosing a different release in the client. */
