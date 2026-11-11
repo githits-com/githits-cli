@@ -6,7 +6,6 @@ import type {
 } from "@githits/core-internal";
 import {
   PENDING_CLASSIFICATION_MESSAGE,
-  releaseNoteText,
   safeRiskText,
 } from "./changelog-risk-presentation.js";
 import { colorize, colors, highlight } from "./colors.js";
@@ -110,7 +109,6 @@ export interface UpgradeChangelogEntry {
   body?: string;
   bodyPreview?: string;
   headline?: string;
-  signals?: string[];
 }
 
 export interface UpgradeChangelog {
@@ -122,14 +120,10 @@ export interface UpgradeChangelog {
   fallback?: "package_versions";
   entries?: UpgradeChangelogEntry[];
   sampledEntries?: UpgradeChangelogEntry[];
-  keywordEntries?: UpgradeChangelogEntry[];
-  totalKeywordEntries: number;
   totalEntries: number;
   totalEntriesWithBodies: number;
   truncated: boolean;
   hasReleaseNoteBodies: boolean;
-  breakingSignals: string[];
-  migrationSignals: string[];
 }
 
 export interface UpgradeDependencyIssues {
@@ -190,7 +184,6 @@ export interface UpgradeReviewResponse {
     total: number;
     withUnknowns: number;
     withAddedAdvisories: number;
-    withBreakingSignals: number;
     withDirectDependencyChanges: number;
     withTransitiveVulnerabilityAdditions: number;
   };
@@ -442,16 +435,10 @@ function normaliseBackendChangelog(
     sampledEntries: changelog.sampledEntries?.map(
       normaliseBackendChangelogEntry,
     ),
-    keywordEntries: changelog.keywordEntries?.map(
-      normaliseBackendChangelogEntry,
-    ),
-    totalKeywordEntries: changelog.totalKeywordEntries,
     totalEntries: changelog.totalEntries,
     totalEntriesWithBodies: changelog.totalEntriesWithBodies,
     truncated: changelog.truncated,
     hasReleaseNoteBodies: changelog.hasReleaseNoteBodies,
-    breakingSignals: changelog.breakingSignals,
-    migrationSignals: changelog.migrationSignals,
   };
 }
 
@@ -468,7 +455,6 @@ function normaliseBackendChangelogEntry(
     body: entry.body,
     bodyPreview: entry.bodyPreview,
     headline: entry.headline,
-    signals: entry.signals.length > 0 ? entry.signals : undefined,
   };
 }
 
@@ -478,37 +464,6 @@ function lowerEnum(value: string | undefined): string | undefined {
 
 function normaliseRegistryPrefix(value: string): string {
   return value.replace(/^([A-Z_]+):/, (prefix) => prefix.toLowerCase());
-}
-
-function changelogSignalText(body: string | undefined): string {
-  if (!body) return "";
-  const lines = body.replace(/\r\n/g, "\n").split("\n");
-  const kept: string[] = [];
-  let inCommitSection = false;
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (/^#{1,6}\s+commits?\b/i.test(line)) {
-      inCommitSection = true;
-      continue;
-    }
-    if (/^#{1,6}\s+/.test(line)) inCommitSection = false;
-    if (inCommitSection) continue;
-    if (looksLikeCommitListLine(line)) continue;
-    kept.push(rawLine);
-  }
-  return kept.join("\n");
-}
-
-function looksLikeCommitListLine(line: string): boolean {
-  return /^[-*]\s+[0-9a-f]{7,40}\b/i.test(line);
-}
-
-function matchesSignalTerm(text: string, term: string): boolean {
-  const lower = text.toLowerCase();
-  if (term === "breaking" || term === "breaks") {
-    if (/\b(no|without|not)\s+breaking\s+changes?\b/i.test(text)) return false;
-  }
-  return lower.includes(term);
 }
 
 export function formatPackageUpgradeReviewTerminal(
@@ -684,7 +639,6 @@ function aggregateSummary(response: UpgradeReviewResponse): string {
       clauses.push(`${omittedTransitive} without transitive security evidence`);
   }
   clauses.push(
-    `${response.summary.withBreakingSignals} with heuristic change signals`,
     `${response.summary.withDirectDependencyChanges} with direct dependency changes`,
   );
   return clauses.join(" | ");
@@ -1073,55 +1027,14 @@ function formatChangesSection(
   const entries = [
     ...(changelog.entries ?? []),
     ...(changelog.sampledEntries ?? []),
-    ...(changelog.keywordEntries ?? []),
   ];
-  const releases: Array<{
-    version: string | null;
-    statementsTotal?: number;
-    status?: string;
-    generation?: LeanChangelogStatements["coverage"][number]["generation"];
-  }> = [...statements.coverage];
-  // Keyword metadata can contain unversioned notes; preserve those facts without
-  // inventing an assessment or altering backend statement coverage.
-  for (const entry of changelog.keywordEntries ?? [])
-    if (
-      entry.signals?.length &&
-      !releases.some((release) => release.version === entry.version)
-    )
-      releases.push({ version: entry.version });
-  for (const release of releases) {
+  for (const release of statements.coverage) {
     const items = statements.items.filter(
       (item) => item.version === release.version,
     );
     const metadata = entries.find((entry) => entry.version === release.version);
-    const keywords: { text: string; signals: string[]; url?: string }[] = [];
-    for (const entry of changelog.keywordEntries ?? []) {
-      if (entry.version !== release.version) continue;
-      const chunks = changelogExcerptChunks(
-        entry.body ?? entry.headline ?? entry.bodyPreview ?? "",
-      );
-      const matches = new Map<string, string[]>();
-      for (const signal of entry.signals ?? []) {
-        const text =
-          chunks.find((chunk) => matchesSignalTerm(chunk, signal)) ?? "";
-        matches.set(text, [...(matches.get(text) ?? []), signal]);
-      }
-      for (const [text, signals] of matches) {
-        const plain = releaseNoteText(text, () => "");
-        if (
-          !plain ||
-          !items.some(
-            (item) =>
-              item.source === entry.detailSource &&
-              releaseNoteText(item.text, () => "").includes(plain),
-          )
-        )
-          keywords.push({ text, signals, url: entry.htmlUrl });
-      }
-    }
     if (
       !items.length &&
-      !keywords.length &&
       (release.statementsTotal ?? 0) > 0 &&
       !release.generation
     )
@@ -1150,17 +1063,12 @@ function formatChangesSection(
         compactNonAction: !options.verbose,
       }).map((line) => `  ${line}`),
     );
-    const shownUrls = new Set(
-      items.flatMap((item) => (item.url ? [safeRiskText(item.url)] : [])),
-    );
     if (!items.length && metadata?.htmlUrl) {
       const url = safeRiskText(metadata.htmlUrl);
       appendWrappedText(lines, "    ", url, width, "    ");
-      shownUrls.add(url);
     }
     if (
       !items.length &&
-      !keywords.length &&
       !(
         release.generation?.status === "generated" &&
         release.statementsTotal === 0
@@ -1177,59 +1085,7 @@ function formatChangesSection(
         width,
         "    ",
       );
-    if (keywords.length) {
-      lines.push("    Keyword matches (lexical evidence)");
-      for (const keyword of keywords) {
-        const url = keyword.url ? safeRiskText(keyword.url) : undefined;
-        if (url && !shownUrls.has(url)) {
-          appendWrappedText(lines, "      ", url, width, "      ");
-          shownUrls.add(url);
-        }
-        const quote = releaseNoteText(keyword.text, (sourceUrl) => sourceUrl);
-        const signals = keyword.signals.map(safeRiskText);
-        const characters = Array.from(quote);
-        const excerpted = !options.verbose && characters.length > 240;
-        const text = excerpted
-          ? `${characters.slice(0, 240).join("").trimEnd()}...`
-          : quote;
-        appendWrappedText(
-          lines,
-          "      * ",
-          `[${signals.join(", ")}] ${text || "Entry keyword matched; excerpt unavailable."}`,
-          width,
-          "        ",
-          (line) =>
-            colorizeSignalKeywords(line, signals, options.useColors === true),
-        );
-        if (excerpted)
-          appendWrappedText(
-            lines,
-            "        ",
-            "Excerpt; use verbose for the full keyword quote.",
-            width,
-            "        ",
-          );
-      }
-    }
   }
-  const entrySignals = new Set(
-    (changelog.keywordEntries ?? []).flatMap((entry) => entry.signals ?? []),
-  );
-  const unmatched = changelogKeywordSummary(changelog).filter(
-    (signal) => !entrySignals.has(signal),
-  );
-  if (
-    unmatched.length ||
-    (!changelog.keywordEntries?.length && changelog.totalKeywordEntries > 0)
-  )
-    appendWrappedText(
-      lines,
-      "  Keyword matches without excerpts: ",
-      unmatched.map(safeRiskText).join(", ") ||
-        `${changelog.totalKeywordEntries} matching entries`,
-      width,
-      "    ",
-    );
   return lines;
 }
 
@@ -1345,7 +1201,7 @@ function formatBatchTriage(
       : undefined;
     // Rows stay intact as a table; prose footers use the caller's width.
     lines.push(
-      `  ${safeRiskText(`${review.registry}:${review.name} ${review.currentVersion} -> ${review.targetVersion} (${review.versionDelta})`)} | ${formatRiskTierCount(c, "must_act", "act")} | ${formatRiskTierCount(c, "should_know", "know")} | ${c.riskCoverage.itemsUnclassified} too long to classify | versions: ${riskCoverageText(c)} | ${c.riskCoverage.unitsNoImpact} labeled no impact | ${deprecation} | ${security} | ${transitiveText} | ${c.totalKeywordEntries} keyword entries | ${review.compatibility?.peerDependencyChanges.length ?? "not checked"} peer dependency changes | ${review.compatibility?.notes.length ?? "not checked"} compatibility notes | ${dependencyCount ?? "not checked"} direct dependency changes | ${issueCount ?? "not checked"} dependency issues | ${review.unknowns.length} unknowns`,
+      `  ${safeRiskText(`${review.registry}:${review.name} ${review.currentVersion} -> ${review.targetVersion} (${review.versionDelta})`)} | ${formatRiskTierCount(c, "must_act", "act")} | ${formatRiskTierCount(c, "should_know", "know")} | ${c.riskCoverage.itemsUnclassified} too long to classify | versions: ${riskCoverageText(c)} | ${c.riskCoverage.unitsNoImpact} labeled no impact | ${deprecation} | ${security} | ${transitiveText} | ${review.compatibility?.peerDependencyChanges.length ?? "not checked"} peer dependency changes | ${review.compatibility?.notes.length ?? "not checked"} compatibility notes | ${dependencyCount ?? "not checked"} direct dependency changes | ${issueCount ?? "not checked"} dependency issues | ${review.unknowns.length} unknowns`,
     );
     if (!options.verbose)
       lines.push(...formatMigrationGuides(review, options, "    "));
@@ -1408,45 +1264,6 @@ function formatCompatibilitySection(
     appendWrappedText(lines, "  Note: ", note, width, "        ");
   }
   return lines;
-}
-
-function changelogKeywordSummary(changelog: UpgradeChangelog): string[] {
-  return [
-    ...new Set([...changelog.breakingSignals, ...changelog.migrationSignals]),
-  ];
-}
-
-function colorizeSignalKeywords(
-  line: string,
-  keywords: string[],
-  useColors: boolean,
-): string {
-  if (!useColors || keywords.length === 0) return line;
-  let result = line;
-  for (const keyword of keywords) {
-    result = result.replace(
-      keyword,
-      `${colors.yellow}${keyword}${colors.reset}`,
-    );
-  }
-  return result;
-}
-
-function changelogExcerptChunks(body: string): string[] {
-  return changelogSignalText(body)
-    .split(/\r?\n+/)
-    .map((line) => normaliseChangelogLine(line))
-    .filter((line) => line.length > 0 && !isGenericChangelogHeading(line));
-}
-
-function normaliseChangelogLine(line: string): string {
-  return line.replace(/^#{1,6}\s+/, "").trim();
-}
-
-function isGenericChangelogHeading(line: string): boolean {
-  return /^(what'?s changed|main changes|changes|commits?|contributors?|breaking changes?)$/i.test(
-    line.trim(),
-  );
 }
 
 function formatDependencyChangesSection(

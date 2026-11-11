@@ -367,7 +367,6 @@ describe("package_upgrade_review parity", () => {
         withUnknowns: 1,
         withDirectDependencyChanges: 1,
         withAddedAdvisories: 0,
-        withBreakingSignals: 0,
         withTransitiveVulnerabilityAdditions: 0,
       },
       reviews: [
@@ -467,7 +466,6 @@ describe("package_upgrade_review parity", () => {
             total: 2,
             withUnknowns: 1,
             withAddedAdvisories: 0,
-            withBreakingSignals: 0,
             withDirectDependencyChanges: 0,
             withTransitiveVulnerabilityAdditions: 0,
           },
@@ -628,7 +626,6 @@ describe("complete statement CLI/MCP parity", () => {
           delete result.reviews[0]!.changelog.statements;
           delete result.reviews[0]!.changelog.entries;
           delete result.reviews[0]!.changelog.sampledEntries;
-          delete result.reviews[0]!.changelog.keywordEntries;
         } else if (params.changelogView !== "json")
           for (const item of result.reviews[0]!.changelog.statements!.items) {
             delete item.fullText;
