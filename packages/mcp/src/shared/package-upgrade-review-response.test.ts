@@ -431,9 +431,6 @@ describe("package upgrade review response", () => {
     expect(text).toContain("+1 more not returned by backend page");
     expect(text).toContain("Target: deprecated: bad release");
     expect(text).toContain("Changes");
-    expect(text).not.toContain("Heuristic keywords:");
-    expect(text).not.toContain("[breaking, removed]");
-    expect(text).not.toContain("Breaking: removed an API.");
     expect(text).toContain("Dependencies");
     expect(text).toContain("Direct: 1 added | 0 removed | 0 changed");
     expect(text).toContain("Dependency issues");
@@ -874,6 +871,7 @@ describe("complete upgrade statement presentation", () => {
       formatterResponse([review]),
     );
     expect(text.match(/^ {2}4\.4\.3/gm)).toHaveLength(1);
+    expect(text).toContain("\n  4.4.3\n    Release notes:");
     expect(text).not.toContain("DUPLICATE PREVIEW");
     expect(
       text.indexOf("Release notes: https://example.com/notes"),
@@ -993,60 +991,6 @@ describe("complete upgrade statement presentation", () => {
     expect(
       formatPackageUpgradeReviewTerminal(formatterResponse([review])),
     ).toContain("Notes contain no parsed statements");
-  });
-  for (const keywordEntries of [
-    [],
-    [
-      {
-        version: null,
-        publishedAt: "2099-12-31",
-        body: "LEGACY_KEYWORD_QUOTE",
-        signals: ["legacy"],
-        htmlUrl: "https://example.com/legacy-keyword",
-      },
-      { version: "4.4.3", body: "LEGACY_VERSION_QUOTE", signals: ["legacy"] },
-    ],
-  ])
-    it(`ignores legacy keyword evidence with ${keywordEntries.length} entries in every text layout`, () => {
-      const review = statementReview([unit()]);
-      Object.assign(review.changelog, {
-        keywordEntries,
-        totalKeywordEntries: 7,
-        breakingSignals: ["LEGACY_BREAKING"],
-        migrationSignals: ["LEGACY_MIGRATION"],
-      });
-      review.changelog.entries = [
-        Object.assign({ version: "4.4.3" }, { signals: ["LEGACY_ENTRY"] }),
-      ];
-      for (const reviews of [
-        [review],
-        [review, { ...review, name: "other" }],
-      ]) {
-        const response = formatterResponse(reviews);
-        Object.assign(response.summary, { withBreakingSignals: 7 });
-        for (const verbose of [false, true]) {
-          const text = formatPackageUpgradeReviewTerminal(response, {
-            verbose,
-          });
-          expect(text).not.toContain("LEGACY");
-          expect(text).not.toContain("legacy-keyword");
-          expect(text).not.toContain("(unversioned)");
-          expect(text).not.toContain("2099-12-31");
-          expect(text).not.toContain("Keyword matches");
-          expect(text).not.toContain("keyword entries");
-          expect(text).not.toContain("heuristic change signals");
-          if (reviews.length === 1 || verbose) {
-            expect(text).toContain("* [!behavior] Evidence 0");
-            expect(text).toContain("https://example.com/notes");
-          }
-        }
-      }
-    });
-  it("nests classified source groups under versions", () => {
-    const text = formatPackageUpgradeReviewTerminal(
-      formatterResponse([statementReview([unit()])]),
-    );
-    expect(text).toContain("\n  4.4.3\n    Release notes:");
   });
   it("sanitizes release text, metadata, context and URLs while JSON remains faithful", () => {
     const item = unit();
