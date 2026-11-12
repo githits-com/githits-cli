@@ -103,6 +103,8 @@ export type {
   ResolveTargetTarget,
   ServiceDiagnostics,
   ServiceRequestOptions,
+  SourceSecurity,
+  SourceSecurityAssertion,
   TokenProvider,
 } from "@githits/core-internal";
 export {

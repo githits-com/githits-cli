@@ -1975,6 +1975,10 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "pkg vulns terminal",
   );
   assert(
+    vulnsText.includes("Upstream Git evidence"),
+    "Package vulnerabilities missing upstream Git text",
+  );
+  assert(
     vulnsText.includes("express") || vulnsText.includes("vulnerab"),
     "pkg vulns terminal missing context",
   );
@@ -1993,6 +1997,21 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "pkg vulns json",
   );
   assertRecord(vulnsJson, "pkg vulns json");
+  assert(
+    "upstreamSource" in vulnsJson,
+    "Package vulnerabilities missing upstream Git evidence",
+  );
+  if (vulnsJson.upstreamSource !== null) {
+    assertRecord(vulnsJson.upstreamSource, "upstream Git evidence");
+    assert(
+      typeof vulnsJson.upstreamSource.state === "string",
+      "upstream Git evidence missing state",
+    );
+    assert(
+      Array.isArray(vulnsJson.upstreamSource.assertions),
+      "upstream Git evidence missing assertions",
+    );
+  }
   assert(
     "summary" in vulnsJson || "advisories" in vulnsJson,
     "pkg vulns json missing vulnerability data",
@@ -2062,7 +2081,9 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "pkg vulns scoped terminal missing scope echo",
   );
   assert(
-    scopedVulnsText.includes("No active vulnerabilities affect this version"),
+    scopedVulnsText.includes(
+      "No active native package vulnerabilities affect this version",
+    ),
     "pkg vulns scoped terminal missing current-risk statement",
   );
 
