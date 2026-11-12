@@ -49,6 +49,13 @@ export function sourceSecurityFixture(
 
 export const sourceSecurityCases: Array<[string, SourceSecurity | null]> = [
   [
+    "evaluated non-affecting",
+    sourceSecurityFixture({
+      affectedVulnerabilityCount: 0,
+      assertions: [sourceAssertionFixture({ status: "UNAFFECTED" })],
+    }),
+  ],
+  [
     "preparing with retained findings",
     sourceSecurityFixture({ state: "PREPARING" }),
   ],
