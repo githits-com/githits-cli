@@ -41,8 +41,42 @@ describe("upstream Git security presentation", () => {
       const text = formatPackageVulnerabilitiesTerminal(report(source));
       expect(text).toContain("Upstream Git evidence");
       expect(text).toContain("does not establish global safety");
+      if (!source || source.totalAssertions === 0) {
+        expect(text).not.toContain("0 affected");
+        expect(text).not.toContain("filters do not filter");
+      }
+      if (source && source.affectedVulnerabilityCount === 0)
+        expect(text).not.toContain("Unknown ranges can coexist");
     },
   );
+
+  it("qualifies every native zero-result branch at its sentence formatter", () => {
+    const source = sourceSecurityFixture();
+    for (const scope of [
+      undefined,
+      "non_affecting",
+      "all",
+      "unknown",
+    ] as const) {
+      for (const withRows of [false, true]) {
+        const value = report(source);
+        value.security!.nonAffectingVulnerabilityCount = withRows ? 1 : 0;
+        value.security!.vulnerabilities = withRows
+          ? [{ osvId: "native-other", affectsInspectedVersion: false }]
+          : [];
+        const text = formatPackageVulnerabilitiesTerminal(value, {
+          filter: scope ? { advisoryScope: scope } : undefined,
+        });
+        expect(text).toContain("native package vulnerabilities");
+        expect(text).not.toMatch(/No (?:active |confirmed )?vulnerabilities/);
+      }
+    }
+    const unknown = report(source);
+    unknown.security!.unknownVulnerabilityCount = 1;
+    expect(formatPackageVulnerabilitiesTerminal(unknown)).toContain(
+      "No confirmed native package vulnerabilities",
+    );
+  });
 
   it("keeps native-zero/source-positive output unambiguous on both surfaces", () => {
     for (const surface of ["cli", "mcp"] as const) {

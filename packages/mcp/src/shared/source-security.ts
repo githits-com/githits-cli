@@ -14,13 +14,21 @@ export function formatSourceSecurity(
     lines.push(
       `${source.scope}: ${source.state}${source.reason ? ` (${source.reason})` : ""}`,
     );
-    lines.push(
-      `${source.affectedVulnerabilityCount} affected ${source.affectedVulnerabilityCount === 1 ? "finding" : "findings"}, grouped by aliases; independent of native counts, may overlap - do not sum.`,
-    );
-    lines.push(
-      `Local assertions: ${source.totalAssertions} active | ${source.evaluatedAssertions} evaluated | ${source.unknownAssertions} unknown | ${source.unevaluatedAssertions} unevaluated.`,
-    );
-    if (source.unknownAssertions > 0)
+    if (source.totalAssertions === 0) {
+      lines.push(
+        source.state === "READY"
+          ? "No active local upstream assertions matched."
+          : "No active upstream Git outcome available.",
+      );
+    } else {
+      lines.push(
+        `${source.affectedVulnerabilityCount} affected ${source.affectedVulnerabilityCount === 1 ? "finding" : "findings"}, grouped by aliases; independent of native counts, may overlap - do not sum.`,
+      );
+      lines.push(
+        `Local assertions: ${source.totalAssertions} active | ${source.evaluatedAssertions} evaluated | ${source.unknownAssertions} unknown | ${source.unevaluatedAssertions} unevaluated.`,
+      );
+    }
+    if (source.unknownAssertions > 0 && source.affectedVulnerabilityCount > 0)
       lines.push(
         "Unknown ranges can coexist with confirmed affected findings.",
       );
@@ -64,9 +72,10 @@ export function formatSourceSecurity(
       }
     }
   }
-  lines.push(
-    "Native severity, withdrawal and advisory-scope filters do not filter upstream Git evidence.",
-  );
+  if (source && source.assertions.length > 0)
+    lines.push(
+      "Native severity, withdrawal and advisory-scope filters do not filter upstream Git evidence.",
+    );
   lines.push(
     "Local upstream Git evidence does not establish global safety, private-source coverage, reachability or installed-build applicability.",
   );
