@@ -28,6 +28,7 @@ import {
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
 } from "@githits/core-internal";
+import { sourceSecurityCases } from "../../packages/core-internal/src/services/source-security-test-helpers.js";
 import {
   type PkgVulnsCommandDependencies,
   pkgVulnsAction,
@@ -1070,7 +1071,7 @@ describe("source detail parity", () => {
         >[0],
       ) => report,
     );
-    const previousExitCode = process.exitCode;
+    const previousExitCode = process.exitCode ?? 0;
     try {
       const cli = await cliJson(
         "npm:express",
@@ -1228,3 +1229,43 @@ it.each([undefined, true])(
     expect(text).not.toContain("githits vulns");
   },
 );
+
+describe("upstream Git evidence parity", () => {
+  it.each(sourceSecurityCases)(
+    "preserves %s source evidence and native filters identically",
+    async (_name, source) => {
+      const report = structuredClone(defaultVulnerabilityReport);
+      report.security!.source = source;
+      const serviceCall = mock(async () => report);
+      const cli = await cliJson(
+        "npm:express",
+        { severity: "critical", scope: "unknown", includeWithdrawn: true },
+        cliDeps({
+          packageIntelligenceService: createMockPackageIntelligenceService({
+            packageVulnerabilities: serviceCall as never,
+          }),
+        }),
+      );
+      const mcp = await mcpJson(
+        {
+          target: "npm:express",
+          min_severity: "critical",
+          advisory_scope: "unknown",
+          include_withdrawn: true,
+        },
+        serviceCall,
+      );
+      expect(cli).toEqual(mcp.json);
+      expect(cli).toMatchObject({
+        upstreamSource: source,
+        summary: { total: report.security!.affectedVulnerabilityCount },
+        filter: {
+          minSeverity: "critical",
+          advisoryScope: "unknown",
+          includeWithdrawn: true,
+        },
+      });
+      expect(mcp.isError).toBeUndefined();
+    },
+  );
+});

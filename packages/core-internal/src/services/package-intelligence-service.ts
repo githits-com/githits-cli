@@ -65,6 +65,11 @@ import {
   withServiceDiagnostics,
 } from "./runtime-diagnostics.js";
 import type { ServiceRequestOptions } from "./service-request-options.js";
+import {
+  SOURCE_SECURITY_FIELDS,
+  type SourceSecurity,
+  sourceSecuritySchema,
+} from "./source-security.js";
 import type { TokenProvider } from "./token-provider.js";
 import {
   parseVersionRefRecovery,
@@ -226,6 +231,8 @@ export interface VulnerabilityDetail {
 }
 
 export interface VulnerabilitySecurityDetails {
+  /** Selected upstream Git evidence, separate from native assessment and counts. */
+  source?: SourceSecurity | null;
   unknownVulnerabilityCount?: number;
   assessmentStatus?: string;
   affectedVulnerabilityCount: number;
@@ -1364,6 +1371,7 @@ const vulnerabilityAdvisoryPageSchema = z.object({
 
 const vulnerabilitySecurityDetailsSchema = z
   .object({
+    source: sourceSecuritySchema.nullable().optional(),
     unknownVulnerabilityCount: z
       .number()
       .int()
@@ -1475,7 +1483,10 @@ const transitiveAuditGraphQLResponseSchema = z.object({
   errors: z.array(graphQLErrorSchema).optional(),
 });
 
-function packageVulnerabilitiesQuery(includeSourceDetails: boolean): string {
+function packageVulnerabilitiesQuery(
+  includeSourceDetails: boolean,
+  firstPage: boolean,
+): string {
   return `
 query PackageVulnerabilities(
   $registry: Registry!
@@ -1500,6 +1511,7 @@ query PackageVulnerabilities(
       registryRepository { id name url }
     }
     security {
+      ${firstPage ? `source { ${SOURCE_SECURITY_FIELDS} }` : ""}
       unknownVulnerabilityCount
       assessmentStatus
       affectedVulnerabilityCount
@@ -1507,7 +1519,7 @@ query PackageVulnerabilities(
       allVulnerabilityCount
       currentVersionAffected
       upgradePaths
-      advisories(scope: $scope, first: ${includeSourceDetails ? 3 : 100}, after: $after) {
+      advisories(scope: $scope, first: ${includeSourceDetails ? (firstPage ? 2 : 3) : 100}, after: $after) {
         entries {
           osvId
           summary
@@ -3656,6 +3668,7 @@ export class PackageIntelligenceServiceImpl
         token,
         query: packageVulnerabilitiesQuery(
           params.includeSourceDetails === true,
+          after === null,
         ),
         variables: {
           registry: params.registry,
@@ -3758,6 +3771,12 @@ export class PackageIntelligenceServiceImpl
       );
     }
 
+    if (after === null && data.security && data.security.source === undefined) {
+      throw new MalformedPackageIntelligenceResponseError(
+        "Vulnerability response omitted selected upstream source evidence.",
+      );
+    }
+
     return { ...data, ...(sourceDetails ? { sourceDetails } : {}) };
   }
 
@@ -3784,6 +3803,7 @@ export class PackageIntelligenceServiceImpl
 
     const security: VulnerabilitySecurityDetails | undefined = data.security
       ? {
+          source: data.security.source,
           unknownVulnerabilityCount:
             data.security.unknownVulnerabilityCount ?? undefined,
           assessmentStatus: data.security.assessmentStatus ?? undefined,

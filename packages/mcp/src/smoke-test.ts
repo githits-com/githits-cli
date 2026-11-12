@@ -1272,6 +1272,11 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   );
   assert(!vulnsText.includes("use -v"), "pkg_vulns leaked CLI -v hint");
 
+  assert(
+    vulnsText.includes("Upstream Git evidence"),
+    "Package vulnerabilities missing upstream Git text",
+  );
+
   const transitiveVulnsText = assertDefaultText(
     await callTool(caller, "pkg_vulns", {
       target: SMOKE_TRANSITIVE_VULNERABILITY_TARGET,
@@ -1329,6 +1334,21 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   );
   assertRecord(vulnsJson, "pkg_vulns json");
   assert(
+    "upstreamSource" in vulnsJson,
+    "Package vulnerabilities missing upstream Git evidence",
+  );
+  if (vulnsJson.upstreamSource !== null) {
+    assertRecord(vulnsJson.upstreamSource, "upstream Git evidence");
+    assert(
+      typeof vulnsJson.upstreamSource.state === "string",
+      "upstream Git evidence missing state",
+    );
+    assert(
+      Array.isArray(vulnsJson.upstreamSource.assertions),
+      "upstream Git evidence missing assertions",
+    );
+  }
+  assert(
     "summary" in vulnsJson || "advisories" in vulnsJson,
     "pkg_vulns json missing vulnerability data",
   );
@@ -1360,7 +1380,9 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_vulns scoped default missing scope echo",
   );
   assert(
-    scopedVulnsText.includes("No active vulnerabilities affect this version"),
+    scopedVulnsText.includes(
+      "No active native package vulnerabilities affect this version",
+    ),
     "pkg_vulns scoped default missing current-risk statement",
   );
   assert(

@@ -378,7 +378,7 @@ async function readinessText(
   );
   const service = createMockResolveTargetService({ resolveTarget });
   const stdout = spyOn(process.stdout, "write").mockImplementation(() => true);
-  const previousExitCode = process.exitCode;
+  const previousExitCode = process.exitCode ?? 0;
   let cli: string;
   try {
     process.exitCode = 0;

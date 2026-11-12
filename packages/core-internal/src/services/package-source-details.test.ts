@@ -48,6 +48,7 @@ function page(
       packageVulnerabilities: {
         package: { registry: "NPM", name: "example", version: "1" },
         security: {
+          source: null,
           affectedVulnerabilityCount: total,
           nonAffectingVulnerabilityCount: 0,
           allVulnerabilityCount: total,
@@ -119,22 +120,30 @@ describe("package current OSV source details", () => {
       expect(report.sourceDetails).toBeUndefined();
     },
   );
-  it("drains six source rows at three per page without changing local evidence", async () => {
-    const first = page([row("OSV-1"), row("OSV-2"), row("OSV-3")], "next", 6);
-    const second = page([row("OSV-4"), row("OSV-5"), row("OSV-6")], null, 6);
-    const { service, requests } = setup([first, second]);
+  it("drains six source rows with a bounded combined first page without changing local evidence", async () => {
+    const first = page([row("OSV-1"), row("OSV-2")], "next", 6);
+    const second = page([row("OSV-3"), row("OSV-4"), row("OSV-5")], "last", 6);
+    const { service, requests } = setup([
+      first,
+      second,
+      page([row("OSV-6")], null, 6),
+    ]);
     const report = await service.packageVulnerabilities({
       ...params,
       includeSourceDetails: true,
     });
-    expect(requests).toHaveLength(2);
-    for (const request of requests) {
-      expect(request.query).toContain("first: 3");
+    expect(requests).toHaveLength(3);
+    for (const [index, request] of requests.entries()) {
+      expect(request.query).toContain(`first: ${index === 0 ? 2 : 3}`);
       expect(request.query).toContain("sourceDetails {");
       expect(request.query).toContain("credits { name contact type }");
       expect(request.query).not.toMatch(/sourceDetails\s+@|affected \{/);
     }
-    expect(requests.map((r) => r.variables.after)).toEqual([null, "next"]);
+    expect(requests.map((r) => r.variables.after)).toEqual([
+      null,
+      "next",
+      "last",
+    ]);
     expect(report.security!.affectedVulnerabilityCount).toBe(6);
     expect(report.security!.vulnerabilities).toHaveLength(6);
     expect(report.security!.vulnerabilities![0]!.summary).toBe(

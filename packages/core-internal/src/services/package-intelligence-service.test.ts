@@ -877,6 +877,7 @@ const VULNS_HAPPY_BODY = {
     packageVulnerabilities: {
       package: { name: "express", registry: "NPM", version: "4.18.0" },
       security: {
+        source: null,
         affectedVulnerabilityCount: 2,
         nonAffectingVulnerabilityCount: 3,
         allVulnerabilityCount: 5,
@@ -1642,6 +1643,7 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
         packageVulnerabilities: {
           package: { name: "express", registry: "NPM", version: "4.18.2" },
           security: {
+            source: null,
             affectedVulnerabilityCount: 0,
             nonAffectingVulnerabilityCount: 2,
             allVulnerabilityCount: 2,
@@ -2851,6 +2853,7 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
         packageVulnerabilities: {
           package: { name: "shady", registry: "NPM", version: "1.0.0" },
           security: {
+            source: null,
             affectedVulnerabilityCount: 2,
             nonAffectingVulnerabilityCount: 0,
             allVulnerabilityCount: 2,
