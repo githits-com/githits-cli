@@ -45,8 +45,16 @@ describe("upstream Git security presentation", () => {
         expect(text).not.toContain("0 affected");
         expect(text).not.toContain("filters do not filter");
       }
-      if (source && source.affectedVulnerabilityCount === 0)
+      if (source && source.affectedVulnerabilityCount === 0) {
+        expect(text).not.toContain("0 affected");
         expect(text).not.toContain("Unknown ranges can coexist");
+        if (source.totalAssertions > 0)
+          expect(text).toContain(
+            source.evaluatedAssertions === 0
+              ? "No upstream assertions evaluated yet."
+              : "No confirmed affected upstream findings.",
+          );
+      }
     },
   );
 

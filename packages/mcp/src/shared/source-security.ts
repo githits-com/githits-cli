@@ -22,7 +22,11 @@ export function formatSourceSecurity(
       );
     } else {
       lines.push(
-        `${source.affectedVulnerabilityCount} affected ${source.affectedVulnerabilityCount === 1 ? "finding" : "findings"}, grouped by aliases; independent of native counts, may overlap - do not sum.`,
+        source.affectedVulnerabilityCount > 0
+          ? `${source.affectedVulnerabilityCount} affected ${source.affectedVulnerabilityCount === 1 ? "finding" : "findings"}, grouped by aliases; independent of native counts, may overlap - do not sum.`
+          : source.evaluatedAssertions === 0
+            ? "No upstream assertions evaluated yet."
+            : "No confirmed affected upstream findings.",
       );
       lines.push(
         `Local assertions: ${source.totalAssertions} active | ${source.evaluatedAssertions} evaluated | ${source.unknownAssertions} unknown | ${source.unevaluatedAssertions} unevaluated.`,
