@@ -49,6 +49,10 @@ export function sourceSecurityFixture(
 
 export const sourceSecurityCases: Array<[string, SourceSecurity | null]> = [
   [
+    "preparing with retained findings",
+    sourceSecurityFixture({ state: "PREPARING" }),
+  ],
+  [
     "cold",
     sourceSecurityFixture({
       state: "PREPARING",
@@ -165,6 +169,13 @@ export const sourceSecurityCases: Array<[string, SourceSecurity | null]> = [
       state,
       sourceSecurityFixture({
         state,
+        repositoryUrl: null,
+        commitSha: null,
+        proofKind: null,
+        totalAssertions: 0,
+        evaluatedAssertions: 0,
+        affectedVulnerabilityCount: 0,
+        assertions: [],
         reason: "local_reason",
         retryAt: state === "COOLDOWN" ? "2026-11-13T00:00:00Z" : null,
       }),

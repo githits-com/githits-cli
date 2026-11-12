@@ -3,4 +3,4 @@
 "@githits/mcp": minor
 ---
 
-- **Upstream Git security evidence** - Explicit package vulnerability reports retain independent source findings, preparation, incomplete coverage and freshness alongside native advisories in CLI/MCP text and lossless `upstreamSource` JSON. Requires backend source-security schema delivery before merge/release; public skill examples follow at release preparation.
+- **Upstream Git security evidence** - Package vulnerability reports add an Upstream Git evidence section and lossless `upstreamSource` JSON, preserving independent findings, preparation, incomplete coverage and freshness. Zero-result text now explicitly refers to native package vulnerabilities. Requires a source-security-enabled backend.

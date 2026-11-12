@@ -1156,16 +1156,13 @@ export function formatPackageVulnerabilitiesTerminal(
     if (requestedLine) lines.push(requestedLine);
     if (upstreamBlock) lines.push("Native package advisories");
     lines.push(...filterLines);
-    const nativeOutcome = formatNoAffectedVulnerabilitiesLine(payload);
+    const nativeOutcome = formatNoAffectedVulnerabilitiesLine(
+      payload,
+      upstreamBlock ? "native package vulnerabilities" : "vulnerabilities",
+    );
     lines.push(
       ...(upstreamBlock
-        ? wrapTerminalProse(
-            nativeOutcome.replace(
-              "vulnerabilities",
-              "native package vulnerabilities",
-            ),
-            width,
-          )
+        ? wrapTerminalProse(nativeOutcome, width)
         : [nativeOutcome]),
     );
     lines.push(
@@ -1410,36 +1407,37 @@ function formatAssessmentHintLines(
 
 function formatNoAffectedVulnerabilitiesLine(
   payload: LeanVulnerabilityReport,
+  noun: string,
 ): string {
   const selectedAdvisoryCount = payload.advisories?.length ?? 0;
   if (
     (payload.summary.unknownVulnerabilityCount ?? 0) > 0 ||
     !isAssessmentStatusImplied(payload.summary.assessmentStatus, false)
   ) {
-    return "No confirmed vulnerabilities affect this version.";
+    return `No confirmed ${noun} affect this version.`;
   }
   if (payload.filter?.advisoryScope === "non_affecting") {
     if (selectedAdvisoryCount > 0) {
-      return "No active vulnerabilities affect this version; non-affecting advisories are listed below.";
+      return `No active ${noun} affect this version; non-affecting advisories are listed below.`;
     }
-    return "No active vulnerabilities affect this version; no non-affecting advisories match the current filter.";
+    return `No active ${noun} affect this version; no non-affecting advisories match the current filter.`;
   }
   if (payload.filter?.advisoryScope === "all") {
     if (selectedAdvisoryCount > 0) {
-      return "No active vulnerabilities affect this version; package advisories are listed below.";
+      return `No active ${noun} affect this version; package advisories are listed below.`;
     }
-    return "No active vulnerabilities affect this version; no package advisories match the current filter.";
+    return `No active ${noun} affect this version; no package advisories match the current filter.`;
   }
   if (payload.filter !== undefined) {
-    return "No vulnerabilities matching the filter affect this version.";
+    return `No ${noun} matching the filter affect this version.`;
   }
   const nonAffecting = payload.summary.nonAffectingVulnerabilityCount ?? 0;
   if (nonAffecting > 0) {
-    const noun = nonAffecting === 1 ? "advisory" : "advisories";
+    const advisoryNoun = nonAffecting === 1 ? "advisory" : "advisories";
     const verb = nonAffecting === 1 ? "does" : "do";
-    return `No active vulnerabilities affect this version (${nonAffecting} ${noun} ${verb} not apply).`;
+    return `No active ${noun} affect this version (${nonAffecting} ${advisoryNoun} ${verb} not apply).`;
   }
-  return "No active vulnerabilities affect this version.";
+  return `No active ${noun} affect this version.`;
 }
 
 function formatSelectedAdvisoryCountLine(
