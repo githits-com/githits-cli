@@ -58,6 +58,21 @@ function createCaller(callTool: McpSmokeCaller["callTool"]): McpSmokeCaller {
 }
 
 describe("MCP smoke-test helpers", () => {
+  it("requires upstream Git evidence in package vulnerability JSON", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (
+        name === "pkg_vulns" &&
+        args.format === "json" &&
+        !args.include_transitive
+      )
+        return jsonResult({ summary: { total: 0 } });
+      return smokeResponse(name, args);
+    });
+    await expect(
+      runMcpSmoke(caller, { logger: { log: () => {}, error: () => {} } }),
+    ).rejects.toThrow("Package vulnerabilities missing upstream Git evidence");
+  });
+
   it("requires stable research registration", async () => {
     const caller = createCaller(async (name, args) =>
       smokeResponse(name, args),
@@ -1603,10 +1618,12 @@ function smokeResponse(
       }
       if (args.advisory_scope === "non_affecting") {
         return textResult(
-          "Scope   non-affecting advisories only\nNo active vulnerabilities affect this version",
+          "Scope   non-affecting advisories only\nNo active native package vulnerabilities affect this version",
         );
       }
-      return textResult("express vulnerabilities");
+      return textResult(
+        "express vulnerabilities\nUpstream Git evidence\nUPSTREAM_GIT: PREPARING",
+      );
     case "pkg_changelog":
       return textResult(
         args.body_lines === 3 && args.verbose !== true && args.verbatim !== true
@@ -1785,6 +1802,11 @@ function smokeJsonResponse(
         });
       }
       return jsonResult({
+        upstreamSource: {
+          scope: "UPSTREAM_GIT",
+          state: "PREPARING",
+          assertions: [],
+        },
         summary: { unknownVulnerabilityCount: 0, assessmentStatus: "AFFECTED" },
         filter: {
           minSeverity: args.min_severity,

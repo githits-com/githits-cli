@@ -40,6 +40,7 @@
 
 import type {
   RegistryRepository,
+  SourceSecurity,
   TransitiveDependencyVulnerability,
   TransitiveVulnerabilityAuditCounts,
   VulnerabilityDetail,
@@ -58,6 +59,7 @@ import type {
   PackageVulnerabilitiesFilterEcho,
 } from "./package-vulnerabilities-request.js";
 import { shellQuoteExact } from "./shell-quote.js";
+import { formatSourceSecurity } from "./source-security.js";
 import { sanitizeTerminalText, wrapTerminalProse } from "./terminal-text.js";
 import { terminalWidth as measureTerminalWidth } from "./terminal-width.js";
 import {
@@ -158,6 +160,7 @@ export interface LeanVulnerabilitySummary {
 }
 
 export interface LeanVulnerabilityReport {
+  upstreamSource?: SourceSecurity | null;
   sourceDetails?: VulnerabilitySourceEntry[];
   registry: string;
   name: string;
@@ -210,6 +213,7 @@ export function buildPackageVulnerabilitiesSuccessPayload(
   };
   if (report.sourceDetails !== undefined)
     payload.sourceDetails = report.sourceDetails;
+  if (security?.source !== undefined) payload.upstreamSource = security.source;
   if (pkg.registryRepository)
     payload.registryRepository = pkg.registryRepository;
 
@@ -1091,6 +1095,10 @@ export function formatPackageVulnerabilitiesTerminal(
   const surface = options.surface ?? "cli";
 
   const width = normaliseTerminalWidth(options.terminalWidth);
+  const upstreamBlock =
+    payload.upstreamSource !== undefined
+      ? formatSourceSecurity(payload.upstreamSource, verbose, width)
+      : undefined;
   const directId = payload.advisories?.find((advisory) => advisory.id)?.id;
   const dependencyId = payload.transitive
     ? flattenTransitiveRows(payload.transitive).find((row) => row.occurrence.id)
@@ -1146,8 +1154,20 @@ export function formatPackageVulnerabilitiesTerminal(
   if (payload.summary.total === 0) {
     const lines = [headerLine];
     if (requestedLine) lines.push(requestedLine);
+    if (upstreamBlock) lines.push("Native package advisories");
     lines.push(...filterLines);
-    lines.push(formatNoAffectedVulnerabilitiesLine(payload));
+    const nativeOutcome = formatNoAffectedVulnerabilitiesLine(payload);
+    lines.push(
+      ...(upstreamBlock
+        ? wrapTerminalProse(
+            nativeOutcome.replace(
+              "vulnerabilities",
+              "native package vulnerabilities",
+            ),
+            width,
+          )
+        : [nativeOutcome]),
+    );
     lines.push(
       ...formatAssessmentLines(payload, surface, options.terminalWidth),
     );
@@ -1165,6 +1185,7 @@ export function formatPackageVulnerabilitiesTerminal(
         ),
       );
     }
+    if (upstreamBlock) lines.push("", upstreamBlock);
     if (transitiveBlock) lines.push("", transitiveBlock);
     if (sourceBlock) lines.push("", sourceBlock);
     if (dependencySourceHint) lines.push("", dependencySourceHint);
@@ -1174,6 +1195,7 @@ export function formatPackageVulnerabilitiesTerminal(
   const blocks: string[] = [];
   const headerBlock: string[] = [headerLine];
   if (requestedLine) headerBlock.push(requestedLine);
+  if (upstreamBlock) headerBlock.push("Native package advisories");
   headerBlock.push(...filterLines);
   headerBlock.push(formatSummaryLine(payload, useColors));
   const selectedAdvisoryCount = payload.advisories?.length ?? 0;
@@ -1209,6 +1231,7 @@ export function formatPackageVulnerabilitiesTerminal(
 
   const upgradeFooter = formatUpgradeFooter(payload.upgradePaths);
   if (upgradeFooter) blocks.push(upgradeFooter);
+  if (upstreamBlock) blocks.push(upstreamBlock);
   if (transitiveBlock) blocks.push(transitiveBlock);
   if (sourceBlock) blocks.push(sourceBlock);
   if (dependencySourceHint) blocks.push(dependencySourceHint);
