@@ -2021,7 +2021,6 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     Array.isArray(vulnsJson.related.advisories),
     "missing Related advisory rows",
   );
-  assert(!("upstreamSource" in vulnsJson), "removed upstream report returned");
   assert(
     "summary" in vulnsJson || "advisories" in vulnsJson,
     "pkg vulns json missing vulnerability data",

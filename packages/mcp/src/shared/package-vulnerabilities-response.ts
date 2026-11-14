@@ -877,7 +877,7 @@ export function formatPackageVulnerabilitiesTerminal(
     const lines = [headerLine];
     if (requestedLine) lines.push(requestedLine);
     lines.push(...filterLines);
-    lines.push(formatNoAffectedVulnerabilitiesLine(payload, "vulnerabilities"));
+    lines.push(formatNoAffectedVulnerabilitiesLine(payload));
     lines.push(
       ...formatAssessmentLines(payload, surface, options.terminalWidth),
     );
@@ -1123,7 +1123,6 @@ function formatAssessmentHintLines(
 
 function formatNoAffectedVulnerabilitiesLine(
   payload: LeanVulnerabilityReport,
-  noun: string,
 ): string {
   const selectedAdvisoryCount = payload.advisories?.length ?? 0;
   if (
@@ -1131,30 +1130,30 @@ function formatNoAffectedVulnerabilitiesLine(
     (payload.summary.unknownVulnerabilityCount ?? 0) > 0 ||
     !isAssessmentStatusImplied(payload.summary.assessmentStatus, false)
   ) {
-    return `No confirmed ${noun} affect this version.`;
+    return "No confirmed vulnerabilities affect this version.";
   }
   if (payload.filter?.advisoryScope === "non_affecting") {
     if (selectedAdvisoryCount > 0) {
-      return `No active ${noun} affect this version; non-affecting advisories are listed below.`;
+      return "No active vulnerabilities affect this version; non-affecting advisories are listed below.";
     }
-    return `No active ${noun} affect this version; no non-affecting advisories match the current filter.`;
+    return "No active vulnerabilities affect this version; no non-affecting advisories match the current filter.";
   }
   if (payload.filter?.advisoryScope === "all") {
     if (selectedAdvisoryCount > 0) {
-      return `No active ${noun} affect this version; package advisories are listed below.`;
+      return "No active vulnerabilities affect this version; package advisories are listed below.";
     }
-    return `No active ${noun} affect this version; no package advisories match the current filter.`;
+    return "No active vulnerabilities affect this version; no package advisories match the current filter.";
   }
   if (payload.filter !== undefined) {
-    return `No ${noun} matching the filter affect this version.`;
+    return "No vulnerabilities matching the filter affect this version.";
   }
   const nonAffecting = payload.summary.nonAffectingVulnerabilityCount ?? 0;
   if (nonAffecting > 0) {
-    const advisoryNoun = nonAffecting === 1 ? "advisory" : "advisories";
+    const noun = nonAffecting === 1 ? "advisory" : "advisories";
     const verb = nonAffecting === 1 ? "does" : "do";
-    return `No active ${noun} affect this version (${nonAffecting} ${advisoryNoun} ${verb} not apply).`;
+    return `No active vulnerabilities affect this version (${nonAffecting} ${noun} ${verb} not apply).`;
   }
-  return `No active ${noun} affect this version.`;
+  return "No active vulnerabilities affect this version.";
 }
 
 function formatSelectedAdvisoryCountLine(
@@ -1364,7 +1363,7 @@ function formatAdvisoryLines(
   if (advisory.id) parts.push(sanitizeIdentity(advisory.id));
   const assessment =
     advisory.relationship === "RELATED"
-      ? "package applicability unproved"
+      ? undefined
       : formatAdvisoryAssessment(
           advisory.assessmentStatus,
           advisory.affectsInspectedVersion,
@@ -1379,39 +1378,6 @@ function formatAdvisoryLines(
     advisory.relationship !== "RELATED"
   )
     lines.push("    Assessment incomplete.");
-  const evidenceStart = lines.length;
-  if (verbose)
-    for (const evidence of advisory.evidence ?? []) {
-      lines.push(
-        `    Evidence: ${sanitizeProse(evidence.kind)} | ${sanitizeProse(evidence.relationship)} | ${sanitizeIdentity(evidence.sourceId)} | ${sanitizeProse(evidence.assessmentStatus)}${evidence.complete ? "" : "; incomplete"}`,
-      );
-      for (const [label, value] of Object.entries(evidence))
-        if (
-          ![
-            "kind",
-            "relationship",
-            "sourceId",
-            "assessmentStatus",
-            "complete",
-          ].includes(label) &&
-          value !== null &&
-          (!Array.isArray(value) || value.length)
-        )
-          lines.push(
-            `      ${label}: ${sanitizeProse(Array.isArray(value) ? value.join(", ") : String(value))}`,
-          );
-    }
-
-  lines.splice(
-    evidenceStart,
-    lines.length - evidenceStart,
-    ...lines
-      .slice(evidenceStart)
-      .flatMap((line) =>
-        wrapTerminalProse(line, normaliseTerminalWidth(terminalWidth)),
-      ),
-  );
-
   // Compact detail rows — indented 4 spaces so they "hang" under the
   // advisory headline.
   const detailWidth = verbose ? 12 : 8;
@@ -1504,7 +1470,66 @@ function formatAdvisoryLines(
     }
   }
 
+  if (verbose)
+    lines.push(
+      ...(advisory.evidence ?? []).flatMap((evidence) =>
+        formatEvidenceLines(evidence, terminalWidth),
+      ),
+    );
   return lines;
+}
+
+/** Human provenance stays concise; JSON retains exact revisions and digests. */
+function formatEvidenceLines(
+  evidence: VulnerabilityEvidence,
+  terminalWidth: number | undefined,
+): string[] {
+  const human = (value: string): string =>
+    value === "NON_AFFECTING"
+      ? "non-affecting"
+      : sanitizeProse(value.replaceAll("_", " ").toLowerCase());
+  const lines = [
+    `    Evidence: ${human(evidence.kind)} | ${human(evidence.relationship)} | ${sanitizeIdentity(evidence.sourceId)} | ${human(evidence.assessmentStatus)}${evidence.complete ? "" : "; incomplete"}`,
+  ];
+  if (evidence.reasons.length)
+    lines.push(
+      `      Reason: ${evidence.reasons.map(formatVulnerabilityAssessmentReason).map(sanitizeProse).join("; ")}`,
+    );
+  const location = [
+    evidence.repositoryUrl
+      ? sanitizeIdentity(evidence.repositoryUrl)
+      : undefined,
+    evidence.commitSha
+      ? `@${sanitizeIdentity(evidence.commitSha.slice(0, 12))}`
+      : undefined,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  if (location)
+    lines.push(
+      `      Repository: ${location}${evidence.proofKind ? ` (${human(evidence.proofKind)})` : ""}`,
+    );
+  if (evidence.evaluatedAt)
+    lines.push(`      Evaluated: ${sanitizeProse(evidence.evaluatedAt)}`);
+  if (evidence.checkedAt)
+    lines.push(`      Checked: ${sanitizeProse(evidence.checkedAt)}`);
+  if (evidence.sourceStale !== null)
+    lines.push(
+      `      Source check: ${evidence.sourceStale ? "stale" : "current"}.`,
+    );
+  if (evidence.withdrawnAt)
+    lines.push(
+      `      Source withdrawn: ${sanitizeProse(evidence.withdrawnAt)}`,
+    );
+  if (
+    evidence.contentDigest !== null &&
+    evidence.assessedContentDigest !== null &&
+    evidence.contentDigest !== evidence.assessedContentDigest
+  )
+    lines.push("      Source content changed since assessment.");
+  return lines.flatMap((line) =>
+    wrapTerminalProse(line, normaliseTerminalWidth(terminalWidth)),
+  );
 }
 
 /**

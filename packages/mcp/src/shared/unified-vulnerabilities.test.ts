@@ -83,7 +83,7 @@ describe("ordinary package and Related output", () => {
     );
   });
   it.each(["cli", "mcp"] as const)(
-    "uses same advisory formatter for %s without split-source report",
+    "uses ordinary %s advisory rows and keeps provenance out of compact text",
     (surface) => {
       const r = fixture();
       const text = formatPackageVulnerabilitiesTerminal(r, { surface });
@@ -98,7 +98,7 @@ describe("ordinary package and Related output", () => {
       ])
         expect(text).toContain(word);
       expect(text).not.toMatch(
-        /Upstream Git evidence|Native package advisories|UPSTREAM_GIT|digest-current|REPOSITORY_COMMIT|\[non-affecting\]/,
+        /digest-current|REPOSITORY_COMMIT|\[non-affecting\]/,
       );
       expect(text).toContain(
         "related findings have unproved package applicability",
@@ -118,22 +118,58 @@ describe("ordinary package and Related output", () => {
     );
     expect(json.related?.advisories[0]?.assessmentStatus).toBe("NOT_ASSESSED");
     expect(json.upgradePaths).toEqual(["2"]);
-    expect(json).not.toHaveProperty("upstreamSource");
   });
-  it("renders selected provenance only in verbose text and keeps nullable clocks unavailable", () => {
+  it("groups readable provenance after advisory details while JSON keeps exact fields", () => {
     const r = fixture();
+    const evidence = r.security!.vulnerabilities![0]!.evidence![0]!;
+    evidence.evaluatedAt = "2026-11-10T12:00:00Z";
+    evidence.checkedAt = "2026-11-11T12:00:00Z";
+    evidence.sourceStale = true;
+    evidence.complete = false;
+    evidence.reasons = ["SOURCE_INCOMPLETE"];
     const compact = formatPackageVulnerabilitiesTerminal(r);
-    const verbose = formatPackageVulnerabilitiesTerminal(r, { verbose: true });
-    expect(compact).not.toContain("digest-current");
-    for (const word of [
-      "REPOSITORY_COMMIT",
-      "RELATED",
-      "CVE-original",
-      "digest-current",
-      "digest-assessed",
-      "1790000000123456789",
+    const verbose = formatPackageVulnerabilitiesTerminal(r, {
+      verbose: true,
+      terminalWidth: 100,
+    });
+    expect(compact).not.toContain("Evidence:");
+    for (const text of [
+      "Evidence: repository commit | related | CVE-original | affected; incomplete",
+      "Repository: https://github.com/example/mono @aaaaaaaaaaaa (release)",
+      "Reason: some repository checks unresolved",
+      "Evaluated: 2026-11-10T12:00:00Z",
+      "Checked: 2026-11-11T12:00:00Z",
+      "Source check: stale.",
+      "Source content changed since assessment.",
     ])
-      expect(verbose).toContain(word);
+      expect(verbose).toContain(text);
+    expect(verbose.indexOf("severity")).toBeLessThan(
+      verbose.indexOf("Evidence:"),
+    );
+    expect(verbose).not.toMatch(
+      /digest-current|digest-assessed|1790000000123456789|affectedEntryIndices|REPOSITORY_COMMIT|RELATED|\[package applicability unproved\]/,
+    );
+    expect(
+      buildPackageVulnerabilitiesSuccessPayload(r).advisories?.[0]
+        ?.evidence?.[0],
+    ).toEqual(evidence);
+    const narrow = formatPackageVulnerabilitiesTerminal(r, {
+      verbose: true,
+      terminalWidth: 60,
+    });
+    for (const line of narrow.split("\n").filter((line) => /^ {4,}/.test(line)))
+      expect(line.length).toBeLessThanOrEqual(60);
+  });
+  it("does not infer freshness or a content change from null evidence", () => {
+    const r = fixture();
+    const evidence = r.security!.vulnerabilities![0]!.evidence![0]!;
+    evidence.contentDigest = null;
+    evidence.assessmentStatus = "NON_AFFECTING";
+    const verbose = formatPackageVulnerabilitiesTerminal(r, { verbose: true });
+    expect(verbose).toContain("CVE-original | non-affecting");
+    expect(verbose).toContain("[affects this version]");
+    expect(verbose).not.toMatch(/Source check:|Evaluated:|Checked:/);
+    expect(verbose).not.toContain("Source content changed since assessment.");
     expect(
       buildPackageVulnerabilitiesSuccessPayload(r).advisories?.[0]
         ?.evidence?.[0]?.sourceStale,

@@ -1682,7 +1682,7 @@ function smokeResponse(
         );
       }
       return textResult(
-        "express vulnerabilities\nUpstream Git evidence\nUPSTREAM_GIT: PREPARING",
+        "express vulnerabilities\nCoverage: repository checks preparing.",
       );
     case "pkg_changelog":
       return textResult(

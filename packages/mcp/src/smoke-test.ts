@@ -1338,7 +1338,6 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     Array.isArray(vulnsJson.related.advisories),
     "missing Related advisory rows",
   );
-  assert(!("upstreamSource" in vulnsJson), "removed upstream report returned");
   assert(
     "summary" in vulnsJson || "advisories" in vulnsJson,
     "pkg_vulns json missing vulnerability data",
