@@ -177,6 +177,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       includeTransitive: undefined,
       advisoryScope: undefined,
       includeTransitiveAdvisoryDetails: false,
+      includeVulnerabilityEvidence: false,
     });
   });
 
@@ -199,6 +200,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       includeTransitive: undefined,
       advisoryScope: undefined,
       includeTransitiveAdvisoryDetails: false,
+      includeVulnerabilityEvidence: false,
     });
   });
 
@@ -224,6 +226,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       includeTransitive: undefined,
       advisoryScope: undefined,
       includeTransitiveAdvisoryDetails: false,
+      includeVulnerabilityEvidence: false,
     });
   });
 
@@ -249,6 +252,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       includeTransitive: undefined,
       advisoryScope: undefined,
       includeTransitiveAdvisoryDetails: false,
+      includeVulnerabilityEvidence: false,
     });
   });
 
@@ -274,6 +278,7 @@ describe("createPackageVulnerabilitiesTool — happy path", () => {
       includeTransitive: undefined,
       advisoryScope: undefined,
       includeTransitiveAdvisoryDetails: false,
+      includeVulnerabilityEvidence: false,
     });
   });
 

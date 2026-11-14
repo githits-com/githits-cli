@@ -58,7 +58,7 @@ function createCaller(callTool: McpSmokeCaller["callTool"]): McpSmokeCaller {
 }
 
 describe("MCP smoke-test helpers", () => {
-  it("requires upstream Git evidence in package vulnerability JSON", async () => {
+  it("requires completeness in package vulnerability JSON", async () => {
     const caller = createCaller(async (name, args) => {
       if (
         name === "pkg_vulns" &&
@@ -70,7 +70,7 @@ describe("MCP smoke-test helpers", () => {
     });
     await expect(
       runMcpSmoke(caller, { logger: { log: () => {}, error: () => {} } }),
-    ).rejects.toThrow("Package vulnerabilities missing upstream Git evidence");
+    ).rejects.toThrow("missing assessment completeness");
   });
 
   it("requires stable research registration", async () => {
@@ -1678,7 +1678,7 @@ function smokeResponse(
       }
       if (args.advisory_scope === "non_affecting") {
         return textResult(
-          "Scope   non-affecting advisories only\nNo active native package vulnerabilities affect this version",
+          "Scope   non-affecting advisories only\nNo active vulnerabilities affect this version",
         );
       }
       return textResult(
@@ -1862,12 +1862,12 @@ function smokeJsonResponse(
         });
       }
       return jsonResult({
-        upstreamSource: {
-          scope: "UPSTREAM_GIT",
-          state: "PREPARING",
-          assertions: [],
+        related: { totalCount: 0, advisories: [] },
+        summary: {
+          unknownVulnerabilityCount: 0,
+          assessmentStatus: "AFFECTED",
+          assessmentComplete: true,
         },
-        summary: { unknownVulnerabilityCount: 0, assessmentStatus: "AFFECTED" },
         filter: {
           minSeverity: args.min_severity,
           advisoryScope: args.advisory_scope,

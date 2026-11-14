@@ -1272,11 +1272,6 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   );
   assert(!vulnsText.includes("use -v"), "pkg_vulns leaked CLI -v hint");
 
-  assert(
-    vulnsText.includes("Upstream Git evidence"),
-    "Package vulnerabilities missing upstream Git text",
-  );
-
   const transitiveVulnsText = assertDefaultText(
     await callTool(caller, "pkg_vulns", {
       target: SMOKE_TRANSITIVE_VULNERABILITY_TARGET,
@@ -1333,21 +1328,17 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_vulns json",
   );
   assertRecord(vulnsJson, "pkg_vulns json");
+  assertRecord(vulnsJson.summary, "vulnerability summary");
   assert(
-    "upstreamSource" in vulnsJson,
-    "Package vulnerabilities missing upstream Git evidence",
+    typeof vulnsJson.summary.assessmentComplete === "boolean",
+    "missing assessment completeness",
   );
-  if (vulnsJson.upstreamSource !== null) {
-    assertRecord(vulnsJson.upstreamSource, "upstream Git evidence");
-    assert(
-      typeof vulnsJson.upstreamSource.state === "string",
-      "upstream Git evidence missing state",
-    );
-    assert(
-      Array.isArray(vulnsJson.upstreamSource.assertions),
-      "upstream Git evidence missing assertions",
-    );
-  }
+  assertRecord(vulnsJson.related, "related vulnerabilities");
+  assert(
+    Array.isArray(vulnsJson.related.advisories),
+    "missing Related advisory rows",
+  );
+  assert(!("upstreamSource" in vulnsJson), "removed upstream report returned");
   assert(
     "summary" in vulnsJson || "advisories" in vulnsJson,
     "pkg_vulns json missing vulnerability data",
@@ -1380,9 +1371,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_vulns scoped default missing scope echo",
   );
   assert(
-    scopedVulnsText.includes(
-      "No active native package vulnerabilities affect this version",
-    ),
+    scopedVulnsText.includes("No active vulnerabilities affect this version"),
     "pkg_vulns scoped default missing current-risk statement",
   );
   assert(

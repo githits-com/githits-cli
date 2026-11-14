@@ -23,6 +23,7 @@ export type {
   PackageLifecycleRetainedWarning,
   PackageLifecycleScope,
 } from "./services/package-lifecycle.js";
+export type { VulnerabilityEvidence } from "./services/package-vulnerability-report.js";
 export * from "./services/progress-request.js";
 export * from "./services/promote-version-not-found.js";
 export * from "./services/read-service.js";
@@ -31,10 +32,6 @@ export * from "./services/refreshing-githits-service.js";
 export * from "./services/resolve-target-service.js";
 export * from "./services/runtime-diagnostics.js";
 export * from "./services/service-request-options.js";
-export type {
-  SourceSecurity,
-  SourceSecurityAssertion,
-} from "./services/source-security.js";
 export * from "./services/token-provider.js";
 export * from "./services/version-ref-recovery.js";
 export * from "./shared/fetch-timeout.js";

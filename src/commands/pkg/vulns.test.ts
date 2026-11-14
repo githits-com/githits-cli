@@ -244,6 +244,7 @@ describe("pkgVulnsAction", () => {
               {
                 includeTransitive?: boolean;
                 includeTransitiveAdvisoryDetails?: boolean;
+                includeVulnerabilityEvidence?: boolean;
               },
             ]
           >
@@ -351,6 +352,7 @@ describe("pkgVulnsAction", () => {
       includeWithdrawn?: boolean;
       includeTransitive?: boolean;
       includeTransitiveAdvisoryDetails?: boolean;
+      includeVulnerabilityEvidence?: boolean;
     };
     expect(params).toEqual({
       registry: "NPM",
@@ -361,6 +363,7 @@ describe("pkgVulnsAction", () => {
       includeTransitive: true,
       advisoryScope: "ALL",
       includeTransitiveAdvisoryDetails: true,
+      includeVulnerabilityEvidence: true,
     });
     const payload = JSON.parse(logSpy.mock.calls[0]?.[0] as string) as {
       filter?: unknown;

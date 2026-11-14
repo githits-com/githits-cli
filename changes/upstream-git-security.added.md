@@ -3,4 +3,4 @@
 "@githits/mcp": minor
 ---
 
-- **Upstream Git security evidence** - Package vulnerability reports add an Upstream Git evidence section and lossless `upstreamSource` JSON, preserving independent findings, preparation, incomplete coverage and freshness. Zero-result text now explicitly refers to native package vulnerabilities. Requires a source-security-enabled backend.
+- **Combined package vulnerability findings** - Package-attributed repository findings use ordinary advisory rows, counts and filters; unproved matches appear as Related through the same formatter. Preserve canonical metadata, incomplete coverage and optional per-finding provenance, with complete independent pagination and full OSV reports. Requires the combined-report backend schema.

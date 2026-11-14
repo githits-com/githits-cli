@@ -28,7 +28,6 @@ import {
   PackageIntelligenceTargetNotFoundError,
   PackageIntelligenceVersionNotFoundError,
 } from "@githits/core-internal";
-import { sourceSecurityCases } from "../../packages/core-internal/src/services/source-security-test-helpers.js";
 import {
   type PkgVulnsCommandDependencies,
   pkgVulnsAction,
@@ -336,6 +335,7 @@ describe("package_vulnerabilities parity", () => {
           includeTransitive: undefined,
           advisoryScope: undefined,
           includeTransitiveAdvisoryDetails: true,
+          includeVulnerabilityEvidence: true,
         },
       ],
       [
@@ -348,6 +348,7 @@ describe("package_vulnerabilities parity", () => {
           includeTransitive: undefined,
           advisoryScope: undefined,
           includeTransitiveAdvisoryDetails: true,
+          includeVulnerabilityEvidence: true,
         },
       ],
     ]);
@@ -388,6 +389,7 @@ describe("package_vulnerabilities parity", () => {
           includeTransitive: undefined,
           advisoryScope: undefined,
           includeTransitiveAdvisoryDetails: true,
+          includeVulnerabilityEvidence: true,
         },
       ],
       [
@@ -400,6 +402,7 @@ describe("package_vulnerabilities parity", () => {
           includeTransitive: undefined,
           advisoryScope: undefined,
           includeTransitiveAdvisoryDetails: true,
+          includeVulnerabilityEvidence: true,
         },
       ],
     ]);
@@ -1230,42 +1233,71 @@ it.each([undefined, true])(
   },
 );
 
-describe("upstream Git evidence parity", () => {
-  it.each(sourceSecurityCases)(
-    "preserves %s source evidence and native filters identically",
-    async (_name, source) => {
+describe("unified findings parity and exit status", () => {
+  it.each(["coverage", "pagination", "related-source-error"])(
+    "preserves %s through CLI/MCP without treating assessment incompleteness as failure",
+    async (kind) => {
       const report = structuredClone(defaultVulnerabilityReport);
-      report.security!.source = source;
-      const serviceCall = mock(async () => report);
-      const cli = await cliJson(
-        "npm:express",
-        { severity: "critical", scope: "unknown", includeWithdrawn: true },
-        cliDeps({
-          packageIntelligenceService: createMockPackageIntelligenceService({
-            packageVulnerabilities: serviceCall as never,
+      report.security!.assessmentComplete = false;
+      report.security!.assessmentReasons = ["RELATED_APPLICABILITY_UNPROVED"];
+      report.related = {
+        totalCount: 1,
+        vulnerabilities: [
+          {
+            osvId: "CVE-related",
+            relationship: "RELATED",
+            assessmentStatus: "NOT_ASSESSED",
+            assessmentComplete: false,
+            affectsInspectedVersion: false,
+            summary: "Unproved component advisory",
+            severityScore: 9.8,
+          },
+        ],
+      };
+      if (kind === "pagination") report.paginationComplete = false;
+      if (kind === "related-source-error")
+        report.related.sourceDetails = [
+          {
+            advisoryId: "CVE-related",
+            source: null,
+            error: {
+              code: "TIMEOUT",
+              message: "Current OSV source unavailable (TIMEOUT).",
+              retryable: true,
+            },
+          },
+        ];
+      const service = mock(async () => report);
+      const previous = process.exitCode ?? 0;
+      process.exitCode = 0;
+      try {
+        const cli = await cliJson(
+          "npm:express",
+          {},
+          cliDeps({
+            packageIntelligenceService: createMockPackageIntelligenceService({
+              packageVulnerabilities: service,
+            }),
           }),
-        }),
-      );
-      const mcp = await mcpJson(
-        {
-          target: "npm:express",
-          min_severity: "critical",
-          advisory_scope: "unknown",
-          include_withdrawn: true,
-        },
-        serviceCall,
-      );
-      expect(cli).toEqual(mcp.json);
-      expect(cli).toMatchObject({
-        upstreamSource: source,
-        summary: { total: report.security!.affectedVulnerabilityCount },
-        filter: {
-          minSeverity: "critical",
-          advisoryScope: "unknown",
-          includeWithdrawn: true,
-        },
-      });
-      expect(mcp.isError).toBeUndefined();
+        );
+        expect(process.exitCode).toBe(kind === "coverage" ? 0 : 1);
+        const mcp = await mcpJson({ target: "npm:express" }, service);
+        expect(cli).toEqual(mcp.json);
+        expect(mcp.isError).toBeUndefined();
+        expect(cli).toMatchObject({
+          summary: {
+            total: report.security!.affectedVulnerabilityCount,
+            assessmentComplete: false,
+          },
+          related: {
+            advisories: [
+              { assessmentStatus: "NOT_ASSESSED", relationship: "RELATED" },
+            ],
+          },
+        });
+      } finally {
+        process.exitCode = previous;
+      }
     },
   );
 });

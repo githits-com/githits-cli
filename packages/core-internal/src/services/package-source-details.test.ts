@@ -25,6 +25,8 @@ function source(id = "OSV-example") {
 }
 function row(id = "OSV-example", sourceDetails: unknown = source(id)) {
   return {
+    relationship: "PACKAGE" as const,
+    assessmentComplete: true,
     osvId: id,
     summary: "Imported assessment",
     aliases: [],
@@ -48,7 +50,14 @@ function page(
       packageVulnerabilities: {
         package: { registry: "NPM", name: "example", version: "1" },
         security: {
-          source: null,
+          assessmentStatus: "AFFECTED",
+          assessmentReasons: [],
+          assessmentComplete: true,
+          unknownVulnerabilityCount: 0,
+          related: {
+            entries: [],
+            pageInfo: { hasNextPage: false, endCursor: null, totalCount: 0 },
+          },
           affectedVulnerabilityCount: total,
           nonAffectingVulnerabilityCount: 0,
           allVulnerabilityCount: total,
@@ -133,8 +142,8 @@ describe("package current OSV source details", () => {
       includeSourceDetails: true,
     });
     expect(requests).toHaveLength(3);
-    for (const [index, request] of requests.entries()) {
-      expect(request.query).toContain(`first: ${index === 0 ? 2 : 3}`);
+    for (const request of requests) {
+      expect(request.query).toContain("first: 3");
       expect(request.query).toContain("sourceDetails {");
       expect(request.query).toContain("credits { name contact type }");
       expect(request.query).not.toMatch(/sourceDetails\s+@|affected \{/);

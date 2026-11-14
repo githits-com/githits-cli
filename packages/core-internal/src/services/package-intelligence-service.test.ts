@@ -27,6 +27,31 @@ function asFetchFn<T extends (...args: never[]) => unknown>(
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
+  body = structuredClone(body);
+  const security = (
+    body as {
+      data?: {
+        packageVulnerabilities?: { security?: Record<string, unknown> };
+      };
+    }
+  )?.data?.packageVulnerabilities?.security;
+  if (security) {
+    security.assessmentComplete ??= true;
+    security.assessmentReasons ??= [];
+    security.assessmentStatus ??= "AFFECTED";
+    security.unknownVulnerabilityCount ??= 0;
+    security.related ??= {
+      entries: [],
+      pageInfo: { hasNextPage: false, endCursor: null, totalCount: 0 },
+    };
+    const rows =
+      (security.advisories as { entries?: Array<Record<string, unknown>> })
+        ?.entries ?? [];
+    for (const row of rows) {
+      row.relationship ??= "PACKAGE";
+      row.assessmentComplete ??= true;
+    }
+  }
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
@@ -1124,14 +1149,14 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("preserves absent assessment fields without inventing a completed result", async () => {
+  it("retains required report assessment fields and absent optional row reasons", async () => {
     const { service } = createAuditService(TRANSITIVE_AUDIT_BODY);
     const result = await service.packageVulnerabilities({
       registry: "NPM",
       packageName: "express",
     });
-    expect(result.security?.assessmentStatus).toBeUndefined();
-    expect(result.security?.unknownVulnerabilityCount).toBeUndefined();
+    expect(result.security?.assessmentStatus).toBe("AFFECTED");
+    expect(result.security?.unknownVulnerabilityCount).toBe(0);
     expect(
       result.security?.vulnerabilities?.[0]?.assessmentReasons,
     ).toBeUndefined();
@@ -1523,6 +1548,7 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
         includeWithdrawn: undefined,
         scope: undefined,
         after: null,
+        relatedAfter: null,
       });
       expect(parsed.query).toContain("packageVulnerabilities(");
       expect(parsed.query).not.toContain("PackageTransitiveVulnerabilityAudit");
@@ -1552,9 +1578,9 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     expect(captured).toBeDefined();
     const parsed = JSON.parse(captured ?? "{}");
     expect(parsed.query).toContain(
-      "packageVulnerabilities(\n    registry: $registry",
+      "packageVulnerabilities(registry: $registry",
     );
-    expect(parsed.query).toContain("advisories(scope: $scope");
+    expect(parsed.query).toContain("scope: $scope, relationship: PACKAGE");
     expect(parsed.query).not.toContain("vulnerabilityCount");
     expect(parsed.variables).toEqual({
       registry: "NPM",
@@ -1564,6 +1590,7 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
       includeWithdrawn: true,
       scope: undefined,
       after: null,
+      relatedAfter: null,
     });
   });
 
@@ -1613,7 +1640,7 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
     ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
   });
 
-  it("throws MalformedPackageIntelligenceResponseError when version is null", async () => {
+  it("preserves unselected-release history when version is null", async () => {
     const body = {
       data: {
         packageVulnerabilities: {
@@ -1629,12 +1656,11 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
       asFetchFn(fetchFn),
     );
 
-    await expect(
-      service.packageVulnerabilities({
-        registry: "NPM",
-        packageName: "express",
-      }),
-    ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
+    const report = await service.packageVulnerabilities({
+      registry: "NPM",
+      packageName: "express",
+    });
+    expect(report.package.version).toBeNull();
   });
 
   it("handles empty vulnerabilities list (zero-vulns success)", async () => {
@@ -1765,7 +1791,7 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
       firstPage.data.packageVulnerabilities.security.advisories.entries[0];
     if (!firstEntry) throw new Error("fixture missing first advisory entry");
     secondPage.data.packageVulnerabilities.security.advisories.entries = [
-      firstEntry,
+      { ...firstEntry, osvId: "GHSA-page-two" },
     ];
     secondPage.data.packageVulnerabilities.security.advisories.pageInfo = {
       hasNextPage: false,
@@ -1842,7 +1868,9 @@ describe("PackageIntelligenceServiceImpl.packageVulnerabilities", () => {
       if (!secondSecurity || !firstEntry) {
         throw new Error("fixture missing advisory entries");
       }
-      secondSecurity.advisories.entries = [firstEntry];
+      secondSecurity.advisories.entries = [
+        { ...firstEntry, osvId: "GHSA-page-two" },
+      ];
       secondSecurity.advisories.pageInfo = {
         hasNextPage: false,
         endCursor: null,

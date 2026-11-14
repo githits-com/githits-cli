@@ -108,9 +108,8 @@ export type {
   ResolveTargetTarget,
   ServiceDiagnostics,
   ServiceRequestOptions,
-  SourceSecurity,
-  SourceSecurityAssertion,
   TokenProvider,
+  VulnerabilityEvidence,
 } from "@githits/core-internal";
 export {
   AGENTIC_ASK_REQUEST_TIMEOUT_MS,

@@ -49,15 +49,15 @@ import {
   INDEXING_ESTIMATES_SELECTION,
   indexingEstimatesSchema,
 } from "./indexing-estimates.js";
-import {
-  OSV_SOURCE_DETAILS_FIELDS,
-  osvSourceDetailsSchema,
-  type VulnerabilitySourceEntry,
-} from "./osv-source-details.js";
+import type { VulnerabilitySourceEntry } from "./osv-source-details.js";
 import {
   type PackageLifecycle,
   packageLifecycleSchema,
 } from "./package-lifecycle.js";
+import {
+  fetchPackageVulnerabilityReport,
+  type VulnerabilityEvidence,
+} from "./package-vulnerability-report.js";
 import { promoteGenericVersionNotFound } from "./promote-version-not-found.js";
 import { type ReadTarget, readTargetSchema } from "./read-target.js";
 import {
@@ -65,11 +65,6 @@ import {
   withServiceDiagnostics,
 } from "./runtime-diagnostics.js";
 import type { ServiceRequestOptions } from "./service-request-options.js";
-import {
-  SOURCE_SECURITY_FIELDS,
-  type SourceSecurity,
-  sourceSecuritySchema,
-} from "./source-security.js";
 import type { TokenProvider } from "./token-provider.js";
 import {
   parseVersionRefRecovery,
@@ -177,6 +172,8 @@ export interface PackageSummary {
 export interface PackageVulnerabilitiesParams {
   /** Opt in to full current OSV explanations on bounded direct advisory pages. */
   includeSourceDetails?: boolean;
+  /** Expanded per-finding provenance, consumed by verbose text or JSON. */
+  includeVulnerabilityEvidence?: boolean;
   registry: PkgseerRegistry;
   packageName: string;
   /** Optional — backend defaults to latest when omitted. */
@@ -210,6 +207,9 @@ export interface PackageVersionIdentity {
 }
 
 export interface VulnerabilityDetail {
+  relationship?: "PACKAGE" | "RELATED";
+  assessmentComplete?: boolean;
+  evidence?: VulnerabilityEvidence[];
   osvId?: string;
   summary?: string;
   severityScore?: number;
@@ -231,8 +231,8 @@ export interface VulnerabilityDetail {
 }
 
 export interface VulnerabilitySecurityDetails {
-  /** Selected upstream Git evidence, separate from native assessment and counts. */
-  source?: SourceSecurity | null;
+  assessmentComplete?: boolean;
+  assessmentReasons?: string[];
   unknownVulnerabilityCount?: number;
   assessmentStatus?: string;
   affectedVulnerabilityCount: number;
@@ -244,8 +244,14 @@ export interface VulnerabilitySecurityDetails {
 }
 
 export interface VulnerabilityReport {
+  paginationComplete?: false;
+  related?: {
+    totalCount: number;
+    vulnerabilities: VulnerabilityDetail[];
+    sourceDetails?: VulnerabilitySourceEntry[];
+  };
   sourceDetails?: VulnerabilitySourceEntry[];
-  package: PackageVersionIdentity;
+  package: Omit<PackageVersionIdentity, "version"> & { version: string | null };
   security?: VulnerabilitySecurityDetails;
   transitive?: TransitiveVulnerabilityAudit;
 }
@@ -1336,76 +1342,6 @@ const packageVersionIdentitySchema = z.object({
   registryRepository: registryRepositorySchema.nullable().optional(),
 });
 
-const vulnerabilityDetailSchema = z.object({
-  sourceDetails: osvSourceDetailsSchema.nullable().optional(),
-  assessmentStatus: z.string().nullable().optional(),
-  assessmentReasons: z.array(z.string()).nullable().optional(),
-  osvId: z.string().nullable().optional(),
-  summary: z.string().nullable().optional(),
-  severityScore: z.number().nullable().optional(),
-  severityType: z.string().nullable().optional(),
-  affectedVersionRanges: z.array(z.string()).nullable().optional(),
-  affectedVersionRangesCount: z.number().int(),
-  affectedVersionRangesTruncated: z.boolean(),
-  fixedInVersions: z.array(z.string()).nullable().optional(),
-  publishedAt: z.string().nullable().optional(),
-  modifiedAt: z.string().nullable().optional(),
-  withdrawnAt: z.string().nullable().optional(),
-  aliases: z.array(z.string()).nullable().optional(),
-  isMalicious: z.boolean().nullable().optional(),
-  affectsInspectedVersion: z.boolean(),
-  matchedAffectedVersionRanges: z.array(z.string()),
-  duplicateIds: z.array(z.string()),
-});
-
-const pageInfoSchema = z.object({
-  hasNextPage: z.boolean(),
-  endCursor: z.string().nullable().optional(),
-  totalCount: z.number().int(),
-});
-
-const vulnerabilityAdvisoryPageSchema = z.object({
-  entries: z.array(vulnerabilityDetailSchema),
-  pageInfo: pageInfoSchema,
-});
-
-const vulnerabilitySecurityDetailsSchema = z
-  .object({
-    source: sourceSecuritySchema.nullable().optional(),
-    unknownVulnerabilityCount: z
-      .number()
-      .int()
-      .nonnegative()
-      .nullable()
-      .optional(),
-    assessmentStatus: z.string().nullable().optional(),
-    affectedVulnerabilityCount: z.number().int(),
-    nonAffectingVulnerabilityCount: z.number().int(),
-    allVulnerabilityCount: z.number().int(),
-    currentVersionAffected: z.boolean().nullable().optional(),
-    advisories: vulnerabilityAdvisoryPageSchema,
-    upgradePaths: z.array(z.string()).nullable().optional(),
-  })
-  .nullable()
-  .optional();
-
-const vulnerabilityReportResponseSchema = z.object({
-  package: packageVersionIdentitySchema.nullable().optional(),
-  security: vulnerabilitySecurityDetailsSchema,
-});
-
-const vulnerabilitiesGraphQLResponseSchema = z.object({
-  data: z
-    .object({
-      packageVulnerabilities: vulnerabilityReportResponseSchema
-        .nullable()
-        .optional(),
-    })
-    .nullable()
-    .optional(),
-  errors: z.array(graphQLErrorSchema).optional(),
-});
-
 const transitiveAuditAdvisorySchema = z.object({
   osvId: z.string().nullable().optional(),
   summary: z.string().nullable().optional(),
@@ -1482,75 +1418,6 @@ const transitiveAuditGraphQLResponseSchema = z.object({
     .optional(),
   errors: z.array(graphQLErrorSchema).optional(),
 });
-
-function packageVulnerabilitiesQuery(
-  includeSourceDetails: boolean,
-  firstPage: boolean,
-): string {
-  return `
-query PackageVulnerabilities(
-  $registry: Registry!
-  $name: String!
-  $version: String
-  $minSeverity: Float
-  $includeWithdrawn: Boolean
-  $scope: VulnerabilityScope = AFFECTED
-  $after: String
-) {
-  packageVulnerabilities(
-    registry: $registry
-    name: $name
-    version: $version
-    minSeverity: $minSeverity
-    includeWithdrawn: $includeWithdrawn
-  ) {
-    package {
-      name
-      registry
-      version
-      registryRepository { id name url }
-    }
-    security {
-      ${firstPage ? `source { ${SOURCE_SECURITY_FIELDS} }` : ""}
-      unknownVulnerabilityCount
-      assessmentStatus
-      affectedVulnerabilityCount
-      nonAffectingVulnerabilityCount
-      allVulnerabilityCount
-      currentVersionAffected
-      upgradePaths
-      advisories(scope: $scope, first: ${includeSourceDetails ? (firstPage ? 2 : 3) : 100}, after: $after) {
-        entries {
-          osvId
-          summary
-          severityScore
-          severityType
-          affectedVersionRanges
-          affectedVersionRangesCount
-          affectedVersionRangesTruncated
-          fixedInVersions
-          publishedAt
-          modifiedAt
-          withdrawnAt
-          aliases
-          isMalicious
-          affectsInspectedVersion
-          assessmentStatus
-          assessmentReasons
-          matchedAffectedVersionRanges
-          duplicateIds
-          ${includeSourceDetails ? `sourceDetails { ${OSV_SOURCE_DETAILS_FIELDS} }` : ""}
-        }
-        pageInfo {
-          hasNextPage
-          endCursor
-          totalCount
-        }
-      }
-    }
-  }
-}`;
-}
 
 const TRANSITIVE_AUDIT_SCOPE_FIELDS = {
   AFFECTED: { summary: "affected", packageCount: "affectedCount" },
@@ -3563,85 +3430,41 @@ export class PackageIntelligenceServiceImpl
     params: PackageVulnerabilitiesParams,
     signal: AbortSignal | undefined,
   ): Promise<VulnerabilityReport> {
-    let after: string | null = null;
-    let firstPage:
-      | z.infer<typeof vulnerabilityReportResponseSchema>
-      | undefined;
-    const entries: z.infer<typeof vulnerabilityDetailSchema>[] = [];
-    const sourceDetails: VulnerabilitySourceEntry[] = [];
-    const seenCursors = new Set<string>();
-
-    do {
-      const page = await this.fetchPackageVulnerabilitiesPage(
-        token,
-        params,
-        after,
-        signal,
-      );
-      if (!firstPage) firstPage = page;
-      sourceDetails.push(...(page.sourceDetails ?? []));
-
-      const advisoryPage = page.security?.advisories;
-      if (!advisoryPage) {
-        after = null;
-        break;
-      }
-
-      entries.push(...advisoryPage.entries);
-      if (advisoryPage.pageInfo.hasNextPage) {
-        const nextCursor = advisoryPage.pageInfo.endCursor;
-        if (!nextCursor) {
-          throw new MalformedPackageIntelligenceResponseError(
-            "Vulnerability response pagination omitted next cursor.",
-          );
+    const report = await fetchPackageVulnerabilityReport(params, {
+      request: async ({ query, variables }) => {
+        let response: PkgseerGraphqlResponse;
+        try {
+          response = await postPkgseerGraphql({
+            endpointUrl: this.endpointUrl,
+            token,
+            query,
+            variables,
+            signal,
+            fetchFn: this.fetchFn,
+            clientHeaders: this.runtime.clientHeaders,
+            userAgent: this.runtime.userAgent,
+            diagnostics: this.runtime.diagnostics,
+          });
+        } catch (cause) {
+          if (cause instanceof PkgseerTransportError)
+            throw this.createTransportError(cause);
+          throw cause;
         }
-        if (seenCursors.has(nextCursor)) {
-          throw new MalformedPackageIntelligenceResponseError(
-            "Vulnerability response pagination repeated a cursor.",
-          );
-        }
-        seenCursors.add(nextCursor);
-        after = nextCursor;
-      } else {
-        after = null;
-      }
-    } while (after !== null);
-
-    if (!firstPage) {
-      throw new MalformedPackageIntelligenceResponseError(
-        "Empty response from the package-intelligence service.",
-      );
-    }
-
-    if (firstPage.security) {
-      const expectedCount = firstPage.security.advisories.pageInfo.totalCount;
-      if (entries.length !== expectedCount) {
-        throw new MalformedPackageIntelligenceResponseError(
-          "Vulnerability response pagination returned an incomplete advisory set.",
-        );
-      }
-    }
-
-    const data = firstPage.security
-      ? {
-          ...firstPage,
-          security: {
-            ...firstPage.security,
-            advisories: {
-              ...firstPage.security.advisories,
-              entries,
-            },
-          },
-        }
-      : firstPage;
-
-    const report = this.normaliseVulnerabilityReport(data);
-    if (params.includeSourceDetails === true)
-      report.sourceDetails = sourceDetails;
+        if (response.status < 200 || response.status >= 300)
+          throw this.createHttpError(response);
+        return response.parsedBody;
+      },
+      graphQLError: (errors) =>
+        promoteGenericVersionNotFound(this.createGraphQLError(errors), params),
+    });
     if (params.includeTransitive === true) {
+      if (report.package.version === null)
+        throw new PackageIntelligenceValidationError(
+          "No package release selected for dependency vulnerability analysis; request a version.",
+        );
       report.transitive = await this.fetchTransitiveVulnerabilityAudit(
         token,
-        report.package,
+        { ...report.package, version: report.package.version },
         params.minSeverity,
         params.advisoryScope ?? "AFFECTED",
         params,
@@ -3651,197 +3474,6 @@ export class PackageIntelligenceServiceImpl
     return report;
   }
 
-  private async fetchPackageVulnerabilitiesPage(
-    token: string,
-    params: PackageVulnerabilitiesParams,
-    after: string | null,
-    signal: AbortSignal | undefined,
-  ): Promise<
-    z.infer<typeof vulnerabilityReportResponseSchema> & {
-      sourceDetails?: VulnerabilitySourceEntry[];
-    }
-  > {
-    let response: PkgseerGraphqlResponse;
-    try {
-      response = await postPkgseerGraphql({
-        endpointUrl: this.endpointUrl,
-        token,
-        query: packageVulnerabilitiesQuery(
-          params.includeSourceDetails === true,
-          after === null,
-        ),
-        variables: {
-          registry: params.registry,
-          name: params.packageName,
-          version: params.version,
-          minSeverity: params.minSeverity,
-          includeWithdrawn: params.includeWithdrawn,
-          scope: params.advisoryScope,
-          after,
-        },
-        signal,
-        fetchFn: this.fetchFn,
-        clientHeaders: this.runtime.clientHeaders,
-        userAgent: this.runtime.userAgent,
-        diagnostics: this.runtime.diagnostics,
-      });
-    } catch (cause) {
-      if (cause instanceof PkgseerTransportError) {
-        throw this.createTransportError(cause);
-      }
-      throw cause;
-    }
-
-    if (response.status < 200 || response.status >= 300) {
-      throw this.createHttpError(response);
-    }
-
-    const parsed = vulnerabilitiesGraphQLResponseSchema.safeParse(
-      response.parsedBody,
-    );
-    if (!parsed.success) {
-      throw new MalformedPackageIntelligenceResponseError(
-        "Malformed response from the package-intelligence service.",
-      );
-    }
-
-    const data = parsed.data.data?.packageVulnerabilities;
-    const sourceDetails =
-      params.includeSourceDetails === true
-        ? (data?.security?.advisories.entries.map(
-            (entry): VulnerabilitySourceEntry => {
-              if (
-                entry.sourceDetails === undefined ||
-                (entry.sourceDetails !== null &&
-                  entry.sourceDetails.osvId !== entry.osvId)
-              ) {
-                throw new MalformedPackageIntelligenceResponseError(
-                  "Vulnerability source response omitted selected data or changed the representative ID.",
-                );
-              }
-              return {
-                advisoryId: entry.osvId ?? null,
-                source: entry.sourceDetails,
-              };
-            },
-          ) ?? [])
-        : undefined;
-    const fatalErrors: PackageIntelligenceGraphQLResponseError[] = [];
-    for (const error of parsed.data.errors ?? []) {
-      const path = error.path;
-      const code = error.extensions?.code;
-      const index = path?.[4];
-      const source =
-        typeof index === "number" && Number.isInteger(index) && index >= 0
-          ? sourceDetails?.[index]
-          : undefined;
-      if (
-        path?.length !== 6 ||
-        path[0] !== "packageVulnerabilities" ||
-        path[1] !== "security" ||
-        path[2] !== "advisories" ||
-        path[3] !== "entries" ||
-        path[5] !== "sourceDetails" ||
-        !source ||
-        source.source !== null ||
-        typeof code !== "string" ||
-        !["NOT_FOUND", "RATE_LIMITED", "TIMEOUT", "UPSTREAM_ERROR"].includes(
-          code,
-        )
-      ) {
-        fatalErrors.push(error);
-        continue;
-      }
-      source.error = {
-        code,
-        message: `Current OSV source unavailable (${code}).`,
-        retryable: error.extensions?.retryable === true,
-        ...parsePkgseerErrorDetails(error.extensions),
-      };
-    }
-    if (fatalErrors.length) {
-      throw promoteGenericVersionNotFound(
-        this.createGraphQLError(fatalErrors),
-        params,
-      );
-    }
-    if (!data) {
-      throw new MalformedPackageIntelligenceResponseError(
-        "Empty response from the package-intelligence service.",
-      );
-    }
-
-    if (after === null && data.security && data.security.source === undefined) {
-      throw new MalformedPackageIntelligenceResponseError(
-        "Vulnerability response omitted selected upstream source evidence.",
-      );
-    }
-
-    return { ...data, ...(sourceDetails ? { sourceDetails } : {}) };
-  }
-
-  private normaliseVulnerabilityReport(
-    data: z.infer<typeof vulnerabilityReportResponseSchema>,
-  ): VulnerabilityReport {
-    const name = data.package?.name ?? undefined;
-    const version = data.package?.version ?? undefined;
-    if (!name || !version) {
-      throw new MalformedPackageIntelligenceResponseError(
-        "Vulnerability report response missing required name/version.",
-      );
-    }
-
-    const identity: PackageVersionIdentity = {
-      name,
-      version,
-      registry: data.package?.registry ?? undefined,
-      publishedAt: data.package?.publishedAt ?? undefined,
-      deprecated: data.package?.deprecated ?? undefined,
-      deprecationReason: data.package?.deprecationReason ?? undefined,
-      registryRepository: data.package?.registryRepository ?? undefined,
-    };
-
-    const security: VulnerabilitySecurityDetails | undefined = data.security
-      ? {
-          source: data.security.source,
-          unknownVulnerabilityCount:
-            data.security.unknownVulnerabilityCount ?? undefined,
-          assessmentStatus: data.security.assessmentStatus ?? undefined,
-          affectedVulnerabilityCount: data.security.affectedVulnerabilityCount,
-          nonAffectingVulnerabilityCount:
-            data.security.nonAffectingVulnerabilityCount,
-          allVulnerabilityCount: data.security.allVulnerabilityCount,
-          currentVersionAffected:
-            data.security.currentVersionAffected ?? undefined,
-          vulnerabilities: data.security.advisories.entries.map((vuln) => ({
-            osvId: vuln.osvId ?? undefined,
-            summary: vuln.summary ?? undefined,
-            severityScore: vuln.severityScore ?? undefined,
-            severityType: vuln.severityType ?? undefined,
-            affectedVersionRanges: vuln.affectedVersionRanges ?? undefined,
-            affectedVersionRangesCount: vuln.affectedVersionRangesCount,
-            affectedVersionRangesTruncated: vuln.affectedVersionRangesTruncated,
-            fixedInVersions: vuln.fixedInVersions ?? undefined,
-            publishedAt: vuln.publishedAt ?? undefined,
-            modifiedAt: vuln.modifiedAt ?? undefined,
-            withdrawnAt: vuln.withdrawnAt ?? undefined,
-            aliases: vuln.aliases ?? undefined,
-            isMalicious: vuln.isMalicious ?? undefined,
-            affectsInspectedVersion: vuln.affectsInspectedVersion,
-            assessmentStatus: vuln.assessmentStatus ?? undefined,
-            assessmentReasons: vuln.assessmentReasons ?? undefined,
-            matchedAffectedVersionRanges: vuln.matchedAffectedVersionRanges,
-            duplicateIds: vuln.duplicateIds,
-          })),
-          upgradePaths: data.security.upgradePaths ?? undefined,
-        }
-      : undefined;
-
-    return {
-      package: identity,
-      security,
-    };
-  }
 
   private async fetchTransitiveVulnerabilityAudit(
     token: string,
