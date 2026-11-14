@@ -31,8 +31,8 @@ export interface ReadFileRequestBuildResult {
 export function buildReadFileParams(
   input: ReadFileRequestInput,
 ): ReadFileRequestBuildResult {
-  const filePath = input.filePath?.trim() ?? "";
-  if (!filePath) {
+  const filePath = input.filePath ?? "";
+  if (filePath.trim().length === 0) {
     throw new InvalidPackageSpecError(
       "`file_path` is required — pass the path to the file within the package or repo.",
     );

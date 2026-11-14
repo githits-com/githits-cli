@@ -18,4 +18,11 @@ describe("transparent read targets", () => {
       path: "src/lib.rs",
     });
   });
+
+  it("preserves leading and trailing whitespace in literal paths", () => {
+    expect(resolveReadLocator("npm:express", "  src/index.js  ")).toEqual({
+      target: "npm:express",
+      path: "  src/index.js  ",
+    });
+  });
 });

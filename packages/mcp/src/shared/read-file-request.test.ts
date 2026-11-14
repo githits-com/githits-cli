@@ -19,12 +19,12 @@ describe("buildReadFileParams — defaults and validation", () => {
     expect(params.waitTimeoutMs).toBe(30000);
   });
 
-  it("trims whitespace around filePath", () => {
+  it("preserves whitespace around filePath", () => {
     const { params } = buildReadFileParams({
       target,
       filePath: "  src/index.js  ",
     });
-    expect(params.filePath).toBe("src/index.js");
+    expect(params.filePath).toBe("  src/index.js  ");
   });
 
   it("rejects an empty filePath", () => {

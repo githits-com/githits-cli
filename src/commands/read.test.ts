@@ -66,6 +66,25 @@ describe("top-level read", () => {
     },
   );
 
+  it("registers and forwards --literal-path", async () => {
+    const collect = mock((..._args: unknown[]) => {});
+    const root = new Command().exitOverride();
+    root.configureOutput({ writeErr: () => {} });
+    registerReadCommand(root).action(collect);
+
+    await root.parseAsync(
+      ["read", "npm:express", "src/example:12", "--literal-path"],
+      { from: "user" },
+    );
+
+    expect(collect).toHaveBeenCalledTimes(1);
+    expect(collect.mock.calls[0]?.slice(0, 3)).toEqual([
+      "npm:express",
+      "src/example:12",
+      { literalPath: true },
+    ]);
+  });
+
   it.each([
     ["npm:express@5.2.1", "npm", "express", undefined, undefined],
     [
@@ -237,6 +256,71 @@ describe("top-level read", () => {
       );
     } finally {
       write.mockRestore();
+    }
+  });
+
+  it("supports --lines with a literal numeric-colon filename", async () => {
+    const services = deps();
+    const log = spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      await readAction(
+        "npm:express",
+        "src/example:12",
+        { literalPath: true, lines: "5-10", json: true },
+        services,
+      );
+
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target: "npm:express",
+        path: "src/example:12",
+        startLine: 5,
+        endLine: 10,
+        waitTimeoutMs: 30_000,
+      });
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("treats a numeric-colon filename literally when requested", async () => {
+    const services = deps();
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await readAction(
+        "npm:express",
+        "src/example:12",
+        { literalPath: true, json: true },
+        services,
+      );
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target: "npm:express",
+        path: "src/example:12",
+        waitTimeoutMs: 30_000,
+      });
+      expect(services.readService.read).toHaveBeenCalledTimes(1);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("preserves leading and trailing whitespace in an exact file path", async () => {
+    const services = deps();
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await readAction(
+        "npm:express",
+        "  src/index.ts  ",
+        { json: true },
+        services,
+      );
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target: "npm:express",
+        path: "  src/index.ts  ",
+        waitTimeoutMs: 30_000,
+      });
+    } finally {
+      log.mockRestore();
     }
   });
 
