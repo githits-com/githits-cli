@@ -1376,8 +1376,18 @@ function formatAdvisoryLines(
   if (
     advisory.assessmentComplete === false &&
     advisory.relationship !== "RELATED"
-  )
-    lines.push("    Assessment incomplete.");
+  ) {
+    const reasons = (advisory.assessmentReasons ?? [])
+      .map(formatVulnerabilityAssessmentReason)
+      .map(sanitizeProse)
+      .join("; ");
+    lines.push(
+      ...wrapTerminalProse(
+        `    Coverage incomplete${reasons ? `: ${reasons}` : ""}.`,
+        normaliseTerminalWidth(terminalWidth),
+      ),
+    );
+  }
   // Compact detail rows — indented 4 spaces so they "hang" under the
   // advisory headline.
   const detailWidth = verbose ? 12 : 8;
@@ -1386,6 +1396,8 @@ function formatAdvisoryLines(
   };
   if (
     advisory.assessmentReasons?.length &&
+    (advisory.assessmentComplete !== false ||
+      advisory.relationship === "RELATED") &&
     formatAdvisoryAssessment(
       advisory.assessmentStatus,
       advisory.affectsInspectedVersion,

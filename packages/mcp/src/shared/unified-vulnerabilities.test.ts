@@ -101,7 +101,7 @@ describe("ordinary package and Related output", () => {
         /digest-current|REPOSITORY_COMMIT|\[non-affecting\]/,
       );
       expect(text).toContain(
-        "related findings have unproved package applicability",
+        "related evidence has unproved package applicability",
       );
     },
   );
@@ -119,6 +119,32 @@ describe("ordinary package and Related output", () => {
     expect(json.related?.advisories[0]?.assessmentStatus).toBe("NOT_ASSESSED");
     expect(json.upgradePaths).toEqual(["2"]);
   });
+  it.each(["AFFECTED", "NON_AFFECTING"])(
+    "explains incomplete coverage without weakening the %s verdict or repeating reasons",
+    (status) => {
+      const r = fixture();
+      const row = r.security!.vulnerabilities![0]!;
+      row.assessmentStatus = status;
+      row.affectsInspectedVersion = status === "AFFECTED";
+      row.assessmentReasons = ["RELATED_APPLICABILITY_UNPROVED"];
+      r.related = { totalCount: 0, vulnerabilities: [] };
+      for (const verbose of [false, true]) {
+        const text = formatPackageVulnerabilitiesTerminal(r, { verbose });
+        expect(text).toContain(
+          "Coverage incomplete: related evidence has unproved package",
+        );
+        expect(text).toContain(
+          status === "AFFECTED" ? "[affects this version]" : "[non-affecting]",
+        );
+        expect(text).not.toContain("Assessment incomplete.");
+        expect(text).not.toContain("    reason");
+      }
+      expect(
+        buildPackageVulnerabilitiesSuccessPayload(r).advisories?.[0]
+          ?.assessmentReasons,
+      ).toEqual(["RELATED_APPLICABILITY_UNPROVED"]);
+    },
+  );
   it("groups readable provenance after advisory details while JSON keeps exact fields", () => {
     const r = fixture();
     const evidence = r.security!.vulnerabilities![0]!.evidence![0]!;
