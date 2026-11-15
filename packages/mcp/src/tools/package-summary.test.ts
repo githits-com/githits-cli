@@ -364,3 +364,76 @@ describe("createPackageSummaryTool — service errors", () => {
     });
   });
 });
+
+for (const mode of ["github", "provenance", "both"] as const) {
+  it.each(["text", "verbose", "json"] as const)(
+    `retains readable ${mode} partial summary in %s without isError`,
+    async (format) => {
+      const summary = structuredClone(defaultPackageSummary);
+      const facts = {
+        code: "RATE_LIMITED" as const,
+        retryable: true,
+        rateLimitScope: "repository_provider" as const,
+        tokenSource: "app" as const,
+        retryAfterMs: 1501,
+        retryAfterSeconds: 1.501,
+        repoUrl: "https://github.com/example/repo",
+        gitRef: null,
+      };
+      if (mode !== "provenance") {
+        delete summary.package.githubRepository;
+        summary.package.githubRepositoryError = {
+          ...facts,
+          message: "GitHub metadata temporarily unavailable (RATE_LIMITED).",
+        };
+      }
+      if (mode !== "github") {
+        delete summary.package.registryRepository;
+        summary.package.registryRepositoryError = {
+          ...facts,
+          message:
+            "Registry provenance temporarily unavailable (RATE_LIMITED).",
+        };
+      }
+      const packageSummary = mock(async () => summary);
+      const tool = createPackageSummaryTool(
+        createMockPackageIntelligenceService({ packageSummary }),
+      );
+      const result = await tool.handler(
+        {
+          target: "npm:express",
+          format: format === "json" ? "json" : "text",
+          verbose: format === "verbose",
+        },
+        {},
+      );
+      expect(result.isError).toBeUndefined();
+      const text = result.content[0]!.text;
+      if (format === "json") {
+        expect(JSON.parse(text)).toMatchObject({
+          name: "express",
+          version: "4.18.2",
+          ...(mode !== "provenance"
+            ? { githubError: summary.package.githubRepositoryError }
+            : {}),
+          ...(mode !== "github"
+            ? { provenanceError: summary.package.registryRepositoryError }
+            : {}),
+        });
+        expect(JSON.parse(text)).toHaveProperty("downloads");
+      } else {
+        expect(text).toContain("express @ 4.18.2 | MIT");
+        expect(text).toContain("Try again in 2 seconds.");
+        if (mode !== "provenance")
+          expect(text).toContain(
+            "GitHub metadata temporarily unavailable (RATE_LIMITED).",
+          );
+        if (mode !== "github")
+          expect(text).toContain(
+            "Registry provenance temporarily unavailable (RATE_LIMITED).",
+          );
+      }
+      expect(packageSummary).toHaveBeenCalledTimes(1);
+    },
+  );
+}

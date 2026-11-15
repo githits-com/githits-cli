@@ -118,6 +118,17 @@ export interface PackageIdentity {
   downloadsRefreshedAt?: string;
   githubRepository?: GithubRepository;
   registryRepository?: RegistryRepository;
+  /** Explicit temporary failure of optional repository popularity metadata. */
+  githubRepositoryError?: PackageSummaryMetadataError;
+  /** Explicit temporary failure of optional selected-release registry provenance. */
+  registryRepositoryError?: PackageSummaryMetadataError;
+}
+
+/** A nullable summary metadata failure; independently readable facts remain valid. */
+export interface PackageSummaryMetadataError extends PkgseerErrorDetails {
+  code: "RATE_LIMITED";
+  message: string;
+  retryable: boolean;
 }
 
 export interface GithubRepository {
@@ -3355,16 +3366,33 @@ export class PackageIntelligenceServiceImpl
 
     const data = parsed.data.data?.packageSummary;
     const errors = parsed.data.errors ?? [];
+    const githubErrors = errors.filter(
+      (error) =>
+        error.extensions?.code === "RATE_LIMITED" &&
+        error.path?.length === 3 &&
+        error.path[0] === "packageSummary" &&
+        error.path[1] === "package" &&
+        error.path[2] === "githubRepository" &&
+        data?.package?.githubRepository === null,
+    );
+    const provenanceErrors = errors.filter(
+      (error) =>
+        error.path?.[0] === "provenance" &&
+        error.extensions?.code === "RATE_LIMITED",
+    );
     const primaryErrors = errors.filter(
-      (error) => error.path?.[0] !== "provenance",
+      (error) =>
+        error.path?.[0] !== "provenance" && !githubErrors.includes(error),
     );
     if (primaryErrors.length > 0 || (!data && errors.length > 0)) {
       throw this.createGraphQLError(
-        primaryErrors.length > 0 ? primaryErrors : errors,
+        primaryErrors.length > 0
+          ? [...primaryErrors, ...githubErrors, ...provenanceErrors]
+          : errors,
       );
     }
-    // Version-detail lookup is optional in the existing overview. A failed
-    // provenance root must not remove that overview or hide authorization errors.
+    // Optional metadata failures keep the overview, but authentication/access
+    // and client-update failures still follow the existing error boundary.
     for (const error of errors) {
       const mapped = this.createGraphQLError([error]);
       if (
@@ -3382,9 +3410,21 @@ export class PackageIntelligenceServiceImpl
     }
 
     const summary = this.normalise(data);
+    if (githubErrors.length) {
+      summary.package.githubRepositoryError = summaryMetadataError(
+        githubErrors,
+        "GitHub metadata temporarily unavailable (RATE_LIMITED).",
+      );
+    }
+    if (provenanceErrors.length) {
+      summary.package.registryRepositoryError = summaryMetadataError(
+        provenanceErrors,
+        "Registry provenance temporarily unavailable (RATE_LIMITED).",
+      );
+    }
     const selected = parsed.data.data?.provenance?.selectedVersion;
     if (
-      errors.length === 0 &&
+      !errors.some((error) => error.path?.[0] === "provenance") &&
       summary.package.version !== undefined &&
       selected?.resolvedVersion === summary.package.version
     ) {
@@ -5368,4 +5408,19 @@ function parseDocumentationSectionUnresolvedReason(
     default:
       return undefined;
   }
+}
+
+/** Reuse the nullable-source error shape without exposing backend messages. */
+function summaryMetadataError(
+  errors: PackageIntelligenceGraphQLResponseError[],
+  message: string,
+): PackageSummaryMetadataError {
+  const extensions = getPrimaryExtensions(errors);
+  return {
+    code: "RATE_LIMITED",
+    message,
+    retryable:
+      typeof extensions?.retryable === "boolean" ? extensions.retryable : true,
+    ...parsePkgseerErrorDetails(extensions),
+  };
 }

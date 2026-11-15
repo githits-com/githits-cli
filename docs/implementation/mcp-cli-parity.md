@@ -670,6 +670,20 @@ When a new tool lands with both MCP and CLI surfaces:
   pathless schema-validation error and the overview fails; there is no schema
   fallback. The hosted server adopts this only after an `@githits/mcp` release,
   dependency update in `remote-mcp`, and its separately approved deployment.
+- **Temporary metadata failures retain the overview.** The exact nullable
+  `packageSummary.package.githubRepository` `RATE_LIMITED` error and optional
+  `provenance` `RATE_LIMITED` errors preserve independently readable package,
+  download, security and changelog facts. Core records these alongside package
+  metadata as `githubRepositoryError` and `registryRepositoryError`; lean JSON
+  exposes `githubError` and `provenanceError`. These optional objects reuse the
+  nullable-source error convention: `code`, safe `message`, `retryable`, and
+  the allowlisted scope/source/repository/ref/retry facts above. Text always
+  explains temporary unavailability and available retry timing, including in
+  compact mode. MCP returns the useful result without `isError`; CLI prints
+  that result and sets exit status 1, as for nullable advisory-source errors.
+  Other existing optional provenance failures retain their behavior. Global,
+  authentication, malformed and non-nullable-field failures remain whole-tool
+  errors; a verbose `latestChangelogs` throttle is not a partial summary.
 - **Evidence-only vulnerability field.** Both compact text surfaces use the same
   `Latest:` (or `Selected:` when a difference exists) and `History:` labels and do
   not append an inline action. CLI help

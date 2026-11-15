@@ -419,3 +419,87 @@ describe("pkgInfoAction", () => {
     exitSpy.mockRestore();
   });
 });
+
+for (const mode of ["github", "provenance", "both"] as const) {
+  it.each([false, true])(
+    `prints useful ${mode} partial summary with exit1 for json=%s`,
+    async (json) => {
+      const summary = structuredClone(defaultPackageSummary);
+      const facts = {
+        code: "RATE_LIMITED" as const,
+        retryable: true,
+        rateLimitScope: "repository_provider" as const,
+        tokenSource: "app" as const,
+        retryAfterMs: 1501,
+        retryAfterSeconds: 1.501,
+      };
+      if (mode !== "provenance") {
+        delete summary.package.githubRepository;
+        summary.package.githubRepositoryError = {
+          ...facts,
+          message: "GitHub metadata temporarily unavailable (RATE_LIMITED).",
+        };
+      }
+      if (mode !== "github") {
+        delete summary.package.registryRepository;
+        summary.package.registryRepositoryError = {
+          ...facts,
+          message:
+            "Registry provenance temporarily unavailable (RATE_LIMITED).",
+        };
+      }
+      const packageSummary = mock(async () => summary);
+      const stdout: string[] = [];
+      const write = spyOn(process.stdout, "write").mockImplementation(((
+        chunk: string,
+      ) => {
+        stdout.push(String(chunk));
+        return true;
+      }) as typeof process.stdout.write);
+      const log = spyOn(console, "log").mockImplementation((value) => {
+        stdout.push(String(value));
+      });
+      const error = spyOn(console, "error").mockImplementation(() => {});
+      const previous = process.exitCode;
+      try {
+        process.exitCode = 0;
+        await pkgInfoAction(
+          "npm:express",
+          { json },
+          {
+            packageIntelligenceService: createMockPackageIntelligenceService({
+              packageSummary,
+            }),
+            codeNavigationUrl: "https://pkgseer.example",
+            hasValidToken: true,
+            mcpUrl: "https://mcp.example",
+          },
+        );
+        expect(process.exitCode).toBe(1);
+        expect(packageSummary).toHaveBeenCalledTimes(1);
+        expect(error).not.toHaveBeenCalled();
+        const text = stdout.join("");
+        if (json) {
+          expect(JSON.parse(text)).toMatchObject({
+            name: "express",
+            version: "4.18.2",
+            ...(mode !== "provenance"
+              ? { githubError: summary.package.githubRepositoryError }
+              : {}),
+            ...(mode !== "github"
+              ? { provenanceError: summary.package.registryRepositoryError }
+              : {}),
+          });
+        } else {
+          expect(text).toContain("express @ 4.18.2 | MIT");
+          expect(text).toContain("Try again in 2 seconds.");
+        }
+      } finally {
+        process.exitCode = previous ?? 0;
+        write.mockRestore();
+        log.mockRestore();
+        error.mockRestore();
+      }
+    },
+  );
+}
