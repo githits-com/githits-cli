@@ -2857,7 +2857,10 @@ export class CodeNavigationServiceImpl
       if (rawErrors.length > 0) {
         throw new CodeDiffError(
           errors.map((error) => error.message).join(", "),
-          parseCodeDiffErrorDetails(errors),
+          parseCodeDiffErrorDetails([
+            ...rawErrors,
+            ...errors.filter((error) => !isCodeDiffRawError(error)),
+          ]),
           data ? normaliseCodeDiffPartial(data) : undefined,
         );
       }

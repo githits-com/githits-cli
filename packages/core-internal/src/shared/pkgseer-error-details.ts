@@ -57,7 +57,10 @@ interface GraphQLError {
   extensions?: Record<string, unknown>;
 }
 
-/** A provider throttle must not be hidden by a sibling missing-source error. */
+/**
+ * A provider throttle must not be hidden by a sibling missing-source error.
+ * Otherwise prefer the first string code before extensions containing only hints.
+ */
 export function getPrimaryExtensions(
   errors: GraphQLError[],
 ): Record<string, unknown> | undefined {
@@ -81,8 +84,11 @@ export function getPrimaryExtensions(
     );
     return (access ?? provider).extensions;
   }
-  return errors.find(
-    ({ extensions }) => extensions && Object.keys(extensions).length > 0,
+  return (
+    errors.find(({ extensions }) => typeof extensions?.code === "string") ??
+    errors.find(
+      ({ extensions }) => extensions && Object.keys(extensions).length > 0,
+    )
   )?.extensions;
 }
 

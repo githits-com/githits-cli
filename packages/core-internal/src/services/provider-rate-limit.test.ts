@@ -248,3 +248,140 @@ it("does not retry a compatibility query when a provider throttle accompanies a 
   ).rejects.toMatchObject({ graphqlCode: "RATE_LIMITED", metadata: facts });
   expect(fetchFn).toHaveBeenCalledTimes(1);
 });
+
+for (const code of ["UNAUTHORIZED", "FORBIDDEN"]) {
+  it.each(
+    operations.filter(({ name }) =>
+      [
+        "cold package summary",
+        "FetchCodeContext",
+        "unified Read",
+        "unified Grep",
+        "unified List",
+        "target resolution",
+        "CodeDiff",
+      ].includes(name),
+    ),
+  )(`preserves ${code} after code-less siblings in $name`, async ({ run }) => {
+    const fetchFn = mock(async () =>
+      Response.json({
+        data: null,
+        errors: [
+          {
+            message: "Secondary diagnostic",
+            extensions: { hint: "No code here" },
+          },
+          { message: "Access rejected", extensions: { code } },
+        ],
+      }),
+    );
+    const token = createMockTokenProvider({
+      forceRefresh: mock(async () => undefined),
+    });
+    const args = [
+      "https://pkgseer.example",
+      token,
+      fetchFn as unknown as typeof fetch,
+    ] as const;
+    const error = await run({
+      code: new CodeNavigationServiceImpl(...args),
+      pkg: new PackageIntelligenceServiceImpl(...args),
+      read: new ReadServiceImpl(...args),
+      grep: new GrepServiceImpl(...args),
+      list: new ListServiceImpl(...args),
+      resolve: new ResolveTargetServiceImpl(...args),
+    }).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).name).toMatch(
+      code === "UNAUTHORIZED" ? /^AuthenticationError$/ : /AccessError$/,
+    );
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(token.forceRefresh).toHaveBeenCalledTimes(
+      code === "UNAUTHORIZED" ? 1 : 0,
+    );
+  });
+}
+
+it.each([false, true])(
+  "keeps raw CodeDiff details ahead of ordinary siblings while provider precedence=%s",
+  async (provider) => {
+    const resolution = {
+      requested: "main",
+      ref: "main",
+      commitSha: "abc",
+      refKind: "BRANCH",
+    };
+    const fetchFn = mock(async () =>
+      Response.json({
+        data: {
+          codeDiff: {
+            fromResolution: resolution,
+            toResolution: { ...resolution, commitSha: "def" },
+            raw: null,
+          },
+        },
+        errors: [
+          {
+            message: "Ordinary sibling",
+            path: ["codeDiff", "package"],
+            extensions: {
+              code: "NOT_FOUND",
+              side: "to",
+              stage: "wrong-stage",
+              limit_kind: "wrong-limit",
+            },
+          },
+          {
+            message: "Raw content unavailable",
+            path: ["codeDiff", "raw"],
+            extensions: {
+              code: "RAW_DIFF_UNAVAILABLE",
+              retryable: false,
+              side: "from",
+              stage: "raw-stage",
+              limit_kind: "raw-limit",
+            },
+          },
+          ...(provider
+            ? [
+                {
+                  message: "Provider unavailable",
+                  path: ["codeDiff", "package"],
+                  extensions,
+                },
+              ]
+            : []),
+        ],
+      }),
+    );
+    const service = new CodeNavigationServiceImpl(
+      "https://pkgseer.example",
+      createMockTokenProvider(),
+      fetchFn as unknown as typeof fetch,
+    );
+    const error = await service
+      .codeDiff({ target, from: "main", to: "next", mode: "inventory" })
+      .catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(CodeDiffError);
+    if (provider)
+      expect((error as CodeDiffError).details).toMatchObject({
+        code: "RATE_LIMITED",
+        ...facts,
+      });
+    else
+      expect((error as CodeDiffError).details).toEqual({
+        code: "RAW_DIFF_UNAVAILABLE",
+        retryable: false,
+        side: "from",
+        stage: "raw-stage",
+        limitKind: "raw-limit",
+      });
+    expect((error as CodeDiffError).partial?.fromResolution.commitSha).toBe(
+      "abc",
+    );
+    expect((error as CodeDiffError).partial?.toResolution.commitSha).toBe(
+      "def",
+    );
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  },
+);

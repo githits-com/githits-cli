@@ -490,11 +490,36 @@ export function formatPackageSummaryTerminal(
     ? formatLifecycle(summary.lifecycle, width, summary.package.version)
     : formatCompactLifecycle(buildLifecyclePayload(summary.lifecycle), width);
   if (lifecycle) sections.push(lifecycle);
-  for (const error of [lean.githubError, lean.provenanceError]) {
-    if (!error) continue;
-    const { code, message, retryable, ...details } = error;
+  const metadataErrors = [lean.githubError, lean.provenanceError].filter(
+    (error) => error !== undefined,
+  );
+  const firstError = metadataErrors[0];
+  if (firstError) {
+    const delays = metadataErrors.flatMap((error) => {
+      const seconds =
+        error.retryAfterMs === undefined
+          ? error.retryAfterSeconds
+          : error.retryAfterMs / 1000;
+      return seconds === undefined ? [] : [seconds];
+    });
     sections.push(
-      formatMappedErrorText({ code, message, retryable, details }, { width }),
+      formatMappedErrorText(
+        {
+          code: firstError.code,
+          message:
+            metadataErrors.length > 1
+              ? "GitHub metadata and registry provenance temporarily unavailable (RATE_LIMITED)."
+              : firstError.message,
+          retryable: metadataErrors.every((error) => error.retryable),
+          details: {
+            rateLimitScope: metadataErrors.find(
+              (error) => error.rateLimitScope === "repository_provider",
+            )?.rateLimitScope,
+            retryAfterSeconds: delays.length ? Math.max(...delays) : undefined,
+          },
+        },
+        { width },
+      ),
     );
   }
 

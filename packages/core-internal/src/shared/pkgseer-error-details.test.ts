@@ -106,3 +106,27 @@ it("reads existing direct API and GraphQL HTTP 429 error shapes", () => {
     });
   }
 });
+
+it.each(["UNAUTHORIZED", "FORBIDDEN"])(
+  "prefers coded %s over a code-less sibling",
+  (code) => {
+    const coded = { code };
+    expect(
+      getPrimaryExtensions([
+        { extensions: { hint: "secondary diagnostic" } },
+        { extensions: { code: 123 } },
+        { extensions: coded },
+      ]),
+    ).toBe(coded);
+  },
+);
+it("keeps the first nonempty extensions when no sibling has a string code", () => {
+  const first = { hint: "first diagnostic" };
+  expect(
+    getPrimaryExtensions([
+      { extensions: {} },
+      { extensions: first },
+      { extensions: { retryable: false } },
+    ]),
+  ).toBe(first);
+});

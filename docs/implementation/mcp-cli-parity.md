@@ -468,7 +468,11 @@ surface-native read and pagination syntax and optional ANSI.
   over the legacy `retryAfter` seconds alias; human retry advice rounds up to
   seconds. Application admission, operation and registry scopes remain distinct.
   Provider throttling takes precedence over sibling missing-source errors;
-  authentication/access errors retain their classification. No provider failure
+  authentication/access errors retain their classification. Otherwise the first
+  string error code takes precedence over extensions containing only hints.
+  CodeDiff raw-field details take precedence over ordinary non-raw siblings,
+  while repository-provider throttling retains its cross-error precedence.
+  No provider failure
   authorizes a permanent missing result or an automatic retry, including query
   compatibility fallbacks. HTTP 429 errors retain the same classification/facts
   from GraphQL envelopes or direct API error objects.
@@ -679,7 +683,9 @@ When a new tool lands with both MCP and CLI surfaces:
   nullable-source error convention: `code`, safe `message`, `retryable`, and
   the allowlisted scope/source/repository/ref/retry facts above. Text always
   explains temporary unavailability and available retry timing, including in
-  compact mode. MCP returns the useful result without `isError`; CLI prints
+  compact mode. Simultaneous metadata failures share one text notice naming both
+  sources, one provider notice and retry advice using the larger delay; JSON
+  keeps both independent error objects. MCP returns the useful result without `isError`; CLI prints
   that result and sets exit status 1, as for nullable advisory-source errors.
   Other existing optional provenance failures retain their behavior. Global,
   authentication, malformed and non-nullable-field failures remain whole-tool

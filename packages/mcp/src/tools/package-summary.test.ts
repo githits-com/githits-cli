@@ -424,11 +424,15 @@ for (const mode of ["github", "provenance", "both"] as const) {
       } else {
         expect(text).toContain("express @ 4.18.2 | MIT");
         expect(text).toContain("Try again in 2 seconds.");
-        if (mode !== "provenance")
+        if (mode === "both")
+          expect(text).toContain(
+            "GitHub metadata and registry provenance temporarily unavailable",
+          );
+        if (mode === "github")
           expect(text).toContain(
             "GitHub metadata temporarily unavailable (RATE_LIMITED).",
           );
-        if (mode !== "github")
+        if (mode === "provenance")
           expect(text).toContain(
             "Registry provenance temporarily unavailable (RATE_LIMITED).",
           );
