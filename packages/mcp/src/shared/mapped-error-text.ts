@@ -213,6 +213,11 @@ export function formatMappedErrorText(
     );
   if (details.updateCommand)
     lines.push("", `Update with: ${details.updateCommand}`);
+  if (
+    mapped.code === "RATE_LIMITED" &&
+    details.rateLimitScope === "repository_provider"
+  )
+    lines.push("Repository provider is temporarily rate limited.");
   const retryAfterSeconds =
     details.retryAfterSeconds ??
     (details.retryAfterMs === undefined

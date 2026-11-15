@@ -459,6 +459,24 @@ surface-native read and pagination syntax and optional ANSI.
 - Backend error messages, hints, indexing estimates, available versions/refs,
   and suggested refs are preserved when supplied. Clients do not replace
   specific backend guidance or synthesize target candidates.
+- Repository-provider throttling retains `RATE_LIMITED`, `retryable`, and safe
+  `details`: `rateLimitScope`, `tokenSource` (`app`, `user`, `supabase_user`),
+  `retryAfterMs`, `retryAfterSeconds`, `repoUrl` when known, and `gitRef`
+  (including null before source selection). Core's shared PkgSeer error-detail
+  parser owns this allowlist; service errors carry the facts and MCP/CLI
+  mappers retain them in the existing envelope. Milliseconds take precedence
+  over the legacy `retryAfter` seconds alias; human retry advice rounds up to
+  seconds. Application admission, operation and registry scopes remain distinct.
+  Provider throttling takes precedence over sibling missing-source errors;
+  authentication/access errors retain their classification. No provider failure
+  authorizes a permanent missing result or an automatic retry, including query
+  compatibility fallbacks. HTTP 429 errors retain the same classification/facts
+  from GraphQL envelopes or direct API error objects.
+- Opt-in `pkg-graphql` diagnostics emit a `rate-limited` event with
+  `rate_limit_scope` and `token_source`. CLI classification events retain the
+  same dimensions. These events exclude repository/token identities, messages,
+  headers and provider bodies. Existing nullable advisory-source and CodeDiff
+  partial-root contracts remain usable while retaining their explicit failures.
 - The REST-backed `example` CLI command preserves
   this envelope for generic transport/backend failures as well as typed auth
   failures. Human mode renders the same message as terminal text.

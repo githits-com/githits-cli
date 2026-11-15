@@ -20,6 +20,12 @@ import { z } from "zod";
 import { isFetchTimeoutError } from "../shared/fetch-timeout.js";
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import {
+  getPrimaryExtensions,
+  httpRateLimitExtensions,
+  type PkgseerErrorDetails,
+  parsePkgseerErrorDetails,
+} from "../shared/pkgseer-error-details.js";
+import {
   type PkgseerGraphqlResponse,
   PkgseerTransportError,
   postPkgseerGraphql,
@@ -1036,6 +1042,7 @@ export class PackageIntelligenceBackendError extends Error {
     public readonly graphqlCode?: string,
     public readonly retryable?: boolean,
     public readonly recovery: VersionRefRecovery | undefined = undefined,
+    public readonly metadata: PkgseerErrorDetails | undefined = undefined,
   ) {
     super(message);
     this.name = "PackageIntelligenceBackendError";
@@ -3692,16 +3699,11 @@ export class PackageIntelligenceServiceImpl
         fatalErrors.push(error);
         continue;
       }
-      const retryAfterMs = error.extensions?.retry_after_ms;
       source.error = {
         code,
         message: `Current OSV source unavailable (${code}).`,
         retryable: error.extensions?.retryable === true,
-        ...(typeof retryAfterMs === "number" &&
-        Number.isFinite(retryAfterMs) &&
-        retryAfterMs >= 0
-          ? { retryAfterSeconds: retryAfterMs / 1000 }
-          : {}),
+        ...parsePkgseerErrorDetails(error.extensions),
       };
     }
     if (fatalErrors.length) {
@@ -5188,6 +5190,17 @@ export function createPackageIntelligenceHttpError(
     );
   }
 
+  if (status === 429) {
+    return new PackageIntelligenceBackendError(
+      detail ?? "Request rate limited.",
+      status,
+      "RATE_LIMITED",
+      true,
+      undefined,
+      parsePkgseerErrorDetails(httpRateLimitExtensions(response.parsedBody)),
+    );
+  }
+
   if (status === 403) {
     return new PackageIntelligenceAccessError(detail ?? "Access denied.");
   }
@@ -5262,6 +5275,7 @@ export function createPackageIntelligenceGraphQLError(
     );
   }
 
+  const metadata = parsePkgseerErrorDetails(extensions);
   switch (code) {
     case "NOT_FOUND":
     case "PACKAGE_NOT_FOUND":
@@ -5315,6 +5329,14 @@ export function createPackageIntelligenceGraphQLError(
     case "UPSTREAM_ERROR":
     case "TIMEOUT":
     case "RATE_LIMITED":
+      return new PackageIntelligenceBackendError(
+        message,
+        undefined,
+        code,
+        retryable,
+        undefined,
+        metadata,
+      );
     case "INTERNAL_ERROR":
     case "UNKNOWN_ERROR":
       return new PackageIntelligenceBackendError(
@@ -5346,15 +5368,4 @@ function parseDocumentationSectionUnresolvedReason(
     default:
       return undefined;
   }
-}
-
-function getPrimaryExtensions(
-  errors: PackageIntelligenceGraphQLResponseError[],
-): Record<string, unknown> | undefined {
-  for (const error of errors) {
-    if (error.extensions && Object.keys(error.extensions).length > 0) {
-      return error.extensions;
-    }
-  }
-  return undefined;
 }

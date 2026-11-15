@@ -1183,3 +1183,45 @@ it.each([undefined, "symbol"])(
     }
   },
 );
+
+it("retains provider facts and CLI exit 1 without retrying a throttled read", async () => {
+  const services = deps();
+  const facts = {
+    rateLimitScope: "repository_provider" as const,
+    tokenSource: "app" as const,
+    retryAfterMs: 1501,
+    retryAfterSeconds: 1.501,
+    repoUrl: "https://github.com/example/repo",
+    gitRef: null,
+  };
+  services.readService = createMockReadService({
+    read: mock(async () => {
+      throw new CodeNavigationBackendError(
+        "Provider temporarily unavailable.",
+        undefined,
+        "RATE_LIMITED",
+        true,
+        facts,
+      );
+    }),
+  });
+  const error = spyOn(console, "error").mockImplementation(() => {});
+  const exit = spyOn(process, "exit").mockImplementation((() => {
+    throw new Error("exit");
+  }) as never);
+  try {
+    await expect(
+      readAction("npm:example", "index.ts", { json: true }, services),
+    ).rejects.toThrow("exit");
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(services.readService!.read).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
+      code: "RATE_LIMITED",
+      retryable: true,
+      details: facts,
+    });
+  } finally {
+    error.mockRestore();
+    exit.mockRestore();
+  }
+});

@@ -161,7 +161,7 @@ function classify(error: unknown): MappedError {
 function classifyBackendError(
   error: PackageIntelligenceBackendError,
 ): MappedError {
-  const details: MappedErrorDetails = {};
+  const details: MappedErrorDetails = { ...error.metadata };
   if (typeof error.status === "number") details.status = error.status;
   if (error.graphqlCode) details.graphqlCode = error.graphqlCode;
 

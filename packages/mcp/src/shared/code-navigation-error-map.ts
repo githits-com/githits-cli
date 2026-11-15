@@ -17,6 +17,7 @@ import {
   CodeNavigationValidationError,
   CodeNavigationVersionNotFoundError,
   MalformedCodeNavigationResponseError,
+  parsePkgseerErrorDetails,
 } from "@githits/core-internal/browser";
 import type {
   MappedError,
@@ -192,6 +193,12 @@ function classify(error: unknown): MappedError {
 function classifyCodeDiffError(error: CodeDiffError): MappedError {
   const details: MappedErrorDetails = {};
   const source = error.details;
+  Object.assign(
+    details,
+    parsePkgseerErrorDetails(
+      source ? { ...source, retryAfter: source.retryAfterSeconds } : undefined,
+    ),
+  );
 
   if (source?.side !== undefined) details.side = source.side;
   if (source?.publishedVersions !== undefined) {
@@ -323,6 +330,13 @@ function preserveBackendMetadata(
   metadata: CodeNavigationErrorMetadata | undefined,
 ): void {
   if (!metadata) return;
+  Object.assign(
+    details,
+    parsePkgseerErrorDetails({
+      ...metadata,
+      retryAfter: metadata.retryAfterSeconds,
+    }),
+  );
   if (metadata.hint) details.hint = metadata.hint;
   if (metadata.filePath) details.filePath = metadata.filePath;
   if (metadata.exclusionReason) {

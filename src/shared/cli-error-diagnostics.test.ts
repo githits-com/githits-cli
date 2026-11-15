@@ -1,5 +1,6 @@
 import { describe, expect, it, spyOn } from "bun:test";
 import {
+  CodeNavigationBackendError,
   CodeNavigationTargetNotFoundError,
   ListGraphQLError,
   PackageIntelligenceTargetNotFoundError,
@@ -143,4 +144,38 @@ describe("CLI error diagnostics", () => {
       else process.env.GITHITS_DEBUG = previous;
     }
   });
+});
+
+it("emits safe provider scope/source classification dimensions without repository identities", () => {
+  const previous = process.env.GITHITS_DEBUG;
+  process.env.GITHITS_DEBUG = "code-nav";
+  const write = spyOn(process.stderr, "write").mockImplementation(() => true);
+  try {
+    mapCodeNavigationErrorForCli(
+      new CodeNavigationBackendError(
+        "private provider body",
+        undefined,
+        "RATE_LIMITED",
+        true,
+        {
+          rateLimitScope: "repository_provider",
+          tokenSource: "user",
+          repoUrl: "https://github.com/private/identity",
+          retryAfterMs: 1501,
+        },
+      ),
+    );
+    const line = String(write.mock.calls[0]?.[0]);
+    expect(JSON.parse(line)).toMatchObject({
+      code: "RATE_LIMITED",
+      rate_limit_scope: "repository_provider",
+      token_source: "user",
+    });
+    expect(line).not.toContain("private");
+    expect(line).not.toContain("identity");
+  } finally {
+    write.mockRestore();
+    if (previous === undefined) delete process.env.GITHITS_DEBUG;
+    else process.env.GITHITS_DEBUG = previous;
+  }
 });

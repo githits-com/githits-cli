@@ -175,6 +175,33 @@ describe("package current OSV source details", () => {
       expect(JSON.stringify(report)).not.toContain("Private provider");
     },
   );
+  it("retains local assessment and provider facts on a nullable current source", async () => {
+    const failure = error("RATE_LIMITED", sourcePath, true);
+    Object.assign(failure.extensions, {
+      rate_limit_scope: "repository_provider",
+      token_source: "user",
+      repo_url: "https://github.com/example/repo",
+      git_ref: null,
+    });
+    const { service } = setup([
+      { ...page([row("OSV-example", null)]), errors: [failure] },
+    ]);
+    const report = await service.packageVulnerabilities({
+      ...params,
+      includeSourceDetails: true,
+    });
+    expect(report.security!.affectedVulnerabilityCount).toBe(1);
+    expect(report.sourceDetails![0]!.error).toMatchObject({
+      code: "RATE_LIMITED",
+      retryable: true,
+      rateLimitScope: "repository_provider",
+      tokenSource: "user",
+      repoUrl: "https://github.com/example/repo",
+      gitRef: null,
+      retryAfterMs: 1500,
+      retryAfterSeconds: 1.5,
+    });
+  });
   it("preserves permanent upstream failures and later-page diagnostics", async () => {
     const second = {
       ...page([row("OSV-2", null)], null, 2),

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { PkgseerErrorDetails } from "../shared/pkgseer-error-details.js";
 
 /** Typed current-source metadata shared by package and advisory projections. */
 export const osvSourceMetadataSchema: z.ZodObject<{
@@ -111,7 +112,7 @@ export interface VulnerabilitySourceEntry {
   /** Exact representative ID from one original backend row, before assessment dedup. */
   advisoryId: string | null;
   source: OsvSourceDetails | null;
-  error?: {
+  error?: PkgseerErrorDetails & {
     code: string;
     message: string;
     retryable: boolean;

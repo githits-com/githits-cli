@@ -6,6 +6,12 @@ import {
 } from "../shared/fetch-timeout.js";
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import {
+  getPrimaryExtensions,
+  httpRateLimitExtensions,
+  type PkgseerErrorDetails,
+  parsePkgseerErrorDetails,
+} from "../shared/pkgseer-error-details.js";
+import {
   type PkgseerGraphqlResponse,
   PkgseerTransportError,
   postPkgseerGraphql,
@@ -225,6 +231,7 @@ export class GrepBackendError extends Error {
     public readonly status?: number,
     public readonly graphqlCode?: string,
     public readonly retryable?: boolean,
+    public readonly metadata: PkgseerErrorDetails | undefined = undefined,
   ) {
     super(message);
     this.name = "GrepBackendError";
@@ -609,8 +616,7 @@ export class GrepServiceImpl implements GrepService {
     const errors = envelope.data.errors;
     if (errors?.length) {
       const message = errors.map((error) => error.message).join(", ");
-      const extensions =
-        errors.find((error) => error.extensions?.code)?.extensions ?? {};
+      const extensions = getPrimaryExtensions(errors) ?? {};
       const code =
         typeof extensions.code === "string" ? extensions.code : undefined;
       if (isClientUpdateRequiredGraphQLError({ message, code }))
@@ -645,6 +651,14 @@ function httpError(response: PkgseerGraphqlResponse): Error {
     "error",
     "detail",
   ]);
+  if (response.status === 429)
+    return new GrepBackendError(
+      detail ?? "Request rate limited.",
+      429,
+      "RATE_LIMITED",
+      true,
+      parsePkgseerErrorDetails(httpRateLimitExtensions(response.parsedBody)),
+    );
   if (response.status === 401)
     return new AuthenticationError(
       SERVER_AUTHENTICATION_REJECTED_MESSAGE,

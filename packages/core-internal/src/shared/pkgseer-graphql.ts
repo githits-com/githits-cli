@@ -26,6 +26,11 @@
 import { validateServiceUrl } from "../services/config.js";
 import type { ServiceDiagnostics } from "../services/runtime-diagnostics.js";
 import { DEFAULT_FETCH_TIMEOUT_MS, fetchWithTimeout } from "./fetch-timeout.js";
+import {
+  httpRateLimitExtensions,
+  parsePkgseerErrorDetails,
+  recordPkgseerRateLimit,
+} from "./pkgseer-error-details.js";
 import type { ClientHeaderBuilder } from "./request-headers.js";
 import { throwIfTermsAcceptanceRequired } from "./terms-acceptance.js";
 
@@ -141,6 +146,13 @@ export async function postPkgseerGraphql(
   request.signal?.throwIfAborted();
   const parsedBody = parseJsonOrNull(responseBody);
   throwIfTermsAcceptanceRequired(parsedBody);
+  const extensions = httpRateLimitExtensions(parsedBody);
+  recordPkgseerRateLimit(
+    request.diagnostics,
+    "pkg-graphql",
+    response.status === 429 ? "RATE_LIMITED" : extensions?.code,
+    parsePkgseerErrorDetails(extensions),
+  );
 
   return {
     status: response.status,
