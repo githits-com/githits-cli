@@ -1,4 +1,5 @@
 import {
+  appendRateLimitTiming,
   formatMappedErrorText,
   hasRetryGuidance,
   type MappedError,
@@ -45,22 +46,29 @@ export function formatMappedErrorForTerminal(mapped: MappedError): string {
     return `${mapped.message} ${authRemediation(mapped)}`;
   }
   if (mapped.code === "RATE_LIMITED") {
-    if (mapped.retryable !== true || hasRetryGuidance(mapped.message)) {
+    if (mapped.retryable !== true) {
       return appendBackendHint(mapped, mapped.message);
     }
-    const retryAfterSeconds = mapped.details?.retryAfterSeconds;
+    const retryAfterSeconds =
+      mapped.details?.retryAfterMs === undefined
+        ? mapped.details?.retryAfterSeconds
+        : mapped.details.retryAfterMs / 1000;
     if (
       typeof retryAfterSeconds === "number" &&
       Number.isFinite(retryAfterSeconds) &&
-      retryAfterSeconds > 0
+      retryAfterSeconds >= 0
     ) {
       const seconds = Math.ceil(retryAfterSeconds);
       const unit = seconds === 1 ? "second" : "seconds";
+      const advice =
+        seconds === 0 ? "Try again now." : `Try again in ${seconds} ${unit}.`;
       return appendBackendHint(
         mapped,
-        `${mapped.message} Try again in ${seconds} ${unit}.`,
+        appendRateLimitTiming(mapped.message, advice),
       );
     }
+    if (hasRetryGuidance(mapped.message))
+      return appendBackendHint(mapped, mapped.message);
     return appendBackendHint(mapped, `${mapped.message} Try again shortly.`);
   }
   if (mapped.code === "TIMEOUT") {

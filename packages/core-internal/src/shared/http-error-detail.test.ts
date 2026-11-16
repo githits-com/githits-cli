@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { parseHttpErrorDetail } from "./http-error-detail.js";
+import {
+  boundedErrorDetail,
+  parseHttpErrorDetail,
+} from "./http-error-detail.js";
 
 describe("parseHttpErrorDetail", () => {
   it("returns an allowed JSON string field", () => {
@@ -34,4 +37,24 @@ describe("parseHttpErrorDetail", () => {
     expect(result).toHaveLength(500);
     expect(result).toEndWith("...");
   });
+});
+
+it.each([undefined, null, 123, {}, "", " \n\t\u0000"])(
+  "does not surface invalid or empty detail %j",
+  (value) => {
+    expect(boundedErrorDetail(value)).toBeUndefined();
+    expect(
+      parseHttpErrorDetail(
+        JSON.stringify({ detail: value, error: "Fallback detail" }),
+        ["detail", "error"],
+      ),
+    ).toBe("Fallback detail");
+  },
+);
+it("normalizes and caps a selected value with the same parser rule", () => {
+  const value = `Provider\nmessage\u0000${"x".repeat(600)}`;
+  expect(boundedErrorDetail(value)).toBe(
+    parseHttpErrorDetail(JSON.stringify({ detail: value }), ["detail"]),
+  );
+  expect(boundedErrorDetail(value)).toHaveLength(500);
 });

@@ -69,6 +69,12 @@ export async function pkgInfoAction(
       includeVerboseFields: options.json === true || options.verbose === true,
     });
 
+    if (
+      summary.package.githubRepositoryError ||
+      summary.package.registryRepositoryError
+    )
+      process.exitCode = 1;
+
     if (options.json) {
       const payload = buildPackageSummarySuccessPayload(summary, {
         verbose: options.verbose,

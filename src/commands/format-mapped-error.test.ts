@@ -141,7 +141,7 @@ describe("formatMappedErrorForTerminal", () => {
     ).toBe("Request rejected.");
   });
 
-  it("does not duplicate API retry guidance", () => {
+  it("adds known timing despite generic API retry guidance", () => {
     expect(
       formatMappedErrorForTerminal({
         code: "RATE_LIMITED",
@@ -149,7 +149,7 @@ describe("formatMappedErrorForTerminal", () => {
         retryable: true,
         details: { status: 429, retryAfterSeconds: 17 },
       }),
-    ).toBe("Please retry later.");
+    ).toBe("Please retry later. Try again in 17 seconds.");
   });
 
   it("formats timeouts with provider-neutral retry guidance", () => {
@@ -212,4 +212,83 @@ describe("formatMappedErrorForTerminal", () => {
       "Update required: Backend protocol changed\n\nUpdate with:\n  npm i -g githits@latest",
     );
   });
+});
+
+it.each([
+  "Repository provider rate limit exceeded; retry after the limit resets.",
+  "Please retry later.",
+])(
+  "retains precise rate-limit timing despite backend retry prose: %s",
+  (message) => {
+    expect(
+      formatMappedErrorForTerminal({
+        code: "RATE_LIMITED",
+        message,
+        retryable: true,
+        details: { retryAfterMs: 12501, retryAfterSeconds: 99 },
+      }),
+    ).toBe(
+      `${message.replace(/; retry after the limit resets\.$/, ".")} Try again in 13 seconds.`,
+    );
+  },
+);
+it("does not duplicate the exact numeric retry instruction", () => {
+  expect(
+    formatMappedErrorForTerminal({
+      code: "RATE_LIMITED",
+      message: "Rate limited. Try again in 13 seconds.",
+      retryable: true,
+      details: { retryAfterSeconds: 12.501 },
+    }),
+  ).toBe("Rate limited. Try again in 13 seconds.");
+});
+
+it.each([0, 800, 1000])(
+  "formats known %sms retry delay with matching immediate/singular text",
+  (ms) => {
+    const advice = ms === 0 ? "Try again now." : "Try again in 1 second.";
+    const mapped = {
+      code: "RATE_LIMITED" as const,
+      message: "Provider limit reached; retry after reset.",
+      retryable: true,
+      details: { retryAfterMs: ms },
+    };
+    expect(formatMappedErrorForTerminal(mapped)).toBe(
+      `${mapped.message} ${advice}`,
+    );
+    expect(formatMappedErrorForTerminal({ ...mapped, retryable: false })).toBe(
+      mapped.message,
+    );
+    expect(
+      formatMappedErrorForTerminal({
+        ...mapped,
+        message: `Rate limited. ${advice}`,
+      }),
+    ).toBe(`Rate limited. ${advice}`);
+  },
+);
+
+it("uses the same compact provider sentence in CLI output", () => {
+  expect(
+    formatMappedErrorForTerminal({
+      code: "RATE_LIMITED",
+      message:
+        "Repository provider rate limit exceeded; retry after the limit resets.",
+      retryable: true,
+      details: { rateLimitScope: "repository_provider", retryAfterMs: 12501 },
+    }),
+  ).toBe("Repository provider rate limit exceeded. Try again in 13 seconds.");
+});
+
+it("separates timing from an unpunctuated sibling error", () => {
+  expect(
+    formatMappedErrorForTerminal({
+      code: "RATE_LIMITED",
+      retryable: true,
+      message: "Repository provider rate limit exceeded, Source unavailable",
+      details: { retryAfterMs: 1501 },
+    }),
+  ).toBe(
+    "Repository provider rate limit exceeded, Source unavailable. Try again in 2 seconds.",
+  );
 });

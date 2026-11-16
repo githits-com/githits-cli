@@ -4839,6 +4839,7 @@ describe("CodeNavigationServiceImpl", () => {
       ],
       registry: "NPM",
       retryAfterMs: 1200,
+      retryAfterSeconds: 1.2,
     });
     expect(error.partial).toBeUndefined();
     expect(JSON.stringify(error)).not.toContain("must-not-survive");

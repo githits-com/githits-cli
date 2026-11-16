@@ -35,6 +35,7 @@ export * from "./services/token-provider.js";
 export * from "./services/version-ref-recovery.js";
 export * from "./shared/fetch-timeout.js";
 export * from "./shared/http-error-detail.js";
+export * from "./shared/pkgseer-error-details.js";
 export * from "./shared/pkgseer-graphql.js";
 export * from "./shared/pkgseer-registry.js";
 export { ProviderReauthenticationRequiredError } from "./shared/provider-reauthentication.js";

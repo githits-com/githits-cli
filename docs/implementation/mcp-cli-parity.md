@@ -459,6 +459,37 @@ surface-native read and pagination syntax and optional ANSI.
 - Backend error messages, hints, indexing estimates, available versions/refs,
   and suggested refs are preserved when supplied. Clients do not replace
   specific backend guidance or synthesize target candidates.
+- Repository-provider throttling retains `RATE_LIMITED`, `retryable`, and safe
+  `details`: `rateLimitScope`, `tokenSource` (`app`, `user`, `supabase_user`),
+  `retryAfterMs`, `retryAfterSeconds`, `repoUrl` when known, and `gitRef`
+  (including null before source selection). Core's shared PkgSeer error-detail
+  parser owns this allowlist; service errors carry the facts and MCP/CLI
+  mappers retain them in the existing envelope. Milliseconds take precedence
+  over the legacy `retryAfter` seconds alias; human retry advice rounds up to
+  seconds. Text includes supplied retry timing even when backend prose already
+  says to retry or an action is present; generic retry wording does not hide the
+  numeric delay. Text joins known timing to the error sentence before wrapping,
+  omits the repeated provider sentence, and replaces the producer's generic
+  `; retry after the limit resets.` clause with the concrete timing.
+  A known zero delay says `Try again now.`; positive delays use
+  `1 second` or plural seconds after rounding up. Application admission, operation
+  and registry scopes remain distinct.
+  Provider throttling takes precedence over sibling missing-source errors;
+  authentication/access errors retain their classification. Otherwise the first
+  string error code takes precedence over extensions containing only hints.
+  CodeDiff raw-field details take precedence over ordinary non-raw siblings,
+  while repository-provider throttling retains its cross-error precedence.
+  No provider failure
+  authorizes a permanent missing result or an automatic retry, including query
+  compatibility fallbacks. HTTP 429 errors retain the same classification/facts
+  from GraphQL envelopes or direct API error objects. GraphQL-envelope HTTP
+  errors retain the selected error's message and facts together, with the same
+  bounded, control-safe message treatment as direct HTTP details.
+- Opt-in `pkg-graphql` diagnostics emit a `rate-limited` event with
+  `rate_limit_scope` and `token_source`. CLI classification events retain the
+  same dimensions. These events exclude repository/token identities, messages,
+  headers and provider bodies. Existing nullable advisory-source and CodeDiff
+  partial-root contracts remain usable while retaining their explicit failures.
 - The REST-backed `example` CLI command preserves
   this envelope for generic transport/backend failures as well as typed auth
   failures. Human mode renders the same message as terminal text.
@@ -652,6 +683,25 @@ When a new tool lands with both MCP and CLI surfaces:
   pathless schema-validation error and the overview fails; there is no schema
   fallback. The hosted server adopts this only after an `@githits/mcp` release,
   dependency update in `remote-mcp`, and its separately approved deployment.
+- **Temporary metadata failures retain the overview.** The exact nullable
+  `packageSummary.package.githubRepository` `RATE_LIMITED` error and optional
+  `provenance` `RATE_LIMITED` errors preserve independently readable package,
+  download, security and changelog facts. Because provenance also carries native
+  lifecycle findings, its notice explicitly says registry provenance and lifecycle
+  warnings are unavailable; absence of lifecycle warnings is not complete evidence. Core records these alongside package
+  metadata as `githubRepositoryError` and `registryRepositoryError`; lean JSON
+  exposes `githubError` and `provenanceError`. These optional objects reuse the
+  nullable-source error convention: `code`, safe `message`, `retryable`, and
+  the allowlisted scope/source/repository/ref/retry facts above. Text always
+  explains temporary unavailability and available retry timing, including in
+  compact mode. Simultaneous metadata failures share one text notice naming both
+  affected sources, including unavailable lifecycle warnings, and retry advice
+  using the larger delay; JSON
+  keeps both independent error objects. MCP returns the useful result without `isError`; CLI prints
+  that result and sets exit status 1, as for nullable advisory-source errors.
+  Other existing optional provenance failures retain their behavior. Global,
+  authentication, malformed and non-nullable-field failures remain whole-tool
+  errors; a verbose `latestChangelogs` throttle is not a partial summary.
 - **Evidence-only vulnerability field.** Both compact text surfaces use the same
   `Latest:` (or `Selected:` when a difference exists) and `History:` labels and do
   not append an inline action. CLI help

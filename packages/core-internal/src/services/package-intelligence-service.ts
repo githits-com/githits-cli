@@ -20,6 +20,12 @@ import { z } from "zod";
 import { isFetchTimeoutError } from "../shared/fetch-timeout.js";
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import {
+  getPrimaryExtensions,
+  httpRateLimitError,
+  type PkgseerErrorDetails,
+  parsePkgseerErrorDetails,
+} from "../shared/pkgseer-error-details.js";
+import {
   type PkgseerGraphqlResponse,
   PkgseerTransportError,
   postPkgseerGraphql,
@@ -112,6 +118,17 @@ export interface PackageIdentity {
   downloadsRefreshedAt?: string;
   githubRepository?: GithubRepository;
   registryRepository?: RegistryRepository;
+  /** Explicit temporary failure of optional repository popularity metadata. */
+  githubRepositoryError?: PackageSummaryMetadataError;
+  /** Explicit temporary failure of optional selected-release provenance and lifecycle. */
+  registryRepositoryError?: PackageSummaryMetadataError;
+}
+
+/** A nullable summary metadata failure; independently readable facts remain valid. */
+export interface PackageSummaryMetadataError extends PkgseerErrorDetails {
+  code: "RATE_LIMITED";
+  message: string;
+  retryable: boolean;
 }
 
 export interface GithubRepository {
@@ -1036,6 +1053,7 @@ export class PackageIntelligenceBackendError extends Error {
     public readonly graphqlCode?: string,
     public readonly retryable?: boolean,
     public readonly recovery: VersionRefRecovery | undefined = undefined,
+    public readonly metadata: PkgseerErrorDetails | undefined = undefined,
   ) {
     super(message);
     this.name = "PackageIntelligenceBackendError";
@@ -3348,16 +3366,33 @@ export class PackageIntelligenceServiceImpl
 
     const data = parsed.data.data?.packageSummary;
     const errors = parsed.data.errors ?? [];
+    const githubErrors = errors.filter(
+      (error) =>
+        error.extensions?.code === "RATE_LIMITED" &&
+        error.path?.length === 3 &&
+        error.path[0] === "packageSummary" &&
+        error.path[1] === "package" &&
+        error.path[2] === "githubRepository" &&
+        data?.package?.githubRepository === null,
+    );
+    const provenanceErrors = errors.filter(
+      (error) =>
+        error.path?.[0] === "provenance" &&
+        error.extensions?.code === "RATE_LIMITED",
+    );
     const primaryErrors = errors.filter(
-      (error) => error.path?.[0] !== "provenance",
+      (error) =>
+        error.path?.[0] !== "provenance" && !githubErrors.includes(error),
     );
     if (primaryErrors.length > 0 || (!data && errors.length > 0)) {
       throw this.createGraphQLError(
-        primaryErrors.length > 0 ? primaryErrors : errors,
+        primaryErrors.length > 0
+          ? [...primaryErrors, ...githubErrors, ...provenanceErrors]
+          : errors,
       );
     }
-    // Version-detail lookup is optional in the existing overview. A failed
-    // provenance root must not remove that overview or hide authorization errors.
+    // Optional metadata failures keep the overview, but authentication/access
+    // and client-update failures still follow the existing error boundary.
     for (const error of errors) {
       const mapped = this.createGraphQLError([error]);
       if (
@@ -3375,9 +3410,21 @@ export class PackageIntelligenceServiceImpl
     }
 
     const summary = this.normalise(data);
+    if (githubErrors.length) {
+      summary.package.githubRepositoryError = summaryMetadataError(
+        githubErrors,
+        "GitHub metadata temporarily unavailable (RATE_LIMITED).",
+      );
+    }
+    if (provenanceErrors.length) {
+      summary.package.registryRepositoryError = summaryMetadataError(
+        provenanceErrors,
+        "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
+      );
+    }
     const selected = parsed.data.data?.provenance?.selectedVersion;
     if (
-      errors.length === 0 &&
+      !errors.some((error) => error.path?.[0] === "provenance") &&
       summary.package.version !== undefined &&
       selected?.resolvedVersion === summary.package.version
     ) {
@@ -3692,16 +3739,11 @@ export class PackageIntelligenceServiceImpl
         fatalErrors.push(error);
         continue;
       }
-      const retryAfterMs = error.extensions?.retry_after_ms;
       source.error = {
         code,
         message: `Current OSV source unavailable (${code}).`,
         retryable: error.extensions?.retryable === true,
-        ...(typeof retryAfterMs === "number" &&
-        Number.isFinite(retryAfterMs) &&
-        retryAfterMs >= 0
-          ? { retryAfterSeconds: retryAfterMs / 1000 }
-          : {}),
+        ...parsePkgseerErrorDetails(error.extensions),
       };
     }
     if (fatalErrors.length) {
@@ -5188,6 +5230,18 @@ export function createPackageIntelligenceHttpError(
     );
   }
 
+  if (status === 429) {
+    const rateLimit = httpRateLimitError(response.parsedBody);
+    return new PackageIntelligenceBackendError(
+      detail ?? rateLimit.message ?? "Request rate limited.",
+      status,
+      "RATE_LIMITED",
+      true,
+      undefined,
+      parsePkgseerErrorDetails(rateLimit.extensions),
+    );
+  }
+
   if (status === 403) {
     return new PackageIntelligenceAccessError(detail ?? "Access denied.");
   }
@@ -5262,6 +5316,7 @@ export function createPackageIntelligenceGraphQLError(
     );
   }
 
+  const metadata = parsePkgseerErrorDetails(extensions);
   switch (code) {
     case "NOT_FOUND":
     case "PACKAGE_NOT_FOUND":
@@ -5315,6 +5370,14 @@ export function createPackageIntelligenceGraphQLError(
     case "UPSTREAM_ERROR":
     case "TIMEOUT":
     case "RATE_LIMITED":
+      return new PackageIntelligenceBackendError(
+        message,
+        undefined,
+        code,
+        retryable,
+        undefined,
+        metadata,
+      );
     case "INTERNAL_ERROR":
     case "UNKNOWN_ERROR":
       return new PackageIntelligenceBackendError(
@@ -5348,13 +5411,17 @@ function parseDocumentationSectionUnresolvedReason(
   }
 }
 
-function getPrimaryExtensions(
+/** Reuse the nullable-source error shape without exposing backend messages. */
+function summaryMetadataError(
   errors: PackageIntelligenceGraphQLResponseError[],
-): Record<string, unknown> | undefined {
-  for (const error of errors) {
-    if (error.extensions && Object.keys(error.extensions).length > 0) {
-      return error.extensions;
-    }
-  }
-  return undefined;
+  message: string,
+): PackageSummaryMetadataError {
+  const extensions = getPrimaryExtensions(errors);
+  return {
+    code: "RATE_LIMITED",
+    message,
+    retryable:
+      typeof extensions?.retryable === "boolean" ? extensions.retryable : true,
+    ...parsePkgseerErrorDetails(extensions),
+  };
 }

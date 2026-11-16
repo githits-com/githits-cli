@@ -80,7 +80,7 @@ export function mapListError(
 }
 
 function mapBackendError(error: ListBackendError): MappedError {
-  const details: MappedErrorDetails = {};
+  const details: MappedErrorDetails = { ...error.metadata };
   if (typeof error.status === "number") details.status = error.status;
   if (isNonempty(error.graphqlCode)) details.graphqlCode = error.graphqlCode;
 
@@ -189,7 +189,7 @@ function mapScopeUnavailableError(
 }
 
 function graphQLErrorDetails(error: ListGraphQLError): MappedErrorDetails {
-  const details: MappedErrorDetails = {};
+  const details: MappedErrorDetails = { ...error.metadata };
   if (isNonempty(error.code)) details.graphqlCode = error.code;
   if (isNonempty(error.indexingRef)) details.indexingRef = error.indexingRef;
   if (isNonempty(error.hint)) details.hint = error.hint;

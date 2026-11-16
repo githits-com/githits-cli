@@ -7,6 +7,12 @@ import {
 } from "../shared/fetch-timeout.js";
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import {
+  getPrimaryExtensions,
+  httpRateLimitError,
+  type PkgseerErrorDetails,
+  parsePkgseerErrorDetails,
+} from "../shared/pkgseer-error-details.js";
+import {
   type PkgseerGraphqlResponse,
   PkgseerTransportError,
   postPkgseerGraphql,
@@ -229,6 +235,7 @@ export class ListGraphQLError extends Error {
       | ListIndexingErrorMetadata
       | undefined = undefined,
     public readonly recovery: VersionRefRecovery | undefined = undefined,
+    public readonly metadata: PkgseerErrorDetails | undefined = undefined,
   ) {
     super(message);
     this.name = "ListGraphQLError";
@@ -241,6 +248,7 @@ export class ListBackendError extends Error {
     public readonly status?: number,
     public readonly graphqlCode?: string,
     public readonly retryable?: boolean,
+    public readonly metadata: PkgseerErrorDetails | undefined = undefined,
   ) {
     super(message);
     this.name = "ListBackendError";
@@ -655,6 +663,16 @@ function createListHttpError(response: PkgseerGraphqlResponse): Error {
       "server",
     );
   }
+  if (response.status === 429) {
+    const rateLimit = httpRateLimitError(response.parsedBody);
+    return new ListBackendError(
+      detail ?? rateLimit.message ?? "Request rate limited.",
+      429,
+      "RATE_LIMITED",
+      true,
+      parsePkgseerErrorDetails(rateLimit.extensions),
+    );
+  }
   if (response.status === 403) {
     return new ListAccessError(detail ?? "List access denied.");
   }
@@ -698,9 +716,7 @@ function createListGraphQLError(
   diagnostics?: ServiceDiagnostics,
 ): Error {
   const message = errors.map((error) => error.message).join(", ");
-  const extensions = errors.find(
-    (error) => error.extensions && Object.keys(error.extensions).length > 0,
-  )?.extensions;
+  const extensions = getPrimaryExtensions(errors);
   const code =
     typeof extensions?.code === "string" ? extensions.code : undefined;
   const retryable =
@@ -756,5 +772,6 @@ function createListGraphQLError(
           : undefined,
     },
     parseVersionRefRecovery(extensions),
+    parsePkgseerErrorDetails(extensions),
   );
 }

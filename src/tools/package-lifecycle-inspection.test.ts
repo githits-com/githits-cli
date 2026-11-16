@@ -963,3 +963,127 @@ describe("native lifecycle inspection causal path", () => {
     ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
   });
 });
+
+it.each([false, true])(
+  "retains healthy lifecycle evidence alongside a GitHub metadata throttle in json=%s",
+  async (json) => {
+    const body = bodyFor(cases[0]!);
+    const summary = (
+      body.data as { packageSummary: { package: Record<string, unknown> } }
+    ).packageSummary;
+    summary.package.githubRepository = null;
+    body.errors = [
+      {
+        message: "GitHub rate limit exceeded; retry after the limit resets.",
+        path: ["packageSummary", "package", "githubRepository"],
+        extensions: {
+          code: "RATE_LIMITED",
+          retryable: true,
+          rate_limit_scope: "repository_provider",
+          token_source: "app",
+          retry_after_ms: 12501,
+        },
+      },
+    ];
+    const { service, requests } = serviceFor(body);
+    const previous = process.exitCode;
+    try {
+      process.exitCode = 0;
+      const cli = await cliOutput(service, "npm:request", json);
+      expect(process.exitCode).toBe(1);
+      const mcp = await createPackageSummaryTool(service).handler({
+        target: "npm:request",
+        format: json ? "json" : "text",
+      });
+      expect(mcp.isError).toBeUndefined();
+      expect(mcp.content[0]!.text).toBe(cli);
+      if (json) {
+        const result = JSON.parse(cli);
+        expect(result.lifecycle.findings[0]).toMatchObject({
+          kind: "DEPRECATED",
+          reason: "No longer supported",
+        });
+        expect(result.githubError).toMatchObject({
+          code: "RATE_LIMITED",
+          retryAfterMs: 12501,
+        });
+      } else {
+        expect(cli).toContain("Deprecated: No longer supported");
+        expect(cli.replace(/\s+/g, " ")).toContain(
+          "GitHub metadata temporarily unavailable (RATE_LIMITED). Try again in 13 seconds.",
+        );
+      }
+      expect(requests).toHaveLength(2);
+    } finally {
+      process.exitCode = previous ?? 0;
+    }
+  },
+);
+
+for (const combined of [false, true]) {
+  it.each([false, true])(
+    `explains lifecycle unavailability in provenance throttles with combined=${combined} and json=%s`,
+    async (json) => {
+      const body = bodyFor(cases[0]!);
+      const data = body.data as {
+        provenance: unknown;
+        packageSummary: { package: Record<string, unknown> };
+      };
+      data.provenance = null;
+      if (combined) data.packageSummary.package.githubRepository = null;
+      const error = (path: string[]) => ({
+        message: "GitHub rate limit exceeded; retry after the limit resets.",
+        path,
+        extensions: {
+          code: "RATE_LIMITED",
+          retryable: true,
+          rate_limit_scope: "repository_provider",
+          token_source: "app",
+          retry_after_ms: 12501,
+        },
+      });
+      body.errors = [
+        error(["provenance", "selectedVersion", "lifecycle"]),
+        ...(combined
+          ? [error(["packageSummary", "package", "githubRepository"])]
+          : []),
+      ];
+      const { service, requests } = serviceFor(body);
+      const previous = process.exitCode;
+      try {
+        process.exitCode = 0;
+        const cli = await cliOutput(service, "npm:request", json);
+        expect(process.exitCode).toBe(1);
+        const mcp = await createPackageSummaryTool(service).handler({
+          target: "npm:request",
+          format: json ? "json" : "text",
+        });
+        expect(mcp.isError).toBeUndefined();
+        expect(mcp.content[0]!.text).toBe(cli);
+        if (json) {
+          const result = JSON.parse(cli);
+          expect(result).not.toHaveProperty("lifecycle");
+          expect(result).not.toHaveProperty("registryRepository");
+          expect(result.provenanceError).toMatchObject({
+            code: "RATE_LIMITED",
+            message:
+              "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
+            retryAfterMs: 12501,
+          });
+          expect(Boolean(result.githubError)).toBe(combined);
+        } else {
+          const text = cli.replace(/\s+/g, " ");
+          expect(text).toContain(
+            combined
+              ? "GitHub metadata, registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED). Try again in 13 seconds."
+              : "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED). Try again in 13 seconds.",
+          );
+          expect(text).not.toContain("Deprecated: No longer supported");
+        }
+        expect(requests).toHaveLength(2);
+      } finally {
+        process.exitCode = previous ?? 0;
+      }
+    },
+  );
+}

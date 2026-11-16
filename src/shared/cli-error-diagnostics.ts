@@ -1,3 +1,4 @@
+import { parsePkgseerErrorDetails } from "@githits/core-internal";
 import {
   type MappedError,
   mapCodeNavigationError,
@@ -50,5 +51,18 @@ export function recordCliErrorClassification(
     code: mapped.code,
     errorName: error instanceof Error ? error.name : typeof error,
     detailKeys: mapped.details ? Object.keys(mapped.details) : [],
+    ...safeRateDimensions(mapped.details),
   });
+}
+
+function safeRateDimensions(
+  details: object | undefined,
+): Record<string, string> {
+  const facts = parsePkgseerErrorDetails(
+    details as Record<string, unknown> | undefined,
+  );
+  return {
+    ...(facts.rateLimitScope ? { rate_limit_scope: facts.rateLimitScope } : {}),
+    ...(facts.tokenSource ? { token_source: facts.tokenSource } : {}),
+  };
 }

@@ -58,6 +58,7 @@ export {
   DEFAULT_WAIT_TIMEOUT_MS,
   FetchTimeoutError,
 } from "./shared/fetch-timeout.js";
+export * from "./shared/pkgseer-error-details.js";
 export {
   isKnownPkgseerRegistryArg,
   PKGSEER_REGISTRY_ARGS,

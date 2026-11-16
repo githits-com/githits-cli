@@ -214,10 +214,9 @@ export function formatMappedErrorText(
   if (details.updateCommand)
     lines.push("", `Update with: ${details.updateCommand}`);
   const retryAfterSeconds =
-    details.retryAfterSeconds ??
-    (details.retryAfterMs === undefined
-      ? undefined
-      : details.retryAfterMs / 1000);
+    details.retryAfterMs === undefined
+      ? details.retryAfterSeconds
+      : details.retryAfterMs / 1000;
   const rateLimitAdvice =
     mapped.code === "RATE_LIMITED" && retryAfterSeconds !== undefined;
   if (
@@ -226,23 +225,38 @@ export function formatMappedErrorText(
     details.hint !== details.action
   )
     lines.push("", details.hint);
+  const unwrappedText = [...lines, details.action ?? ""].join("\n");
+  const seconds =
+    retryAfterSeconds === undefined ? undefined : Math.ceil(retryAfterSeconds);
+  const timedAdvice = rateLimitAdvice
+    ? seconds === 0
+      ? "Try again now."
+      : `Try again in ${seconds} ${seconds === 1 ? "second" : "seconds"}.`
+    : undefined;
+  if (mapped.retryable && timedAdvice && !unwrappedText.includes(timedAdvice)) {
+    lines[0] = appendRateLimitTiming(lines[0] ?? mapped.message, timedAdvice);
+  }
   const width = options.width ?? 80;
   const output = lines.flatMap((line) => wrapTerminalProse(line, width));
   // Keep callable/copyable action operands intact, and avoid repeating host remediation.
   if (details.action && !lines.join("\n").includes(details.action))
     output.push("", ...details.action.split("\n").map(sanitizeTerminalText));
   if (
+    !timedAdvice &&
     !details.action &&
     mapped.retryable &&
     !hasRetryGuidance(lines.join("\n"))
-  )
-    output.push(
-      "",
-      rateLimitAdvice
-        ? `Try again in ${Math.ceil(retryAfterSeconds)} seconds.`
-        : "Try again.",
-    );
+  ) {
+    output.push("", "Try again.");
+  }
   return output.join("\n");
+}
+
+/** Replace the producer's generic reset clause with one concrete recovery sentence. */
+export function appendRateLimitTiming(message: string, advice: string): string {
+  if (message.includes(advice)) return message;
+  const outcome = message.replace(/; retry after the limit resets\.$/, ".");
+  return `${outcome}${/[.!?]$/.test(outcome) ? "" : "."} ${advice}`;
 }
 
 /** Preserve existing retry advice instead of appending a second instruction. */

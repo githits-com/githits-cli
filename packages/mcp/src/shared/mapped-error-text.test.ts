@@ -240,3 +240,163 @@ describe("existing retry advice", () => {
     expect(text).toBe("Request failed.\n\nRetry after reconnecting.");
   });
 });
+
+it.each([
+  "Repository provider rate limit exceeded; retry after the limit resets.",
+  "Please retry later.",
+])("shows supplied retry timing despite backend advice: %s", (message) => {
+  const text = formatMappedErrorText({
+    code: "RATE_LIMITED",
+    message,
+    retryable: true,
+    details: {
+      rateLimitScope: "repository_provider",
+      retryAfterMs: 12501,
+      retryAfterSeconds: 99,
+      action: "Retry this read after reset.",
+    },
+  });
+  expect(text.replace(/\s+/g, " ")).toContain(
+    `${message.replace(/; retry after the limit resets\.$/, ".")} Try again in 13 seconds.`,
+  );
+  expect(text).toContain("Retry this read after reset.");
+});
+it("keeps numeric retry advice once when already in the backend message", () => {
+  expect(
+    formatMappedErrorText({
+      code: "RATE_LIMITED",
+      message: "Rate limited. Try again in 13 seconds.",
+      retryable: true,
+      details: { retryAfterSeconds: 12.501 },
+    }),
+  ).toBe("Rate limited. Try again in 13 seconds.");
+});
+
+for (const width of [20, 80]) {
+  it.each(["message", "hint", "action", "hint-and-action"] as const)(
+    `keeps existing timed advice once before wrapping width=${width} in %s`,
+    (source) => {
+      const advice = "Try again in 13 seconds.";
+      const longText = `The repository provider cannot serve the requested source metadata until its request budget resets. ${advice}`;
+      const action = `read target=npm:example path=src/index.ts; ${advice}`;
+      const details = {
+        retryAfterSeconds: 12.501,
+        ...(source === "hint" ? { hint: longText } : {}),
+        ...(source === "action" ? { action } : {}),
+        ...(source === "hint-and-action" ? { hint: action, action } : {}),
+      };
+      const text = formatMappedErrorText(
+        {
+          code: "RATE_LIMITED",
+          retryable: true,
+          message:
+            source === "message" ? longText : "Provider request unavailable.",
+          details,
+        },
+        { width },
+      );
+      expect(
+        text.replace(/\s+/g, " ").match(/Try again in 13 seconds\./g),
+      ).toHaveLength(1);
+      if (source === "message" || source === "hint") {
+        if (width === 20) expect(text).not.toContain(advice);
+      } else expect(text).toContain(action);
+    },
+  );
+}
+
+it.each([0, 800, 1000])(
+  "formats known %sms delay as immediate or singular retry timing",
+  (ms) => {
+    const advice = ms === 0 ? "Try again now." : "Try again in 1 second.";
+    const mapped: MappedError = {
+      code: "RATE_LIMITED",
+      message: "Provider limit reached; retry after reset.",
+      retryable: true,
+      details: { retryAfterMs: ms },
+    };
+    expect(formatMappedErrorText(mapped)).toEndWith(advice);
+    expect(
+      formatMappedErrorText({ ...mapped, retryable: false }),
+    ).not.toContain(advice);
+    expect(
+      formatMappedErrorText({ ...mapped, message: `Rate limited. ${advice}` }),
+    ).toBe(`Rate limited. ${advice}`);
+  },
+);
+
+for (const source of ["message", "hint", "action"] as const) {
+  it(`deduplicates known immediate retry advice in unwrapped ${source}`, () => {
+    const advice = "Try again now.";
+    const prose = `The provider request budget has reset and this repository request is available again. ${advice}`;
+    const action = `Retry read target=npm:example path=index.ts. ${advice}`;
+    const text = formatMappedErrorText(
+      {
+        code: "RATE_LIMITED",
+        retryable: true,
+        message: source === "message" ? prose : "Provider limit reached.",
+        details: {
+          retryAfterMs: 0,
+          ...(source === "hint" ? { hint: prose } : {}),
+          ...(source === "action" ? { action } : {}),
+        },
+      },
+      { width: 10 },
+    );
+    expect(text.replace(/\s+/g, " ").match(/Try again now\./g)).toHaveLength(1);
+    if (source === "action") expect(text).toContain(action);
+    else expect(text).not.toContain(advice);
+  });
+}
+
+it("renders one compact provider outcome and retry sentence", () => {
+  const mapped: MappedError = {
+    code: "RATE_LIMITED",
+    message:
+      "Repository provider rate limit exceeded; retry after the limit resets.",
+    retryable: true,
+    details: { rateLimitScope: "repository_provider", retryAfterMs: 12501 },
+  };
+  expect(formatMappedErrorText(mapped, { width: 80 })).toBe(
+    "Repository provider rate limit exceeded. Try again in 13 seconds.",
+  );
+  const narrow = formatMappedErrorText(mapped, { width: 30 });
+  expect(narrow.replace(/\s+/g, " ")).toBe(
+    "Repository provider rate limit exceeded. Try again in 13 seconds.",
+  );
+  expect(narrow.split("\n").every((line) => line.length <= 30)).toBe(true);
+});
+it("retains distinct backend details when compacting provider retry text", () => {
+  const message =
+    "Repository provider rate limit exceeded for https://github.com/example/repo; retry after the limit resets.";
+  const text = formatMappedErrorText(
+    {
+      code: "RATE_LIMITED",
+      message,
+      retryable: true,
+      details: { rateLimitScope: "repository_provider", retryAfterMs: 0 },
+    },
+    { width: 120 },
+  );
+  expect(text).toBe(
+    "Repository provider rate limit exceeded for https://github.com/example/repo. Try again now.",
+  );
+});
+
+it.each([
+  "Source unavailable",
+  "Source unavailable.",
+  "Source unavailable!",
+  "Source unavailable?",
+])("separates compact recovery advice from sibling message: %s", (message) => {
+  const mapped: MappedError = {
+    code: "RATE_LIMITED",
+    retryable: true,
+    message: `Repository provider rate limit exceeded, ${message}`,
+    details: { retryAfterMs: 1501 },
+  };
+  const text = formatMappedErrorText(mapped, { width: 120 });
+  expect(text).toBe(
+    `${mapped.message}${/[.!?]$/.test(message) ? "" : "."} Try again in 2 seconds.`,
+  );
+});

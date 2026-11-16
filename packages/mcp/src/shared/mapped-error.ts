@@ -5,6 +5,7 @@ import type {
   CodeDiffRefResolution,
   DiscoveryIndexingEstimate,
   IndexingDurationEstimate,
+  PkgseerErrorDetails,
   RecoveryRef,
   TargetResolution,
 } from "@githits/core-internal";
@@ -36,7 +37,8 @@ export type MappedErrorCode =
   | "UPDATE_REQUIRED"
   | "UNKNOWN";
 
-export interface MappedErrorDetails {
+export interface MappedErrorDetails
+  extends Omit<PkgseerErrorDetails, "rateLimitScope"> {
   /** Bounded public unified-grep preparation issues, retaining backend keys. */
   targetIssues?: Record<string, unknown>[];
   availablePackageVersions?: string[];
@@ -57,11 +59,14 @@ export interface MappedErrorDetails {
   status?: number;
   retryAfterSeconds?: number;
   /**
+   * Provider/admission/registry scope is retained separately from research limits.
    * Research rate-limit scope: `request` is the short-term limit (retry after
    * `retryAfterSeconds`); `daily` is the daily limit, which resets at
    * 00:00 UTC and is not retryable before then.
    */
-  rateLimitScope?: AgenticAskRateLimitScope;
+  rateLimitScope?:
+    | AgenticAskRateLimitScope
+    | PkgseerErrorDetails["rateLimitScope"];
   timeoutMs?: number;
   graphqlCode?: string;
   /**
@@ -111,7 +116,7 @@ export interface MappedErrorDetails {
   stage?: string;
   limitKind?: string;
   /** Git ref supplied by a CodeDiff resolver failure. */
-  gitRef?: string;
+  gitRef?: string | null;
   /** Ref classifications retained for ambiguous-ref recovery. */
   refKinds?: string[];
   /** Immutable root identity retained when only the raw field failed. */

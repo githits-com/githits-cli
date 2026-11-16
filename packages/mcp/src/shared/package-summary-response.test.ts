@@ -790,3 +790,54 @@ describe("selected release and registry pointer", () => {
     expect(output).not.toContain("default release");
   });
 });
+
+for (const verbose of [false, true]) {
+  it.each([
+    [1501, 1501, 2],
+    [1501, 8501, 9],
+    [8501, 1501, 9],
+  ])(
+    `combines metadata notices once using the larger delay in verbose=${verbose}: github=%s provenance=%s`,
+    (githubMs, provenanceMs, expectedSeconds) => {
+      const summary = happyFixture();
+      const facts = {
+        code: "RATE_LIMITED" as const,
+        retryable: true,
+        rateLimitScope: "repository_provider" as const,
+        tokenSource: "app" as const,
+      };
+      summary.package.githubRepositoryError = {
+        ...facts,
+        message: "GitHub metadata temporarily unavailable (RATE_LIMITED).",
+        retryAfterMs: githubMs,
+        retryAfterSeconds: githubMs / 1000,
+      };
+      summary.package.registryRepositoryError = {
+        ...facts,
+        message:
+          "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
+        retryAfterMs: provenanceMs,
+        retryAfterSeconds: provenanceMs / 1000,
+      };
+      const output = formatPackageSummaryTerminal(summary, {
+        verbose,
+        terminalWidth: 80,
+        now: FIXED_NOW,
+      });
+      expect(output.replace(/\s+/g, " ")).toContain(
+        "GitHub metadata, registry provenance and lifecycle warnings temporarily unavailable",
+      );
+      expect(output).not.toContain(
+        "Repository provider is temporarily rate limited.",
+      );
+      expect(output.match(/Try again in \d+ seconds\./g)).toEqual([
+        `Try again in ${expectedSeconds} seconds.`,
+      ]);
+      const json = buildPackageSummarySuccessPayload(summary);
+      expect(json.githubError).toEqual(summary.package.githubRepositoryError);
+      expect(json.provenanceError).toEqual(
+        summary.package.registryRepositoryError,
+      );
+    },
+  );
+}

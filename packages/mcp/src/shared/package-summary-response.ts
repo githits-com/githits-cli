@@ -8,10 +8,11 @@
  *   published-version count and download refresh date is retained;
  *   unrelated schema metadata and duplicate GitHub identifiers remain
  *   omitted.
- * - **Null-omitted.** Scalars go missing when null; blocks go missing
+ * - **Null-omitted.** Summary data scalars go missing when null; blocks go missing
  *   when every leaf is null; arrays go missing when empty. Agent
  *   callers receive present data only, not a skeleton. Publisher/source details
- *   expand only when verbose output is explicitly requested.
+ *   expand only when verbose output is explicitly requested. Failure facts retain
+ *   an explicit null gitRef when source selection has not completed.
  * - **Stable.** Two identical queries produce byte-identical output
  *   (no clock-dependent fields, no iteration-order tricks), so the
  *   parity test can deep-equal across surfaces.
@@ -22,6 +23,7 @@ import type {
   PackageLifecycle,
   PackageSecurityOverview,
   PackageSummary,
+  PackageSummaryMetadataError,
   RegistryLatestDifference,
   RegistryRepository,
   VulnerabilityOverview,
@@ -30,6 +32,7 @@ import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { colorize, highlight } from "./colors.js";
 import { toIsoDate, toRelativeDate } from "./format-date.js";
 import { formatCompactNumber } from "./format-number.js";
+import { formatMappedErrorText } from "./mapped-error-text.js";
 import { sanitizeTerminalText } from "./terminal-text.js";
 import { terminalWidth } from "./terminal-width.js";
 
@@ -121,6 +124,8 @@ export interface LeanPackageSummary {
   publishedAt?: string;
   downloads?: LeanDownloads;
   github?: LeanGithub;
+  githubError?: PackageSummaryMetadataError;
+  provenanceError?: PackageSummaryMetadataError;
   vulnerabilities?: LeanVulnerabilities;
   advisoryHistory?: LeanAdvisoryHistory;
   recentChanges?: LeanRecentChange[];
@@ -172,6 +177,10 @@ export function buildPackageSummarySuccessPayload(
 
   const github = buildGithub(pkg.githubRepository);
   if (github) payload.github = github;
+  if (pkg.githubRepositoryError)
+    payload.githubError = pkg.githubRepositoryError;
+  if (pkg.registryRepositoryError)
+    payload.provenanceError = pkg.registryRepositoryError;
 
   const vulns = buildVulnerabilities(summary.security);
   if (vulns) payload.vulnerabilities = vulns;
@@ -481,6 +490,38 @@ export function formatPackageSummaryTerminal(
     ? formatLifecycle(summary.lifecycle, width, summary.package.version)
     : formatCompactLifecycle(buildLifecyclePayload(summary.lifecycle), width);
   if (lifecycle) sections.push(lifecycle);
+  const metadataErrors = [lean.githubError, lean.provenanceError].filter(
+    (error) => error !== undefined,
+  );
+  const firstError = metadataErrors[0];
+  if (firstError) {
+    const delays = metadataErrors.flatMap((error) => {
+      const seconds =
+        error.retryAfterMs === undefined
+          ? error.retryAfterSeconds
+          : error.retryAfterMs / 1000;
+      return seconds === undefined ? [] : [seconds];
+    });
+    sections.push(
+      formatMappedErrorText(
+        {
+          code: firstError.code,
+          message:
+            metadataErrors.length > 1
+              ? "GitHub metadata, registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED)."
+              : firstError.message,
+          retryable: metadataErrors.every((error) => error.retryable),
+          details: {
+            rateLimitScope: metadataErrors.find(
+              (error) => error.rateLimitScope === "repository_provider",
+            )?.rateLimitScope,
+            retryAfterSeconds: delays.length ? Math.max(...delays) : undefined,
+          },
+        },
+        { width },
+      ),
+    );
+  }
 
   if (options.verbose) {
     const verbose = buildVerboseSections(lean, useColors);

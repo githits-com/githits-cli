@@ -7,6 +7,12 @@ import {
 } from "../shared/fetch-timeout.js";
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import {
+  getPrimaryExtensions,
+  httpRateLimitError,
+  type PkgseerErrorDetails,
+  parsePkgseerErrorDetails,
+} from "../shared/pkgseer-error-details.js";
+import {
   type PkgseerGraphqlResponse,
   PkgseerTransportError,
   postPkgseerGraphql,
@@ -826,7 +832,7 @@ export interface CodeDiffErrorRef {
  * arbitrary extension values here: this object is safe to pass to public
  * error envelopes and telemetry.
  */
-export interface CodeDiffErrorDetails {
+export interface CodeDiffErrorDetails extends PkgseerErrorDetails {
   code?: string;
   retryable?: boolean;
   side?: string;
@@ -838,7 +844,7 @@ export interface CodeDiffErrorDetails {
   stage?: string;
   limitKind?: string;
   repoUrl?: string;
-  gitRef?: string;
+  gitRef?: string | null;
   availableRefs?: CodeDiffErrorRef[];
   suggestedRefs?: CodeDiffErrorRef[];
   refKinds?: string[];
@@ -1013,7 +1019,7 @@ export class CodeNavigationIndexingError extends Error {
   }
 }
 
-export interface CodeNavigationErrorMetadata {
+export interface CodeNavigationErrorMetadata extends PkgseerErrorDetails {
   hint?: string;
   filePath?: string;
   exclusionReason?: string;
@@ -2850,8 +2856,11 @@ export class CodeNavigationServiceImpl
       const rawErrors = errors.filter(isCodeDiffRawError);
       if (rawErrors.length > 0) {
         throw new CodeDiffError(
-          rawErrors.map((error) => error.message).join(", "),
-          parseCodeDiffErrorDetails(rawErrors),
+          errors.map((error) => error.message).join(", "),
+          parseCodeDiffErrorDetails([
+            ...rawErrors,
+            ...errors.filter((error) => !isCodeDiffRawError(error)),
+          ]),
           data ? normaliseCodeDiffPartial(data) : undefined,
         );
       }
@@ -3939,7 +3948,9 @@ function parseCodeDiffErrorDetails(
   const extensions = getPrimaryExtensions(errors);
   if (!extensions) return undefined;
 
-  const details: CodeDiffErrorDetails = {};
+  const details: CodeDiffErrorDetails = {
+    ...parsePkgseerErrorDetails(extensions),
+  };
   if (typeof extensions.code === "string") details.code = extensions.code;
   if (typeof extensions.retryable === "boolean") {
     details.retryable = extensions.retryable;
@@ -4043,6 +4054,17 @@ export function createCodeNavigationHttpError(
     return new AuthenticationError(
       SERVER_AUTHENTICATION_REJECTED_MESSAGE,
       "server",
+    );
+  }
+
+  if (status === 429) {
+    const rateLimit = httpRateLimitError(response.parsedBody);
+    return new CodeNavigationBackendError(
+      detail ?? rateLimit.message ?? "Request rate limited.",
+      status,
+      "RATE_LIMITED",
+      true,
+      parsePkgseerErrorDetails(rateLimit.extensions),
     );
   }
 
@@ -4314,6 +4336,8 @@ function hasSchemaMismatchErrors(parsedBody: unknown): boolean {
   if (!parsedBody || typeof parsedBody !== "object") return false;
   const errors = (parsedBody as { errors?: unknown }).errors;
   if (!Array.isArray(errors)) return false;
+  if (errors.some((error) => error?.extensions?.code === "RATE_LIMITED"))
+    return false;
   return errors.some((entry) => {
     if (!entry || typeof entry !== "object") return false;
     const error = entry as {
@@ -4327,24 +4351,6 @@ function hasSchemaMismatchErrors(parsedBody: unknown): boolean {
         : undefined;
     return isGraphQLSchemaMismatchError({ message: error.message, code });
   });
-}
-
-/**
- * Pick the first GraphQL error entry that carries an `extensions`
- * block. Backends typically emit a single error per failure; when
- * multiple are present the primary one wins. Separate from the
- * joined message string so callers can reach structured fields
- * (package, latest_indexed, available_versions, retryable).
- */
-function getPrimaryExtensions(
-  errors: Array<z.infer<typeof graphQLErrorSchema>>,
-): Record<string, unknown> | undefined {
-  for (const error of errors) {
-    if (error.extensions && Object.keys(error.extensions).length > 0) {
-      return error.extensions;
-    }
-  }
-  return undefined;
 }
 
 function getGraphQLIndexingRef(
@@ -4390,7 +4396,9 @@ function parseGraphQLErrorMetadata(
   extensions: Record<string, unknown> | undefined,
   indexingEstimate: IndexingDurationEstimate | undefined,
 ): CodeNavigationErrorMetadata | undefined {
-  const metadata: CodeNavigationErrorMetadata = {};
+  const metadata: CodeNavigationErrorMetadata = {
+    ...parsePkgseerErrorDetails(extensions),
+  };
   if (typeof extensions?.hint === "string") metadata.hint = extensions.hint;
   const filePath = extensions?.file_path ?? extensions?.filePath;
   if (typeof filePath === "string") metadata.filePath = filePath;

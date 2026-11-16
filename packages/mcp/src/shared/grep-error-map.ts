@@ -6,6 +6,7 @@ import {
   GrepGraphQLError,
   GrepNetworkError,
   MalformedGrepResponseError,
+  parsePkgseerErrorDetails,
   parseVersionRefRecovery,
 } from "@githits/core-internal";
 import { buildUpdateRequiredError } from "./code-navigation-error-map.js";
@@ -70,6 +71,7 @@ export function mapGrepError(error: unknown): MappedError {
           code === "RATE_LIMITED" ||
           (error.status !== undefined && error.status >= 500)),
       details: {
+        ...error.metadata,
         ...(error.status !== undefined ? { status: error.status } : {}),
         ...(error.graphqlCode ? { graphqlCode: error.graphqlCode } : {}),
       },
@@ -94,7 +96,10 @@ export function mapGrepError(error: unknown): MappedError {
               : graphqlCode === "RATE_LIMITED"
                 ? "RATE_LIMITED"
                 : "BACKEND_ERROR";
-    const details: MappedErrorDetails = { graphqlCode };
+    const details: MappedErrorDetails = {
+      graphqlCode,
+      ...parsePkgseerErrorDetails(ext),
+    };
     if (Array.isArray(ext.target_issues)) {
       details.targetIssues = ext.target_issues
         .slice(0, 20)
