@@ -1127,20 +1127,10 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
       Array.isArray(lifecycle.retainedWarnings),
       "pkg_info lifecycle missing retained warnings",
     );
-    assertRecord(lifecycle.checks, "pkg_info lifecycle checks");
-    for (const name of [
-      "deprecation",
-      "withdrawal",
-      "registryArchival",
-      "repositoryArchival",
-    ]) {
-      const check = lifecycle.checks[name];
-      assertRecord(check, `pkg_info lifecycle ${name}`);
-      assert(
-        typeof check.status === "string",
-        `pkg_info lifecycle ${name} missing status`,
-      );
-    }
+    assert(
+      !("checks" in lifecycle),
+      "pkg_info verbose JSON leaked internal lifecycle checks",
+    );
     assertRecord(lifecycle.contentSafety, "pkg_info lifecycle content safety");
     assert(
       typeof lifecycle.contentSafety.filtered === "boolean",

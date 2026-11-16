@@ -51,11 +51,5 @@ export function createMockPackageLifecycle(): PackageLifecycle {
     findings: [],
     retainedWarnings: [],
     contentSafety: { filtered: false },
-    checks: {
-      deprecation: { status: "NOT_COLLECTED", reason: null },
-      withdrawal: { status: "NOT_COLLECTED", reason: null },
-      registryArchival: { status: "NOT_COLLECTED", reason: null },
-      repositoryArchival: { status: "NOT_COLLECTED", reason: null },
-    },
   };
 }

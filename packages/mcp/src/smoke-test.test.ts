@@ -499,7 +499,7 @@ describe("runMcpSmoke", () => {
     ).rejects.toThrow("listTools missing search_status");
   });
 
-  it("rejects lifecycle JSON that loses a required check", async () => {
+  it("rejects internal lifecycle checks leaking into verbose JSON", async () => {
     const caller = createCaller(async (name, args) => {
       const result = smokeResponse(name, args);
       if (
@@ -518,7 +518,7 @@ describe("runMcpSmoke", () => {
       return jsonResult(payload);
     });
     await expect(runMcpSmoke(caller)).rejects.toThrow(
-      "pkg_info lifecycle deprecation",
+      "pkg_info verbose JSON leaked internal lifecycle checks",
     );
   });
 

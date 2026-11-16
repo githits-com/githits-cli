@@ -178,7 +178,12 @@ export function buildPackageSummarySuccessPayload(
   const lifecycle = options.verbose
     ? summary.lifecycle
     : buildCompactLifecycle(summary.lifecycle);
-  if (lifecycle) payload.lifecycle = lifecycle;
+  if (
+    lifecycle &&
+    ((lifecycle.findings?.length ?? 0) > 0 ||
+      (lifecycle.retainedWarnings?.length ?? 0) > 0)
+  )
+    payload.lifecycle = lifecycle;
 
   const recent = buildRecentChanges(summary.latestChangelogs);
   if (recent) payload.recentChanges = recent;
@@ -461,7 +466,7 @@ export function formatPackageSummaryTerminal(
   }
 
   const lifecycle = options.verbose
-    ? formatLifecycle(summary.lifecycle, width)
+    ? formatLifecycle(summary.lifecycle, width, summary.package.version)
     : formatCompactLifecycle(buildCompactLifecycle(summary.lifecycle), width);
   if (lifecycle) sections.push(lifecycle);
 
@@ -473,22 +478,12 @@ export function formatPackageSummaryTerminal(
   return `${sections.join("\n\n")}\n`;
 }
 
-/** Default text shows actionable warnings; diagnostic evidence belongs in verbose/JSON. */
+/** Default text shows concise warnings; verbose expands publisher/source evidence. */
 function formatCompactLifecycle(
   lifecycle: CompactPackageLifecycle | undefined,
   width: number,
 ): string {
   if (!lifecycle) return "";
-  const labels: Record<string, string> = {
-    DEPRECATED: "Deprecated",
-    RETIRED: "Retired",
-    ABANDONED: "Abandoned",
-    DISCONTINUED: "Discontinued",
-    YANKED: "Yanked",
-    PARTIALLY_YANKED: "Partially yanked",
-    RETRACTED: "Retracted",
-    UNLISTED: "Unlisted",
-  };
   const lines: string[] = [];
   const append = (label: string, detail: string): void => {
     const text = detail ? `${label}: ${detail}` : `${label}.`;
@@ -500,19 +495,11 @@ function formatCompactLifecycle(
     );
   };
   for (const finding of lifecycle.findings ?? []) {
-    const scope =
-      finding.scope === "PACKAGE"
-        ? " (package-wide)"
-        : finding.scope === "FILES"
-          ? " (files)"
-          : finding.scope === undefined
-            ? ""
-            : ` (${finding.scope})`;
     const details = [finding.reason];
     if (finding.replacement)
       details.push(`publisher suggests ${finding.replacement}`);
     append(
-      `${labels[finding.kind] ?? finding.kind}${scope}`,
+      lifecycleFindingLabel(finding.kind, finding.scope),
       details.filter(Boolean).join("; "),
     );
   }
@@ -534,12 +521,40 @@ function formatCompactLifecycle(
   return lines.join("\n");
 }
 
-/** Present backend classifications verbatim; never infer policy from empty findings. */
+/** Express the backend's native kind and scope without repeated identity. */
+function lifecycleFindingLabel(kind: string, scope?: string): string {
+  const labels: Record<string, string> = {
+    DEPRECATED: "Deprecated",
+    RETIRED: "Retired",
+    ABANDONED: "Abandoned",
+    DISCONTINUED: "Discontinued",
+    YANKED: "Yanked",
+    PARTIALLY_YANKED: "Partially yanked",
+    RETRACTED: "Retracted",
+    UNLISTED: "Unlisted",
+  };
+  const qualifier =
+    scope === "PACKAGE"
+      ? " (package-wide)"
+      : scope === "FILES"
+        ? " (files)"
+        : scope === undefined || scope === "RELEASE"
+          ? ""
+          : ` (${scope})`;
+  return `${labels[kind] ?? kind}${qualifier}`;
+}
+
+/** Explain publisher and source evidence without internal collection diagnostics. */
 function formatLifecycle(
   lifecycle: PackageLifecycle | undefined,
   width: number,
+  selectedVersion: string | undefined,
 ): string {
-  if (!lifecycle) return wrapText("Lifecycle unavailable", width);
+  if (
+    !lifecycle ||
+    (lifecycle.findings.length === 0 && lifecycle.retainedWarnings.length === 0)
+  )
+    return "";
   const lines: string[] = ["Lifecycle"];
   const append = (text: string, indent = 0): void => {
     const prefix = " ".repeat(Math.min(indent, width - 1));
@@ -551,60 +566,43 @@ function formatLifecycle(
         .join("\n"),
     );
   };
-  if (
-    lifecycle.findings.length === 0 &&
-    lifecycle.retainedWarnings.length === 0
-  ) {
-    append("No native findings reported.");
-  }
   for (const finding of lifecycle.findings) {
-    const identity = `${finding.registry}:${finding.name}${finding.version != null ? `@${finding.version}` : ""}`;
-    append(
-      `${finding.kind} (${finding.category}; scope ${finding.scope}): ${identity}`,
-    );
-    append(
-      `Source: ${finding.source}${finding.sourceVersion != null ? `; source version ${finding.sourceVersion}` : ""}`,
-      2,
-    );
-    if (finding.observedAt != null)
-      append(`Acquired: ${finding.observedAt}`, 2);
-    if (finding.reason != null)
-      append(`Publisher reason: ${finding.reason}`, 2);
+    append(lifecycleFindingLabel(finding.kind, finding.scope));
+    if (finding.reason) append(`Publisher reason: ${finding.reason}`, 2);
+    if (
+      finding.replacement &&
+      !reasonMentionsReplacement(
+        finding.reason ?? undefined,
+        finding.replacement,
+      )
+    )
+      append(`Replacement suggested by publisher: ${finding.replacement}`, 2);
+    const authority =
+      finding.sourceVersion == null
+        ? ""
+        : finding.sourceVersion === selectedVersion
+          ? " (selected release)"
+          : ` (version ${finding.sourceVersion})`;
+    append(`Source: ${finding.source}${authority}`, 2);
+    if (finding.observedAt && toIsoDate(finding.observedAt)) {
+      const collected = new Date(finding.observedAt)
+        .toISOString()
+        .slice(0, 16)
+        .replace("T", " ");
+      append(`Collected: ${collected} UTC`, 2);
+    }
     if (finding.reasonCodes.length > 0)
-      append(`Publisher reason codes: ${finding.reasonCodes.join(", ")}`, 2);
-    if (finding.replacement != null)
-      append(
-        `Publisher replacement advice: ${finding.replacement} (not an upgrade recommendation)`,
-        2,
-      );
+      append(`Publisher codes: ${finding.reasonCodes.join(", ")}`, 2);
   }
   for (const warning of lifecycle.retainedWarnings) {
-    append(
-      `${warning.classification}: ${warning.registry}:${warning.name}@${warning.version}`,
-    );
-    append(`Retained publisher warning: ${warning.reason}`, 2);
+    const classification =
+      warning.classification === "LEGACY_UNCLASSIFIED"
+        ? "unclassified"
+        : warning.classification;
+    append(`Publisher warning (${classification}): ${warning.reason}`);
   }
-  const labels: Record<keyof PackageLifecycle["checks"], string> = {
-    deprecation: "deprecation",
-    withdrawal: "withdrawal",
-    registryArchival: "registry archival",
-    repositoryArchival: "repository archival",
-  };
-  const groups = new Map<string, string[]>();
-  for (const key of Object.keys(labels) as Array<keyof typeof labels>) {
-    const check = lifecycle.checks[key];
-    const status = `${check.status}${check.reason != null ? ` (${check.reason})` : ""}`;
-    const group = groups.get(status) ?? [];
-    group.push(labels[key]);
-    groups.set(status, group);
-  }
-  append(
-    `Lifecycle checks: ${Array.from(groups, ([status, names]) => `${status}: ${names.join(", ")}`).join("; ")}`,
-  );
   if (lifecycle.contentSafety.filtered)
-    append(
-      "Content safety: filtered by the backend; publisher text remains untrusted.",
-    );
+    append("Publisher text was filtered by the backend; it remains untrusted.");
   return lines.join("\n");
 }
 

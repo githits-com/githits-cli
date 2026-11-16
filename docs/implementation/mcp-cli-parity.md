@@ -618,22 +618,26 @@ When a new tool lands with both MCP and CLI surfaces:
   their classification and reason once, without guessed native kinds or a second
   coarse deprecation warning. Empty arrays, nulls and false safety flags are omitted;
   `contentSafety.filtered: true` accompanies filtered warning prose.
-  CLI `--verbose` and MCP `verbose: true` explicitly request full lifecycle evidence
-  in both text and JSON: native scope/identity, source authority, acquisition time,
-  all check outcomes, reason codes, unabridged publisher details and safety metadata.
-  Full JSON preserves native fields, nulls and empty arrays losslessly. Native
-  categorical strings retain backend casing; the top-level registry stays lowercase.
-  Public evidence types remain available from `@githits/mcp/client`.
-  Both text surfaces share the formatter. Default warnings use readable native
-  status labels and concise package-wide/file qualifiers without repeated package
-  names or versions. Unknown kinds/scopes remain visible. Diagnostic checks are
-  verbose-only; `UNKNOWN`, `NOT_COLLECTED` and `NOT_APPLICABLE` never become warnings
-  or checked-safe claims. Lifecycle archival collection is independent of the GitHub
-  archive badge. Publisher replacements remain advice, not verified upgrade
-  recommendations. Text strips terminal controls with the existing shared renderer;
-  verbose JSON preserves the evidence. Acquisition times do not establish freshness. Missing/mismatched/
-  failed optional provenance is silent by default, reports `Lifecycle unavailable`
-  in verbose text and omits the JSON block in either mode.
+  CLI `--verbose` and MCP `verbose: true` add the publisher's full explanation,
+  native scope, source authority, collection time, publisher codes and safety
+  metadata in text or JSON. Verbose text uses readable status labels and avoids
+  repeated identity or internal enum scaffolding. A source version matching the
+  header is described as the selected release; a differing authority version is
+  explicit. Collection time is shown to UTC minutes; verbose JSON preserves the
+  original timestamp and native field values.
+  Internal lifecycle collection checks are not selected, decoded or exposed in any
+  mode. They belong to backend diagnostics and can be queried directly with
+  GraphQL. They do not add end-user warnings or archival claims. Only findings,
+  retained publisher warnings and their evidence appear in CLI/MCP output. Empty
+  results and unavailable optional assessments are omitted in both formats, even
+  with verbose enabled; silence does not establish health or checked coverage.
+  Native categorical strings retain backend casing in JSON; the top-level registry
+  stays lowercase. Public evidence types are available from `@githits/mcp/client`.
+  Retained ambiguous warnings remain unclassified, without inventing a native kind.
+  Publisher replacement names remain advice, not verified upgrade recommendations.
+  Text strips terminal controls with the shared renderer; JSON preserves evidence.
+  Acquisition time does not establish freshness. No archival finding is inferred
+  from the existing GitHub archive badge.
   A lifecycle resolver error can null the shared
   provenance root, losing `registryRepository` alongside lifecycle while retaining
   the overview. Existing auth/access/client-update errors still fail; structural

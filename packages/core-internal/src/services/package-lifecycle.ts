@@ -20,20 +20,6 @@ export type PackageLifecycleScope =
   | "RELEASE"
   | "FILES"
   | (string & {});
-export type PackageLifecycleCheckStatus =
-  | "CHECKED"
-  | "UNKNOWN"
-  | "NOT_COLLECTED"
-  | "NOT_APPLICABLE"
-  | (string & {});
-export type PackageLifecycleCheckReason =
-  | "NATIVE_EVIDENCE_UNAVAILABLE"
-  | "UNVERSIONED_BRANCH"
-  | "METADATA_UNAVAILABLE"
-  | "LOOKUP_FAILED"
-  | "COMPARISON_UNKNOWN"
-  | (string & {});
-
 /** A native fact, not a vulnerability or a client-selected upgrade policy. */
 export interface PackageLifecycleFinding {
   registry: string;
@@ -54,11 +40,6 @@ export interface PackageLifecycleFinding {
   replacement?: string | null;
 }
 
-export interface PackageLifecycleCheck {
-  status: PackageLifecycleCheckStatus;
-  reason?: PackageLifecycleCheckReason | null;
-}
-
 export interface PackageLifecycleRetainedWarning {
   registry: string;
   name: string;
@@ -67,23 +48,12 @@ export interface PackageLifecycleRetainedWarning {
   reason: string;
 }
 
-/** Native evidence and independent observation outcomes for the selected release. */
+/** Native findings and publisher/source evidence for the selected release. */
 export interface PackageLifecycle {
   findings: PackageLifecycleFinding[];
-  checks: {
-    deprecation: PackageLifecycleCheck;
-    withdrawal: PackageLifecycleCheck;
-    registryArchival: PackageLifecycleCheck;
-    repositoryArchival: PackageLifecycleCheck;
-  };
   retainedWarnings: PackageLifecycleRetainedWarning[];
   contentSafety: { filtered: boolean };
 }
-
-const lifecycleCheckSchema = z.object({
-  status: z.string(),
-  reason: z.string().nullish(),
-});
 
 /** Validate structure without rejecting future backend categorical values. */
 export const packageLifecycleSchema: z.ZodType<PackageLifecycle> = z.object({
@@ -103,12 +73,6 @@ export const packageLifecycleSchema: z.ZodType<PackageLifecycle> = z.object({
       replacement: z.string().nullish(),
     }),
   ),
-  checks: z.object({
-    deprecation: lifecycleCheckSchema,
-    withdrawal: lifecycleCheckSchema,
-    registryArchival: lifecycleCheckSchema,
-    repositoryArchival: lifecycleCheckSchema,
-  }),
   retainedWarnings: z.array(
     z.object({
       registry: z.string(),

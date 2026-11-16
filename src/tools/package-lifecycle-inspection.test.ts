@@ -80,11 +80,10 @@ const cases = [
       },
     ]),
     expected: [
-      "DEPRECATED",
-      "DEPRECATION",
-      "scope RELEASE",
+      "Deprecated",
       "No longer supported",
-      "2026-11-10T10:00:00Z",
+      "Collected: 2026-11-10 10:00 UTC",
+      "Source: registry metadata (selected release)",
     ],
   },
   {
@@ -95,7 +94,7 @@ const cases = [
     version: "4.21.2",
     legacy: false,
     lifecycle: assessment(),
-    expected: ["No native findings reported", "CHECKED: deprecation"],
+    expected: [],
   },
   {
     title: "PyPI yank and inapplicable deprecation",
@@ -109,13 +108,7 @@ const cases = [
       "NOT_APPLICABLE",
       "CHECKED",
     ),
-    expected: [
-      "YANKED",
-      "WITHDRAWAL",
-      "scope RELEASE",
-      "NOT_APPLICABLE: deprecation",
-      "CHECKED: withdrawal",
-    ],
+    expected: ["Yanked"],
   },
   {
     title: "crates yank without coarse duplicate",
@@ -137,7 +130,7 @@ const cases = [
       "NOT_COLLECTED",
       "CHECKED",
     ),
-    expected: ["YANKED", "NOT_COLLECTED: deprecation"],
+    expected: ["Yanked"],
   },
   {
     title: "Go package scope despite legacy false",
@@ -163,12 +156,9 @@ const cases = [
       },
     ]),
     expected: [
-      "DEPRECATED",
-      "scope PACKAGE",
-      "go.mod",
-      "source version v1.5.4",
-      "Publisher replacement advice",
-      "not an upgrade recommendation",
+      "Deprecated (package-wide)",
+      "Source: go.mod (selected release)",
+      'Publisher reason: Use the "google.golang.org/protobuf" module instead.',
     ],
   },
   {
@@ -179,11 +169,7 @@ const cases = [
     version: "1.0.0",
     legacy: true,
     lifecycle: nuget,
-    expected: [
-      "LEGACY_UNCLASSIFIED",
-      "Retained old warning",
-      "UNKNOWN (NATIVE_EVIDENCE_UNAVAILABLE)",
-    ],
+    expected: ["Publisher warning (unclassified): Retained old warning"],
   },
   {
     title: "file withdrawal, missing optional details and filtered content",
@@ -217,10 +203,9 @@ const cases = [
       contentSafety: { filtered: true },
     },
     expected: [
-      "PARTIALLY_YANKED",
-      "scope FILES",
+      "Partially yanked (files)",
       "publisher-code",
-      "Content safety: filtered",
+      "Publisher text was filtered by the backend",
     ],
   },
 ];
@@ -258,6 +243,13 @@ const compactTextCases = [
   "Publisher warning (unclassified): Retained old warning",
   "Partially yanked (files).",
 ];
+
+function userEvidence(
+  lifecycle: Record<string, unknown>,
+): Record<string, unknown> {
+  const { checks: _internalChecks, ...evidence } = lifecycle;
+  return evidence;
+}
 
 function bodyFor(testCase: (typeof cases)[number]): Record<string, unknown> {
   return {
@@ -354,15 +346,14 @@ function assertSelection(query: string): void {
   expect(query).toMatch(/selectedVersion\s*\{[\s\S]*lifecycle\s*\{/);
   for (const selection of [
     "findings { registry name version category kind scope source sourceVersion observedAt reason reasonCodes replacement }",
-    "deprecation { status reason }",
-    "withdrawal { status reason }",
-    "registryArchival { status reason }",
-    "repositoryArchival { status reason }",
     "retainedWarnings { registry name version classification reason }",
     "contentSafety { filtered }",
   ])
     expect(query.replace(/\s+/g, " ")).toContain(selection);
   expect(query).not.toContain("deprecated");
+  expect(query).not.toMatch(/\bchecks\s*\{/);
+  expect(query).not.toContain("registryArchival");
+  expect(query).not.toContain("repositoryArchival");
   expect(query).not.toMatch(/lifecycle\s*@include/);
   expect(query).toContain(
     "latestChangelogs(limit: 3) @include(if: $includeVerboseFields)",
@@ -423,7 +414,11 @@ describe("native lifecycle inspection causal path", () => {
         verbose: true,
       });
       expect(JSON.parse(verboseMcpJson.content[0]!.text!)).toEqual(verboseJson);
-      expect(verboseJson.lifecycle).toEqual(testCase.lifecycle);
+      expect(verboseJson.lifecycle).toEqual(
+        index === 1 ? undefined : userEvidence(testCase.lifecycle),
+      );
+      if (verboseJson.lifecycle)
+        expect(verboseJson.lifecycle).not.toHaveProperty("checks");
       const verboseText = await cliOutput(
         service,
         testCase.target,
@@ -538,7 +533,7 @@ describe("native lifecycle inspection causal path", () => {
         target: "npm:request",
         verbose: true,
       });
-      expect(verbose.content[0]!.text).toContain("Lifecycle unavailable");
+      expect(verbose.content[0]!.text).not.toContain("Lifecycle");
       expect(text.content[0]!.text).not.toContain("CHECKED");
     },
   );
@@ -578,19 +573,15 @@ describe("native lifecycle inspection causal path", () => {
       verbose: true,
     });
     const lines = text.slice(text.indexOf("Lifecycle")).trimEnd().split("\n");
-    expect(lines.some((line) => line.startsWith("DEPRECATED"))).toBe(true);
-    expect(lines.some((line) => line.startsWith("RETRACTED"))).toBe(true);
+    expect(lines.some((line) => line.startsWith("Deprecated"))).toBe(true);
+    expect(lines.some((line) => line.startsWith("Retracted"))).toBe(true);
     expect(lines.some((line) => line.startsWith("  Source:"))).toBe(true);
     expect(lines.some((line) => line.startsWith("  Publisher reason:"))).toBe(
       true,
     );
     expect(lines.some((line) => line.startsWith("    "))).toBe(true);
     expect(lines.every((line) => line.length <= 38)).toBe(true);
-    const checks = lines.findIndex((line) =>
-      line.startsWith("Lifecycle checks:"),
-    );
-    expect(checks).toBeGreaterThan(0);
-    expect(lines[checks + 1]!.startsWith("  ")).toBe(true);
+    expect(text).not.toContain("Checks");
   });
 
   it("preserves access failure from the optional lifecycle root", async () => {
@@ -639,19 +630,16 @@ describe("native lifecycle inspection causal path", () => {
   });
 
   it("retains future categorical values without interpreting them", async () => {
-    const lifecycle = assessment(
-      [
-        finding(
-          "FUTURE_REGISTRY",
-          "pkg",
-          null,
-          "FUTURE_KIND",
-          "FUTURE_CATEGORY",
-          "FUTURE_SCOPE",
-        ),
-      ],
-      "FUTURE_STATUS",
-    );
+    const lifecycle = assessment([
+      finding(
+        "FUTURE_REGISTRY",
+        "pkg",
+        null,
+        "FUTURE_KIND",
+        "FUTURE_CATEGORY",
+        "FUTURE_SCOPE",
+      ),
+    ]);
     (lifecycle.checks as Record<string, unknown>).withdrawal = {
       status: "UNKNOWN",
       reason: "FUTURE_REASON",
@@ -673,21 +661,20 @@ describe("native lifecycle inspection causal path", () => {
       verbose: true,
     });
     expect(result.isError).toBeUndefined();
-    expect(JSON.parse(result.content[0]!.text!).lifecycle).toEqual(lifecycle);
+    expect(JSON.parse(result.content[0]!.text!).lifecycle).toEqual(
+      userEvidence(lifecycle),
+    );
     const text = await tool.handler({ target: "npm:request", verbose: true });
     for (const value of [
-      "FUTURE_REGISTRY",
       "FUTURE_KIND",
       "FUTURE_SCOPE",
-      "FUTURE_STATUS",
-      "FUTURE_REASON",
       "FUTURE_CLASSIFICATION",
     ])
       expect(text.content[0]!.text).toContain(value);
     expect(text.content[0]!.text).not.toContain("safe");
   });
 
-  it("keeps GitHub archival separate from lifecycle collection", async () => {
+  it("keeps the GitHub archive badge without lifecycle diagnostics", async () => {
     const body = bodyFor(cases[1]!);
     const data = body.data as {
       packageSummary: { package: Record<string, unknown> };
@@ -704,12 +691,9 @@ describe("native lifecycle inspection causal path", () => {
       target: "npm:express",
       verbose: true,
     });
-    expect(verbose.content[0]!.text!.replace(/\s+/g, " ")).toContain(
-      "Lifecycle checks:",
-    );
-    expect(verbose.content[0]!.text!.replace(/\s+/g, " ")).toContain(
-      "NOT_COLLECTED: withdrawal, registry archival, repository archival",
-    );
+    expect(verbose.content[0]!.text).toContain("[ARCHIVED]");
+    expect(verbose.content[0]!.text).not.toContain("Lifecycle");
+    expect(verbose.content[0]!.text).not.toContain("not collected");
   });
 
   it("bounds long publisher reasons in compact JSON and text, with full evidence opt-in", async () => {
@@ -874,12 +858,44 @@ describe("native lifecycle inspection causal path", () => {
       format: "json",
       verbose: true,
     });
-    expect(JSON.parse(json.content[0]!.text!).lifecycle).toEqual(lifecycle);
+    expect(JSON.parse(json.content[0]!.text!).lifecycle).toEqual(
+      userEvidence(lifecycle),
+    );
+  });
+
+  it("explains an authority version different from the selected release without changing scope", async () => {
+    const { service } = serviceFor(
+      bodyFor({
+        ...cases[4]!,
+        lifecycle: assessment([
+          {
+            ...finding(
+              "GO",
+              "github.com/golang/protobuf",
+              null,
+              "DEPRECATED",
+              "DEPRECATION",
+              "PACKAGE",
+            ),
+            source: "go.mod",
+            sourceVersion: "v1.6.0",
+          },
+        ]),
+      }),
+    );
+    const result = await createPackageSummaryTool(service).handler({
+      target: cases[4]!.target,
+      verbose: true,
+    });
+    const text = result.content[0]!.text!.replace(/\s+/g, " ");
+    expect(text).toContain("Source: go.mod (version v1.6.0)");
+    expect(text).toContain("Deprecated (package-wide)");
+    expect(text).not.toContain("scope PACKAGE");
   });
 
   it("rejects structurally malformed lifecycle evidence instead of claiming health", async () => {
     const bad = assessment();
-    (bad.checks as Record<string, unknown>).withdrawal = { status: 42 };
+    bad.findings = [{ kind: 42 }];
     const { service } = serviceFor(bodyFor({ ...cases[0]!, lifecycle: bad }));
     await expect(
       service.packageSummary({ registry: "NPM", packageName: "request" }),

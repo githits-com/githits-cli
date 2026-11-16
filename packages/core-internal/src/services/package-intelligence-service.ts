@@ -1295,12 +1295,6 @@ query PackageSummary(
       resolvedVersion
       lifecycle {
         findings { registry name version category kind scope source sourceVersion observedAt reason reasonCodes replacement }
-        checks {
-          deprecation { status reason }
-          withdrawal { status reason }
-          registryArchival { status reason }
-          repositoryArchival { status reason }
-        }
         retainedWarnings { registry name version classification reason }
         contentSafety { filtered }
       }
