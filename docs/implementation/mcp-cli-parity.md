@@ -630,7 +630,8 @@ When a new tool lands with both MCP and CLI surfaces:
   verbose-only; `UNKNOWN`, `NOT_COLLECTED` and `NOT_APPLICABLE` never become warnings
   or checked-safe claims. Lifecycle archival collection is independent of the GitHub
   archive badge. Publisher replacements remain advice, not verified upgrade
-  recommendations. Acquisition times do not establish freshness. Missing/mismatched/
+  recommendations. Text strips terminal controls with the existing shared renderer;
+  verbose JSON preserves the evidence. Acquisition times do not establish freshness. Missing/mismatched/
   failed optional provenance is silent by default, reports `Lifecycle unavailable`
   in verbose text and omits the JSON block in either mode.
   A lifecycle resolver error can null the shared

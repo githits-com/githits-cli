@@ -30,6 +30,7 @@ import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { colorize, highlight } from "./colors.js";
 import { toIsoDate, toRelativeDate } from "./format-date.js";
 import { formatCompactNumber } from "./format-number.js";
+import { sanitizeTerminalText } from "./terminal-text.js";
 import { terminalWidth } from "./terminal-width.js";
 
 // --------------------------------------------------------------------
@@ -230,7 +231,7 @@ function reasonMentionsReplacement(
   if (!reason) return false;
   const escaped = replacement.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(
-    `(?:^|[^\\p{L}\\p{N}@._/~+-])${escaped}(?=$|[^\\p{L}\\p{N}@._/~+-])`,
+    `(?:^|[^\\p{L}\\p{N}@._/~+-])${escaped}(?=$|[^\\p{L}\\p{N}@._/~+-]|\\.(?=\\s|$))`,
     "u",
   ).test(reason);
 }
@@ -649,7 +650,7 @@ function resolveWidth(explicit: number | undefined): number {
 
 function wrapText(text: string, width: number): string {
   const safeWidth = Math.max(1, width);
-  const words = text.split(/\s+/);
+  const words = sanitizeTerminalText(text.replace(/\s+/g, " ")).split(/\s+/);
   const lines: string[] = [];
   let current = "";
   for (const word of words) {

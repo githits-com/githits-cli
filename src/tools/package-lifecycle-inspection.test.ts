@@ -754,6 +754,9 @@ describe("native lifecycle inspection causal path", () => {
   it.each([
     ["Too risky", "ky", true],
     ["Use ky instead", "ky", false],
+    ["Please use ky.", "ky", false],
+    ["Please use ky. More context.", "ky", false],
+    ["Please use ky.extra", "ky", true],
     ['Use "@scope/pkg" instead', "@scope/pkg", false],
     ["Use different-package instead", "package", true],
     ["Use old.package instead", "new.package", true],
@@ -833,6 +836,45 @@ describe("native lifecycle inspection causal path", () => {
     expect(narrow).not.toMatch(
       /(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])/,
     );
+  });
+
+  it("uses terminal-safe rendering for publisher text while verbose JSON preserves evidence", async () => {
+    const esc = String.fromCharCode(27);
+    const bel = String.fromCharCode(7);
+    const reason = `Publisher ${esc}]8;;https://example.invalid/${bel}link${esc}]8;;${bel} ${esc}[2Jmessage`;
+    const lifecycle = assessment([
+      {
+        ...finding("NPM", "request", "2.88.2", "DEPRECATED", "DEPRECATION"),
+        reason,
+        source: `registry${esc}[2J`,
+        replacement: `new-package${esc}[2J`,
+      },
+    ]);
+    lifecycle.retainedWarnings = [
+      {
+        registry: "NPM",
+        name: "request",
+        version: "2.88.2",
+        classification: "LEGACY_UNCLASSIFIED",
+        reason,
+      },
+    ];
+    const { service } = serviceFor(bodyFor({ ...cases[0]!, lifecycle }));
+    const tool = createPackageSummaryTool(service);
+    for (const verbose of [false, true]) {
+      const result = await tool.handler({ target: "npm:request", verbose });
+      const text = result.content[0]!.text!;
+      expect(text).not.toContain(esc);
+      expect(text).not.toContain(bel);
+      expect(text).not.toContain("https://example.invalid/");
+      expect(text).toContain("Publisher link message");
+    }
+    const json = await tool.handler({
+      target: "npm:request",
+      format: "json",
+      verbose: true,
+    });
+    expect(JSON.parse(json.content[0]!.text!).lifecycle).toEqual(lifecycle);
   });
 
   it("rejects structurally malformed lifecycle evidence instead of claiming health", async () => {
