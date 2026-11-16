@@ -868,6 +868,22 @@ describe("runMcpSmoke", () => {
     expect(docsStatusCalls).toBe(1);
   });
 
+  it.each(["code", "repository docs", "no results on this page"])(
+    "rejects redundant search Sources qualifier %s",
+    async (qualifier) => {
+      const caller = createCaller(async (name, args) => {
+        if (name === "search" && args.format !== "json")
+          return textResult(
+            `Found 1 code result.\n\nSources:\n  - github:expressjs/express@12345678 (${qualifier})\n\n[1] npm:express@4.21.2 lib/router.js [repo code]`,
+          );
+        return smokeResponse(name, args);
+      });
+      await expect(runMcpSmoke(caller)).rejects.toThrow(
+        "Sources contains redundant category or zero-hit qualifiers",
+      );
+    },
+  );
+
   it("rejects arbitrary snippets beneath path-only search hits", async () => {
     const caller = createCaller(async (name, args) => {
       if (name === "search" && args.format !== "json") {

@@ -472,7 +472,7 @@ describe("snapshot search text received by agents", () => {
         if (resultCount === 0) {
           expect(
             projectUnifiedSearchPresentation(payload).provenance[0]!.sources,
-          ).toHaveLength(1); // Its own zero-hit provenance.
+          ).toHaveLength(0); // Zero-hit scopes retain resolution, not a Sources row.
           expect(text.replace(/\s+/g, " ")).toContain(
             "github:anomalyco/opencode@0112a92c",
           );

@@ -257,9 +257,8 @@ describe("renderUnifiedSearchStatusText", () => {
     };
     const text = renderUnifiedSearchStatusText(payload);
     expect(firstLine(text)).toBe("No results found.");
-    expect(text).toContain(
-      "Sources:\n  - npm:express@5.2.1 (code, no results)",
-    );
+    expect(text).not.toContain("Sources:");
+    expect(text).toContain("- npm:express@5.2.1\n  searched: code");
     expect(text).toContain(
       'Try: shorten or broaden query; use source="symbol"; use grep.',
     );

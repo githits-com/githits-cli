@@ -303,9 +303,7 @@ describe("searchStatusTool", () => {
     expect(textOutput).toContain(
       "indexing when observed: expressjs.com/en/guide docs",
     );
-    expect(textOutput.replace(/\s+/g, " ")).toContain(
-      "github:expressjs/express@01234567 (repository docs, requested: npm:express@5.1.0, no results)",
-    );
+    expect(textOutput).not.toContain("Sources:");
   });
 
   it("keeps completed empty JSON structured", async () => {
@@ -591,9 +589,7 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("No results available yet.");
     expect(text).toContain("- site:example.com");
-    expect(text).toContain(
-      "Sources:\n  - site:example.com (hosted documentation)",
-    );
+    expect(text).not.toContain("Sources:");
     expect(text).toContain("available: site:docs.example.com");
     expect(text).toContain("+more");
     expect(text).toContain(
@@ -647,11 +643,10 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "ref-stale" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain(
-      "Sources:\n  - npm:express@5.1.0 (code, requested: npm:express latest, older snapshot)",
+    expect(text).not.toContain("Sources:");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "- npm:express latest using: 5.1.0 while 5.2.1 indexes; searched: code",
     );
-    expect(text).toContain("Requested: npm:express@5.2.1 (indexing)");
-    expect(text.match(/older snapshot/g)).toHaveLength(1);
   });
 
   it("renders source targetResolution notes in completed text", async () => {
@@ -697,10 +692,9 @@ describe("searchStatusTool", () => {
     const result = await tool.handler({ search_ref: "search-ref-123" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("- npm:express@4.18.2");
-    expect(text).toContain(
-      "Sources:\n  - npm:express@4.18.2 (code, older snapshot)",
-    );
+    expect(text).toContain("Sources:\n  - npm:express@4.18.2 (older snapshot)");
     expect(text).toContain("Requested: npm:express@5.2.1");
+    expect(text.match(/older snapshot/g)).toHaveLength(1);
     expect(text).toContain("indexed: versions");
     expect(text).toContain("4.18.2");
     expect(text).not.toContain("ref_resolution_deferred");
@@ -744,9 +738,7 @@ describe("searchStatusTool", () => {
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("No results found.");
     expect(text).toContain("- site:example.com");
-    expect(text).toContain(
-      "Sources:\n  - site:example.com (hosted documentation)",
-    );
+    expect(text).not.toContain("Sources:");
     expect(text).toContain("Try: site:example.com/docs");
     expect(text).toContain("+more");
     expect(text).not.toContain(

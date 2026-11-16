@@ -47,10 +47,12 @@ different commits are disclosed independently from indexing state. Only
 kind `repo_default_branch` or `repo_head` establish prior HEAD evidence. Same-SHA
 artifact refreshes and explicit branch/tag/commit intents do not qualify.
 `freshnessReason=requested_ref_indexing` supplies the requested-ref indexing fact.
-A searched source with `resultCount=0` also discloses its known served commit,
-so an empty lookup is not presented as evidence about requested HEAD. That
-source's own provenance needs no borrowed hit; it does not qualify for prior-HEAD
-use/read advice. A withheld/unsearched source does not establish searched evidence.
+A searched zero-hit source creates no `Sources:` row. Empty stale/indexing
+repository searches disclose the searched commit in target details, including
+older-snapshot and requested-ref facts, so the lookup cannot be mistaken for
+current HEAD evidence. Empty current searches need no provenance inventory.
+Zero-hit scopes do not qualify for prior-HEAD use/read advice. A
+withheld/unsearched source does not establish searched evidence.
 Backend notice prose is not parsed as state or duplicated in the text.
 
 `completed=false` means the search is still active, not that visible hits are
@@ -255,8 +257,9 @@ review; the contract, evidence, and limitations are retained here.
 
 Copy pass after the draft PR: visible active hits are labeled `results`; the
 adjacent lifecycle still says `indexing`/`searching`, while `partial` continues to
-mean omitted runnable pairs. `commit` beside `searched: code` identifies what the query covered,
-including zero-hit sources. Requested-commit difference and indexing share one
+mean omitted runnable pairs. Empty stale/indexing repository searches retain a
+`commit` in target details identifying what the query covered; zero-hit scopes
+create no Sources inventory. Requested-commit difference and indexing share one
 clause when they describe the same ref. The next action points directly to the
 emitted read command (`use these hits now; read for details`) and omits the read
 invitation when there is no emitted read target. The conditional wait names the
@@ -442,9 +445,21 @@ the supplied backend facts and each tool's existing selection.
 
 Healthy repository-doc contributors retain matching known commit dates and
 historical refs in private text facts even when public JSON omits their healthy
-resolution. A searched zero-hit source retains its explicit zero count in those
-facts beside sources with hits, so its served pin appears with `no results` (or
-`no results on this page` when pagination applies).
+resolution. Search and search-status select Sources from returned evidence,
+omitting zero-hit rows and routine code/docs/symbol labels. Compatible rows
+share one identity: repository URL plus full SHA, exact site identity, or exact
+package/target identity when no repository pin is known. Displayed eight-character
+SHA prefixes are never identity keys. Meaningful requested aliases and conflicting
+metadata/trust facts remain distinct; missing date/ref facts may be filled only
+from a matching snapshot. Per-request records remain independent for target and
+preparation explanations, while the projection supplies coalesced display rows.
+
+Repository indexing has repository-level availability; repository-doc contributors
+carry no website crawl coverage. Coverage is a DOCPACK/site concern. Zero-hit
+websites with coverage/freshness limits retain those existing facts in target
+details even when another source supplies hits. Shared response projection already
+omits repository-contributor coverage; tests must not model it as a valid output.
+JSON, backend selections, hits, and native follow-up actions are unchanged.
 
 When a searched source has no resolution, search presentation attributes exact
 repository/full-SHA pins from that source's returned hits and deduplicates them.

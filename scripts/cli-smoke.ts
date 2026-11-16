@@ -532,6 +532,15 @@ function assertCompleteTerminalOutput(
 }
 
 export function assertSearchTerminalText(text: string, context: string): void {
+  const sources =
+    text.split("\nSources:\n")[1]?.split("\n\n")[0]?.replace(/\s+/g, " ") ?? "";
+  assert(
+    !/(?:\(|, )(?:code|symbols|docs|repository docs|hosted documentation|no results(?: on this page)?)(?:,|\))/.test(
+      sources,
+    ),
+    `${context}: Sources contains redundant category or zero-hit qualifiers`,
+  );
+
   const lines = text.split("\n");
   let pathOnlyBlock = false;
   for (const line of lines) {

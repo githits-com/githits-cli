@@ -543,9 +543,7 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("No results found.");
-    expect(output).toContain(
-      "Sources:\n  - site:example.com (hosted documentation)",
-    );
+    expect(output).not.toContain("Sources:");
     expect(output).toContain("Try: site:example.com/docs");
     expect(output).toContain("site:example.com/guide");
     expect(output).not.toContain("Additional site targets were omitted.");
@@ -623,11 +621,9 @@ describe("searchAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("No results found.");
     expect(output).toContain("- npm:express@5.1.0");
+    expect(output).not.toContain("Sources:");
     expect(output.replace(/\s+/g, " ")).toContain(
-      "github:expressjs/express@01234567 (repository docs, requested: npm:express@5.1.0, no results)",
-    );
-    expect(output).toMatch(
-      /available: expressjs\.com\/en\/guide docs \(120 pages; partial\)/,
+      "available: expressjs.com/en/guide docs (120 pages; partial; older snapshot)",
     );
     expect(output).not.toContain("Documentation sources:");
     expect(output).not.toContain("Documentation corpora");
@@ -663,9 +659,7 @@ describe("searchAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("No results found.");
     expect(output).toContain("- npm:express@5.1.0");
-    expect(output.replace(/\s+/g, " ")).toContain(
-      "github:expressjs/express@01234567 (repository docs, requested: npm:express@5.1.0, no results)",
-    );
+    expect(output).not.toContain("Sources:");
     expect(output).toContain("available: expressjs.com/en/guide docs");
     expect(output).not.toContain("Do not repeat");
     consoleSpy.mockRestore();
@@ -708,9 +702,7 @@ describe("searchAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output).toContain("indexing when observed: code");
     expect(output).toContain("- npm:express@5.1.0");
-    expect(output.replace(/\s+/g, " ")).toContain(
-      "github:expressjs/express@01234567 (repository docs, requested: npm:express@5.1.0, no results)",
-    );
+    expect(output).not.toContain("Sources:");
     expect(output).toContain("Search again later.");
     consoleSpy.mockRestore();
   });
@@ -815,8 +807,11 @@ describe("searchAction", () => {
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("Found 1 documentation result.");
-    expect(output.replace(/\s+/g, " ")).toContain(
-      "Sources: - github:expressjs/express@01234567 (repository docs, requested: npm:express@5.1.0, no results) - site:expressjs.com/en/guide (hosted documentation, requested: npm:express@5.1.0)",
+    const sources = output
+      .split("\n\n")
+      .find((section) => section.startsWith("Sources:"));
+    expect(sources).toBe(
+      "Sources:\n  - site:expressjs.com/en/guide (requested: npm:express@5.1.0)",
     );
     expect(output).toContain(
       "[1] express/routing [docs page] npm:express - expressjs.com/en/guide/routing.html -\n  Routing",
@@ -1267,11 +1262,9 @@ describe("searchAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("No results available yet.");
     expect(output).toContain("- npm:express@5.1.0");
+    expect(output).not.toContain("Sources:");
     expect(output.replace(/\s+/g, " ")).toContain(
-      "github:expressjs/express@01234567 (repository docs, requested: npm:express@5.1.0, no results)",
-    );
-    expect(output).toMatch(
-      /available: expressjs\.com\/en\/guide docs \(120 pages; partial\)/,
+      "available: expressjs.com/en/guide docs (120 pages; partial; older snapshot)",
     );
     expect(output).not.toContain("Evidence may change.");
     expect(output).toContain("githits search-status search-ref-docs");
@@ -2236,10 +2229,10 @@ describe("searchStatusAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("No results available yet.");
     expect(output).toContain("- site:example.com");
-    expect(output).toContain(
-      "Sources:\n  - site:example.com (hosted documentation)",
+    expect(output).not.toContain("Sources:");
+    expect(output.replace(/\s+/g, " ")).toContain(
+      "- site:example.com using: site:example.com/old while site:example.com indexes; searched: site:example.com docs; available: site:docs.example.com",
     );
-    expect(output).toContain("Requested: site:example.com (indexing)");
     expect(output).not.toContain("Try: site:docs.example.com");
     expect(output).not.toContain("Search search-ref-site |");
     expect(output).toContain(
@@ -2606,11 +2599,9 @@ describe("searchStatusAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("No results found.");
     expect(output).toContain("- npm:express@5.1.0");
+    expect(output).not.toContain("Sources:");
     expect(output.replace(/\s+/g, " ")).toContain(
-      "github:expressjs/express@01234567 (repository docs, requested: npm:express@5.1.0, no results)",
-    );
-    expect(output).toMatch(
-      /available: expressjs\.com\/en\/guide docs \(120 pages; partial\)/,
+      "available: expressjs.com/en/guide docs (120 pages; partial; older snapshot)",
     );
     expect(output).not.toContain("Evidence may change.");
     expect(output).toContain("Search again later.");
@@ -2647,9 +2638,7 @@ describe("searchStatusAction", () => {
     const output = String(consoleSpy.mock.calls[0]?.[0]);
     expect(output.split("\n")[0]).toBe("No results found.");
     expect(output).toContain("- npm:express@5.1.0");
-    expect(output.replace(/\s+/g, " ")).toContain(
-      "github:expressjs/express@01234567 (repository docs, requested: npm:express@5.1.0, no results)",
-    );
+    expect(output).not.toContain("Sources:");
     expect(output).toContain("unavailable: expressjs.com/en/guide docs");
     consoleSpy.mockRestore();
   });

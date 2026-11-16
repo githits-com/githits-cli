@@ -273,6 +273,8 @@ export interface UnifiedSearchProvenance {
 }
 
 export interface UnifiedSearchPresentation {
+  /** Coalesced display rows; provenance retains each request for target details. */
+  sourceRows: SourceRowFacts[];
   provenance: UnifiedSearchProvenance[];
   indexingEstimates?: UnifiedSearchProgressPayload["indexingEstimates"];
   availability: UnifiedSearchAvailability;
@@ -333,8 +335,12 @@ export function projectUnifiedSearchPresentation(
   });
   const warnings = projectWarnings(query, sourceStatus, targetGroups);
 
+  const provenance = projectProvenance(snapshot, progress);
   return {
-    provenance: projectProvenance(snapshot, progress),
+    provenance,
+    sourceRows: coalesceSourceRows(
+      provenance.flatMap((record) => record.sources),
+    ),
     availability,
     lifecycle,
     query,
@@ -700,6 +706,59 @@ function hasRepositoryEvidence(
   );
 }
 
+/** Group exact identities without changing per-request resolution/attribution records. */
+function coalesceSourceRows(sources: SourceRowFacts[]): SourceRowFacts[] {
+  const rows: SourceRowFacts[] = [];
+  for (const source of sources) {
+    const key = sourceRowIdentityKey(source);
+    const existing =
+      key === undefined
+        ? undefined
+        : rows.find(
+            (row) =>
+              sourceRowIdentityKey(row) === key &&
+              (["gitRef", "committedAt"] as const).every(
+                (field) =>
+                  !row.identity?.[field] ||
+                  !source.identity?.[field] ||
+                  row.identity[field] === source.identity[field],
+              ),
+          );
+    if (existing) {
+      if (existing.identity || source.identity)
+        existing.identity = {
+          ...existing.identity,
+          gitRef: existing.identity?.gitRef ?? source.identity?.gitRef,
+          committedAt:
+            existing.identity?.committedAt ?? source.identity?.committedAt,
+        };
+    } else {
+      rows.push({
+        ...source,
+        identity: source.identity ? { ...source.identity } : source.identity,
+      });
+    }
+  }
+  return rows;
+}
+
+/** Full SHA and visible aliases identify rows; display prefixes never prove identity. */
+function sourceRowIdentityKey(source: SourceRowFacts): string | undefined {
+  const identity = source.identity;
+  const key = identity?.repoUrl
+    ? identity.commitSha
+      ? ["repository", identity.repoUrl, identity.commitSha]
+      : undefined
+    : identity?.site
+      ? ["site", identity.site]
+      : identity?.registry && identity.packageName
+        ? ["package", identity.registry, identity.packageName, identity.version]
+        : source.target
+          ? ["target", source.target]
+          : undefined;
+  return key ? JSON.stringify([key, source.qualifiers ?? []]) : undefined;
+}
+
 /** Attribute selected facts before shared copy renders them; no metadata lookups. */
 function projectProvenance(
   snapshot: SnapshotFacts | undefined,
@@ -716,7 +775,12 @@ function projectProvenance(
         : [];
     if (entry.contributors?.length) {
       for (const contributor of entry.contributors) {
-        if (contributor.state !== "SEARCHED") continue;
+        if (
+          contributor.state !== "SEARCHED" ||
+          contributor.resultCount === 0 ||
+          !snapshot?.results.length
+        )
+          continue;
         const identity =
           contributor.kind === "REPOSITORY_DOCS"
             ? {
@@ -749,9 +813,6 @@ function projectProvenance(
           target,
           identity,
           qualifiers: [
-            contributor.kind === "DOCPACK"
-              ? "hosted documentation"
-              : "repository docs",
             ...(identity.repoUrl || (identity.site && identity.site !== target)
               ? alias
               : []),
@@ -766,17 +827,15 @@ function projectProvenance(
                   `${contributor.coverage.pagesCrawled === undefined ? "" : `${contributor.coverage.pagesCrawled} pages, `}${contributor.coverage.coverageState.toLowerCase()}`,
                 ]
               : []),
-            ...(contributor.resultCount === 0
-              ? [snapshot?.hasMore ? "no results on this page" : "no results"]
-              : []),
           ],
         });
       }
     } else if (
-      resolution?.served?.repoUrl && resolution.served.commitSha
-        ? hasRepositoryEvidence(snapshot, entry) ||
-          (sourceState(entry) === "searched" && entry.resultCount === 0)
-        : sourceState(entry) === "searched"
+      snapshot?.results.length &&
+      entry.resultCount !== 0 &&
+      (resolution?.served?.repoUrl && resolution.served.commitSha
+        ? hasRepositoryEvidence(snapshot, entry)
+        : sourceState(entry) === "searched")
     ) {
       const identities: (SourceProvenanceIdentity | undefined)[] =
         resolution?.served
@@ -804,22 +863,6 @@ function projectProvenance(
             ? { site: target }
             : identity,
           qualifiers: [
-            ...(!["code", "symbol"].includes(entry.source.toLowerCase())
-              ? [
-                  isSiteTarget(entry.targetLabel, entry)
-                    ? "hosted documentation"
-                    : identity?.repoUrl
-                      ? "repository docs"
-                      : "docs",
-                ]
-              : []),
-            ...((new Set(
-              (snapshot?.sourceStatus ?? []).map((source) => source.source),
-            ).size > 1 ||
-              !resolution?.served?.repoUrl) &&
-            ["code", "symbol"].includes(entry.source.toLowerCase())
-              ? [entry.source.toLowerCase() === "symbol" ? "symbols" : "code"]
-              : []),
             ...(identity?.repoUrl ||
             (entry.servedTarget && entry.servedTarget !== target)
               ? alias
@@ -837,9 +880,6 @@ function projectProvenance(
               ? [
                   `${entry.coverage.pagesCrawled === undefined ? "" : `${entry.coverage.pagesCrawled} pages, `}${entry.coverage.coverageState.toLowerCase()}`,
                 ]
-              : []),
-            ...(entry.resultCount === 0
-              ? [snapshot?.hasMore ? "no results on this page" : "no results"]
               : []),
           ],
         });
@@ -1025,7 +1065,7 @@ function projectTrustLimits(
     if (
       (entry.codeIndexState === "STALE" || freshness === "fallback_recent") &&
       !(servedSha && requestedSha === servedSha) &&
-      (!repositoryResolution || hasRepositoryHits)
+      (!repositoryResolution || searchedRepositorySnapshot)
     ) {
       add({
         kind: "stale",
