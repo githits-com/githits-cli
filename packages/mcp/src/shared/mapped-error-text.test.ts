@@ -270,3 +270,36 @@ it("keeps numeric retry advice once when already in the backend message", () => 
     }),
   ).toBe("Rate limited. Try again in 13 seconds.");
 });
+
+for (const width of [20, 80]) {
+  it.each(["message", "hint", "action", "hint-and-action"] as const)(
+    `keeps existing timed advice once before wrapping width=${width} in %s`,
+    (source) => {
+      const advice = "Try again in 13 seconds.";
+      const longText = `The repository provider cannot serve the requested source metadata until its request budget resets. ${advice}`;
+      const action = `read target=npm:example path=src/index.ts; ${advice}`;
+      const details = {
+        retryAfterSeconds: 12.501,
+        ...(source === "hint" ? { hint: longText } : {}),
+        ...(source === "action" ? { action } : {}),
+        ...(source === "hint-and-action" ? { hint: action, action } : {}),
+      };
+      const text = formatMappedErrorText(
+        {
+          code: "RATE_LIMITED",
+          retryable: true,
+          message:
+            source === "message" ? longText : "Provider request unavailable.",
+          details,
+        },
+        { width },
+      );
+      expect(
+        text.replace(/\s+/g, " ").match(/Try again in 13 seconds\./g),
+      ).toHaveLength(1);
+      if (source === "message" || source === "hint") {
+        if (width === 20) expect(text).not.toContain(advice);
+      } else expect(text).toContain(action);
+    },
+  );
+}

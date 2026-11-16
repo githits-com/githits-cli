@@ -230,6 +230,7 @@ export function formatMappedErrorText(
     details.hint !== details.action
   )
     lines.push("", details.hint);
+  const unwrappedText = [...lines, details.action ?? ""].join("\n");
   const width = options.width ?? 80;
   const output = lines.flatMap((line) => wrapTerminalProse(line, width));
   // Keep callable/copyable action operands intact, and avoid repeating host remediation.
@@ -239,7 +240,7 @@ export function formatMappedErrorText(
     ? `Try again in ${Math.ceil(retryAfterSeconds)} seconds.`
     : undefined;
   if (mapped.retryable && timedAdvice) {
-    if (!output.join("\n").includes(timedAdvice)) output.push("", timedAdvice);
+    if (!unwrappedText.includes(timedAdvice)) output.push("", timedAdvice);
   } else if (
     !details.action &&
     mapped.retryable &&
