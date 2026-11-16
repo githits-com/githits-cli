@@ -32,7 +32,7 @@ export interface PackageLifecycleFinding {
   source: string;
   /** Authority release, which may differ from the affected/selected release. */
   sourceVersion?: string | null;
-  /** Acquisition time, not a status-change time or freshness guarantee. */
+  /** Collection time, not a status-change time or freshness guarantee. */
   observedAt?: string | null;
   reason?: string | null;
   reasonCodes: string[];

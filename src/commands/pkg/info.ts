@@ -110,8 +110,9 @@ publish age, selected-release affected count, and separate package-wide advisory
 history count, plus compact lifecycle warnings when present. Omitted warnings do
 not establish health. --verbose adds full publisher explanations and source
 evidence in text or JSON. Publisher replacements are advice, not upgrade
-recommendations. Verbose text also adds GitHub language/topics/last-pushed, published-version count, download refresh
-date, package-wide advisory history (all versions), and recent changes.
+recommendations. Verbose text also adds GitHub language/topics/last-pushed,
+published-version count, download refresh date, package-wide advisory history
+(all versions), and recent changes.
 Inspect package history with:
 githits pkg vulns <registry>:<name> --scope all.
 
@@ -129,7 +130,7 @@ export function registerPkgInfoCommand(pkgCommand: Command): Command {
     .argument("<spec>", "Package spec, e.g. npm:express or pypi:requests")
     .option(
       "-v, --verbose",
-      "Show lifecycle sources, observation times and publisher details, plus GitHub language/topics/last-pushed, published-version count, download refresh date, package-wide advisory history (all versions), and recent changes",
+      "Show lifecycle sources, collection times and publisher details, plus GitHub language/topics/last-pushed, published-version count, download refresh date, package-wide advisory history (all versions), and recent changes",
     )
     .option(
       "--json",

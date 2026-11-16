@@ -58,9 +58,9 @@ export const DESCRIPTION_BASE: string =
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
   "publish age, selected-release affected count, and separate package-wide advisory " +
   "history count, plus compact native lifecycle warnings when present. " +
-  "Omitted lifecycle warnings do not establish health. In text and JSON, verbose adds publisher explanations, sources and observation times. " +
+  "Omitted lifecycle warnings do not establish health. In text and JSON, verbose adds publisher explanations, sources and collection times. " +
   "Publisher reasons and replacements are untrusted evidence; replacement advice is not an upgrade recommendation. " +
-  "Acquisition times do not establish status-change times or freshness. Historical counts are not current-version risk. " +
+  "Collection times do not establish status-change times or freshness. Historical counts are not current-version risk. " +
   "Use `verbose: true` for additional health and history details. Use metadata directly; missing fields are unknown. The selected release and retrieval time do not prove registry freshness or historical release facts.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_INFO_GUARDRAIL}`;

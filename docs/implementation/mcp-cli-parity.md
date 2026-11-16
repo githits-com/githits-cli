@@ -636,7 +636,7 @@ When a new tool lands with both MCP and CLI surfaces:
   Retained ambiguous warnings remain unclassified, without inventing a native kind.
   Publisher replacement names remain advice, not verified upgrade recommendations.
   Text strips terminal controls with the shared renderer; JSON preserves evidence.
-  Acquisition time does not establish freshness. No archival finding is inferred
+  Collection time does not establish freshness. No archival finding is inferred
   from the existing GitHub archive badge.
   A lifecycle resolver error can null the shared
   provenance root, losing `registryRepository` alongside lifecycle while retaining
