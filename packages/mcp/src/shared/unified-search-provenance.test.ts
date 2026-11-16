@@ -252,6 +252,34 @@ describe("compact search provenance", () => {
     }
   });
 
+  it.each([false, true])(
+    "discloses a zero-hit stale website once (with code hits=%s)",
+    (withCode) => {
+      const docs = source("docs");
+      const code = source();
+      docs.targetLabel = code.targetLabel = "npm:one@1.0.0";
+      docs.resultCount = 0;
+      docs.contributors = [
+        {
+          kind: "DOCPACK",
+          state: "SEARCHED",
+          freshness: "STALE",
+          resultCount: 0,
+          siteUrl: "https://docs.example.com",
+        },
+      ];
+      const value = payload(withCode ? [code, docs] : [docs]);
+      value.results = withCode
+        ? [{ ...value.results[0]!, target: code.targetLabel }]
+        : [];
+      for (const text of texts(value)) {
+        expect(text.match(/older snapshot/g)).toHaveLength(1);
+        expect(text).toContain("docs.example.com");
+        expect(sourcesSection(text)).not.toContain("docs.example.com");
+      }
+    },
+  );
+
   it.each(["PARTIAL", "CAPPED"])(
     "retains zero-hit hosted %s coverage beside code hits",
     (coverageState) => {

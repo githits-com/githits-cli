@@ -554,7 +554,12 @@ function formatSourceStateSegment(
         )
         .map((entry) => ({
           rank: sourceKindRank(source.kind),
-          value: formatGroupedSource(source, entry, group.trustLimits),
+          value: formatGroupedSource(
+            source,
+            entry,
+            group.trustLimits,
+            onlyEmptySiteLimits,
+          ),
         })),
     )
     .sort((left, right) => left.rank - right.rank)
@@ -690,6 +695,7 @@ function formatGroupedSource(
   source: UnifiedSearchSourceGroup,
   entry: UnifiedSearchSourceEntry,
   trustLimits: UnifiedSearchTrustLimit[],
+  includeStale: boolean = false,
 ): string {
   const coverage = trustLimits.find(
     (limit): limit is Extract<UnifiedSearchTrustLimit, { kind: "coverage" }> =>
@@ -711,6 +717,7 @@ function formatGroupedSource(
   const qualifiers: string[] = [];
   if (coverageDetails) qualifiers.push(coverageDetails);
   if (
+    includeStale &&
     source.kind === "site_docs" &&
     trustLimits.some(
       (limit) => limit.kind === "stale" && limit.target === entry.target,
