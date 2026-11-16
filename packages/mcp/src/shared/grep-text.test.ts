@@ -145,7 +145,7 @@ describe("grep text formatting", () => {
       );
       const fileRecipe =
         syntax === "cli"
-          ? "Files: githits read --lines $start-$end -- $target $path"
+          ? "Files: githits read --literal-path --lines $start-$end -- $target $path"
           : "Files: read target=$target path=$path start_line=$start end_line=$end";
       const pageRecipe =
         syntax === "cli"

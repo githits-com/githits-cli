@@ -5,11 +5,39 @@ import {
   CodeNavigationIndexingError,
   CodeNavigationTargetNotFoundError,
 } from "@githits/core-internal";
+import { Command } from "commander";
 import {
   createMockCodeNavigationService,
   defaultReadFileResult,
 } from "../../services/test-helpers.js";
-import { type PkgReadCommandDependencies, pkgReadAction } from "./read.js";
+import {
+  type PkgReadCommandDependencies,
+  pkgReadAction,
+  registerCodeReadCommand,
+} from "./read.js";
+
+describe("code read command registration", () => {
+  it("registers and forwards --literal-path", async () => {
+    const collect = mock((..._args: unknown[]) => {});
+    const root = new Command().exitOverride();
+    root.configureOutput({ writeErr: () => {} });
+
+    const code = root.command("code");
+    registerCodeReadCommand(code).action(collect);
+
+    await root.parseAsync(
+      ["code", "read", "npm:express", "src/example:12", "--literal-path"],
+      { from: "user" },
+    );
+
+    expect(collect).toHaveBeenCalledTimes(1);
+    expect(collect.mock.calls[0]?.slice(0, 3)).toEqual([
+      "npm:express",
+      "src/example:12",
+      { literalPath: true },
+    ]);
+  });
+});
 
 describe("pkgReadAction", () => {
   const mcpUrl = "https://mcp.githits.com";
@@ -131,6 +159,85 @@ describe("pkgReadAction", () => {
     expect(payload.path).toBe("src/index.js");
     expect(payload.content).toContain("Express entry point");
     logSpy.mockRestore();
+  });
+
+  it("supports --lines with a literal numeric-colon filename", async () => {
+    const readFile = mock(() => Promise.resolve(defaultReadFileResult));
+    const service = createMockCodeNavigationService({ readFile });
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+
+    try {
+      await pkgReadAction(
+        "npm:express",
+        "src/example:12",
+        { literalPath: true, lines: "5-10" },
+        createDeps({ codeNavigationService: service }),
+      );
+
+      const calls = readFile.mock.calls as unknown as Array<
+        [{ filePath: string; startLine?: number; endLine?: number }]
+      >;
+
+      expect(calls[0]?.[0]?.filePath).toBe("src/example:12");
+      expect(calls[0]?.[0]?.startLine).toBe(5);
+      expect(calls[0]?.[0]?.endLine).toBe(10);
+    } finally {
+      writeSpy.mockRestore();
+    }
+  });
+
+  it("preserves numeric-colon filenames with --literal-path", async () => {
+    const readFile = mock(() => Promise.resolve(defaultReadFileResult));
+    const service = createMockCodeNavigationService({ readFile });
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+
+    try {
+      await pkgReadAction(
+        "npm:express",
+        "src/example:12",
+        { literalPath: true },
+        createDeps({ codeNavigationService: service }),
+      );
+
+      const calls = readFile.mock.calls as unknown as Array<
+        [{ filePath: string; startLine?: number; endLine?: number }]
+      >;
+      expect(calls[0]?.[0]?.filePath).toBe("src/example:12");
+      expect(calls[0]?.[0]?.startLine).toBeUndefined();
+      expect(calls[0]?.[0]?.endLine).toBeUndefined();
+    } finally {
+      writeSpy.mockRestore();
+    }
+  });
+
+  it("preserves whitespace before a parsed numeric line suffix", async () => {
+    const readFile = mock(() => Promise.resolve(defaultReadFileResult));
+    const service = createMockCodeNavigationService({ readFile });
+    const writeSpy = spyOn(process.stdout, "write").mockImplementation(
+      (() => true) as typeof process.stdout.write,
+    );
+
+    try {
+      await pkgReadAction(
+        "npm:express",
+        " src/example.ts :12",
+        {},
+        createDeps({ codeNavigationService: service }),
+      );
+
+      const calls = readFile.mock.calls as unknown as Array<
+        [{ filePath: string; startLine?: number; endLine?: number }]
+      >;
+      expect(calls[0]?.[0]?.filePath).toBe(" src/example.ts ");
+      expect(calls[0]?.[0]?.startLine).toBe(12);
+      expect(calls[0]?.[0]?.endLine).toBe(12);
+    } finally {
+      writeSpy.mockRestore();
+    }
   });
 
   it("sends wait default of 30000 on the wire", async () => {

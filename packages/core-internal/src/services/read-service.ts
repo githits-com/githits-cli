@@ -391,7 +391,10 @@ export class ReadServiceImpl implements ReadService {
 }
 
 function normaliseReadRequest(params: ReadParams): ReadParams {
-  const path = params.path?.trim() || undefined;
+  const path =
+    params.path !== undefined && params.path.trim().length > 0
+      ? params.path
+      : undefined;
   return {
     ...params,
     path,

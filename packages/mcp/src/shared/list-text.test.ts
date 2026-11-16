@@ -99,7 +99,7 @@ describe("formatListText", () => {
       [
         "Sources:",
         "  - github:example/repo@main",
-        "Read files: read -- 'github:example/repo@main' $path",
+        "Read files: read --literal-path -- 'github:example/repo@main' $path",
         "src/index.ts",
         "docs/",
         "examples/",
@@ -306,7 +306,7 @@ describe("formatListText", () => {
       [
         "Sources:",
         "  - github:example/repo@main",
-        "Read files: read -- 'github:example/repo@main' $path",
+        "Read files: read --literal-path -- 'github:example/repo@main' $path",
         "src/index.ts",
       ].join("\n"),
     );
@@ -594,7 +594,7 @@ describe("list source rows", () => {
       [
         "Sources:",
         "  - github:acme/project@12345678 (committed 2025-12-31, indexed from ref HEAD, older snapshot)",
-        "Read files: read -- 'github:acme/project@HEAD' $path",
+        "Read files: read --literal-path -- 'github:acme/project@HEAD' $path",
         "src/index.ts",
         "",
         "Preparing:",
@@ -798,7 +798,7 @@ describe("list source rows", () => {
       const guidance =
         syntax === "mcp"
           ? `Read files: read target=${JSON.stringify(target)} path=$path`
-          : `Read files: read -- '${target}' $path`;
+          : `Read files: read --literal-path -- '${target}' $path`;
 
       expect(readyText).toStartWith("No files.\n");
       expect(readyText).not.toContain("Read files:");

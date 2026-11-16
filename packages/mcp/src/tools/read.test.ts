@@ -378,7 +378,7 @@ describe("unified read contract", () => {
       });
       expect(services.readService.read).toHaveBeenCalledWith({
         target,
-        path: "src/client.ts",
+        path: " src/client.ts ",
         startLine: 1,
         endLine: 150,
         waitTimeoutMs: 60000,

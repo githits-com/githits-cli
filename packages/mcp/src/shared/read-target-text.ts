@@ -34,6 +34,10 @@ function renderCliReadTarget(action: ReadTarget): string {
   if (action.path !== undefined && !pathNeedsTerminator) {
     parts.push(shellQuote(action.path));
   }
+  // Backend paths are literal; shell quoting alone cannot escape CLI :line syntax.
+  if (action.path !== undefined && /:\d+(?:-\d*)?$/.test(action.path)) {
+    parts.push("--literal-path");
+  }
   if (action.selector !== undefined) {
     parts.push("--selector", shellQuote(action.selector));
   }

@@ -28,8 +28,12 @@ payloads: double quotes in a shell command would still expand substitutions in
 a filename. CLI list recovery shares `buildCliListRecoveryCommand`; it terminates
 options for dash-leading paths. Symbol-search recovery terminates options before
 the selector.
-Literal filename whitespace and numeric-colon suffix limitations are recorded
-in the [open backlog](../plans/open-backlog.md#literal-path-round-trips--2026-10-22).
+File paths preserve surrounding filename whitespace. Empty or whitespace-only
+optional paths count as omitted; required file paths reject them. CLI exact-file
+reads parse `:N`, `:N-M`, and `:N-` suffixes unless `--literal-path` is supplied.
+That flag works with explicit line-range options, and generated source-file read
+commands use it to preserve literal numeric-colon filenames. MCP paths are always
+literal. See [path handling](path-handling.md#literal-file-paths).
 
 `packages/mcp/src/shared/read-request.ts` owns transport-neutral locator and range
 validation and recognizes the explicit lowercase `site:` target whose path

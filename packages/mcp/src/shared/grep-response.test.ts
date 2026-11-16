@@ -233,7 +233,7 @@ describe("unified grep result and text", () => {
       output.indexOf("[1] github:o/r@abc packages/x/lib/a.ts"),
     ).toBeLessThan(output.lastIndexOf("[2]"));
     expect(output).toContain(
-      "Files: githits read --lines $start-$end -- $target $path",
+      "Files: githits read --literal-path --lines $start-$end -- $target $path",
     );
     expect(output).toContain("Pages: githits read --lines $start-$end -- $url");
     expect(output).toContain("[2] https://docs.test/p");
@@ -396,7 +396,9 @@ describe("unified grep result and text", () => {
       result({ hits: [{ ...hit, read: { ...hit.read, path: "-README.md" } }] }),
     );
     expect(leadingDash).toContain("[1] github:o/r@abc -README.md");
-    expect(leadingDash).toContain("read --lines $start-$end -- $target $path");
+    expect(leadingDash).toContain(
+      "read --literal-path --lines $start-$end -- $target $path",
+    );
   });
 });
 

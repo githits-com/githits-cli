@@ -15,7 +15,7 @@ import {
   defaultPackageDocResult,
   defaultReadFileResult,
 } from "../services/test-helpers.js";
-import { registerCodeReadCommand } from "./code/read.js";
+import { pkgReadAction, registerCodeReadCommand } from "./code/read.js";
 import { registerDocsReadCommand } from "./docs/read.js";
 import {
   type ReadCommandDependencies,
@@ -34,6 +34,88 @@ function deps(): ReadCommandDependencies {
 }
 
 describe("top-level read", () => {
+  it
+    .skipIf(process.platform === "win32")
+    .each([
+      "src/example:12",
+      "src/example:12-20",
+      "src/example:12-",
+      "--example:0",
+      " src/example:12 ",
+      " src/file.ts ",
+    ])(
+    "replays generated literal path %s through shell and read actions",
+    async (path) => {
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        for (const legacy of [false, true]) {
+          for (const range of [{}, { startLine: 5, endLine: 10 }]) {
+            const services = deps();
+            const target = "npm:express@5.2.1";
+            const command = renderReadTarget(
+              { target, path, ...range },
+              "cli",
+            ).replace(
+              /^githits read /,
+              legacy ? "githits code read " : "githits read ",
+            );
+            const child = Bun.spawn(
+              [
+                "/bin/sh",
+                "-c",
+                `githits() { printf '%s\\0' "$@"; }; ${command}`,
+              ],
+              { env: {}, stdout: "pipe", stderr: "pipe" },
+            );
+            const stdout = await new Response(child.stdout).text();
+            expect(await child.exited).toBe(0);
+            const root = new Command().exitOverride();
+            root.configureOutput({ writeErr: () => {} });
+            const registered = legacy
+              ? registerCodeReadCommand(root.command("code"))
+              : registerReadCommand(root);
+            registered.action(async (spec, filePath, options) => {
+              await (legacy ? pkgReadAction : readAction)(
+                spec,
+                filePath,
+                { ...options, json: true },
+                services,
+              );
+            });
+            await root.parseAsync(stdout.split("\0").slice(0, -1), {
+              from: "user",
+            });
+            if (legacy) {
+              expect(
+                services.codeNavigationService!.readFile,
+              ).toHaveBeenCalledWith({
+                target: {
+                  registry: "NPM",
+                  packageName: "express",
+                  version: "5.2.1",
+                },
+                filePath: path,
+                startLine: undefined,
+                endLine: undefined,
+                ...range,
+                waitTimeoutMs: 30_000,
+              });
+            } else {
+              expect(services.readService.read).toHaveBeenCalledWith({
+                target,
+                path,
+                ...range,
+                waitTimeoutMs: 30_000,
+              });
+            }
+          }
+        }
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
+
   it.each(["-index.ts", "--config.ts", "src/index.ts"])(
     "replays emitted opaque path %s through the registered parser",
     async (path) => {
@@ -65,6 +147,25 @@ describe("top-level read", () => {
       ]);
     },
   );
+
+  it("registers and forwards --literal-path", async () => {
+    const collect = mock((..._args: unknown[]) => {});
+    const root = new Command().exitOverride();
+    root.configureOutput({ writeErr: () => {} });
+    registerReadCommand(root).action(collect);
+
+    await root.parseAsync(
+      ["read", "npm:express", "src/example:12", "--literal-path"],
+      { from: "user" },
+    );
+
+    expect(collect).toHaveBeenCalledTimes(1);
+    expect(collect.mock.calls[0]?.slice(0, 3)).toEqual([
+      "npm:express",
+      "src/example:12",
+      { literalPath: true },
+    ]);
+  });
 
   it.each([
     ["npm:express@5.2.1", "npm", "express", undefined, undefined],
@@ -237,6 +338,71 @@ describe("top-level read", () => {
       );
     } finally {
       write.mockRestore();
+    }
+  });
+
+  it("supports --lines with a literal numeric-colon filename", async () => {
+    const services = deps();
+    const log = spyOn(console, "log").mockImplementation(() => {});
+
+    try {
+      await readAction(
+        "npm:express",
+        "src/example:12",
+        { literalPath: true, lines: "5-10", json: true },
+        services,
+      );
+
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target: "npm:express",
+        path: "src/example:12",
+        startLine: 5,
+        endLine: 10,
+        waitTimeoutMs: 30_000,
+      });
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("treats a numeric-colon filename literally when requested", async () => {
+    const services = deps();
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await readAction(
+        "npm:express",
+        "src/example:12",
+        { literalPath: true, json: true },
+        services,
+      );
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target: "npm:express",
+        path: "src/example:12",
+        waitTimeoutMs: 30_000,
+      });
+      expect(services.readService.read).toHaveBeenCalledTimes(1);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("preserves leading and trailing whitespace in an exact file path", async () => {
+    const services = deps();
+    const log = spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await readAction(
+        "npm:express",
+        "  src/index.ts  ",
+        { json: true },
+        services,
+      );
+      expect(services.readService.read).toHaveBeenCalledWith({
+        target: "npm:express",
+        path: "  src/index.ts  ",
+        waitTimeoutMs: 30_000,
+      });
+    } finally {
+      log.mockRestore();
     }
   });
 

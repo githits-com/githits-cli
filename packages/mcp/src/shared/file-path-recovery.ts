@@ -39,21 +39,20 @@ export function withExactPathAuthorityRecovery(
 
 /** Derive the containing directory prefix from a confirmed exact file path. */
 export function buildContainingPathPrefix(filePath: string): string {
-  const trimmed = filePath.trim();
-  const slash = trimmed.lastIndexOf("/");
-  return slash === -1 ? "" : trimmed.slice(0, slash + 1);
+  const slash = filePath.lastIndexOf("/");
+  return slash === -1 ? "" : filePath.slice(0, slash + 1);
 }
 
 /** Derive a directory prefix when a legacy missing path may itself be a directory. */
 export function buildPathPrefixSuggestion(requestedPath: string): string {
-  const trimmed = requestedPath.trim();
-  if (trimmed === "") return "";
-  if (trimmed.endsWith("/")) return trimmed;
+  if (requestedPath.trim() === "") return "";
+  if (requestedPath.endsWith("/")) return requestedPath;
 
-  const slash = trimmed.lastIndexOf("/");
-  const basename = slash === -1 ? trimmed : trimmed.slice(slash + 1);
-  if (!basename.includes(".")) return `${trimmed}/`;
-  return slash === -1 ? "" : trimmed.slice(0, slash + 1);
+  const slash = requestedPath.lastIndexOf("/");
+  const basename =
+    slash === -1 ? requestedPath : requestedPath.slice(slash + 1);
+  if (!basename.includes(".")) return `${requestedPath}/`;
+  return slash === -1 ? "" : requestedPath.slice(0, slash + 1);
 }
 
 /** Identify legacy generic NOT_FOUND prose that specifically describes a file path. */

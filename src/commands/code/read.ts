@@ -40,6 +40,7 @@ export interface PkgReadCommandOptions {
   wait?: string;
   verbose?: boolean;
   json?: boolean;
+  literalPath?: boolean;
 }
 
 export interface PkgReadCommandDependencies {
@@ -104,7 +105,9 @@ export async function pkgReadAction(
     }
 
     const target = resolveCliCodeNavTarget(spec, options);
-    const pathWithRange = parsePathWithOptionalRange(path.trim());
+    const pathWithRange = options.literalPath
+      ? { filePath: path }
+      : parsePathWithOptionalRange(path);
     requestedFilePath = pathWithRange.filePath;
     const range = resolveLineRange(options, pathWithRange);
     const wait = parseIntCliOption(
@@ -178,8 +181,8 @@ export function buildCliReadFileParams(
     return buildReadFileParams(input);
   } catch (error) {
     if (!(error instanceof InvalidPackageSpecError)) throw error;
-    const filePath = input.filePath.trim();
-    if (filePath.endsWith("/")) {
+    const filePath = input.filePath;
+    if (filePath.trim().length > 0 && filePath.endsWith("/")) {
       throw new InvalidPackageSpecError(
         `\`<path>\` must be an exact file path, not a directory prefix. Use \`${buildCliListRecoveryCommand(filePath)}\` to list files, then pass an emitted path to \`githits read\`.`,
       );
@@ -275,11 +278,11 @@ export function parsePathWithOptionalRange(path: string): ParsedPathWithRange {
     return { filePath: path };
   }
 
-  const filePath = match[1]?.trim();
+  const filePath = match[1];
   const startRaw = match[2];
   const endRaw = match[3];
 
-  if (!filePath) {
+  if (filePath === undefined || filePath.trim().length === 0) {
     throw new InvalidPackageSpecError(
       `Invalid path with range: '${path}'. Use <path>:<start>-<end>.`,
     );
@@ -312,6 +315,7 @@ downstream tools (\`code read … | grep …\`). Pass --verbose for a
 header and a line-number gutter.
 
 Use indexed paths from \`githits code files\`; optional suffix: \`:N-M\`.
+Use --literal-path when the filename itself ends in a numeric :N suffix.
 
 Addressing: <target> accepts registry:name[@version], github:org/repo[@ref], codeberg:owner/repo[@ref], gitlab:group[/subgroup...]/project[@ref],
 launchpad:~owner/+git/repo[@ref], launchpad:~owner/project/+git/repo[@ref],
@@ -352,6 +356,10 @@ export function registerCodeReadCommand(pkgCommand: Command): Command {
     .option(
       "--git-ref <ref>",
       "Optional tag, commit, branch, or HEAD for --repo-url.",
+    )
+    .option(
+      "--literal-path",
+      "Treat the entire path as literal; do not parse a :line suffix",
     )
     .option("--lines <range>", "N, N-M, N-, or -M (1-based, inclusive)")
     .option("--start <n>", "Starting line (1-indexed). Alternative to --lines.")

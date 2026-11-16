@@ -303,6 +303,53 @@ describe("native version/ref recovery", () => {
       "Try: githits read README.md --repo-url https://github.com/expressjs/express --git-ref v5.3.0 --lines 1-8",
     );
   });
+  it.each([
+    {
+      argv: [
+        "read",
+        "--literal-path",
+        "github:expressjs/express@bad",
+        "src/example:12",
+      ],
+    },
+    {
+      argv: [
+        "code",
+        "read",
+        "--literal-path",
+        "github:expressjs/express@bad",
+        "src/example:12",
+      ],
+    },
+    {
+      argv: [
+        "read",
+        "--literal-path",
+        "--",
+        "github:expressjs/express@bad",
+        "src/example:12",
+      ],
+    },
+    {
+      argv: [
+        "read",
+        "--literal-path",
+        "--lines",
+        "5-10",
+        "--",
+        "github:expressjs/express@bad",
+        "src/example:12",
+      ],
+    },
+  ])("preserves literal-path mode in $argv target recovery", ({ argv }) => {
+    const result = withVersionRefRecovery(ref, {
+      syntax: "cli",
+      argv,
+    });
+    expect(result.details?.action).toBe(
+      `Try: githits ${argv.join(" ").replace("github:expressjs/express@bad", "github:expressjs/express@v5.3.0")}`,
+    );
+  });
   it("keeps grep patterns and other repository targets unchanged", () => {
     const result = withVersionRefRecovery(ref, {
       syntax: "cli",

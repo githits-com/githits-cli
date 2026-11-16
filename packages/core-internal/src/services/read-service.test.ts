@@ -296,7 +296,7 @@ describe("ReadServiceImpl", () => {
       expect(response.result.readTarget).toBeNull();
       expect(readRequest(fetchFn).variables).toEqual({
         target,
-        ...(path ? { path: "index.js" } : {}),
+        ...(path ? { path } : {}),
         waitTimeoutMs: 0,
       });
     },
@@ -470,7 +470,7 @@ describe("ReadServiceImpl", () => {
     const request = readRequest(fetchFn);
     expect(request.variables).toEqual({
       target: "github:Owner/Repo@feature/a@b",
-      path: "src/index.ts",
+      path: " src/index.ts ",
       startLine: 4,
       endLine: 12,
       waitTimeoutMs: 30_000,

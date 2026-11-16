@@ -102,7 +102,9 @@ export async function readAction(
         !isSiteReadTarget(locator.target);
       const pathWithRange =
         exactFile && locator.path
-          ? parsePathWithOptionalRange(locator.path)
+          ? options.literalPath
+            ? { filePath: locator.path }
+            : parsePathWithOptionalRange(locator.path)
           : undefined;
       if (pathWithRange) requestedFilePath = pathWithRange.filePath;
       if (
@@ -303,6 +305,10 @@ Use \`--lines N\` for one line or \`N-M\` for a range. Cover the needed declarat
     .option(
       "--selector <name>",
       "Code symbol or logical documentation heading ID",
+    )
+    .option(
+      "--literal-path",
+      "Treat the entire path as literal; do not parse a :line suffix",
     )
     .option("--lines <range>", "N, N-M, N-, or -M (1-based, inclusive)")
     .option("--start <n>", "Starting line (alternative to --lines)")

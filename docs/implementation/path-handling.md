@@ -60,10 +60,18 @@ changed the retry path. A hypothetical error formatter forwarding `file_path`
 does not establish the cause: the historical backend target-issue type did not
 include that field, and the request did not take the error path.
 
-The remaining accepted-input inconsistencies are surrounding filename whitespace
-and literal numeric-colon CLI filenames. Their verified behavior, ownership,
-and acceptance cases are recorded in the
-[open backlog](../plans/open-backlog.md#literal-path-round-trips--2026-10-22).
+## Literal file paths
+
+Shared read request builders preserve leading and trailing filename whitespace.
+Empty or whitespace-only optional paths still count as omitted; required file
+paths reject them. Recovery listing prefixes preserve the same filename bytes.
+
+CLI `read` and legacy `code read` retain `:N`, `:N-M`, and `:N-` shorthand.
+Use `--literal-path` to disable that parsing for filenames such as
+`src/example:12`; explicit `--lines`, `--start`, and `--end` still work.
+The shared read-action formatter emits the flag for numeric-colon paths, and
+generic source-file list/grep read templates include it because their paths
+come from the source inventory. MCP paths are always literal.
 
 Backend grep also performs package-prefix composition/removal outside
 `PathContract`. The inspected implementation uses directory boundaries and the

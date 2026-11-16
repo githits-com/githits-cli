@@ -24,8 +24,10 @@ export function resolveReadLocator(target: string, path?: string): ReadLocator {
       "path must be an exact file path string.",
     );
   }
-  const filePath = path?.trim();
-  return filePath ? { target, path: filePath } : { target };
+  const filePath = path;
+  return filePath !== undefined && filePath.trim().length > 0
+    ? { target, path: filePath }
+    : { target };
 }
 
 /** Validate requested bounds before a cap can hide an invalid explicit end. */

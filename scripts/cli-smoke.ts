@@ -500,7 +500,7 @@ function listTextFirstFile(text: string, context: string): string {
     `${context}: missing Sources row`,
   );
   const actionIndex = lines.findIndex((line) =>
-    line.startsWith("Read files: read -- "),
+    line.startsWith("Read files: read --literal-path -- "),
   );
   assert(actionIndex > 1, `${context}: missing native read recipe`);
   const path = lines[actionIndex + 1];
@@ -1315,9 +1315,18 @@ async function assertUnauthenticatedBehavior(): Promise<void> {
 
     for (const args of [
       ["read", SMOKE_PACKAGE_SPEC, "package.json"],
+      [
+        "read",
+        SMOKE_PACKAGE_SPEC,
+        "src/example:12",
+        "--literal-path",
+        "--lines",
+        "5-10",
+      ],
       ["read", SMOKE_PACKAGE_SPEC, "--selector", "main"],
       ["read", "https://docs.example.test/guide#section"],
       ["code", "read", SMOKE_PACKAGE_SPEC, "package.json"],
+      ["code", "read", SMOKE_PACKAGE_SPEC, "src/example:12", "--literal-path"],
       ["docs", "read", "docs-id"],
     ]) {
       const read = await runCliWithEnv([...args, "--json"], env);
@@ -2477,7 +2486,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       grepText.includes("lib/express.js") &&
       /^\s*\d+: .*router/m.test(grepText) &&
       grepText.includes(
-        "Files: githits read --lines $start-$end -- $target $path",
+        "Files: githits read --literal-path --lines $start-$end -- $target $path",
       ) &&
       !grepText.includes("# source [") &&
       !grepText.includes("Read recipes") &&
@@ -2493,7 +2502,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
   assert(
     packageListText.startsWith("Sources:\n  - ") &&
-      packageListText.includes("Read files: read -- "),
+      packageListText.includes("Read files: read --literal-path -- "),
     "list package terminal missing source header or paths",
   );
 
