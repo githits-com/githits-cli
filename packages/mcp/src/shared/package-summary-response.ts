@@ -10,7 +10,8 @@
  *   omitted.
  * - **Null-omitted.** Scalars go missing when null; blocks go missing
  *   when every leaf is null; arrays go missing when empty. Agent
- *   callers receive present data only, not a skeleton.
+ *   callers receive present data only, not a skeleton. Publisher/source details
+ *   expand only when verbose output is explicitly requested.
  * - **Stable.** Two identical queries produce byte-identical output
  *   (no clock-dependent fields, no iteration-order tricks), so the
  *   parity test can deep-equal across surfaces.
@@ -18,6 +19,7 @@
 
 import type {
   ChangelogEntry,
+  PackageLifecycle,
   PackageSecurityOverview,
   PackageSummary,
   RegistryLatestDifference,
@@ -28,6 +30,8 @@ import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { colorize, highlight } from "./colors.js";
 import { toIsoDate, toRelativeDate } from "./format-date.js";
 import { formatCompactNumber } from "./format-number.js";
+import { sanitizeTerminalText } from "./terminal-text.js";
+import { terminalWidth } from "./terminal-width.js";
 
 // --------------------------------------------------------------------
 // Lean JSON envelope
@@ -75,6 +79,32 @@ export interface LeanRecentChange {
   summary?: string;
 }
 
+export interface LeanLifecycleFinding {
+  kind: string;
+  /** Release scope is implicit in the overview header. */
+  scope?: string;
+  reason?: string;
+  reasonTruncated?: true;
+  /** Publisher advice, not a verified upgrade recommendation. */
+  replacement?: string;
+  source?: string;
+  sourceVersion?: string;
+  observedAt?: string;
+  reasonCodes?: string[];
+}
+
+export interface LeanLifecycleWarning {
+  classification: string;
+  reason?: string;
+  reasonTruncated?: true;
+}
+
+export interface LeanPackageLifecycle {
+  findings?: LeanLifecycleFinding[];
+  retainedWarnings?: LeanLifecycleWarning[];
+  contentSafety?: { filtered: true };
+}
+
 export interface LeanPackageSummary {
   registry: string;
   name: string;
@@ -94,6 +124,8 @@ export interface LeanPackageSummary {
   vulnerabilities?: LeanVulnerabilities;
   advisoryHistory?: LeanAdvisoryHistory;
   recentChanges?: LeanRecentChange[];
+  /** Verbose adds publisher/source evidence without repeating identity or empty fields. */
+  lifecycle?: LeanPackageLifecycle;
 }
 
 /**
@@ -102,6 +134,7 @@ export interface LeanPackageSummary {
  */
 export function buildPackageSummarySuccessPayload(
   summary: PackageSummary,
+  options: { verbose?: boolean } = {},
 ): LeanPackageSummary {
   const pkg = summary.package;
 
@@ -146,10 +179,92 @@ export function buildPackageSummarySuccessPayload(
   const advisoryHistory = buildAdvisoryHistory(summary.security);
   if (advisoryHistory) payload.advisoryHistory = advisoryHistory;
 
+  const lifecycle = buildLifecyclePayload(summary.lifecycle, options.verbose);
+  if (lifecycle) payload.lifecycle = lifecycle;
+
   const recent = buildRecentChanges(summary.latestChangelogs);
   if (recent) payload.recentChanges = recent;
 
   return payload;
+}
+
+/** Keep the same user-facing warning shape, adding source evidence only when requested. */
+function buildLifecyclePayload(
+  lifecycle: PackageLifecycle | undefined,
+  verbose = false,
+): LeanPackageLifecycle | undefined {
+  if (!lifecycle) return undefined;
+  const findings = lifecycle.findings.map((finding): LeanLifecycleFinding => {
+    const replacement = finding.replacement?.trim();
+    const reasonFields = lifecycleReason(finding.reason, verbose);
+    return {
+      kind: finding.kind,
+      ...(finding.scope !== "RELEASE" ? { scope: finding.scope } : {}),
+      ...reasonFields,
+      ...(replacement &&
+      !reasonMentionsReplacement(reasonFields.reason, replacement)
+        ? { replacement }
+        : {}),
+      ...(verbose
+        ? {
+            ...(finding.source ? { source: finding.source } : {}),
+            ...(finding.sourceVersion
+              ? { sourceVersion: finding.sourceVersion }
+              : {}),
+            ...(finding.observedAt ? { observedAt: finding.observedAt } : {}),
+            ...(finding.reasonCodes.length > 0
+              ? { reasonCodes: finding.reasonCodes }
+              : {}),
+          }
+        : {}),
+    };
+  });
+  const retainedWarnings = lifecycle.retainedWarnings.map(
+    (warning): LeanLifecycleWarning => ({
+      classification: warning.classification,
+      ...lifecycleReason(warning.reason, verbose),
+    }),
+  );
+  if (findings.length === 0 && retainedWarnings.length === 0) return undefined;
+  return {
+    ...(findings.length > 0 ? { findings } : {}),
+    ...(retainedWarnings.length > 0 ? { retainedWarnings } : {}),
+    ...(lifecycle.contentSafety.filtered
+      ? { contentSafety: { filtered: true } }
+      : {}),
+  };
+}
+
+/** Avoid repeating a publisher package name without matching inside other words. */
+function reasonMentionsReplacement(
+  reason: string | undefined,
+  replacement: string,
+): boolean {
+  if (!reason) return false;
+  const escaped = replacement.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `(?:^|[^\\p{L}\\p{N}@._/~+-])${escaped}(?=$|[^\\p{L}\\p{N}@._/~+-]|\\.(?=\\s|$))`,
+    "u",
+  ).test(reason);
+}
+
+function lifecycleReason(
+  reason: string | null | undefined,
+  verbose: boolean,
+): {
+  reason?: string;
+  reasonTruncated?: true;
+} {
+  if (!reason?.trim()) return {};
+  if (verbose) return { reason };
+  const normalized = reason.replace(/\s+/g, " ").trim();
+  const characters = Array.from(normalized);
+  return characters.length > 160
+    ? {
+        reason: `${characters.slice(0, 157).join("").trimEnd()}...`,
+        reasonTruncated: true,
+      }
+    : { reason: normalized };
 }
 
 function lowerRegistry(value: string | undefined): string {
@@ -362,12 +477,145 @@ export function formatPackageSummaryTerminal(
     sections.push(fields.join("\n"));
   }
 
+  const lifecycle = options.verbose
+    ? formatLifecycle(summary.lifecycle, width, summary.package.version)
+    : formatCompactLifecycle(buildLifecyclePayload(summary.lifecycle), width);
+  if (lifecycle) sections.push(lifecycle);
+
   if (options.verbose) {
     const verbose = buildVerboseSections(lean, useColors);
     if (verbose.length > 0) sections.push(verbose);
   }
 
   return `${sections.join("\n\n")}\n`;
+}
+
+/** Default text shows concise warnings; verbose expands publisher/source evidence. */
+function formatCompactLifecycle(
+  lifecycle: LeanPackageLifecycle | undefined,
+  width: number,
+): string {
+  if (!lifecycle) return "";
+  const lines: string[] = [];
+  const append = (label: string, detail: string): void => {
+    const text = detail ? `${label}: ${detail}` : `${label}.`;
+    lines.push(
+      wrapText(text, Math.max(1, width - 2))
+        .split("\n")
+        .map((line, index) => `${index === 0 ? "" : "  "}${line}`)
+        .join("\n"),
+    );
+  };
+  for (const finding of lifecycle.findings ?? []) {
+    const details = [finding.reason];
+    if (finding.replacement)
+      details.push(`publisher suggests ${finding.replacement}`);
+    append(
+      lifecycleFindingLabel(finding.kind, finding.scope),
+      details.filter(Boolean).join("; "),
+    );
+  }
+  for (const warning of lifecycle.retainedWarnings ?? []) {
+    const classification =
+      warning.classification === "LEGACY_UNCLASSIFIED"
+        ? "unclassified"
+        : warning.classification;
+    append(`Publisher warning (${classification})`, warning.reason ?? "");
+  }
+  if (lines.length > 0 && lifecycle.contentSafety?.filtered)
+    lines.push(wrapText("Publisher text filtered.", width));
+  if (
+    [...(lifecycle.findings ?? []), ...(lifecycle.retainedWarnings ?? [])].some(
+      (item) => item.reasonTruncated,
+    )
+  )
+    lines.push(wrapText("Full publisher reason in verbose output.", width));
+  return lines.join("\n");
+}
+
+/** Express the backend's native kind and scope without repeated identity. */
+function lifecycleFindingLabel(kind: string, scope?: string): string {
+  const labels: Record<string, string> = {
+    DEPRECATED: "Deprecated",
+    RETIRED: "Retired",
+    ABANDONED: "Abandoned",
+    DISCONTINUED: "Discontinued",
+    YANKED: "Yanked",
+    PARTIALLY_YANKED: "Partially yanked",
+    RETRACTED: "Retracted",
+    UNLISTED: "Unlisted",
+  };
+  const qualifier =
+    scope === "PACKAGE"
+      ? " (package-wide)"
+      : scope === "FILES"
+        ? " (files)"
+        : scope === undefined || scope === "RELEASE"
+          ? ""
+          : ` (${scope})`;
+  return `${labels[kind] ?? kind}${qualifier}`;
+}
+
+/** Explain publisher and source evidence without internal collection diagnostics. */
+function formatLifecycle(
+  lifecycle: PackageLifecycle | undefined,
+  width: number,
+  selectedVersion: string | undefined,
+): string {
+  if (
+    !lifecycle ||
+    (lifecycle.findings.length === 0 && lifecycle.retainedWarnings.length === 0)
+  )
+    return "";
+  const lines: string[] = ["Lifecycle"];
+  const append = (text: string, indent = 0): void => {
+    const prefix = " ".repeat(Math.min(indent, width - 1));
+    const continuation = " ".repeat(Math.min(indent + 2, width - 1));
+    const wrapped = wrapText(text, width - continuation.length).split("\n");
+    lines.push(
+      wrapped
+        .map((line, index) => `${index === 0 ? prefix : continuation}${line}`)
+        .join("\n"),
+    );
+  };
+  for (const finding of lifecycle.findings) {
+    append(lifecycleFindingLabel(finding.kind, finding.scope));
+    if (finding.reason) append(`Publisher reason: ${finding.reason}`, 2);
+    if (
+      finding.replacement &&
+      !reasonMentionsReplacement(
+        finding.reason ?? undefined,
+        finding.replacement,
+      )
+    )
+      append(`Replacement suggested by publisher: ${finding.replacement}`, 2);
+    const authority =
+      finding.sourceVersion == null
+        ? ""
+        : finding.sourceVersion === selectedVersion
+          ? " (selected release)"
+          : ` (version ${finding.sourceVersion})`;
+    append(`Source: ${finding.source}${authority}`, 2);
+    if (finding.observedAt && toIsoDate(finding.observedAt)) {
+      const collected = new Date(finding.observedAt)
+        .toISOString()
+        .slice(0, 16)
+        .replace("T", " ");
+      append(`Collected: ${collected} UTC`, 2);
+    }
+    if (finding.reasonCodes.length > 0)
+      append(`Publisher codes: ${finding.reasonCodes.join(", ")}`, 2);
+  }
+  for (const warning of lifecycle.retainedWarnings) {
+    const classification =
+      warning.classification === "LEGACY_UNCLASSIFIED"
+        ? "unclassified"
+        : warning.classification;
+    append(`Publisher warning (${classification}): ${warning.reason}`);
+  }
+  if (lifecycle.contentSafety.filtered)
+    append("Publisher text was filtered by the backend; it remains untrusted.");
+  return lines.join("\n");
 }
 
 /** Explain API selection without choosing a different release in the client. */
@@ -412,21 +660,24 @@ function resolveWidth(explicit: number | undefined): number {
 
 function wrapText(text: string, width: number): string {
   const safeWidth = Math.max(1, width);
-  const words = text.split(/\s+/);
+  const words = sanitizeTerminalText(text.replace(/\s+/g, " ")).split(/\s+/);
   const lines: string[] = [];
   let current = "";
   for (const word of words) {
-    if (word.length > safeWidth) {
+    if (terminalWidth(word) > safeWidth) {
       if (current.length > 0) {
         lines.push(current);
         current = "";
       }
-      for (let offset = 0; offset < word.length; offset += safeWidth) {
-        const chunk = word.slice(offset, offset + safeWidth);
-        if (chunk.length === safeWidth || offset + safeWidth < word.length) {
-          lines.push(chunk);
-        } else {
-          current = chunk;
+      for (const character of word) {
+        if (current && terminalWidth(current + character) > safeWidth) {
+          lines.push(current);
+          current = "";
+        }
+        current += character;
+        if (terminalWidth(current) >= safeWidth) {
+          lines.push(current);
+          current = "";
         }
       }
       continue;
@@ -435,7 +686,7 @@ function wrapText(text: string, width: number): string {
       current = word;
       continue;
     }
-    if (current.length + 1 + word.length > safeWidth) {
+    if (terminalWidth(current) + 1 + terminalWidth(word) > safeWidth) {
       lines.push(current);
       current = word;
     } else {

@@ -603,6 +603,55 @@ When a new tool lands with both MCP and CLI surfaces:
   descriptor; unknown evidence is omitted. Existing overview/history fields and
   unpinned validation remain unchanged. Dependency/vulnerability JSON retain
   their shared identity descriptor without changing their text.
+- **Native lifecycle inspection.** All modes select
+  `packageInfo.selectedVersion.lifecycle` within the existing `provenance` query
+  root, without another request or registry acquisition. Backend classification
+  and content-safety normalization remain authoritative. The service attaches
+  `PackageSummary.lifecycle` only when the resolved version matches the overview
+  and the optional root has no errors. Default text and JSON show compact warnings
+  only. When there are no findings or retained warnings, lifecycle output is omitted;
+  this silence is not a coverage or health claim. Each compact JSON finding retains
+  `kind`, optional non-release `scope`, publisher `reason` and `replacement`; the
+  overview header provides package and selected-release identity. Replacements
+  already stated in the displayed reason are not repeated. Reasons are bounded to
+  160 characters with `reasonTruncated: true` when shortened. Retained warnings keep
+  their classification and reason once, without guessed native kinds or a second
+  coarse deprecation warning. Empty arrays, nulls and false safety flags are omitted;
+  `contentSafety.filtered: true` accompanies filtered warning prose.
+  CLI `--verbose` and MCP `verbose: true` add the publisher's full explanation,
+  native scope, source authority, collection time, publisher codes and safety
+  metadata in text or JSON. Both JSON modes share one lean warning shape; verbose
+  expands the reason and adds nonempty source/sourceVersion/observedAt/reasonCodes
+  fields. Neither mode repeats registry/name/version/category inside each finding
+  or emits nulls, empty arrays or false filtering flags. These duplicate identity
+  and category fields are not selected or decoded. Verbose text uses readable status labels and avoids
+  repeated identity or internal enum scaffolding. A source version matching the
+  header is described as the selected release; a differing authority version is
+  explicit. Collection time is shown to UTC minutes; verbose JSON preserves the
+  original timestamp and native field values.
+  Internal lifecycle collection checks are not selected, decoded or exposed in any
+  mode. They belong to backend diagnostics and can be queried directly with
+  GraphQL. They do not add end-user warnings or archival claims. Only findings,
+  retained publisher warnings and their evidence appear in CLI/MCP output. Empty
+  results and unavailable optional assessments are omitted in both formats, even
+  with verbose enabled; silence does not establish health or checked coverage.
+  Native categorical strings retain backend casing in JSON; the top-level registry
+  stays lowercase. Public evidence types are available from `@githits/mcp/client`.
+  Retained ambiguous warnings remain unclassified, without inventing a native kind.
+  Publisher replacement names remain advice, not verified upgrade recommendations.
+  Text strips terminal controls with the shared renderer; JSON preserves evidence.
+  Collection time does not establish freshness. No archival finding is inferred
+  from the existing GitHub archive badge.
+  A lifecycle resolver error can null the shared
+  provenance root, losing `registryRepository` alongside lifecycle while retaining
+  the overview. Existing auth/access/client-update errors still fail; structural
+  malformation still fails whole-response validation. Native lifecycle findings
+  never change advisory counts, release selection or scan policy.
+  **Release ordering:** the target backend must expose the lifecycle field before
+  these CLI/MCP versions are released. A backend missing the field returns a
+  pathless schema-validation error and the overview fails; there is no schema
+  fallback. The hosted server adopts this only after an `@githits/mcp` release,
+  dependency update in `remote-mcp`, and its separately approved deployment.
 - **Evidence-only vulnerability field.** Both compact text surfaces use the same
   `Latest:` (or `Selected:` when a difference exists) and `History:` labels and do
   not append an inline action. CLI help

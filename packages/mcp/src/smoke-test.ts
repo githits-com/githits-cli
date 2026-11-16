@@ -1061,6 +1061,12 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_info default should not include quickstart fields",
   );
 
+  assert(
+    !pkgInfoText.includes("Lifecycle checks:") &&
+      !pkgInfoText.includes("Lifecycle unavailable"),
+    "pkg_info default should omit lifecycle diagnostics",
+  );
+
   const pkgInfoJson = assertJsonResult(
     await callTool(caller, "pkg_info", {
       target: "npm:express",
@@ -1103,6 +1109,50 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     typeof pkgInfoJson.versionCount === "number",
     "pkg_info json missing version count",
   );
+  const pkgInfoVerboseJson = assertJsonResult(
+    await callTool(caller, "pkg_info", {
+      target: "npm:express",
+      format: "json",
+      verbose: true,
+    }),
+    "pkg_info verbose json",
+  );
+  assertRecord(pkgInfoVerboseJson, "pkg_info verbose json");
+  for (const [mode, payload] of [
+    ["default", pkgInfoJson],
+    ["verbose", pkgInfoVerboseJson],
+  ] as const) {
+    const lifecycle = payload.lifecycle;
+    if (lifecycle === undefined) continue;
+    assertRecord(lifecycle, `pkg_info ${mode} lifecycle`);
+    assert(
+      !("checks" in lifecycle),
+      `pkg_info ${mode} JSON leaked internal lifecycle checks`,
+    );
+    for (const key of ["findings", "retainedWarnings"] as const) {
+      if (lifecycle[key] !== undefined)
+        assert(
+          Array.isArray(lifecycle[key]) && lifecycle[key].length > 0,
+          `pkg_info ${mode} lifecycle ${key} must be nonempty when present`,
+        );
+    }
+    assert(
+      [lifecycle.findings, lifecycle.retainedWarnings].some(
+        (entries) => Array.isArray(entries) && entries.length > 0,
+      ),
+      `pkg_info ${mode} empty lifecycle should be omitted`,
+    );
+    if (lifecycle.contentSafety !== undefined) {
+      assertRecord(
+        lifecycle.contentSafety,
+        `pkg_info ${mode} lifecycle content safety`,
+      );
+      assert(
+        lifecycle.contentSafety.filtered === true,
+        `pkg_info ${mode} lifecycle should omit false filtering flags`,
+      );
+    }
+  }
   assertRecord(pkgInfoJson.downloads, "pkg_info json downloads");
   assert(
     typeof pkgInfoJson.downloads.refreshedAt === "string",
