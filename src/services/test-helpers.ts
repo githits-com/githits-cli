@@ -1289,6 +1289,7 @@ export function createMockExecService(
   impl: Partial<ExecService> = {},
 ): ExecService {
   return {
+    execInteractive: mock(async () => ({ exitCode: 1, signal: null })),
     exec: mock((_command: string, _args: string[], _options?: unknown) =>
       Promise.resolve({ exitCode: 1, stdout: "", stderr: "" } as ExecResult),
     ),

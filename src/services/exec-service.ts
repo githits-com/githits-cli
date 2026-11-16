@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 interface SpawnCommand {
   command: string;
@@ -84,6 +84,17 @@ export interface ExecOptions {
   cwd?: string;
 }
 
+/** Terminal-owning commands return lifecycle information, never captured output. */
+export interface InteractiveExecResult {
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+}
+
+export interface InteractiveExecOptions {
+  env?: Record<string, string>;
+  cwd?: string;
+}
+
 export class ExecTimeoutError extends Error {
   readonly command: string;
   readonly args: string[];
@@ -105,6 +116,12 @@ export class ExecTimeoutError extends Error {
  * Abstraction allows for easy testing with mock implementations.
  */
 export interface ExecService {
+  /** Hand the terminal to a native command until it exits. */
+  execInteractive(
+    command: string,
+    args: string[],
+    options?: InteractiveExecOptions,
+  ): Promise<InteractiveExecResult>;
   /** Execute a command with arguments and return the result */
   exec(
     command: string,
@@ -117,10 +134,72 @@ export interface ExecService {
  * Production implementation using node:child_process.spawn.
  * Collects stdout/stderr and resolves with exit code.
  *
- * On Windows, uses shell: true to resolve .cmd/.ps1 shims via cmd.exe.
+ * On Windows, normalizes commands through cmd.exe to resolve native shims.
  * Callers must not pass untrusted input as command or args.
  */
 export class ExecServiceImpl implements ExecService {
+  async execInteractive(
+    command: string,
+    args: string[],
+    options: InteractiveExecOptions = {},
+  ): Promise<InteractiveExecResult> {
+    // Ctrl-C reaches the foreground process group. Let the child finish and
+    // let the caller report incomplete work before restoring default handling.
+    const onInterrupt = (): void => {};
+    const wasRaw = process.stdin.isRaw;
+    // libuv caches this process's mode; a child can change the shared terminal
+    // without updating it. POSIX stty preserves the actual flags, including a
+    // user's custom settings, rather than guessing a default terminal mode.
+    let terminalSettings: string | undefined;
+    if (process.stdin.isTTY && process.platform !== "win32") {
+      const snapshot = spawnSync("stty", ["-g"], {
+        stdio: ["inherit", "pipe", "ignore"],
+        encoding: "utf8",
+      });
+      if (snapshot.status !== 0 || !snapshot.stdout.trim()) {
+        throw new Error("Unable to preserve terminal settings for sign-in");
+      }
+      terminalSettings = snapshot.stdout.trim();
+    }
+    process.on("SIGINT", onInterrupt);
+    try {
+      return await new Promise<InteractiveExecResult>((resolve, reject) => {
+        const normalized = normalizeSpawnCommand(command, args);
+        const child = spawn(normalized.command, normalized.args, {
+          stdio: "inherit",
+          env: { ...process.env, ...options.env },
+          ...(options.cwd !== undefined && { cwd: options.cwd }),
+          ...(normalized.windowsVerbatimArguments !== undefined && {
+            windowsVerbatimArguments: normalized.windowsVerbatimArguments,
+          }),
+        });
+        child.once("error", reject);
+        child.once("close", (exitCode, signal) =>
+          resolve({ exitCode, signal }),
+        );
+      });
+    } finally {
+      try {
+        if (process.stdin.isTTY) {
+          process.stdin.setRawMode(Boolean(wasRaw));
+          if (terminalSettings !== undefined) {
+            const restored = spawnSync("stty", [terminalSettings], {
+              stdio: ["inherit", "ignore", "ignore"],
+            });
+            if (restored.status !== 0) {
+              // biome-ignore lint/correctness/noUnsafeFinally: Failed terminal restoration invalidates command completion.
+              throw new Error(
+                "Unable to restore terminal settings after sign-in",
+              );
+            }
+          }
+        }
+      } finally {
+        process.removeListener("SIGINT", onInterrupt);
+      }
+    }
+  }
+
   async exec(
     command: string,
     args: string[],

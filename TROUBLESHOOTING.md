@@ -38,15 +38,27 @@ sign Cursor in.
 
 ## Other remote MCP connections
 
-Use the sign-in action in the selected agent. Claude Code exposes it through
-`/mcp`; Codex CLI uses `codex mcp login githits`; Gemini CLI uses
+Interactive init can offer to run supported native sign-in commands after
+checking their status. It shows each command and asks before running it. Run
+`npx githits@latest init` again to finish a previously skipped sign-in. Declining
+keeps the commands below; `--skip-login` and `--yes` also leave sign-in manual.
+
+Use the sign-in action in the selected agent. Recent Claude Code uses
+`claude mcp login githits`; older versions and project-level connections use
+`/mcp`. Codex CLI uses `codex mcp login githits`; Gemini CLI uses
 `/mcp auth githits`; OpenCode uses `opencode mcp auth GitHits`; Pi uses
 `/mcp-auth GitHits`; Kilo Code uses `kilo mcp auth GitHits`. Other supported
 editors expose GitHits authentication in their MCP settings.
 
 After sign-in, open a new agent session and check that GitHits tools are
 available. If sign-in was skipped during setup, you can complete it in the
-agent without reinstalling GitHits.
+agent without reinstalling GitHits. A failed status check means sign-in could
+not be checked; it does not prove you are signed out.
+
+Cancelling a sign-in leaves the installed configuration in place. Init prints
+instructions for unresolved connections. Some hosts handle Ctrl-C as an ordinary
+failure; use Ctrl-C again at the next selector to stop. On Windows, a native
+`.cmd` wrapper may ask **Terminate batch job (Y/N)?**.
 
 Claude Desktop connects through the
 [GitHits directory page](https://claude.ai/directory/githits). Connect and sign

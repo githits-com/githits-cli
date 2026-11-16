@@ -70,6 +70,49 @@ setup is needed, the top-level `auth` describes those setup targets. An unchange
 local target selected alongside remote setup does not trigger local sign-in;
 guidance-only repair retains the same no-auth behavior.
 
+## Guided hosted sign-in
+
+Human interactive setup checks the selected usable hosted connections after
+configuration, including a no-change rerun after skipped sign-in. Native command
+capabilities are checked before authentication status. Claude Code user-level
+setup, Codex, Kilo and OpenCode versions exposing the dedicated auth-status
+subcommand can participate. Unknown, unsupported and in-app-only connections
+remain manual, with instructions at the end. Claude project-level sign-in stays
+manual because an unapproved project entry can make native checks report a
+user-level entry instead.
+
+Init offers **Sign in now** or **Show instructions**, then displays each command
+and offers **Run command** or **Skip this tool**. Each login needs its own consent;
+commands run sequentially in the user's terminal. The host owns its browser
+flow and credential storage. A zero exit code alone is not sign-in success:
+init rechecks native status before removing that tool's instructions. These
+checks establish host-reported authentication, not tool availability in an agent
+session. Skipped or failed sign-ins do not make a successful config write fail.
+
+`src/commands/init/host-auth.ts` owns native capabilities, command context and
+consent sequencing; `host-auth-status.ts` classifies captured native status output
+without exposing it. `ExecService.execInteractive()` owns inherited terminal
+execution and temporary parent SIGINT handling. User-level checks and commands
+share an isolated temporary cwd to exclude project overrides; supported relative
+home/config path overrides are made absolute against the original cwd in child-only
+environment values. Claude's check additionally requires the user scope and
+canonical endpoint and stays manual under managed-exclusive MCP configuration.
+No host token file is read or copied by GitHits.
+
+Ctrl-C during the native command stops the sequence on signal termination or
+exit 130, then prints unresolved instructions; installed configuration survives.
+A host that consumes Ctrl-C itself and exits with another failure code remains
+unresolved and proceeds to the next explicit command selector. On Windows a
+`.cmd` shim may ask **Terminate batch job (Y/N)?**. The process service restores
+the terminal mode after the child exits, then removes its signal listener.
+On macOS/Linux it snapshots and restores exact POSIX terminal flags using the
+standard `stty` command; if that snapshot is unavailable, sign-in stays manual.
+Windows uses the native console-mode API.
+
+`--skip-login` and `--yes` leave hosted authentication manual. Detect/staged
+install/JSON and non-TTY paths never start this flow. Structured instructions
+retain their existing compatibility contract.
+
 ## Guidance reporting
 
 Remote guided setup converges only `githits-mcp`; local-first converges all

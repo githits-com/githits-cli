@@ -1538,3 +1538,114 @@ describe("authentication block context", () => {
     expect(process.exitCode).toBe(1);
   });
 });
+
+describe("interactive hosted authentication integration", () => {
+  function enableCodexAuth(f: ReturnType<typeof fixture>) {
+    const original = f.deps.execService.exec;
+    let signedIn = false;
+    const statuses: string[] = [];
+    f.deps.execService.exec = mock(async (command, args, options) => {
+      if (command === "codex" && args.join(" ") === "mcp --help")
+        return { exitCode: 0, stdout: "  list\n  login", stderr: "" };
+      if (command === "codex" && args.join(" ") === "mcp list --json") {
+        statuses.push(options?.cwd ?? "");
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify([
+            {
+              name: "githits",
+              enabled: true,
+              transport: { type: "streamable_http", url: MCP_URL },
+              auth_status: signedIn ? "o_auth" : "not_logged_in",
+            },
+          ]),
+          stderr: "",
+        };
+      }
+      return original(command, args, options);
+    });
+    f.deps.execService.execInteractive = mock(async () => {
+      signedIn = true;
+      return { exitCode: 0, signal: null };
+    });
+    return { statuses };
+  }
+  it("finishes sign-in, then rerun reports already signed in without another command", async () => {
+    const f = fixture(["codex-cli"]);
+    const auth = enableCodexAuth(f);
+    const output = await f.run({ remote: true, guidance: false });
+    expect(f.deps.execService.execInteractive).toHaveBeenCalledTimes(1);
+    expect(output).toContain("Codex CLI: Signed in.");
+    expect(output).toContain("GitHits sign-in is complete");
+    expect(output).not.toContain("Complete sign-in in each tool");
+    expect(output).not.toContain("Local integrations");
+    expect(auth.statuses).toHaveLength(2);
+    const rerun = await f.run({ remote: true, guidance: false });
+    expect(rerun).toContain("Already signed in");
+    expect(f.deps.execService.execInteractive).toHaveBeenCalledTimes(1);
+  });
+  for (const guidance of [false, true])
+    it(`finishes previously skipped auth on ${guidance ? "guidance repair" : "no-op rerun"} with both consent steps`, async () => {
+      const f = fixture(["codex-cli"]);
+      const auth = enableCodexAuth(f);
+      await f.run({ remote: true, guidance: false, skipLogin: true });
+      expect(auth.statuses).toHaveLength(0);
+      const output = await f.run({ remote: true, guidance });
+      const calls = (f.deps.promptService.select as ReturnType<typeof mock>)
+        .mock.calls;
+      expect(
+        calls.some(([message]) =>
+          String(message).includes("Complete sign-in now?"),
+        ),
+      ).toBe(true);
+      expect(
+        calls.some(([message]) =>
+          String(message).includes("Run this command?"),
+        ),
+      ).toBe(true);
+      expect(f.deps.execService.execInteractive).toHaveBeenCalledTimes(1);
+      expect(output).toContain("Codex CLI: Signed in.");
+      expect(output).not.toContain("codex mcp add");
+    });
+  for (const options of [
+    { remote: true, guidance: false, skipLogin: true },
+    { remote: true, guidance: false, yes: true },
+    { remote: true, guidance: false, installAgents: "codex-cli", json: true },
+  ])
+    it(`keeps unattended/skipped authentication manual: ${JSON.stringify(options)}`, async () => {
+      const f = fixture(["codex-cli"]);
+      const auth = enableCodexAuth(f);
+      await f.run(options);
+      expect(f.deps.execService.execInteractive).not.toHaveBeenCalled();
+      expect(auth.statuses).toEqual([]);
+    });
+  it("retains only unresolved selected host instructions", async () => {
+    const f = fixture(["codex-cli", "cursor"]);
+    enableCodexAuth(f);
+    const output = await f.run({ remote: true, guidance: false });
+    const steps = output.slice(output.lastIndexOf("Next Steps"));
+    expect(steps).toContain("Cursor");
+    expect(steps).not.toContain("codex mcp login");
+    expect(steps.match(/Troubleshooting:/g)).toHaveLength(1);
+  });
+  it("does not check an unselected host", async () => {
+    const f = fixture(["codex-cli", "cursor"]);
+    const auth = enableCodexAuth(f);
+    f.deps.promptService.checkbox = mock(
+      async <T>() => ["cursor"] as T[],
+    ) as typeof f.deps.promptService.checkbox;
+    await f.run({ remote: true, guidance: false });
+    expect(auth.statuses).toEqual([]);
+    expect(f.deps.execService.execInteractive).not.toHaveBeenCalled();
+  });
+  it("does not authenticate a failed installation", async () => {
+    const f = fixture(["codex-cli"]);
+    const auth = enableCodexAuth(f);
+    f.fs.atomicWriteFile = mock(async () => {
+      throw new Error("fixture write failure");
+    });
+    await f.run({ remote: true, guidance: false });
+    expect(auth.statuses).toEqual([]);
+    expect(f.deps.execService.execInteractive).not.toHaveBeenCalled();
+  });
+});

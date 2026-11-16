@@ -69,6 +69,7 @@ import {
   HISTORICAL_GUIDANCE_SKILL_TARGETS,
   SHARED_AGENTS_SKILL_ROOT,
 } from "./guidance-assets.js";
+import { runHostAuthentication } from "./host-auth.js";
 import {
   CHANGE_VERB_WIDTH,
   type ChangeRow,
@@ -3050,7 +3051,14 @@ function printScopedNextSteps(
   changesMade: boolean,
   localAuthApplicable: boolean,
   remoteAgents: AgentDefinition[] = [],
+  hostedAuthCompleted = false,
 ): void {
+  if (hostedAuthCompleted && !remoteAgents.length && !localAuthApplicable) {
+    printSection("Ready", useColors);
+    printInitProse("  GitHits sign-in is complete for the selected tools.");
+    printTroubleshootingLink();
+    return;
+  }
   if (remoteAgents.length > 0) {
     printSection("Next Steps", useColors);
     printRemoteInstructions(remoteAgents);
@@ -5466,6 +5474,18 @@ export async function initAction(
   }
   if (sharedGuidanceReady) printSharedGuidanceVisibility(setupScope);
 
+  // Use the existing completion target set, including useful no-change reruns.
+  // A failed MCP installation must never become a new authentication target.
+  const remoteCompletionAgents = [
+    ...(failed > 0 ? configuredMcpAgents : summaryMcpAgents),
+    ...selection.unchangedAgents,
+    ...selection.guidanceAgents.filter(
+      (agent) =>
+        !selection.mcpAgents.some((candidate) => candidate.id === agent.id) ||
+        configuredMcpAgents.some((candidate) => candidate.id === agent.id),
+    ),
+  ].filter(usesHostedMcp);
+
   if (failed > 0) {
     console.log(
       `  ${failed} tool${failed !== 1 ? "s" : ""} failed to configure.`,
@@ -5485,17 +5505,26 @@ export async function initAction(
   if (failed > 0) {
     process.exitCode = 1;
     console.log("  Setup completed with errors.");
-    if (
-      printRemoteInstructions([
-        ...configuredMcpAgents,
-        ...selection.unchangedAgents,
-        ...selection.guidanceAgents.filter((agent) =>
-          scan.alreadyConfigured.some(
-            (configured) => configured.id === agent.id,
-          ),
-        ),
-      ])
-    )
+  }
+  if (failed === 0 && summaryMcpAgents.length > 0) {
+    printMcpServerSummary(useColors, configured > 0, summaryMcpAgents);
+  }
+  const hostedAuth =
+    !options.skipLogin && !options.yes
+      ? await runHostAuthentication(
+          remoteCompletionAgents,
+          setupScope,
+          deps,
+          useColors,
+        )
+      : {
+          remaining: remoteCompletionAgents,
+          authenticatedIds: [],
+          cancelled: false,
+        };
+
+  if (failed > 0) {
+    if (printRemoteInstructions(hostedAuth.remaining))
       printTroubleshootingLink();
   } else if (
     configured > 0 ||
@@ -5504,20 +5533,14 @@ export async function initAction(
     guidanceOutcome?.status === "success" ||
     guidanceOutcome?.status === "already_configured"
   ) {
-    if (summaryMcpAgents.length > 0) {
-      printMcpServerSummary(useColors, configured > 0, summaryMcpAgents);
-    }
     printScopedNextSteps(
       setupScope,
       authStatus,
       useColors,
       configured > 0 || guidanceOutcome?.status === "success",
       localAuthApplicable,
-      [
-        ...summaryMcpAgents,
-        ...selection.guidanceAgents,
-        ...selection.unchangedAgents,
-      ].filter(usesHostedMcp),
+      hostedAuth.remaining,
+      hostedAuth.authenticatedIds.length > 0,
     );
   }
 
