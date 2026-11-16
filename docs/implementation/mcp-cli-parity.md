@@ -482,7 +482,9 @@ surface-native read and pagination syntax and optional ANSI.
   No provider failure
   authorizes a permanent missing result or an automatic retry, including query
   compatibility fallbacks. HTTP 429 errors retain the same classification/facts
-  from GraphQL envelopes or direct API error objects.
+  from GraphQL envelopes or direct API error objects. GraphQL-envelope HTTP
+  errors retain the selected error's message and facts together, with the same
+  bounded, control-safe message treatment as direct HTTP details.
 - Opt-in `pkg-graphql` diagnostics emit a `rate-limited` event with
   `rate_limit_scope` and `token_source`. CLI classification events retain the
   same dimensions. These events exclude repository/token identities, messages,

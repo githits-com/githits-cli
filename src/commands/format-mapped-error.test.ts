@@ -279,3 +279,16 @@ it("uses the same compact provider sentence in CLI output", () => {
     }),
   ).toBe("Repository provider rate limit exceeded. Try again in 13 seconds.");
 });
+
+it("separates timing from an unpunctuated sibling error", () => {
+  expect(
+    formatMappedErrorForTerminal({
+      code: "RATE_LIMITED",
+      retryable: true,
+      message: "Repository provider rate limit exceeded, Source unavailable",
+      details: { retryAfterMs: 1501 },
+    }),
+  ).toBe(
+    "Repository provider rate limit exceeded, Source unavailable. Try again in 2 seconds.",
+  );
+});

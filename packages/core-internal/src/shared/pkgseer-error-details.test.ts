@@ -1,6 +1,7 @@
 import { expect, it } from "bun:test";
 import {
   getPrimaryExtensions,
+  httpRateLimitError,
   httpRateLimitExtensions,
   parsePkgseerErrorDetails,
 } from "./pkgseer-error-details.js";
@@ -129,4 +130,59 @@ it("keeps the first nonempty extensions when no sibling has a string code", () =
       { extensions: { retryable: false } },
     ]),
   ).toBe(first);
+});
+
+it("pairs HTTP provider message with selected facts over competing siblings", () => {
+  const provider = {
+    code: "RATE_LIMITED",
+    rate_limit_scope: "repository_provider",
+    token_source: "app",
+    retry_after_ms: 1501,
+  };
+  expect(
+    httpRateLimitError({
+      errors: [
+        { message: "Not found", extensions: { code: "NOT_FOUND" } },
+        { message: "Provider\nlimit\u0000reached", extensions: provider },
+        { message: "Other error", extensions: { code: "TIMEOUT" } },
+      ],
+    }),
+  ).toEqual({ message: "Provider limit reached", extensions: provider });
+});
+it("keeps access precedence paired with its own HTTP error message", () => {
+  const access = { code: "FORBIDDEN" };
+  expect(
+    httpRateLimitError({
+      errors: [
+        { message: "Hint only", extensions: { hint: "retry" } },
+        {
+          message: "Provider throttled",
+          extensions: {
+            code: "RATE_LIMITED",
+            rate_limit_scope: "repository_provider",
+          },
+        },
+        { message: "Access is restricted", extensions: access },
+      ],
+    }),
+  ).toEqual({ message: "Access is restricted", extensions: access });
+});
+it("bounds selected HTTP messages and ignores unrelated fields", () => {
+  const selected = httpRateLimitError({
+    errors: [
+      {
+        message: "x".repeat(600),
+        extensions: { code: "RATE_LIMITED" },
+        provider_body: "must-not-survive",
+      },
+    ],
+  });
+  expect(selected.message).toHaveLength(500);
+  expect(selected.message).toEndWith("...");
+  expect(selected).not.toHaveProperty("provider_body");
+  expect(
+    httpRateLimitError({
+      errors: [{ message: 123, extensions: { code: "RATE_LIMITED" } }],
+    }).message,
+  ).toBeUndefined();
 });

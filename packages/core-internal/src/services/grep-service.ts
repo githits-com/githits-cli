@@ -7,7 +7,7 @@ import {
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import {
   getPrimaryExtensions,
-  httpRateLimitExtensions,
+  httpRateLimitError,
   type PkgseerErrorDetails,
   parsePkgseerErrorDetails,
 } from "../shared/pkgseer-error-details.js";
@@ -651,14 +651,16 @@ function httpError(response: PkgseerGraphqlResponse): Error {
     "error",
     "detail",
   ]);
-  if (response.status === 429)
+  if (response.status === 429) {
+    const rateLimit = httpRateLimitError(response.parsedBody);
     return new GrepBackendError(
-      detail ?? "Request rate limited.",
+      detail ?? rateLimit.message ?? "Request rate limited.",
       429,
       "RATE_LIMITED",
       true,
-      parsePkgseerErrorDetails(httpRateLimitExtensions(response.parsedBody)),
+      parsePkgseerErrorDetails(rateLimit.extensions),
     );
+  }
   if (response.status === 401)
     return new AuthenticationError(
       SERVER_AUTHENTICATION_REJECTED_MESSAGE,

@@ -256,7 +256,7 @@ export function formatMappedErrorText(
 export function appendRateLimitTiming(message: string, advice: string): string {
   if (message.includes(advice)) return message;
   const outcome = message.replace(/; retry after the limit resets\.$/, ".");
-  return `${outcome} ${advice}`;
+  return `${outcome}${/[.!?]$/.test(outcome) ? "" : "."} ${advice}`;
 }
 
 /** Preserve existing retry advice instead of appending a second instruction. */

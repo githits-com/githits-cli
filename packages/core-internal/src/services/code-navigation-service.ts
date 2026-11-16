@@ -8,7 +8,7 @@ import {
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import {
   getPrimaryExtensions,
-  httpRateLimitExtensions,
+  httpRateLimitError,
   type PkgseerErrorDetails,
   parsePkgseerErrorDetails,
 } from "../shared/pkgseer-error-details.js";
@@ -4058,13 +4058,13 @@ export function createCodeNavigationHttpError(
   }
 
   if (status === 429) {
-    const extensions = httpRateLimitExtensions(response.parsedBody);
+    const rateLimit = httpRateLimitError(response.parsedBody);
     return new CodeNavigationBackendError(
-      detail ?? "Request rate limited.",
+      detail ?? rateLimit.message ?? "Request rate limited.",
       status,
       "RATE_LIMITED",
       true,
-      parsePkgseerErrorDetails(extensions),
+      parsePkgseerErrorDetails(rateLimit.extensions),
     );
   }
 

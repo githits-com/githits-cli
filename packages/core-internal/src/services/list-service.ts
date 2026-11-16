@@ -8,7 +8,7 @@ import {
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import {
   getPrimaryExtensions,
-  httpRateLimitExtensions,
+  httpRateLimitError,
   type PkgseerErrorDetails,
   parsePkgseerErrorDetails,
 } from "../shared/pkgseer-error-details.js";
@@ -664,12 +664,13 @@ function createListHttpError(response: PkgseerGraphqlResponse): Error {
     );
   }
   if (response.status === 429) {
+    const rateLimit = httpRateLimitError(response.parsedBody);
     return new ListBackendError(
-      detail ?? "Request rate limited.",
+      detail ?? rateLimit.message ?? "Request rate limited.",
       429,
       "RATE_LIMITED",
       true,
-      parsePkgseerErrorDetails(httpRateLimitExtensions(response.parsedBody)),
+      parsePkgseerErrorDetails(rateLimit.extensions),
     );
   }
   if (response.status === 403) {

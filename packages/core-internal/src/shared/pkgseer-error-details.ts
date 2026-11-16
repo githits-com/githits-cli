@@ -1,5 +1,8 @@
 import type { ServiceDiagnostics } from "../services/runtime-diagnostics.js";
-import { normalizeSingleLineText } from "./http-error-detail.js";
+import {
+  normalizeSingleLineText,
+  parseHttpErrorDetail,
+} from "./http-error-detail.js";
 
 /** Allowlisted provider facts shared by service errors and transport envelopes. */
 export interface PkgseerErrorDetails {
@@ -64,6 +67,10 @@ interface GraphQLError {
 export function getPrimaryExtensions(
   errors: GraphQLError[],
 ): Record<string, unknown> | undefined {
+  return getPrimaryError(errors)?.extensions;
+}
+
+function getPrimaryError<T extends GraphQLError>(errors: T[]): T | undefined {
   const provider = errors.find(
     ({ extensions }) =>
       extensions?.code === "RATE_LIMITED" &&
@@ -82,28 +89,44 @@ export function getPrimaryExtensions(
           "FEATURE_FLAG_REQUIRED",
         ].includes(extensions.code),
     );
-    return (access ?? provider).extensions;
+    return access ?? provider;
   }
   return (
     errors.find(({ extensions }) => typeof extensions?.code === "string") ??
     errors.find(
       ({ extensions }) => extensions && Object.keys(extensions).length > 0,
     )
-  )?.extensions;
+  );
 }
 
 /** HTTP 429 may use either a GraphQL envelope or a direct API error object. */
 export function httpRateLimitExtensions(
   body: unknown,
 ): Record<string, unknown> | undefined {
-  if (!isRecord(body)) return undefined;
+  return httpRateLimitError(body).extensions;
+}
+
+/** Keep the selected GraphQL error's bounded message paired with its facts. */
+export function httpRateLimitError(body: unknown): {
+  extensions?: Record<string, unknown>;
+  message?: string;
+} {
+  if (!isRecord(body)) return {};
   if (Array.isArray(body.errors)) {
     const errors = body.errors.filter(isRecord).map((error) => ({
+      message: error.message,
       extensions: isRecord(error.extensions) ? error.extensions : undefined,
     }));
-    return getPrimaryExtensions(errors);
+    const selected = getPrimaryError(errors);
+    return {
+      extensions: selected?.extensions,
+      message: parseHttpErrorDetail(
+        JSON.stringify({ message: selected?.message }),
+        ["message"],
+      ),
+    };
   }
-  return isRecord(body.extensions) ? body.extensions : body;
+  return { extensions: isRecord(body.extensions) ? body.extensions : body };
 }
 
 /** Emit only classification dimensions, never messages, identities or bodies. */

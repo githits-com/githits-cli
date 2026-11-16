@@ -152,6 +152,10 @@ for (const status of [200, 429]) {
         };
         const error = await run(services).catch((error: unknown) => error);
         expect(error).toBeInstanceOf(Error);
+        if (status === 429)
+          expect((error as Error).message).toBe(
+            "Provider temporarily unavailable",
+          );
         const typed = error as {
           graphqlCode?: string;
           code?: string;

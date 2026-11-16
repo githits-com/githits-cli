@@ -382,3 +382,21 @@ it("retains distinct backend details when compacting provider retry text", () =>
     "Repository provider rate limit exceeded for https://github.com/example/repo. Try again now.",
   );
 });
+
+it.each([
+  "Source unavailable",
+  "Source unavailable.",
+  "Source unavailable!",
+  "Source unavailable?",
+])("separates compact recovery advice from sibling message: %s", (message) => {
+  const mapped: MappedError = {
+    code: "RATE_LIMITED",
+    retryable: true,
+    message: `Repository provider rate limit exceeded, ${message}`,
+    details: { retryAfterMs: 1501 },
+  };
+  const text = formatMappedErrorText(mapped, { width: 120 });
+  expect(text).toBe(
+    `${mapped.message}${/[.!?]$/.test(message) ? "" : "."} Try again in 2 seconds.`,
+  );
+});

@@ -21,7 +21,7 @@ import { isFetchTimeoutError } from "../shared/fetch-timeout.js";
 import { parseHttpErrorDetail } from "../shared/http-error-detail.js";
 import {
   getPrimaryExtensions,
-  httpRateLimitExtensions,
+  httpRateLimitError,
   type PkgseerErrorDetails,
   parsePkgseerErrorDetails,
 } from "../shared/pkgseer-error-details.js";
@@ -5231,13 +5231,14 @@ export function createPackageIntelligenceHttpError(
   }
 
   if (status === 429) {
+    const rateLimit = httpRateLimitError(response.parsedBody);
     return new PackageIntelligenceBackendError(
-      detail ?? "Request rate limited.",
+      detail ?? rateLimit.message ?? "Request rate limited.",
       status,
       "RATE_LIMITED",
       true,
       undefined,
-      parsePkgseerErrorDetails(httpRateLimitExtensions(response.parsedBody)),
+      parsePkgseerErrorDetails(rateLimit.extensions),
     );
   }
 
