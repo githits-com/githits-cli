@@ -59,7 +59,8 @@ export function formatMappedErrorForTerminal(mapped: MappedError): string {
     ) {
       const seconds = Math.ceil(retryAfterSeconds);
       const unit = seconds === 1 ? "second" : "seconds";
-      const advice = `Try again in ${seconds} ${unit}.`;
+      const advice =
+        seconds === 0 ? "Try again now." : `Try again in ${seconds} ${unit}.`;
       return appendBackendHint(
         mapped,
         mapped.message.includes(advice)

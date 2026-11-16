@@ -303,3 +303,47 @@ for (const width of [20, 80]) {
     },
   );
 }
+
+it.each([0, 800, 1000])(
+  "formats known %sms delay as immediate or singular retry timing",
+  (ms) => {
+    const advice = ms === 0 ? "Try again now." : "Try again in 1 second.";
+    const mapped: MappedError = {
+      code: "RATE_LIMITED",
+      message: "Provider limit reached; retry after reset.",
+      retryable: true,
+      details: { retryAfterMs: ms },
+    };
+    expect(formatMappedErrorText(mapped)).toEndWith(advice);
+    expect(
+      formatMappedErrorText({ ...mapped, retryable: false }),
+    ).not.toContain(advice);
+    expect(
+      formatMappedErrorText({ ...mapped, message: `Rate limited. ${advice}` }),
+    ).toBe(`Rate limited. ${advice}`);
+  },
+);
+
+for (const source of ["message", "hint", "action"] as const) {
+  it(`deduplicates known immediate retry advice in unwrapped ${source}`, () => {
+    const advice = "Try again now.";
+    const prose = `The provider request budget has reset and this repository request is available again. ${advice}`;
+    const action = `Retry read target=npm:example path=index.ts. ${advice}`;
+    const text = formatMappedErrorText(
+      {
+        code: "RATE_LIMITED",
+        retryable: true,
+        message: source === "message" ? prose : "Provider limit reached.",
+        details: {
+          retryAfterMs: 0,
+          ...(source === "hint" ? { hint: prose } : {}),
+          ...(source === "action" ? { action } : {}),
+        },
+      },
+      { width: 10 },
+    );
+    expect(text.replace(/\s+/g, " ").match(/Try again now\./g)).toHaveLength(1);
+    if (source === "action") expect(text).toContain(action);
+    else expect(text).not.toContain(advice);
+  });
+}

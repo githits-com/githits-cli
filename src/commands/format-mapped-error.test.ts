@@ -240,3 +240,28 @@ it("does not duplicate the exact numeric retry instruction", () => {
     }),
   ).toBe("Rate limited. Try again in 13 seconds.");
 });
+
+it.each([0, 800, 1000])(
+  "formats known %sms retry delay with matching immediate/singular text",
+  (ms) => {
+    const advice = ms === 0 ? "Try again now." : "Try again in 1 second.";
+    const mapped = {
+      code: "RATE_LIMITED" as const,
+      message: "Provider limit reached; retry after reset.",
+      retryable: true,
+      details: { retryAfterMs: ms },
+    };
+    expect(formatMappedErrorForTerminal(mapped)).toBe(
+      `${mapped.message} ${advice}`,
+    );
+    expect(formatMappedErrorForTerminal({ ...mapped, retryable: false })).toBe(
+      mapped.message,
+    );
+    expect(
+      formatMappedErrorForTerminal({
+        ...mapped,
+        message: `Rate limited. ${advice}`,
+      }),
+    ).toBe(`Rate limited. ${advice}`);
+  },
+);

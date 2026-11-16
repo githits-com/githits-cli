@@ -468,7 +468,9 @@ surface-native read and pagination syntax and optional ANSI.
   over the legacy `retryAfter` seconds alias; human retry advice rounds up to
   seconds. Text includes supplied retry timing even when backend prose already
   says to retry or an action is present; generic retry wording does not hide the
-  numeric delay. Application admission, operation and registry scopes remain distinct.
+  numeric delay. A known zero delay says `Try again now.`; positive delays use
+  `1 second` or plural seconds after rounding up. Application admission, operation
+  and registry scopes remain distinct.
   Provider throttling takes precedence over sibling missing-source errors;
   authentication/access errors retain their classification. Otherwise the first
   string error code takes precedence over extensions containing only hints.

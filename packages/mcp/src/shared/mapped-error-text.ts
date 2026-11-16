@@ -236,8 +236,12 @@ export function formatMappedErrorText(
   // Keep callable/copyable action operands intact, and avoid repeating host remediation.
   if (details.action && !lines.join("\n").includes(details.action))
     output.push("", ...details.action.split("\n").map(sanitizeTerminalText));
+  const seconds =
+    retryAfterSeconds === undefined ? undefined : Math.ceil(retryAfterSeconds);
   const timedAdvice = rateLimitAdvice
-    ? `Try again in ${Math.ceil(retryAfterSeconds)} seconds.`
+    ? seconds === 0
+      ? "Try again now."
+      : `Try again in ${seconds} ${seconds === 1 ? "second" : "seconds"}.`
     : undefined;
   if (mapped.retryable && timedAdvice) {
     if (!unwrappedText.includes(timedAdvice)) output.push("", timedAdvice);
