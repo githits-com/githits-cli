@@ -143,9 +143,9 @@ function interactiveHarness(
         ${JSON.stringify(missing ? "githits-nonexistent-native-host" : "node")},
         ${JSON.stringify(missing ? [] : ["-e", childCode])}
       );
-      process.stderr.write(JSON.stringify({result, restored:process.listenerCount('SIGINT')===count}));
+      process.stderr.write('INTERACTIVE_RESULT:'+JSON.stringify({result, restored:process.listenerCount('SIGINT')===count}));
     } catch {
-      process.stderr.write(JSON.stringify({failed:true,restored:process.listenerCount('SIGINT')===count}));
+      process.stderr.write('INTERACTIVE_RESULT:'+JSON.stringify({failed:true,restored:process.listenerCount('SIGINT')===count}));
     }
   `;
   return Bun.spawn([process.execPath, "--eval", source], {
@@ -158,14 +158,18 @@ function interactiveHarness(
 describe("interactive execution", () => {
   it("inherits stdin/stdout without capturing native output in the return value", async () => {
     const parent = interactiveHarness(
-      "process.stdin.once('data', data => { process.stdout.write('native:'+data); process.exit(0); })",
+      "process.stderr.write('native fixture diagnostic\\n'); process.stdin.once('data', data => { process.stdout.write('native:'+data); process.exit(0); })",
     );
     parent.stdin.write("fixture-input");
     parent.stdin.end();
     expect(await new Response(parent.stdout).text()).toBe(
       "native:fixture-input",
     );
-    const outcome = JSON.parse(await new Response(parent.stderr).text());
+    const outcome = JSON.parse(
+      (await new Response(parent.stderr).text())
+        .split("INTERACTIVE_RESULT:")
+        .at(-1)!,
+    );
     expect(outcome).toEqual({
       result: { exitCode: 0, signal: null },
       restored: true,
@@ -186,7 +190,11 @@ describe("interactive execution", () => {
         parent.kill("SIGINT"); // Parent must survive while the native child owns stdin.
         parent.stdin.write("cancel");
         parent.stdin.end();
-        const outcome = JSON.parse(await new Response(parent.stderr).text());
+        const outcome = JSON.parse(
+          (await new Response(parent.stderr).text())
+            .split("INTERACTIVE_RESULT:")
+            .at(-1)!,
+        );
         expect(outcome.restored).toBe(true);
         expect(outcome.result).toEqual(
           exit === "signal"
@@ -199,7 +207,11 @@ describe("interactive execution", () => {
     );
   it("restores the signal listener after spawn errors", async () => {
     const parent = interactiveHarness("", true);
-    const result = JSON.parse(await new Response(parent.stderr).text());
+    const result = JSON.parse(
+      (await new Response(parent.stderr).text())
+        .split("INTERACTIVE_RESULT:")
+        .at(-1)!,
+    );
     expect(result.restored).toBe(true);
     // Windows resolves shims through cmd.exe; an absent command exits there.
     if (process.platform === "win32")
