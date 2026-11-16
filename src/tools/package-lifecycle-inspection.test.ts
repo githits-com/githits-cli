@@ -963,3 +963,59 @@ describe("native lifecycle inspection causal path", () => {
     ).rejects.toBeInstanceOf(MalformedPackageIntelligenceResponseError);
   });
 });
+
+it.each([false, true])(
+  "retains healthy lifecycle evidence alongside a GitHub metadata throttle in json=%s",
+  async (json) => {
+    const body = bodyFor(cases[0]!);
+    const summary = (
+      body.data as { packageSummary: { package: Record<string, unknown> } }
+    ).packageSummary;
+    summary.package.githubRepository = null;
+    body.errors = [
+      {
+        message: "GitHub rate limit exceeded; retry after the limit resets.",
+        path: ["packageSummary", "package", "githubRepository"],
+        extensions: {
+          code: "RATE_LIMITED",
+          retryable: true,
+          rate_limit_scope: "repository_provider",
+          token_source: "app",
+          retry_after_ms: 12501,
+        },
+      },
+    ];
+    const { service, requests } = serviceFor(body);
+    const previous = process.exitCode;
+    try {
+      process.exitCode = 0;
+      const cli = await cliOutput(service, "npm:request", json);
+      expect(process.exitCode).toBe(1);
+      const mcp = await createPackageSummaryTool(service).handler({
+        target: "npm:request",
+        format: json ? "json" : "text",
+      });
+      expect(mcp.isError).toBeUndefined();
+      expect(mcp.content[0]!.text).toBe(cli);
+      if (json) {
+        const result = JSON.parse(cli);
+        expect(result.lifecycle.findings[0]).toMatchObject({
+          kind: "DEPRECATED",
+          reason: "No longer supported",
+        });
+        expect(result.githubError).toMatchObject({
+          code: "RATE_LIMITED",
+          retryAfterMs: 12501,
+        });
+      } else {
+        expect(cli).toContain("Deprecated: No longer supported");
+        expect(cli.replace(/\s+/g, " ")).toContain(
+          "GitHub metadata temporarily unavailable (RATE_LIMITED). Try again in 13 seconds.",
+        );
+      }
+      expect(requests).toHaveLength(2);
+    } finally {
+      process.exitCode = previous ?? 0;
+    }
+  },
+);

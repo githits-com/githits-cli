@@ -15,6 +15,11 @@ const repository = {
   url: "https://registry.npmjs.org",
 };
 const github = { stargazersCount: 123 };
+const lifecycle = {
+  findings: [],
+  retainedWarnings: [],
+  contentSafety: { filtered: false },
+};
 function providerError(
   path: readonly string[],
   tokenSource = "app",
@@ -62,6 +67,7 @@ function body(githubThrottled: boolean, provenanceThrottled: boolean) {
             selectedVersion: {
               resolvedVersion: "1.0.0",
               registryRepository: repository,
+              lifecycle,
             },
           },
     },
@@ -137,6 +143,7 @@ it.each([
     }
     if (provenanceThrottled) {
       expect(result.package.registryRepository).toBeUndefined();
+      expect(result.lifecycle).toBeUndefined();
       expect(result.package.registryRepositoryError).toMatchObject({
         code: "RATE_LIMITED",
         retryable: true,
@@ -147,6 +154,7 @@ it.each([
       });
     } else {
       expect(result.package.registryRepository).toEqual(repository);
+      expect(result.lifecycle).toEqual(lifecycle);
       expect(result.package.registryRepositoryError).toBeUndefined();
     }
     expect(JSON.stringify(result)).not.toMatch(

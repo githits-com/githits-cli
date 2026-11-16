@@ -32,9 +32,9 @@ import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { colorize, highlight } from "./colors.js";
 import { toIsoDate, toRelativeDate } from "./format-date.js";
 import { formatCompactNumber } from "./format-number.js";
+import { formatMappedErrorText } from "./mapped-error-text.js";
 import { sanitizeTerminalText } from "./terminal-text.js";
 import { terminalWidth } from "./terminal-width.js";
-import { formatMappedErrorText } from "./mapped-error-text.js";
 
 // --------------------------------------------------------------------
 // Lean JSON envelope
