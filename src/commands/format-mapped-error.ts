@@ -1,4 +1,5 @@
 import {
+  appendRateLimitTiming,
   formatMappedErrorText,
   hasRetryGuidance,
   type MappedError,
@@ -63,9 +64,7 @@ export function formatMappedErrorForTerminal(mapped: MappedError): string {
         seconds === 0 ? "Try again now." : `Try again in ${seconds} ${unit}.`;
       return appendBackendHint(
         mapped,
-        mapped.message.includes(advice)
-          ? mapped.message
-          : `${mapped.message} ${advice}`,
+        appendRateLimitTiming(mapped.message, advice),
       );
     }
     if (hasRetryGuidance(mapped.message))

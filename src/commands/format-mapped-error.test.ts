@@ -227,7 +227,9 @@ it.each([
         retryable: true,
         details: { retryAfterMs: 12501, retryAfterSeconds: 99 },
       }),
-    ).toBe(`${message} Try again in 13 seconds.`);
+    ).toBe(
+      `${message.replace(/; retry after the limit resets\.$/, ".")} Try again in 13 seconds.`,
+    );
   },
 );
 it("does not duplicate the exact numeric retry instruction", () => {
@@ -265,3 +267,15 @@ it.each([0, 800, 1000])(
     ).toBe(`Rate limited. ${advice}`);
   },
 );
+
+it("uses the same compact provider sentence in CLI output", () => {
+  expect(
+    formatMappedErrorForTerminal({
+      code: "RATE_LIMITED",
+      message:
+        "Repository provider rate limit exceeded; retry after the limit resets.",
+      retryable: true,
+      details: { rateLimitScope: "repository_provider", retryAfterMs: 12501 },
+    }),
+  ).toBe("Repository provider rate limit exceeded. Try again in 13 seconds.");
+});

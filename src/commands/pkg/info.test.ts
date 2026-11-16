@@ -492,7 +492,9 @@ for (const mode of ["github", "provenance", "both"] as const) {
           });
         } else {
           expect(text).toContain("express @ 4.18.2 | MIT");
-          expect(text).toContain("Try again in 2 seconds.");
+          expect(text.replace(/\s+/g, " ")).toContain(
+            "Try again in 2 seconds.",
+          );
         }
       } finally {
         process.exitCode = previous ?? 0;

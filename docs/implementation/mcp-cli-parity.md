@@ -468,7 +468,10 @@ surface-native read and pagination syntax and optional ANSI.
   over the legacy `retryAfter` seconds alias; human retry advice rounds up to
   seconds. Text includes supplied retry timing even when backend prose already
   says to retry or an action is present; generic retry wording does not hide the
-  numeric delay. A known zero delay says `Try again now.`; positive delays use
+  numeric delay. Text joins known timing to the error sentence before wrapping,
+  omits the repeated provider sentence, and replaces the producer's generic
+  `; retry after the limit resets.` clause with the concrete timing.
+  A known zero delay says `Try again now.`; positive delays use
   `1 second` or plural seconds after rounding up. Application admission, operation
   and registry scopes remain distinct.
   Provider throttling takes precedence over sibling missing-source errors;
@@ -688,7 +691,7 @@ When a new tool lands with both MCP and CLI surfaces:
   the allowlisted scope/source/repository/ref/retry facts above. Text always
   explains temporary unavailability and available retry timing, including in
   compact mode. Simultaneous metadata failures share one text notice naming both
-  sources, one provider notice and retry advice using the larger delay; JSON
+  sources and retry advice using the larger delay; JSON
   keeps both independent error objects. MCP returns the useful result without `isError`; CLI prints
   that result and sets exit status 1, as for nullable advisory-source errors.
   Other existing optional provenance failures retain their behavior. Global,

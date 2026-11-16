@@ -213,11 +213,6 @@ export function formatMappedErrorText(
     );
   if (details.updateCommand)
     lines.push("", `Update with: ${details.updateCommand}`);
-  if (
-    mapped.code === "RATE_LIMITED" &&
-    details.rateLimitScope === "repository_provider"
-  )
-    lines.push("Repository provider is temporarily rate limited.");
   const retryAfterSeconds =
     details.retryAfterMs === undefined
       ? details.retryAfterSeconds
@@ -231,11 +226,6 @@ export function formatMappedErrorText(
   )
     lines.push("", details.hint);
   const unwrappedText = [...lines, details.action ?? ""].join("\n");
-  const width = options.width ?? 80;
-  const output = lines.flatMap((line) => wrapTerminalProse(line, width));
-  // Keep callable/copyable action operands intact, and avoid repeating host remediation.
-  if (details.action && !lines.join("\n").includes(details.action))
-    output.push("", ...details.action.split("\n").map(sanitizeTerminalText));
   const seconds =
     retryAfterSeconds === undefined ? undefined : Math.ceil(retryAfterSeconds);
   const timedAdvice = rateLimitAdvice
@@ -243,9 +233,16 @@ export function formatMappedErrorText(
       ? "Try again now."
       : `Try again in ${seconds} ${seconds === 1 ? "second" : "seconds"}.`
     : undefined;
-  if (mapped.retryable && timedAdvice) {
-    if (!unwrappedText.includes(timedAdvice)) output.push("", timedAdvice);
-  } else if (
+  if (mapped.retryable && timedAdvice && !unwrappedText.includes(timedAdvice)) {
+    lines[0] = appendRateLimitTiming(lines[0] ?? mapped.message, timedAdvice);
+  }
+  const width = options.width ?? 80;
+  const output = lines.flatMap((line) => wrapTerminalProse(line, width));
+  // Keep callable/copyable action operands intact, and avoid repeating host remediation.
+  if (details.action && !lines.join("\n").includes(details.action))
+    output.push("", ...details.action.split("\n").map(sanitizeTerminalText));
+  if (
+    !timedAdvice &&
     !details.action &&
     mapped.retryable &&
     !hasRetryGuidance(lines.join("\n"))
@@ -253,6 +250,13 @@ export function formatMappedErrorText(
     output.push("", "Try again.");
   }
   return output.join("\n");
+}
+
+/** Replace the producer's generic reset clause with one concrete recovery sentence. */
+export function appendRateLimitTiming(message: string, advice: string): string {
+  if (message.includes(advice)) return message;
+  const outcome = message.replace(/; retry after the limit resets\.$/, ".");
+  return `${outcome} ${advice}`;
 }
 
 /** Preserve existing retry advice instead of appending a second instruction. */

@@ -826,9 +826,9 @@ for (const verbose of [false, true]) {
       expect(output).toContain(
         "GitHub metadata and registry provenance temporarily unavailable",
       );
-      expect(
-        output.match(/Repository provider is temporarily rate limited\./g),
-      ).toHaveLength(1);
+      expect(output).not.toContain(
+        "Repository provider is temporarily rate limited.",
+      );
       expect(output.match(/Try again in \d+ seconds\./g)).toEqual([
         `Try again in ${expectedSeconds} seconds.`,
       ]);

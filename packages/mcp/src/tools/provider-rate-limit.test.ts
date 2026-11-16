@@ -233,8 +233,8 @@ for (const format of ["text", "json"] as const) {
           details: facts,
         });
       } else {
-        expect(text).toContain(
-          "Repository provider is temporarily rate limited.",
+        expect(text).toBe(
+          "Repository provider rate limit exceeded. Try again in 2 seconds.",
         );
         expect(text).toContain("Try again in 2 seconds.");
       }

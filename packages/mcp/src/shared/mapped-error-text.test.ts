@@ -256,9 +256,10 @@ it.each([
       action: "Retry this read after reset.",
     },
   });
-  expect(text).toContain(message);
+  expect(text.replace(/\s+/g, " ")).toContain(
+    `${message.replace(/; retry after the limit resets\.$/, ".")} Try again in 13 seconds.`,
+  );
   expect(text).toContain("Retry this read after reset.");
-  expect(text).toEndWith("Try again in 13 seconds.");
 });
 it("keeps numeric retry advice once when already in the backend message", () => {
   expect(
@@ -347,3 +348,37 @@ for (const source of ["message", "hint", "action"] as const) {
     else expect(text).not.toContain(advice);
   });
 }
+
+it("renders one compact provider outcome and retry sentence", () => {
+  const mapped: MappedError = {
+    code: "RATE_LIMITED",
+    message:
+      "Repository provider rate limit exceeded; retry after the limit resets.",
+    retryable: true,
+    details: { rateLimitScope: "repository_provider", retryAfterMs: 12501 },
+  };
+  expect(formatMappedErrorText(mapped, { width: 80 })).toBe(
+    "Repository provider rate limit exceeded. Try again in 13 seconds.",
+  );
+  const narrow = formatMappedErrorText(mapped, { width: 30 });
+  expect(narrow.replace(/\s+/g, " ")).toBe(
+    "Repository provider rate limit exceeded. Try again in 13 seconds.",
+  );
+  expect(narrow.split("\n").every((line) => line.length <= 30)).toBe(true);
+});
+it("retains distinct backend details when compacting provider retry text", () => {
+  const message =
+    "Repository provider rate limit exceeded for https://github.com/example/repo; retry after the limit resets.";
+  const text = formatMappedErrorText(
+    {
+      code: "RATE_LIMITED",
+      message,
+      retryable: true,
+      details: { rateLimitScope: "repository_provider", retryAfterMs: 0 },
+    },
+    { width: 120 },
+  );
+  expect(text).toBe(
+    "Repository provider rate limit exceeded for https://github.com/example/repo. Try again now.",
+  );
+});

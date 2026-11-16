@@ -423,7 +423,7 @@ for (const mode of ["github", "provenance", "both"] as const) {
         expect(JSON.parse(text)).toHaveProperty("downloads");
       } else {
         expect(text).toContain("express @ 4.18.2 | MIT");
-        expect(text).toContain("Try again in 2 seconds.");
+        expect(text.replace(/\s+/g, " ")).toContain("Try again in 2 seconds.");
         if (mode === "both")
           expect(text).toContain(
             "GitHub metadata and registry provenance temporarily unavailable",
