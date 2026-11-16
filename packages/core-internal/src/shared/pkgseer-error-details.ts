@@ -1,7 +1,7 @@
 import type { ServiceDiagnostics } from "../services/runtime-diagnostics.js";
 import {
+  boundedErrorDetail,
   normalizeSingleLineText,
-  parseHttpErrorDetail,
 } from "./http-error-detail.js";
 
 /** Allowlisted provider facts shared by service errors and transport envelopes. */
@@ -120,10 +120,7 @@ export function httpRateLimitError(body: unknown): {
     const selected = getPrimaryError(errors);
     return {
       extensions: selected?.extensions,
-      message: parseHttpErrorDetail(
-        JSON.stringify({ message: selected?.message }),
-        ["message"],
-      ),
+      message: boundedErrorDetail(selected?.message),
     };
   }
   return { extensions: isRecord(body.extensions) ? body.extensions : body };

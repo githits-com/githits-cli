@@ -19,15 +19,20 @@ export function parseHttpErrorDetail(
 
   if (!isRecord(parsed)) return undefined;
   for (const field of fields) {
-    const value = parsed[field];
-    if (typeof value !== "string") continue;
-    const normalized = normalizeSingleLineText(value);
-    if (!normalized) continue;
-    if (normalized.length <= MAX_ERROR_DETAIL_LENGTH) return normalized;
-    return `${normalized.slice(0, MAX_ERROR_DETAIL_LENGTH - 3)}...`;
+    const detail = boundedErrorDetail(parsed[field]);
+    if (detail !== undefined) return detail;
   }
 
   return undefined;
+}
+
+/** Normalize one allowed HTTP error string, preserving the shared display limit. */
+export function boundedErrorDetail(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = normalizeSingleLineText(value);
+  if (!normalized) return undefined;
+  if (normalized.length <= MAX_ERROR_DETAIL_LENGTH) return normalized;
+  return `${normalized.slice(0, MAX_ERROR_DETAIL_LENGTH - 3)}...`;
 }
 
 export function normalizeSingleLineText(value: string): string {
