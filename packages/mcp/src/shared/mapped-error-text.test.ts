@@ -240,3 +240,33 @@ describe("existing retry advice", () => {
     expect(text).toBe("Request failed.\n\nRetry after reconnecting.");
   });
 });
+
+it.each([
+  "Repository provider rate limit exceeded; retry after the limit resets.",
+  "Please retry later.",
+])("shows supplied retry timing despite backend advice: %s", (message) => {
+  const text = formatMappedErrorText({
+    code: "RATE_LIMITED",
+    message,
+    retryable: true,
+    details: {
+      rateLimitScope: "repository_provider",
+      retryAfterMs: 12501,
+      retryAfterSeconds: 99,
+      action: "Retry this read after reset.",
+    },
+  });
+  expect(text).toContain(message);
+  expect(text).toContain("Retry this read after reset.");
+  expect(text).toEndWith("Try again in 13 seconds.");
+});
+it("keeps numeric retry advice once when already in the backend message", () => {
+  expect(
+    formatMappedErrorText({
+      code: "RATE_LIMITED",
+      message: "Rate limited. Try again in 13 seconds.",
+      retryable: true,
+      details: { retryAfterSeconds: 12.501 },
+    }),
+  ).toBe("Rate limited. Try again in 13 seconds.");
+});

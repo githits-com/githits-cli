@@ -29,7 +29,8 @@ const facts = {
   retryAfterMs: 1501,
   retryAfterSeconds: 1.501,
 };
-const message = "Provider request unavailable.";
+const message =
+  "Repository provider rate limit exceeded; retry after the limit resets.";
 const navError = new CodeNavigationBackendError(
   message,
   undefined,

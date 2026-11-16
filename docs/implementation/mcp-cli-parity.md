@@ -466,7 +466,9 @@ surface-native read and pagination syntax and optional ANSI.
   parser owns this allowlist; service errors carry the facts and MCP/CLI
   mappers retain them in the existing envelope. Milliseconds take precedence
   over the legacy `retryAfter` seconds alias; human retry advice rounds up to
-  seconds. Application admission, operation and registry scopes remain distinct.
+  seconds. Text includes supplied retry timing even when backend prose already
+  says to retry or an action is present; generic retry wording does not hide the
+  numeric delay. Application admission, operation and registry scopes remain distinct.
   Provider throttling takes precedence over sibling missing-source errors;
   authentication/access errors retain their classification. Otherwise the first
   string error code takes precedence over extensions containing only hints.

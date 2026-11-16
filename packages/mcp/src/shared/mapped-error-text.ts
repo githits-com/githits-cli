@@ -219,10 +219,9 @@ export function formatMappedErrorText(
   )
     lines.push("Repository provider is temporarily rate limited.");
   const retryAfterSeconds =
-    details.retryAfterSeconds ??
-    (details.retryAfterMs === undefined
-      ? undefined
-      : details.retryAfterMs / 1000);
+    details.retryAfterMs === undefined
+      ? details.retryAfterSeconds
+      : details.retryAfterMs / 1000;
   const rateLimitAdvice =
     mapped.code === "RATE_LIMITED" && retryAfterSeconds !== undefined;
   if (
@@ -236,17 +235,18 @@ export function formatMappedErrorText(
   // Keep callable/copyable action operands intact, and avoid repeating host remediation.
   if (details.action && !lines.join("\n").includes(details.action))
     output.push("", ...details.action.split("\n").map(sanitizeTerminalText));
-  if (
+  const timedAdvice = rateLimitAdvice
+    ? `Try again in ${Math.ceil(retryAfterSeconds)} seconds.`
+    : undefined;
+  if (mapped.retryable && timedAdvice) {
+    if (!output.join("\n").includes(timedAdvice)) output.push("", timedAdvice);
+  } else if (
     !details.action &&
     mapped.retryable &&
     !hasRetryGuidance(lines.join("\n"))
-  )
-    output.push(
-      "",
-      rateLimitAdvice
-        ? `Try again in ${Math.ceil(retryAfterSeconds)} seconds.`
-        : "Try again.",
-    );
+  ) {
+    output.push("", "Try again.");
+  }
   return output.join("\n");
 }
 

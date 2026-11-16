@@ -141,7 +141,7 @@ describe("formatMappedErrorForTerminal", () => {
     ).toBe("Request rejected.");
   });
 
-  it("does not duplicate API retry guidance", () => {
+  it("adds known timing despite generic API retry guidance", () => {
     expect(
       formatMappedErrorForTerminal({
         code: "RATE_LIMITED",
@@ -149,7 +149,7 @@ describe("formatMappedErrorForTerminal", () => {
         retryable: true,
         details: { status: 429, retryAfterSeconds: 17 },
       }),
-    ).toBe("Please retry later.");
+    ).toBe("Please retry later. Try again in 17 seconds.");
   });
 
   it("formats timeouts with provider-neutral retry guidance", () => {
@@ -212,4 +212,31 @@ describe("formatMappedErrorForTerminal", () => {
       "Update required: Backend protocol changed\n\nUpdate with:\n  npm i -g githits@latest",
     );
   });
+});
+
+it.each([
+  "Repository provider rate limit exceeded; retry after the limit resets.",
+  "Please retry later.",
+])(
+  "retains precise rate-limit timing despite backend retry prose: %s",
+  (message) => {
+    expect(
+      formatMappedErrorForTerminal({
+        code: "RATE_LIMITED",
+        message,
+        retryable: true,
+        details: { retryAfterMs: 12501, retryAfterSeconds: 99 },
+      }),
+    ).toBe(`${message} Try again in 13 seconds.`);
+  },
+);
+it("does not duplicate the exact numeric retry instruction", () => {
+  expect(
+    formatMappedErrorForTerminal({
+      code: "RATE_LIMITED",
+      message: "Rate limited. Try again in 13 seconds.",
+      retryable: true,
+      details: { retryAfterSeconds: 12.501 },
+    }),
+  ).toBe("Rate limited. Try again in 13 seconds.");
 });
