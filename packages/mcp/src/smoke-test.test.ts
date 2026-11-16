@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
 import { type GrepResult, parseGrepResult } from "@githits/core-internal";
-import { createMockPackageLifecycle } from "../../core-internal/src/services/test-helpers.js";
 import mixedGrepPageFixture from "./shared/fixtures/grep-text/mixed-100.json";
 import { formatGrepText } from "./shared/grep-text.js";
 import {
@@ -498,6 +497,27 @@ describe("runMcpSmoke", () => {
       runMcpSmoke(caller, { includeLiveTools: false }),
     ).rejects.toThrow("listTools missing search_status");
   });
+
+  it.each([
+    { findings: [{ kind: "DEPRECATED", source: "go.mod" }] },
+    {
+      retainedWarnings: [
+        { classification: "LEGACY_UNCLASSIFIED", reason: "Publisher warning" },
+      ],
+    },
+  ])(
+    "accepts lean lifecycle JSON without empty sibling arrays or filtering flags",
+    async (lifecycle) => {
+      const caller = createCaller(async (name, args) => {
+        const result = smokeResponse(name, args);
+        if (name !== "pkg_info" || args.format !== "json") return result;
+        const payload = JSON.parse(resultText(result, "fixture"));
+        payload.lifecycle = lifecycle;
+        return jsonResult(payload);
+      });
+      await expect(runMcpSmoke(caller)).resolves.toBeUndefined();
+    },
+  );
 
   it("rejects internal lifecycle checks leaking into verbose JSON", async () => {
     const caller = createCaller(async (name, args) => {
@@ -1749,9 +1769,6 @@ function smokeJsonResponse(
         versionCount: 42,
         downloads: { refreshedAt: "2024-06-15" },
         advisoryHistory: { total: 5 },
-        ...(args.verbose === true
-          ? { lifecycle: createMockPackageLifecycle() }
-          : {}),
       });
     case "pkg_deps":
       if (args.include_issues === true) {

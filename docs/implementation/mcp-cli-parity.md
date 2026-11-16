@@ -620,7 +620,11 @@ When a new tool lands with both MCP and CLI surfaces:
   `contentSafety.filtered: true` accompanies filtered warning prose.
   CLI `--verbose` and MCP `verbose: true` add the publisher's full explanation,
   native scope, source authority, collection time, publisher codes and safety
-  metadata in text or JSON. Verbose text uses readable status labels and avoids
+  metadata in text or JSON. Both JSON modes share one lean warning shape; verbose
+  expands the reason and adds nonempty source/sourceVersion/observedAt/reasonCodes
+  fields. Neither mode repeats registry/name/version/category inside each finding
+  or emits nulls, empty arrays or false filtering flags. These duplicate identity
+  and category fields are not selected or decoded. Verbose text uses readable status labels and avoids
   repeated identity or internal enum scaffolding. A source version matching the
   header is described as the selected release; a differing authority version is
   explicit. Collection time is shown to UTC minutes; verbose JSON preserves the

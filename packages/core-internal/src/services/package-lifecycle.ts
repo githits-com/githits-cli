@@ -1,10 +1,5 @@
 import { z } from "zod";
 
-/** Backend-owned categories remain forward compatible with additive enum values. */
-export type PackageLifecycleCategory =
-  | "DEPRECATION"
-  | "WITHDRAWAL"
-  | (string & {});
 export type PackageLifecycleKind =
   | "DEPRECATED"
   | "RETIRED"
@@ -22,11 +17,6 @@ export type PackageLifecycleScope =
   | (string & {});
 /** A native fact, not a vulnerability or a client-selected upgrade policy. */
 export interface PackageLifecycleFinding {
-  registry: string;
-  name: string;
-  /** Affected release; null/absent for package-wide evidence. */
-  version?: string | null;
-  category: PackageLifecycleCategory;
   kind: PackageLifecycleKind;
   scope: PackageLifecycleScope;
   source: string;
@@ -41,9 +31,6 @@ export interface PackageLifecycleFinding {
 }
 
 export interface PackageLifecycleRetainedWarning {
-  registry: string;
-  name: string;
-  version: string;
   classification: "LEGACY_UNCLASSIFIED" | (string & {});
   reason: string;
 }
@@ -59,10 +46,6 @@ export interface PackageLifecycle {
 export const packageLifecycleSchema: z.ZodType<PackageLifecycle> = z.object({
   findings: z.array(
     z.object({
-      registry: z.string(),
-      name: z.string(),
-      version: z.string().nullish(),
-      category: z.string(),
       kind: z.string(),
       scope: z.string(),
       source: z.string(),
@@ -75,9 +58,6 @@ export const packageLifecycleSchema: z.ZodType<PackageLifecycle> = z.object({
   ),
   retainedWarnings: z.array(
     z.object({
-      registry: z.string(),
-      name: z.string(),
-      version: z.string(),
       classification: z.string(),
       reason: z.string(),
     }),

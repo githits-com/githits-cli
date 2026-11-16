@@ -10,8 +10,8 @@
  *   omitted.
  * - **Null-omitted.** Scalars go missing when null; blocks go missing
  *   when every leaf is null; arrays go missing when empty. Agent
- *   callers receive present data only, not a skeleton. Full lifecycle evidence
- *   is available only when verbose output is explicitly requested.
+ *   callers receive present data only, not a skeleton. Publisher/source details
+ *   expand only when verbose output is explicitly requested.
  * - **Stable.** Two identical queries produce byte-identical output
  *   (no clock-dependent fields, no iteration-order tricks), so the
  *   parity test can deep-equal across surfaces.
@@ -79,7 +79,7 @@ export interface LeanRecentChange {
   summary?: string;
 }
 
-export interface CompactLifecycleFinding {
+export interface LeanLifecycleFinding {
   kind: string;
   /** Release scope is implicit in the overview header. */
   scope?: string;
@@ -87,17 +87,21 @@ export interface CompactLifecycleFinding {
   reasonTruncated?: true;
   /** Publisher advice, not a verified upgrade recommendation. */
   replacement?: string;
+  source?: string;
+  sourceVersion?: string;
+  observedAt?: string;
+  reasonCodes?: string[];
 }
 
-export interface CompactLifecycleWarning {
+export interface LeanLifecycleWarning {
   classification: string;
   reason?: string;
   reasonTruncated?: true;
 }
 
-export interface CompactPackageLifecycle {
-  findings?: CompactLifecycleFinding[];
-  retainedWarnings?: CompactLifecycleWarning[];
+export interface LeanPackageLifecycle {
+  findings?: LeanLifecycleFinding[];
+  retainedWarnings?: LeanLifecycleWarning[];
   contentSafety?: { filtered: true };
 }
 
@@ -120,8 +124,8 @@ export interface LeanPackageSummary {
   vulnerabilities?: LeanVulnerabilities;
   advisoryHistory?: LeanAdvisoryHistory;
   recentChanges?: LeanRecentChange[];
-  /** Compact warnings by default; complete native evidence only with verbose. */
-  lifecycle?: CompactPackageLifecycle | PackageLifecycle;
+  /** Verbose adds publisher/source evidence without repeating identity or empty fields. */
+  lifecycle?: LeanPackageLifecycle;
 }
 
 /**
@@ -175,15 +179,8 @@ export function buildPackageSummarySuccessPayload(
   const advisoryHistory = buildAdvisoryHistory(summary.security);
   if (advisoryHistory) payload.advisoryHistory = advisoryHistory;
 
-  const lifecycle = options.verbose
-    ? summary.lifecycle
-    : buildCompactLifecycle(summary.lifecycle);
-  if (
-    lifecycle &&
-    ((lifecycle.findings?.length ?? 0) > 0 ||
-      (lifecycle.retainedWarnings?.length ?? 0) > 0)
-  )
-    payload.lifecycle = lifecycle;
+  const lifecycle = buildLifecyclePayload(summary.lifecycle, options.verbose);
+  if (lifecycle) payload.lifecycle = lifecycle;
 
   const recent = buildRecentChanges(summary.latestChangelogs);
   if (recent) payload.recentChanges = recent;
@@ -191,31 +188,41 @@ export function buildPackageSummarySuccessPayload(
   return payload;
 }
 
-/** Project the user-facing warnings once for compact text and JSON. */
-function buildCompactLifecycle(
+/** Keep the same user-facing warning shape, adding source evidence only when requested. */
+function buildLifecyclePayload(
   lifecycle: PackageLifecycle | undefined,
-): CompactPackageLifecycle | undefined {
+  verbose = false,
+): LeanPackageLifecycle | undefined {
   if (!lifecycle) return undefined;
-  const findings = lifecycle.findings.map(
-    (finding): CompactLifecycleFinding => {
-      const reason = finding.reason?.replace(/\s+/g, " ").trim();
-      const replacement = finding.replacement?.trim();
-      const compactReason = compactLifecycleReason(reason);
-      return {
-        kind: finding.kind,
-        ...(finding.scope !== "RELEASE" ? { scope: finding.scope } : {}),
-        ...compactReason,
-        ...(replacement &&
-        !reasonMentionsReplacement(compactReason.reason, replacement)
-          ? { replacement }
-          : {}),
-      };
-    },
-  );
+  const findings = lifecycle.findings.map((finding): LeanLifecycleFinding => {
+    const replacement = finding.replacement?.trim();
+    const reasonFields = lifecycleReason(finding.reason, verbose);
+    return {
+      kind: finding.kind,
+      ...(finding.scope !== "RELEASE" ? { scope: finding.scope } : {}),
+      ...reasonFields,
+      ...(replacement &&
+      !reasonMentionsReplacement(reasonFields.reason, replacement)
+        ? { replacement }
+        : {}),
+      ...(verbose
+        ? {
+            ...(finding.source ? { source: finding.source } : {}),
+            ...(finding.sourceVersion
+              ? { sourceVersion: finding.sourceVersion }
+              : {}),
+            ...(finding.observedAt ? { observedAt: finding.observedAt } : {}),
+            ...(finding.reasonCodes.length > 0
+              ? { reasonCodes: finding.reasonCodes }
+              : {}),
+          }
+        : {}),
+    };
+  });
   const retainedWarnings = lifecycle.retainedWarnings.map(
-    (warning): CompactLifecycleWarning => ({
+    (warning): LeanLifecycleWarning => ({
       classification: warning.classification,
-      ...compactLifecycleReason(warning.reason.replace(/\s+/g, " ").trim()),
+      ...lifecycleReason(warning.reason, verbose),
     }),
   );
   if (findings.length === 0 && retainedWarnings.length === 0) return undefined;
@@ -241,18 +248,23 @@ function reasonMentionsReplacement(
   ).test(reason);
 }
 
-function compactLifecycleReason(reason: string | undefined): {
+function lifecycleReason(
+  reason: string | null | undefined,
+  verbose: boolean,
+): {
   reason?: string;
   reasonTruncated?: true;
 } {
-  if (!reason) return {};
-  const characters = Array.from(reason);
+  if (!reason?.trim()) return {};
+  if (verbose) return { reason };
+  const normalized = reason.replace(/\s+/g, " ").trim();
+  const characters = Array.from(normalized);
   return characters.length > 160
     ? {
         reason: `${characters.slice(0, 157).join("").trimEnd()}...`,
         reasonTruncated: true,
       }
-    : { reason };
+    : { reason: normalized };
 }
 
 function lowerRegistry(value: string | undefined): string {
@@ -467,7 +479,7 @@ export function formatPackageSummaryTerminal(
 
   const lifecycle = options.verbose
     ? formatLifecycle(summary.lifecycle, width, summary.package.version)
-    : formatCompactLifecycle(buildCompactLifecycle(summary.lifecycle), width);
+    : formatCompactLifecycle(buildLifecyclePayload(summary.lifecycle), width);
   if (lifecycle) sections.push(lifecycle);
 
   if (options.verbose) {
@@ -480,7 +492,7 @@ export function formatPackageSummaryTerminal(
 
 /** Default text shows concise warnings; verbose expands publisher/source evidence. */
 function formatCompactLifecycle(
-  lifecycle: CompactPackageLifecycle | undefined,
+  lifecycle: LeanPackageLifecycle | undefined,
   width: number,
 ): string {
   if (!lifecycle) return "";

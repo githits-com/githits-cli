@@ -244,12 +244,49 @@ const compactTextCases = [
   "Partially yanked (files).",
 ];
 
-function userEvidence(
-  lifecycle: Record<string, unknown>,
-): Record<string, unknown> {
-  const { checks: _internalChecks, ...evidence } = lifecycle;
-  return evidence;
-}
+const verboseCases = [
+  {
+    findings: [
+      {
+        kind: "DEPRECATED",
+        reason: "No longer supported",
+        source: "registry metadata",
+        sourceVersion: "2.88.2",
+        observedAt: "2026-11-10T10:00:00Z",
+      },
+    ],
+  },
+  undefined,
+  { findings: [{ kind: "YANKED", source: "registry metadata" }] },
+  { findings: [{ kind: "YANKED", source: "registry metadata" }] },
+  {
+    findings: [
+      {
+        kind: "DEPRECATED",
+        scope: "PACKAGE",
+        reason: 'Use the "google.golang.org/protobuf" module instead.',
+        source: "go.mod",
+        sourceVersion: "v1.5.4",
+      },
+    ],
+  },
+  {
+    retainedWarnings: [
+      { classification: "LEGACY_UNCLASSIFIED", reason: "Retained old warning" },
+    ],
+  },
+  {
+    findings: [
+      {
+        kind: "PARTIALLY_YANKED",
+        scope: "FILES",
+        source: "registry metadata",
+        reasonCodes: ["publisher-code"],
+      },
+    ],
+    contentSafety: { filtered: true },
+  },
+];
 
 function bodyFor(testCase: (typeof cases)[number]): Record<string, unknown> {
   return {
@@ -345,8 +382,8 @@ function assertSelection(query: string): void {
   );
   expect(query).toMatch(/selectedVersion\s*\{[\s\S]*lifecycle\s*\{/);
   for (const selection of [
-    "findings { registry name version category kind scope source sourceVersion observedAt reason reasonCodes replacement }",
-    "retainedWarnings { registry name version classification reason }",
+    "findings { kind scope source sourceVersion observedAt reason reasonCodes replacement }",
+    "retainedWarnings { classification reason }",
     "contentSafety { filtered }",
   ])
     expect(query.replace(/\s+/g, " ")).toContain(selection);
@@ -354,6 +391,12 @@ function assertSelection(query: string): void {
   expect(query).not.toMatch(/\bchecks\s*\{/);
   expect(query).not.toContain("registryArchival");
   expect(query).not.toContain("repositoryArchival");
+  const lifecycleSelection = query
+    .split("lifecycle {")[1]!
+    .split("registryRepository")[0]!;
+  expect(lifecycleSelection).not.toMatch(
+    /\b(registry|name|version|category)\b/,
+  );
   expect(query).not.toMatch(/lifecycle\s*@include/);
   expect(query).toContain(
     "latestChangelogs(limit: 3) @include(if: $includeVerboseFields)",
@@ -414,9 +457,7 @@ describe("native lifecycle inspection causal path", () => {
         verbose: true,
       });
       expect(JSON.parse(verboseMcpJson.content[0]!.text!)).toEqual(verboseJson);
-      expect(verboseJson.lifecycle).toEqual(
-        index === 1 ? undefined : userEvidence(testCase.lifecycle),
-      );
+      expect(verboseJson.lifecycle).toEqual(verboseCases[index]);
       if (verboseJson.lifecycle)
         expect(verboseJson.lifecycle).not.toHaveProperty("checks");
       const verboseText = await cliOutput(
@@ -661,9 +702,21 @@ describe("native lifecycle inspection causal path", () => {
       verbose: true,
     });
     expect(result.isError).toBeUndefined();
-    expect(JSON.parse(result.content[0]!.text!).lifecycle).toEqual(
-      userEvidence(lifecycle),
-    );
+    expect(JSON.parse(result.content[0]!.text!).lifecycle).toEqual({
+      findings: [
+        {
+          kind: "FUTURE_KIND",
+          scope: "FUTURE_SCOPE",
+          source: "registry metadata",
+        },
+      ],
+      retainedWarnings: [
+        {
+          classification: "FUTURE_CLASSIFICATION",
+          reason: "Publisher warning",
+        },
+      ],
+    });
     const text = await tool.handler({ target: "npm:request", verbose: true });
     for (const value of [
       "FUTURE_KIND",
@@ -858,9 +911,17 @@ describe("native lifecycle inspection causal path", () => {
       format: "json",
       verbose: true,
     });
-    expect(JSON.parse(json.content[0]!.text!).lifecycle).toEqual(
-      userEvidence(lifecycle),
-    );
+    expect(JSON.parse(json.content[0]!.text!).lifecycle).toEqual({
+      findings: [
+        {
+          kind: "DEPRECATED",
+          reason,
+          source: `registry${esc}[2J`,
+          replacement: `new-package${esc}[2J`,
+        },
+      ],
+      retainedWarnings: [{ classification: "LEGACY_UNCLASSIFIED", reason }],
+    });
   });
 
   it("explains an authority version different from the selected release without changing scope", async () => {

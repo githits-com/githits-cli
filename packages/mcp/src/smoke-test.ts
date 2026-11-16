@@ -1100,13 +1100,6 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     typeof pkgInfoJson.versionCount === "number",
     "pkg_info json missing version count",
   );
-  if (pkgInfoJson.lifecycle !== undefined) {
-    assertRecord(pkgInfoJson.lifecycle, "pkg_info compact lifecycle");
-    assert(
-      !("checks" in pkgInfoJson.lifecycle),
-      "pkg_info default JSON leaked lifecycle checks",
-    );
-  }
   const pkgInfoVerboseJson = assertJsonResult(
     await callTool(caller, "pkg_info", {
       target: "npm:express",
@@ -1116,26 +1109,40 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_info verbose json",
   );
   assertRecord(pkgInfoVerboseJson, "pkg_info verbose json");
-  if (pkgInfoVerboseJson.lifecycle !== undefined) {
-    const lifecycle = pkgInfoVerboseJson.lifecycle;
-    assertRecord(lifecycle, "pkg_info lifecycle");
-    assert(
-      Array.isArray(lifecycle.findings),
-      "pkg_info lifecycle missing findings",
-    );
-    assert(
-      Array.isArray(lifecycle.retainedWarnings),
-      "pkg_info lifecycle missing retained warnings",
-    );
+  for (const [mode, payload] of [
+    ["default", pkgInfoJson],
+    ["verbose", pkgInfoVerboseJson],
+  ] as const) {
+    const lifecycle = payload.lifecycle;
+    if (lifecycle === undefined) continue;
+    assertRecord(lifecycle, `pkg_info ${mode} lifecycle`);
     assert(
       !("checks" in lifecycle),
-      "pkg_info verbose JSON leaked internal lifecycle checks",
+      `pkg_info ${mode} JSON leaked internal lifecycle checks`,
     );
-    assertRecord(lifecycle.contentSafety, "pkg_info lifecycle content safety");
+    for (const key of ["findings", "retainedWarnings"] as const) {
+      if (lifecycle[key] !== undefined)
+        assert(
+          Array.isArray(lifecycle[key]) && lifecycle[key].length > 0,
+          `pkg_info ${mode} lifecycle ${key} must be nonempty when present`,
+        );
+    }
     assert(
-      typeof lifecycle.contentSafety.filtered === "boolean",
-      "pkg_info lifecycle missing filtered status",
+      [lifecycle.findings, lifecycle.retainedWarnings].some(
+        (entries) => Array.isArray(entries) && entries.length > 0,
+      ),
+      `pkg_info ${mode} empty lifecycle should be omitted`,
     );
+    if (lifecycle.contentSafety !== undefined) {
+      assertRecord(
+        lifecycle.contentSafety,
+        `pkg_info ${mode} lifecycle content safety`,
+      );
+      assert(
+        lifecycle.contentSafety.filtered === true,
+        `pkg_info ${mode} lifecycle should omit false filtering flags`,
+      );
+    }
   }
   assertRecord(pkgInfoJson.downloads, "pkg_info json downloads");
   assert(

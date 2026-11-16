@@ -75,7 +75,6 @@ export type {
   MaliciousAdvisoryClassificationReason,
   PackageIntelligenceService,
   PackageLifecycle,
-  PackageLifecycleCategory,
   PackageLifecycleFinding,
   PackageLifecycleKind,
   PackageLifecycleRetainedWarning,

@@ -18,7 +18,6 @@ export type {
 export * from "./services/package-intelligence-service.js";
 export type {
   PackageLifecycle,
-  PackageLifecycleCategory,
   PackageLifecycleFinding,
   PackageLifecycleKind,
   PackageLifecycleRetainedWarning,

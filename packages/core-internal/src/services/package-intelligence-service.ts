@@ -1294,8 +1294,8 @@ query PackageSummary(
     selectedVersion {
       resolvedVersion
       lifecycle {
-        findings { registry name version category kind scope source sourceVersion observedAt reason reasonCodes replacement }
-        retainedWarnings { registry name version classification reason }
+        findings { kind scope source sourceVersion observedAt reason reasonCodes replacement }
+        retainedWarnings { classification reason }
         contentSafety { filtered }
       }
       registryRepository { id name url }
