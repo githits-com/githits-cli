@@ -379,7 +379,6 @@ export interface PackageUpgradeChangelogEntry {
   body?: string;
   bodyPreview?: string;
   headline?: string;
-  signals: string[];
 }
 
 export interface ChangelogRiskCoverage {
@@ -406,14 +405,10 @@ export interface PackageUpgradeChangelog {
   fallback?: string;
   entries?: PackageUpgradeChangelogEntry[];
   sampledEntries?: PackageUpgradeChangelogEntry[];
-  keywordEntries?: PackageUpgradeChangelogEntry[];
-  totalKeywordEntries: number;
   totalEntries: number;
   totalEntriesWithBodies: number;
   truncated: boolean;
   hasReleaseNoteBodies: boolean;
-  breakingSignals: string[];
-  migrationSignals: string[];
 }
 
 export interface PackageUpgradeCompatibility {
@@ -486,7 +481,6 @@ export interface PackageUpgradeReviewResponse {
     total: number;
     withUnknowns: number;
     withAddedAdvisories: number;
-    withBreakingSignals: number;
     withDirectDependencyChanges: number;
     withTransitiveVulnerabilityAdditions: number;
   };
@@ -2266,7 +2260,6 @@ const packageUpgradeChangelogEntrySchema = z.object({
   body: z.string().nullable().optional(),
   bodyPreview: z.string().nullable().optional(),
   headline: z.string().nullable().optional(),
-  signals: z.array(z.string()),
 });
 
 const changelogKindSchema = z
@@ -2365,14 +2358,10 @@ const packageUpgradeChangelogSchema = z.object({
   fallback: z.string().nullable().optional(),
   entries: z.array(packageUpgradeChangelogEntrySchema).optional(),
   sampledEntries: z.array(packageUpgradeChangelogEntrySchema).optional(),
-  keywordEntries: z.array(packageUpgradeChangelogEntrySchema).optional(),
-  totalKeywordEntries: z.number().int(),
   totalEntries: z.number().int(),
   totalEntriesWithBodies: z.number().int(),
   truncated: z.boolean(),
   hasReleaseNoteBodies: z.boolean(),
-  breakingSignals: z.array(z.string()),
-  migrationSignals: z.array(z.string()),
 });
 
 const packageUpgradeCompatibilitySchema = z
@@ -2455,7 +2444,6 @@ const packageUpgradeReviewResponseSchema = z.object({
     total: z.number().int(),
     withUnknowns: z.number().int(),
     withAddedAdvisories: z.number().int(),
-    withBreakingSignals: z.number().int(),
     withDirectDependencyChanges: z.number().int(),
     withTransitiveVulnerabilityAdditions: z.number().int(),
   }),
@@ -2509,7 +2497,6 @@ query PackageUpgradeReview(
       total
       withUnknowns
       withAddedAdvisories
-      withBreakingSignals
       withDirectDependencyChanges
       withTransitiveVulnerabilityAdditions
     }
@@ -2605,17 +2592,13 @@ query PackageUpgradeReview(
         ${
           view === "triage"
             ? ""
-            : `entries { detailSource version publishedAt htmlUrl signals ${view === "json" ? "body bodyPreview headline" : ""} }
-        sampledEntries { detailSource version publishedAt htmlUrl signals ${view === "json" ? "body bodyPreview headline" : ""} }
-        keywordEntries { detailSource version publishedAt htmlUrl signals body ${view === "json" ? "bodyPreview headline" : ""} }`
+            : `entries { detailSource version publishedAt htmlUrl ${view === "json" ? "body bodyPreview headline" : ""} }
+        sampledEntries { detailSource version publishedAt htmlUrl ${view === "json" ? "body bodyPreview headline" : ""} }`
         }
-        totalKeywordEntries
         totalEntries
         totalEntriesWithBodies
         truncated
         hasReleaseNoteBodies
-        breakingSignals
-        migrationSignals
       }
       compatibility {
         peerDependencyChanges
@@ -4119,8 +4102,7 @@ export class PackageIntelligenceServiceImpl
       if (
         !page ||
         !review.changelog.entries ||
-        !review.changelog.sampledEntries ||
-        !review.changelog.keywordEntries
+        !review.changelog.sampledEntries
       )
         throw new MalformedPackageIntelligenceResponseError(
           "Missing selected upgrade changelog evidence.",

@@ -98,14 +98,10 @@ function review(statements = page()) {
       },
       entries: [],
       sampledEntries: [],
-      keywordEntries: [],
-      totalKeywordEntries: 0,
       totalEntries: 1,
       totalEntriesWithBodies: 1,
       truncated: true,
       hasReleaseNoteBodies: true,
-      breakingSignals: [],
-      migrationSignals: [],
     },
   };
 }
@@ -113,7 +109,6 @@ const summary = {
   total: 1,
   withUnknowns: 0,
   withAddedAdvisories: 0,
-  withBreakingSignals: 0,
   withDirectDependencyChanges: 0,
   withTransitiveVulnerabilityAdditions: 0,
 };
@@ -529,12 +524,7 @@ describe("complete upgrade statement retrieval", () => {
   it("triage omits selected arrays without fabricating empty evidence", async () => {
     const body = initial([review(page(1))]);
     const changelog = body.data.packageUpgradeReview.reviews[0]!.changelog;
-    for (const field of [
-      "statements",
-      "entries",
-      "sampledEntries",
-      "keywordEntries",
-    ])
+    for (const field of ["statements", "entries", "sampledEntries"])
       Reflect.deleteProperty(changelog, field);
     const { run, requests } = setup([body], { changelogView: "triage" });
     const result = await run();
@@ -679,17 +669,10 @@ describe("upgrade statement projections", () => {
       expect(query.includes("sourcePosition")).toBe(view === "json");
       if (view === "text") {
         expect(query.match(/entries \{([^}]+)\}/)?.[1]).not.toContain("body");
-        expect(query.match(/keywordEntries \{([^}]+)\}/)?.[1]).toContain(
-          "body",
-        );
         expect(query).not.toContain("bodyPreview");
       }
       if (view === "triage")
-        for (const field of [
-          "entries {",
-          "keywordEntries {",
-          "sampledEntries {",
-        ])
+        for (const field of ["entries {", "sampledEntries {"])
           expect(
             query.slice(
               query.indexOf("changelog {"),

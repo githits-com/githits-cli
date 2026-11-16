@@ -899,8 +899,7 @@ Detailed Changes output renders all matching statements from their paginated
 pages as source-ordered bullets with nearby source links and context. Known and
 kindless tiers use bracketed tags; ambiguous labels are marked uncertain. It
 has no tier headings, global numbered reference table, or duplicate sampled-note
-previews. Keyword matches remain separate lexical evidence, are not repeated
-when already shown in a quote, and never imply a breaking-change verdict.
+previews.
 Whole-range action/know counts separate uncertain labels and batch ranking uses
 confident totals, so filters do not change counters or package order. Coverage
 retains classified, not-assessed, without-notes, no-impact, oversize, and
@@ -920,7 +919,8 @@ The shared formatter wraps free prose to the caller width (minimum 20 columns).
 The CLI passes `process.stdout.columns` and enables ANSI only when supported;
 MCP disables ANSI and uses the 80-column default. Outcome and section headings
 are bold, package identity is bold cyan, and yellow is limited to compact
-attention summaries, labels, and matched signal terms. Action tags are red, should-know tags yellow, and uncertain tags muted. Detail
+attention summaries and labels. Action tags are red, should-know tags yellow,
+and uncertain tags muted. Detail
 prose and locators remain plain. Color never carries information that is absent
 from the words. Formatter-authored punctuation stays ASCII while backend
 Unicode is preserved. Statement URLs accompany their own quotes, independently

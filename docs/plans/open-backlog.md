@@ -87,6 +87,16 @@ recorded four-cell baseline. Preserve exact locators, truthful coverage and
 version attribution, and avoid an unnecessary prerequisite search/read step.
 Single-run token changes and self-reported confidence are not quality scores.
 
+## Upgrade-review skill guidance after release
+
+The API deprecated the keyword heuristic in favour of classified changelog
+statements. Once the removal ships, update `skills/githits-package/references/package.md`
+to remove the keyword-hint promise and refer to classified statements, then run
+`bun run plugins:generate` and `bun run plugins:check`. Public skills describe
+released behavior, so this update waits for release. Acceptance: the package
+skill and generated copies match the released upgrade-review output contract in
+[upgrade review](../implementation/pkg-upgrade-review.md).
+
 ## Upgrade review evidence completeness
 
 The new aggregate `changelog.statements` contract exposes per-version coverage

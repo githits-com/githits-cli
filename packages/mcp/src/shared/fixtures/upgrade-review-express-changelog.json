@@ -1,5 +1,4 @@
 {
-  "breakingSignals": ["breaking"],
   "entries": [
     {
       "body": "## What's Changed\r\n\r\n> [!IMPORTANT]  \r\n> The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted in this release.\r\n\r\n* Release: 5.2.1 by @UlisesGascon in https://github.com/expressjs/express/pull/6933\r\n\r\n**Full Changelog**: https://github.com/expressjs/express/compare/v5.2.0...v5.2.1",
@@ -8,7 +7,6 @@
       "headline": "> [!IMPORTANT] > The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted in this release.",
       "htmlUrl": "https://github.com/expressjs/express/releases/tag/v5.2.1",
       "publishedAt": "2025-12-01T20:49:43.268Z",
-      "signals": ["breaking"],
       "version": "5.2.1"
     },
     {
@@ -18,7 +16,6 @@
       "headline": "* Security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6)) * deps: `body-parser@^2.2.1` * A deprecation warning was added when using `res.redirect` with...",
       "htmlUrl": "https://github.com/expressjs/express/blob/dbac741a49a5a64336b70c06e85c2e2706e36336/History.md#L6-L12",
       "publishedAt": "2025-12-01T16:23:57.541Z",
-      "signals": [],
       "version": "5.2.0"
     },
     {
@@ -28,7 +25,6 @@
       "headline": "* Add support for `Uint8Array` in `res.send()` * Add support for ETag option in `res.sendFile()` * Add support for multiple links with the same rel in `res.links()` * Add funding field to package.json * perf: use loop for acceptParams * refactor: prefix built-in node module impor...",
       "htmlUrl": "https://github.com/expressjs/express/blob/dbac741a49a5a64336b70c06e85c2e2706e36336/History.md#L13-L35",
       "publishedAt": "2025-03-31T14:01:22.509Z",
-      "signals": [],
       "version": "5.1.0"
     },
     {
@@ -38,24 +34,10 @@
       "headline": "* Update `cookie` semver lock to address [CVE-2024-47764](https://nvd.nist.gov/vuln/detail/CVE-2024-47764)",
       "htmlUrl": "https://github.com/expressjs/express/blob/dbac741a49a5a64336b70c06e85c2e2706e36336/History.md#L36-L40",
       "publishedAt": "2024-10-08T19:42:44.129Z",
-      "signals": [],
       "version": "5.0.1"
     }
   ],
   "hasReleaseNoteBodies": true,
-  "keywordEntries": [
-    {
-      "body": "## What's Changed\r\n\r\n> [!IMPORTANT]  \r\n> The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted in this release.\r\n\r\n* Release: 5.2.1 by @UlisesGascon in https://github.com/expressjs/express/pull/6933\r\n\r\n**Full Changelog**: https://github.com/expressjs/express/compare/v5.2.0...v5.2.1",
-      "bodyPreview": "## What's Changed > [!IMPORTANT] > The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted ...",
-      "detailSource": "releases",
-      "headline": "> [!IMPORTANT] > The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted in this release.",
-      "htmlUrl": "https://github.com/expressjs/express/releases/tag/v5.2.1",
-      "publishedAt": "2025-12-01T20:49:43.268Z",
-      "signals": ["breaking"],
-      "version": "5.2.1"
-    }
-  ],
-  "migrationSignals": [],
   "riskCoverage": {
     "itemsMustActAmbiguous": 8,
     "itemsMustActConfident": 0,
@@ -76,7 +58,6 @@
       "headline": "> [!IMPORTANT] > The prior release (5.2.0) included an erroneous breaking change related to the extended query parser. There is no actual security vulnerability associated with this behavior (CVE-2024-51999 has been rejected). The change has been fully reverted in this release.",
       "htmlUrl": "https://github.com/expressjs/express/releases/tag/v5.2.1",
       "publishedAt": "2025-12-01T20:49:43.268Z",
-      "signals": ["breaking"],
       "version": "5.2.1"
     },
     {
@@ -86,7 +67,6 @@
       "headline": "* Security fix for [CVE-2024-51999](https://www.cve.org/CVERecord?id=CVE-2024-51999) ([GHSA-pj86-cfqh-vqx6](https://github.com/expressjs/express/security/advisories/GHSA-pj86-cfqh-vqx6)) * deps: `body-parser@^2.2.1` * A deprecation warning was added when using `res.redirect` with...",
       "htmlUrl": "https://github.com/expressjs/express/blob/dbac741a49a5a64336b70c06e85c2e2706e36336/History.md#L6-L12",
       "publishedAt": "2025-12-01T16:23:57.541Z",
-      "signals": [],
       "version": "5.2.0"
     },
     {
@@ -96,7 +76,6 @@
       "headline": "* Add support for `Uint8Array` in `res.send()` * Add support for ETag option in `res.sendFile()` * Add support for multiple links with the same rel in `res.links()` * Add funding field to package.json * perf: use loop for acceptParams * refactor: prefix built-in node module impor...",
       "htmlUrl": "https://github.com/expressjs/express/blob/dbac741a49a5a64336b70c06e85c2e2706e36336/History.md#L13-L35",
       "publishedAt": "2025-03-31T14:01:22.509Z",
-      "signals": [],
       "version": "5.1.0"
     },
     {
@@ -106,7 +85,6 @@
       "headline": "* Update `cookie` semver lock to address [CVE-2024-47764](https://nvd.nist.gov/vuln/detail/CVE-2024-47764)",
       "htmlUrl": "https://github.com/expressjs/express/blob/dbac741a49a5a64336b70c06e85c2e2706e36336/History.md#L36-L40",
       "publishedAt": "2024-10-08T19:42:44.129Z",
-      "signals": [],
       "version": "5.0.1"
     }
   ],
@@ -456,6 +434,5 @@
   },
   "totalEntries": 4,
   "totalEntriesWithBodies": 4,
-  "totalKeywordEntries": 1,
   "truncated": false
 }

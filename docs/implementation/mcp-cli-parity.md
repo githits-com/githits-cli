@@ -804,9 +804,8 @@ summary rows before non-empty advisory groups, target `Deprecation`, `Changes`,
 summary. The formatter keeps JSON unchanged and lossless for machine callers;
 CLI `--json` and MCP `format: "json"` are the structured parity boundary. ANSI
 is semantic styling only: bold outcome/headings, bold cyan identity, and yellow
-compact attention summaries, labels, and matched signal terms. Heuristic
-section labels remain plain; only the matched keyword and excerpt marker are
-yellow. Evidence detail and locators remain plain. Words remain sufficient
+compact attention summaries and labels. Action tags are red, should-know tags
+yellow, and uncertain tags muted. Evidence detail and locators remain plain. Words remain sufficient
 without color, authored punctuation is ASCII, and backend Unicode is preserved.
 
 ### `list` / `read` / `grep` (inventory and file-exploration bundle)

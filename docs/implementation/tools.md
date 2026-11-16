@@ -608,7 +608,7 @@ Source links stay next to release/source groups, without a global Sources table.
 
 ### `pkg_upgrade_review` response shape
 
-Tool and CLI guidance encourage using heuristic signals as a starting point to
+Tool and CLI guidance encourage using classified statements as a starting point to
 evaluate codebase impact, with `pkg_changelog` / `pkg changelog` and `code_diff` /
 `code diff` available for original release-note bodies and source-change detail.
 Upgrade review returns filtered statement evidence without prescribing an
@@ -648,8 +648,7 @@ The formatter accepts ANSI and width as inputs. CLI supplies its current
 terminal width and enables ANSI when supported; MCP uses no ANSI and the
 80-column default. Outcome and section headings are bold-only, package identity
 is bold cyan, compact attention summaries use yellow. Action statement tags use red,
-should-know tags yellow, and uncertain annotations muted. Keyword sections
-remain separate lexical evidence. Evidence detail and locators remain
+should-know tags yellow, and uncertain annotations muted. Evidence detail and locators remain
 plain, and prose remains meaningful without color. Free prose uses hanging
 indentation and a minimum width of 20, while coordinates, versions, advisory
 IDs, and URLs remain unsplit. Changelog groups use backend source labels such as Release notes or

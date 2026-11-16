@@ -93,7 +93,7 @@ describe("pkg upgrade-review help", () => {
 
     expect(help).toContain("at most 30 upgrades");
     expect(help).toContain("maximum 30");
-    expect(help).toContain("Use signals as a starting point");
+    expect(help).toContain("Use classified statements as a starting point");
     expect(help).toContain("pkg changelog and code diff");
   });
 
