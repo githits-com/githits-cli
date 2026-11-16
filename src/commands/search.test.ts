@@ -623,8 +623,9 @@ describe("searchAction", () => {
     expect(output).toContain("- npm:express@5.1.0");
     expect(output).not.toContain("Sources:");
     expect(output.replace(/\s+/g, " ")).toContain(
-      "available: expressjs.com/en/guide docs (120 pages; partial; older snapshot)",
+      "available: expressjs.com/en/guide docs (120 pages; partial)",
     );
+    expect(output.match(/older snapshot/g)).toHaveLength(1);
     expect(output).not.toContain("Documentation sources:");
     expect(output).not.toContain("Documentation corpora");
     expect(output).not.toContain("indexing is still in progress");
@@ -1264,8 +1265,9 @@ describe("searchAction", () => {
     expect(output).toContain("- npm:express@5.1.0");
     expect(output).not.toContain("Sources:");
     expect(output.replace(/\s+/g, " ")).toContain(
-      "available: expressjs.com/en/guide docs (120 pages; partial; older snapshot)",
+      "available: expressjs.com/en/guide docs (120 pages; partial)",
     );
+    expect(output.match(/older snapshot/g)).toHaveLength(1);
     expect(output).not.toContain("Evidence may change.");
     expect(output).toContain("githits search-status search-ref-docs");
     consoleSpy.mockRestore();
@@ -2601,8 +2603,9 @@ describe("searchStatusAction", () => {
     expect(output).toContain("- npm:express@5.1.0");
     expect(output).not.toContain("Sources:");
     expect(output.replace(/\s+/g, " ")).toContain(
-      "available: expressjs.com/en/guide docs (120 pages; partial; older snapshot)",
+      "available: expressjs.com/en/guide docs (120 pages; partial)",
     );
+    expect(output.match(/older snapshot/g)).toHaveLength(1);
     expect(output).not.toContain("Evidence may change.");
     expect(output).toContain("Search again later.");
     expect(output).not.toContain("githits search-status");
