@@ -889,7 +889,14 @@ describe("usable snapshot presentation parity", () => {
 });
 
 describe("healthy source provenance through actual search adapters", () => {
-  it.each(["code", "repository-docs", "mixed-zero", "no-resolution"])(
+  it.each([
+    "code",
+    "repository-docs",
+    "mixed-zero",
+    "no-resolution",
+    "mixed-sources",
+    "zero-docs",
+  ])(
     "preserves healthy source provenance %s through initial/status text and compact JSON",
     async (mode) => {
       if (defaultUnifiedSearchOutcome.state !== "completed")
@@ -1001,6 +1008,44 @@ describe("healthy source provenance through actual search adapters", () => {
         });
         outcome.result.page.returned = 2;
       }
+      if (mode === "mixed-sources" || mode === "zero-docs") {
+        const code = outcome.result.sourceStatus[0]!;
+        outcome.result.sourceStatus.push({
+          ...code,
+          source: "DOCS",
+          resultCount: mode === "zero-docs" ? 0 : 1,
+          contributors: [
+            {
+              kind: "REPOSITORY_DOCS",
+              state: "SEARCHED",
+              freshness: "CURRENT",
+              resultCount: mode === "zero-docs" ? 0 : 1,
+              repositoryUrl: repoUrl,
+              commitSha: sha,
+            },
+          ],
+        });
+        if (mode === "mixed-sources") {
+          outcome.result.sourceStatus.push({ ...code, source: "SYMBOL" });
+          outcome.result.results.push(
+            {
+              ...outcome.result.results[0]!,
+              id: "doc-hit",
+              resultType: "REPOSITORY_DOC",
+              locator: {
+                ...outcome.result.results[0]!.locator,
+                pageId: "mixed-doc-page",
+              },
+            },
+            {
+              ...outcome.result.results[0]!,
+              id: "symbol-hit",
+              resultType: "REPOSITORY_SYMBOL",
+            },
+          );
+          outcome.result.page.returned = 3;
+        }
+      }
       for (const text of [
         await cliTextForOutcome(outcome),
         await mcpTextForOutcome(outcome),
@@ -1018,8 +1063,8 @@ describe("healthy source provenance through actual search adapters", () => {
             "committed 2026-08-24, indexed from ref n8n@2.36.6",
           );
         if (mode === "mixed-zero")
-          expect(text.replace(/\s+/g, " ")).toMatch(
-            /github:n8n-io\/n8n@aaaaaaaa \(committed 2026-08-23[^)]*no results\)/,
+          expect(text.split("Sources:\n")[1]?.split("\n\n")[0]).not.toContain(
+            "aaaaaaaa",
           );
         expect(text).not.toContain("If you need current HEAD");
         expect(text).not.toContain("sourceStatusForText");
@@ -1057,8 +1102,8 @@ describe("healthy source provenance through actual search adapters", () => {
         if (mode === "no-resolution") expect(text).not.toContain("committed");
         else expect(text).toContain("committed 2026-08-24");
         if (mode === "mixed-zero")
-          expect(text.replace(/\s+/g, " ")).toMatch(
-            /github:n8n-io\/n8n@aaaaaaaa \(committed 2026-08-23[^)]*no results\)/,
+          expect(text.split("Sources:\n")[1]?.split("\n\n")[0]).not.toContain(
+            "aaaaaaaa",
           );
         expect(text).not.toContain("sourceStatusForText");
       }
@@ -1066,7 +1111,16 @@ describe("healthy source provenance through actual search adapters", () => {
       const mcp = await mcpJsonForOutcome(outcome);
       expect(cli).toEqual(mcp);
       expect(JSON.stringify(cli)).not.toContain("sourceStatusForText");
-      if (mode === "repository-docs")
+      if (mode === "zero-docs")
+        expect(cli).toMatchObject({
+          sourceStatus: [
+            {
+              source: "docs",
+              contributors: [{ resultCount: 0, commitSha: sha }],
+            },
+          ],
+        });
+      if (["repository-docs", "mixed-sources", "zero-docs"].includes(mode))
         expect(
           (cli as { sourceStatus: Array<{ targetResolution?: unknown }> })
             .sourceStatus[0],
@@ -1078,7 +1132,7 @@ describe("healthy source provenance through actual search adapters", () => {
       );
       expect(jsonStatus.content[0]?.text).not.toContain("sourceStatusForText");
       const statusJson = JSON.parse(jsonStatus.content[0]?.text ?? "{}");
-      if (mode === "repository-docs")
+      if (["repository-docs", "mixed-sources", "zero-docs"].includes(mode))
         expect(statusJson.result.sourceStatus[0]).not.toHaveProperty(
           "targetResolution",
         );

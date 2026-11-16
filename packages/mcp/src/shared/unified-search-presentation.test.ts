@@ -1578,7 +1578,6 @@ describe("projectUnifiedSearchPresentation", () => {
             freshTarget: "npm:express@5.2.1",
             servedTarget: "npm:express@5.1.0",
             codeIndexState: "STALE",
-            coverage: { coverageState: "PARTIAL", pagesCrawled: 5 },
           }),
         ],
       }),
@@ -1617,13 +1616,14 @@ describe("projectUnifiedSearchPresentation", () => {
         sourceRequested: ["npm:express"],
         versions: ["5.2.0"],
         staleLimits: 1,
-        coverageLimits: 1,
+        coverageLimits: 0,
       },
     ]);
   });
 
   it("keeps contributor limits with their target when parent aliases diverge", () => {
     const repositoryUrl = "https://github.com/example/one";
+    const siteUrl = "https://docs.one.example";
     const presentation = projectUnifiedSearchPresentation(
       incomplete({
         partialResults: false,
@@ -1659,6 +1659,14 @@ describe("projectUnifiedSearchPresentation", () => {
                 freshness: "STALE",
                 resultCount: 0,
                 repositoryUrl,
+              },
+              {
+                kind: "DOCPACK",
+                state: "SEARCHED",
+                freshness: "CURRENT",
+                resultCount: 0,
+                siteUrl,
+                siteKey: "docs.one.example",
                 coverage: { coverageState: "PARTIAL", pagesCrawled: 5 },
               },
             ],
@@ -1685,12 +1693,31 @@ describe("projectUnifiedSearchPresentation", () => {
           }),
         ],
       },
+      {
+        kind: "site_docs",
+        entries: [
+          expect.objectContaining({
+            target: siteUrl,
+            searchTarget: "npm:one@1.0.0",
+            siteKey: "docs.one.example",
+            siteUrl,
+          }),
+        ],
+      },
     ]);
     expect(first?.trustLimits).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: "stale", target: repositoryUrl }),
-        expect.objectContaining({ kind: "coverage", target: repositoryUrl }),
+        expect.objectContaining({
+          kind: "coverage",
+          source: "site_docs",
+          state: "partial",
+          target: siteUrl,
+        }),
       ]),
+    );
+    expect(first?.trustLimits).not.toContainEqual(
+      expect.objectContaining({ kind: "coverage", target: repositoryUrl }),
     );
     expect(
       presentation.targetGroups.some(

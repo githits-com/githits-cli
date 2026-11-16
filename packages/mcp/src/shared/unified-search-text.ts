@@ -242,7 +242,7 @@ function appendPresentationContext(
   presentation: UnifiedSearchPresentation,
   options: NormalizedTextOptions,
 ): void {
-  const sources = presentation.provenance.flatMap((record) => record.sources);
+  const sources = presentation.sourceRows;
   if (sources.length)
     lines.push("", ...renderSourceSection(sources, { width: options.width }));
   const historical = presentation.lifecycle.kind !== "active";
@@ -398,9 +398,7 @@ function appendPresentationTargetGroup(
       details.push(`${snapshot.indexingRequestedRef} is indexing`);
   }
 
-  const searched = renderedSources
-    ? undefined
-    : formatSourceStateSegment(group, "searched");
+  const searched = formatSourceStateSegment(group, "searched", renderedSources);
   if (searched) details.push(`searched: ${searched}`);
   const indexing = renderedPreparation
     ? undefined
@@ -491,6 +489,14 @@ function formatUsingSegment(
             ...(snapshot.indexedRef
               ? [`indexed from ref ${snapshot.indexedRef}`]
               : []),
+            ...(group.trustLimits.some(
+              (limit) =>
+                limit.kind === "stale" &&
+                limit.target === snapshot.target &&
+                limit.requestedTarget === snapshot.requestedTarget,
+            )
+              ? ["older snapshot"]
+              : []),
           ];
           return `commit: ${snapshot.commitTarget}${provenance.length ? ` (${provenance.join(", ")})` : ""}`;
         }),
@@ -528,14 +534,32 @@ function formatUsingSegment(
 function formatSourceStateSegment(
   group: UnifiedSearchTargetGroup,
   state: UnifiedSearchSourceEntry["state"],
+  onlyEmptySiteLimits: boolean = false,
 ): string | undefined {
   const values = group.sources
     .flatMap((source) =>
       source.entries
-        .filter((entry) => entry.state === state)
+        .filter(
+          (entry) =>
+            entry.state === state &&
+            (!onlyEmptySiteLimits ||
+              (source.kind === "site_docs" &&
+                entry.resultCount === 0 &&
+                group.trustLimits.some(
+                  (limit) =>
+                    ["coverage", "stale", "provisional"].includes(limit.kind) &&
+                    "target" in limit &&
+                    limit.target === entry.target,
+                ))),
+        )
         .map((entry) => ({
           rank: sourceKindRank(source.kind),
-          value: formatGroupedSource(source, entry, group.trustLimits),
+          value: formatGroupedSource(
+            source,
+            entry,
+            group.trustLimits,
+            onlyEmptySiteLimits,
+          ),
         })),
     )
     .sort((left, right) => left.rank - right.rank)
@@ -671,6 +695,7 @@ function formatGroupedSource(
   source: UnifiedSearchSourceGroup,
   entry: UnifiedSearchSourceEntry,
   trustLimits: UnifiedSearchTrustLimit[],
+  includeStale: boolean = false,
 ): string {
   const coverage = trustLimits.find(
     (limit): limit is Extract<UnifiedSearchTrustLimit, { kind: "coverage" }> =>
@@ -691,6 +716,14 @@ function formatGroupedSource(
             : "docs";
   const qualifiers: string[] = [];
   if (coverageDetails) qualifiers.push(coverageDetails);
+  if (
+    includeStale &&
+    source.kind === "site_docs" &&
+    trustLimits.some(
+      (limit) => limit.kind === "stale" && limit.target === entry.target,
+    )
+  )
+    qualifiers.push("older snapshot");
   if (entry.state === "searched" && hasProvisionalTrust(entry, trustLimits)) {
     qualifiers.push("provisional");
   }

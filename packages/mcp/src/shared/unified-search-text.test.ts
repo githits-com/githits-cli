@@ -317,7 +317,7 @@ describe("renderUnifiedSearchSuccess", () => {
       "Found 5 repository documentation results and 5 documentation results.",
     );
     expect(text).toContain(
-      "Sources:\n  - site:expressjs.com (hosted documentation, requested: npm:express@5.2.1)",
+      "Sources:\n  - site:expressjs.com (requested: npm:express@5.2.1)\n  - github:expressjs/express@dbac741a (requested: npm:express@5.2.1)",
     );
     expect(text).toContain(
       "[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01",
@@ -910,7 +910,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("Sources:\n  - npm:express@5.2.1 (docs)");
+    expect(text).toContain("Sources:\n  - npm:express@5.2.1");
   });
 
   it("does not repeat a standalone site identity in compact output", () => {
@@ -933,9 +933,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain(
-      "Sources:\n  - site:hono.dev (hosted documentation)",
-    );
+    expect(text).toContain("Sources:\n  - site:hono.dev");
     expect(text).not.toContain("site:hono.dev - site:hono.dev");
   });
 
@@ -960,9 +958,7 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain(
-      "Sources:\n  - github:axios/axios@fede1d15 (repository docs)",
-    );
+    expect(text).toContain("Sources:\n  - github:axios/axios@fede1d15");
     expect(text).not.toContain(
       "github:axios/axios - github:axios/axios@fede1d15",
     );
@@ -990,7 +986,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "Sources:\n  - github:axios/axios@b2cb45d5 (repository docs, requested:",
+      "Sources:\n  - github:axios/axios@b2cb45d5 (requested: github:axios/axios@v1.7.9)",
     );
   });
 
@@ -1015,7 +1011,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "Sources:\n  - github:axios/axios (repository docs, requested:",
+      "Sources:\n  - github:axios/axios (requested: github:axios/axios@main)",
     );
     expect(text).toContain("Sources:");
   });
@@ -1060,7 +1056,7 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toContain(
-      "Sources:\n  - site:docs.one.example (hosted documentation, requested: npm:one@1.0.0)\n  - site:docs.two.example (hosted documentation, requested: npm:two@2.0.0)",
+      "Sources:\n  - site:docs.one.example (requested: npm:one@1.0.0)\n  - site:docs.two.example (requested: npm:two@2.0.0)",
     );
     expect(text).not.toContain("\n- npm:one@1.0.0");
     expect(text).not.toContain("\n- npm:two@2.0.0");
@@ -1462,8 +1458,9 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(firstLine(text)).toBe("No results found.");
-    expect(text).toContain(
-      "Sources:\n  - npm:express@5.2.1 (code, no results)",
+    expect(text).not.toContain("Sources:");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "- npm:express@5.2.1 searched: code",
     );
     expect(text.replace(/\s+/g, " ")).toContain(
       'Try: shorten or broaden query; remove restrictive filters; use source="symbol"; use grep.',
@@ -1486,7 +1483,13 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("npm:express@4.18.2 (symbols, no results)");
+    expect(text).not.toContain("Sources:");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "- npm:express@4.18.2 searched: symbols",
+    );
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "Try: shorten or broaden query; use grep.",
+    );
     expect(text).not.toContain("repository docs");
   });
 
@@ -1500,8 +1503,12 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain(
-      "Sources:\n  - npm:express@4.18.2 (code)\n  - npm:express@4.18.2 (symbols)",
+    expect(text).not.toContain("Sources:");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "- npm:express@4.18.2 searched: code, symbols",
+    );
+    expect(text.replace(/\s+/g, " ")).toContain(
+      'Try: shorten or broaden query; use source="symbol"; use grep.',
     );
   });
 
@@ -1528,9 +1535,14 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("ignored filter (docs): fileIntent");
-    expect(text).toContain("ignored query feature (symbol): name");
-    expect(text).toContain("incompatible filter (future-lane): lang");
+    expect(text).not.toContain("Sources:");
+    const compactText = text.replace(/\s+/g, " ");
+    expect(compactText).toContain(
+      "- npm:express searched: symbols, docs; ignored filter (docs): fileIntent; ignored query feature (symbol): name",
+    );
+    expect(compactText).toContain(
+      "- opaque-target searched: docs; incompatible filter (future-lane): lang",
+    );
   });
 
   it("terminal target recovery renders one positive line per target family", () => {
@@ -1677,8 +1689,9 @@ describe("renderUnifiedSearchSuccess", () => {
         }),
       );
 
-      expect(text).toContain(
-        "Sources:\n  - npm:express@4.18.2 (docs, no results)",
+      expect(text).not.toContain("Sources:");
+      expect(text.replace(/\s+/g, " ")).toContain(
+        "- npm:express@4.18.2 searched: docs",
       );
       expect(text).not.toContain("repository docs");
     },
@@ -1984,8 +1997,8 @@ describe("renderUnifiedSearchSuccess", () => {
       incomplete({ partialResults: false, sourceStatus }),
     );
 
-    expect(text).toContain(
-      "available: site:docs.example.com, site:api.example.com",
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "available: site:docs.example.com, site:api.example.com, +more",
     );
     expect(text).toContain(
       'search_status search_ref="ref_abc-123" wait_timeout_ms=30000',
@@ -2103,8 +2116,14 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(firstLine(text)).toBe("No results found.");
-    expect(text).toContain("- npm:one@1.0.0\n  indexing when observed: code");
-    expect(text).toContain("- npm:two@2.0.0\n  indexing when observed: code");
+    expect(text).not.toContain("Sources:");
+    const compactText = text.replace(/\s+/g, " ");
+    expect(compactText).toContain(
+      "- npm:one@1.0.0 searched: repository docs, docs.one.example docs; indexing when observed: code",
+    );
+    expect(compactText).toContain(
+      "- npm:two@2.0.0 searched: repository docs, docs.two.example docs; indexing when observed: code",
+    );
   });
 
   it("does not repeat a standalone site target in its readiness identity", () => {
@@ -2131,8 +2150,13 @@ describe("renderUnifiedSearchSuccess", () => {
       }),
     );
 
-    expect(text).toContain("- npm:one@1.0.0\n  indexing when observed: code");
-    expect(text).toContain("  - site:docs.one.example (hosted documentation)");
+    expect(text).not.toContain("Sources:");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "- npm:one@1.0.0 indexing when observed: code",
+    );
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "- site:docs.one.example searched: site:docs.one.example docs",
+    );
     expect(text).not.toContain("for site:");
   });
 
@@ -2168,7 +2192,10 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(text).not.toContain(
       "unavailable: code (npm:one@1.0.0) for npm:one@1.0.0",
     );
-    expect(text).toContain("  - npm:two@2.0.0 (code)");
+    expect(text).not.toContain("Sources:");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "- npm:two@2.0.0 searched: code",
+    );
     expect(text).toContain(
       "- site:docs.one.example\n  available: site:docs.one.example docs",
     );
@@ -2218,9 +2245,9 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toBe(
-      "No results found.\nSearch failed.\n\nSources:\n  - npm:express@4.18.2 (code, no results)\n\n" +
+      "No results found.\nSearch failed.\n\n" +
         "- npm:express@4.18.2\n" +
-        "  not found: symbols\n\n" +
+        "  searched: code; not found: symbols\n\n" +
         "Follow-up:\n  Search again later.",
     );
   });
@@ -2252,9 +2279,9 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toBe(
-      "No results found.\n\nSources:\n  - npm:one@1.0.0 (code, no results)\n\n" +
+      "No results found.\n\n" +
         "- npm:one@1.0.0\n" +
-        "  unresolved: symbols\n\n" +
+        "  searched: code; unresolved: symbols\n\n" +
         "- npm:two@2.0.0\n" +
         "  indexing when observed: code\n\n" +
         "Follow-up:\n  Search again later.",
@@ -2291,9 +2318,9 @@ describe("renderUnifiedSearchSuccess", () => {
     );
 
     expect(text).toBe(
-      "No results found.\nSearch failed.\n\nSources:\n  - npm:express@4.18.2 (code, no results)\n\n" +
+      "No results found.\nSearch failed.\n\n" +
         "- npm:express@4.18.2\n" +
-        "  unresolved: symbols; indexed: versions 4.17.0\n\n" +
+        "  searched: code; unresolved: symbols; indexed: versions 4.17.0\n\n" +
         "Follow-up:\n  Search again later.",
     );
   });
@@ -2414,11 +2441,10 @@ describe("renderUnifiedSearchSuccess", () => {
         ],
       }),
     );
-    expect(text).toContain("requested: npm:express latest");
-    expect(text).toContain(
-      "Requested: npm:express@5.2.1 (indexing when observed)",
+    expect(text).not.toContain("Sources:");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "- npm:express latest using: 5.1.0 while 5.2.1 indexes; searched: code (provisional)",
     );
-    expect(text).toContain("older snapshot");
     expect(text).toContain("provisional");
     expect(text).not.toContain("Evidence:");
     expect(text).not.toContain("idx-hidden");
@@ -2644,7 +2670,9 @@ describe("renderUnifiedSearchSuccess", () => {
     expect(firstLine(text)).toBe("No results found.");
     expect(text).toContain("Warnings:");
     expect(text).toContain("kind was ignored by the selected source");
-    expect(text).toContain("incompatible query feature (code): kind");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "incompatible query feature (code): kind",
+    );
     expect(text).toContain("ignored filter (code): category");
     expect(text).not.toContain("duplicated promoted warning");
     expect(text.match(/Warnings:/g)).toHaveLength(1);
@@ -2843,7 +2871,7 @@ describe("renderUnifiedSearchSuccess", () => {
       /^( {2})?(indexing|searched|available|indexed)/.test(line),
     );
     expect(summaryLines.length).toBeGreaterThanOrEqual(2);
-    expect(text).toContain("Sources:");
+    expect(text).not.toContain("Sources:");
     expect(summaryLines.every((line) => line.length <= 80)).toBe(true);
     expect(text).toContain(targetOne);
     expect(text).toContain(targetTwo);
@@ -2898,8 +2926,9 @@ describe("renderUnifiedSearchSuccess", () => {
         ],
       }),
     );
-    expect(text).toContain(
-      "site:docs.example.com (hosted documentation, 120 pages, partial, no results)",
+    expect(text).not.toContain("Sources:");
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "- site:docs.example.com searched: docs.example.com docs (120 pages; partial)",
     );
     expect(text.match(/120 pages/g)).toHaveLength(1);
   });

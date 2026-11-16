@@ -47,6 +47,19 @@ Follow-up:
 
 [1] page-1 [docs page] npm:express - docs.example.com/getting-started - Getting started | API - section`;
 
+  it.each(["code", "repository docs", "no results on this page"])(
+    "rejects redundant Sources qualifier %s",
+    (qualifier) => {
+      const text = completed.replace(
+        "\n\n[1]",
+        `\n\nSources:\n  - github:expressjs/express@12345678 (${qualifier})\n\n[1]`,
+      );
+      expect(() => assertSearchTerminalText(text, "search")).toThrow(
+        "Sources contains redundant category or zero-hit qualifiers",
+      );
+    },
+  );
+
   it("rejects a fractional wait in a native status action", () => {
     expect(() =>
       assertSearchTerminalText(

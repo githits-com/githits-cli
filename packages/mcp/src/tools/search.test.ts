@@ -236,9 +236,7 @@ describe("searchTool", () => {
     expect(textOutput).toContain(
       "indexing when observed: expressjs.com/en/guide docs",
     );
-    expect(textOutput.replace(/\s+/g, " ")).toContain(
-      "github:expressjs/express@01234567 (repository docs, requested: npm:express@5.1.0, no results)",
-    );
+    expect(textOutput).not.toContain("Sources:");
   });
 
   it("forwards trimmed inline qualifiers without constructing structured filters", async () => {
