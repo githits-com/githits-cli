@@ -225,6 +225,40 @@ const cases = [
   },
 ];
 
+const compactCases = [
+  { findings: [{ kind: "DEPRECATED", reason: "No longer supported" }] },
+  undefined,
+  { findings: [{ kind: "YANKED" }] },
+  { findings: [{ kind: "YANKED" }] },
+  {
+    findings: [
+      {
+        kind: "DEPRECATED",
+        scope: "PACKAGE",
+        reason: 'Use the "google.golang.org/protobuf" module instead.',
+      },
+    ],
+  },
+  {
+    retainedWarnings: [
+      { classification: "LEGACY_UNCLASSIFIED", reason: "Retained old warning" },
+    ],
+  },
+  {
+    findings: [{ kind: "PARTIALLY_YANKED", scope: "FILES" }],
+    contentSafety: { filtered: true },
+  },
+];
+const compactTextCases = [
+  "Deprecated: No longer supported",
+  "",
+  "Yanked.",
+  "Yanked.",
+  'Deprecated (package-wide): Use the "google.golang.org/protobuf" module instead.',
+  "Publisher warning (unclassified): Retained old warning",
+  "Partially yanked (files).",
+];
+
 function bodyFor(testCase: (typeof cases)[number]): Record<string, unknown> {
   return {
     data: {
@@ -283,6 +317,7 @@ async function cliOutput(
   service: PackageIntelligenceServiceImpl,
   target: string,
   json: boolean,
+  verbose = false,
 ): Promise<string> {
   const output: string[] = [];
   const log = spyOn(console, "log").mockImplementation((value: string) => {
@@ -297,7 +332,7 @@ async function cliOutput(
   try {
     await pkgInfoAction(
       target,
-      { json },
+      { json, verbose },
       {
         packageIntelligenceService: service,
         hasValidToken: true,
@@ -335,7 +370,7 @@ function assertSelection(query: string): void {
 }
 
 describe("native lifecycle inspection causal path", () => {
-  for (const testCase of cases) {
+  for (const [index, testCase] of cases.entries()) {
     it(`${testCase.title} survives GraphQL to CLI and MCP text/JSON`, async () => {
       const { service, requests } = serviceFor(bodyFor(testCase));
       const tool = createPackageSummaryTool(service);
@@ -348,7 +383,9 @@ describe("native lifecycle inspection causal path", () => {
       });
       expect(mcpJson.isError).toBeUndefined();
       expect(JSON.parse(mcpJson.content[0]!.text!)).toEqual(cliJson);
-      expect(cliJson.lifecycle).toEqual(testCase.lifecycle);
+      expect(cliJson.lifecycle).toEqual(compactCases[index]);
+      if (compactCases[index] === undefined)
+        expect(cliJson).not.toHaveProperty("lifecycle");
       expect(cliJson.vulnerabilities.total).toBe(0);
       expect(cliJson.advisoryHistory.total).toBe(2);
       const cliText = await cliOutput(service, testCase.target, false);
@@ -356,24 +393,60 @@ describe("native lifecycle inspection causal path", () => {
       expect(mcpText.isError).toBeUndefined();
       expect(mcpText.content[0]!.text).toBe(cliText);
       const prose = cliText.replace(/\s+/g, " ");
-      for (const expected of testCase.expected)
-        expect(prose).toContain(expected);
-      expect(prose).toContain("Lifecycle checks:");
-      expect(prose).toContain("registry archival, repository archival");
-      expect(prose).toContain("NOT_COLLECTED:");
-      expect(prose).not.toContain("LEGACY_DUPLICATE_DO_NOT_RENDER");
+      expect(prose).toContain(compactTextCases[index]!);
+      for (const detail of [
+        "Lifecycle",
+        "Source:",
+        "Acquired:",
+        "NOT_COLLECTED",
+        "CHECKED",
+        "LEGACY_DUPLICATE_DO_NOT_RENDER",
+        "scope RELEASE",
+      ])
+        expect(prose).not.toContain(detail);
+      if (index === 1) expect(prose).not.toContain("No native findings");
+      if (index === 4)
+        expect(prose.match(/google.golang.org\/protobuf/g)).toHaveLength(1);
+      if (index === 6) expect(prose).toContain("Publisher text filtered.");
       expect(prose).not.toContain("undefined");
       expect(prose).not.toContain("null");
       if (testCase.title.startsWith("crates"))
-        expect(prose.match(/YANKED/g)).toHaveLength(1);
+        expect(prose.match(/Yanked/g)).toHaveLength(1);
       if (testCase.registry === "NUGET")
         expect(prose.match(/Retained old warning/g)).toHaveLength(1);
-      expect(requests).toHaveLength(4);
+      const verboseJson = JSON.parse(
+        await cliOutput(service, testCase.target, true, true),
+      );
+      const verboseMcpJson = await tool.handler({
+        target: testCase.target,
+        format: "json",
+        verbose: true,
+      });
+      expect(JSON.parse(verboseMcpJson.content[0]!.text!)).toEqual(verboseJson);
+      expect(verboseJson.lifecycle).toEqual(testCase.lifecycle);
+      const verboseText = await cliOutput(
+        service,
+        testCase.target,
+        false,
+        true,
+      );
+      const verboseMcpText = await tool.handler({
+        target: testCase.target,
+        verbose: true,
+      });
+      expect(verboseMcpText.content[0]!.text).toBe(verboseText);
+      for (const expected of testCase.expected)
+        expect(verboseText.replace(/\s+/g, " ")).toContain(expected);
+      expect(requests).toHaveLength(8);
       expect(requests.map((r) => r.variables.includeVerboseFields)).toEqual([
         true,
         true,
         false,
         false,
+        true,
+        true,
+        true,
+        true,
       ]);
       for (const request of requests) assertSelection(request.query);
     });
@@ -408,6 +481,7 @@ describe("native lifecycle inspection causal path", () => {
     const output = formatPackageSummaryTerminal(summary, {
       terminalWidth: 38,
       useColors: false,
+      verbose: true,
     });
     const lifecycle = output.slice(output.indexOf("Lifecycle"));
     expect(lifecycle).toContain("Übermäßig");
@@ -459,7 +533,12 @@ describe("native lifecycle inspection causal path", () => {
       const text = await createPackageSummaryTool(service).handler({
         target: "npm:request",
       });
-      expect(text.content[0]!.text).toContain("Lifecycle unavailable");
+      expect(text.content[0]!.text).not.toContain("Lifecycle");
+      const verbose = await createPackageSummaryTool(service).handler({
+        target: "npm:request",
+        verbose: true,
+      });
+      expect(verbose.content[0]!.text).toContain("Lifecycle unavailable");
       expect(text.content[0]!.text).not.toContain("CHECKED");
     },
   );
@@ -494,7 +573,10 @@ describe("native lifecycle inspection causal path", () => {
       registry: "NPM",
       packageName: "request",
     });
-    const text = formatPackageSummaryTerminal(summary, { terminalWidth: 38 });
+    const text = formatPackageSummaryTerminal(summary, {
+      terminalWidth: 38,
+      verbose: true,
+    });
     const lines = text.slice(text.indexOf("Lifecycle")).trimEnd().split("\n");
     expect(lines.some((line) => line.startsWith("DEPRECATED"))).toBe(true);
     expect(lines.some((line) => line.startsWith("RETRACTED"))).toBe(true);
@@ -545,6 +627,7 @@ describe("native lifecycle inspection causal path", () => {
     const result = await createPackageSummaryTool(service).handler({
       target: cases[4]!.target,
       format: "json",
+      verbose: true,
     });
     const lifecycle = JSON.parse(result.content[0]!.text!).lifecycle;
     expect(lifecycle.findings[0]).not.toHaveProperty("version");
@@ -552,7 +635,7 @@ describe("native lifecycle inspection causal path", () => {
       target: cases[4]!.target,
     });
     expect(text.content[0]!.text).not.toContain("protobuf@v1.5.4");
-    expect(text.content[0]!.text).toContain("scope PACKAGE");
+    expect(text.content[0]!.text).toContain("package-wide");
   });
 
   it("retains future categorical values without interpreting them", async () => {
@@ -587,10 +670,11 @@ describe("native lifecycle inspection causal path", () => {
     const result = await tool.handler({
       target: "npm:request",
       format: "json",
+      verbose: true,
     });
     expect(result.isError).toBeUndefined();
     expect(JSON.parse(result.content[0]!.text!).lifecycle).toEqual(lifecycle);
-    const text = await tool.handler({ target: "npm:request" });
+    const text = await tool.handler({ target: "npm:request", verbose: true });
     for (const value of [
       "FUTURE_REGISTRY",
       "FUTURE_KIND",
@@ -615,9 +699,139 @@ describe("native lifecycle inspection causal path", () => {
     });
     const text = result.content[0]!.text!.replace(/\s+/g, " ");
     expect(text).toContain("[ARCHIVED]");
-    expect(text).toContain("Lifecycle checks:");
-    expect(text).toContain(
+    expect(text).not.toContain("Lifecycle");
+    const verbose = await createPackageSummaryTool(service).handler({
+      target: "npm:express",
+      verbose: true,
+    });
+    expect(verbose.content[0]!.text!.replace(/\s+/g, " ")).toContain(
+      "Lifecycle checks:",
+    );
+    expect(verbose.content[0]!.text!.replace(/\s+/g, " ")).toContain(
       "NOT_COLLECTED: withdrawal, registry archival, repository archival",
+    );
+  });
+
+  it("bounds long publisher reasons in compact JSON and text, with full evidence opt-in", async () => {
+    const replacement = "new-package";
+    const reason = `${"Publisher explanation ".repeat(40)}Use ${replacement}`;
+    const { service } = serviceFor(
+      bodyFor({
+        ...cases[0]!,
+        lifecycle: assessment([
+          {
+            ...finding("NPM", "request", "2.88.2", "DEPRECATED", "DEPRECATION"),
+            reason,
+            replacement,
+          },
+        ]),
+      }),
+    );
+    const tool = createPackageSummaryTool(service);
+    const result = await tool.handler({
+      target: "npm:request",
+      format: "json",
+    });
+    const compact = JSON.parse(result.content[0]!.text!).lifecycle;
+    expect(compact.findings[0].reason.length).toBeLessThanOrEqual(160);
+    expect(compact.findings[0].reasonTruncated).toBe(true);
+    expect(compact.findings[0].replacement).toBe(replacement);
+    const text = await tool.handler({ target: "npm:request" });
+    expect(text.content[0]!.text!.replace(/\s+/g, " ")).toContain(
+      "publisher suggests new-package",
+    );
+    expect(text.content[0]!.text).toContain("verbose output");
+    const full = await tool.handler({
+      target: "npm:request",
+      format: "json",
+      verbose: true,
+    });
+    expect(
+      JSON.parse(full.content[0]!.text!).lifecycle.findings[0].reason,
+    ).toBe(reason);
+  });
+
+  it.each([
+    ["Too risky", "ky", true],
+    ["Use ky instead", "ky", false],
+    ['Use "@scope/pkg" instead', "@scope/pkg", false],
+    ["Use different-package instead", "package", true],
+    ["Use old.package instead", "new.package", true],
+  ])(
+    "keeps publisher replacement %s / %s distinct from unrelated prose",
+    async (reason, replacement, retained) => {
+      const { service } = serviceFor(
+        bodyFor({
+          ...cases[0]!,
+          lifecycle: assessment([
+            {
+              ...finding(
+                "NPM",
+                "request",
+                "2.88.2",
+                "DEPRECATED",
+                "DEPRECATION",
+              ),
+              reason,
+              replacement,
+            },
+          ]),
+        }),
+      );
+      const tool = createPackageSummaryTool(service);
+      const json = await tool.handler({
+        target: "npm:request",
+        format: "json",
+      });
+      const item = JSON.parse(json.content[0]!.text!).lifecycle.findings[0];
+      expect(item.replacement).toBe(retained ? replacement : undefined);
+      const text = await tool.handler({ target: "npm:request" });
+      const prose = text.content[0]!.text!.replace(/\s+/g, " ");
+      if (retained)
+        expect(prose).toContain(`publisher suggests ${replacement}`);
+      else expect(prose).not.toContain("publisher suggests");
+    },
+  );
+
+  it("preserves Unicode code points when compacting finding and retained-warning reasons", async () => {
+    const reason = "😀".repeat(170);
+    const lifecycle = assessment([
+      {
+        ...finding("NPM", "request", "2.88.2", "DEPRECATED", "DEPRECATION"),
+        reason,
+      },
+    ]);
+    lifecycle.retainedWarnings = [
+      {
+        registry: "NPM",
+        name: "request",
+        version: "2.88.2",
+        classification: "LEGACY_UNCLASSIFIED",
+        reason,
+      },
+    ];
+    const { service } = serviceFor(bodyFor({ ...cases[0]!, lifecycle }));
+    const tool = createPackageSummaryTool(service);
+    const result = await tool.handler({
+      target: "npm:request",
+      format: "json",
+    });
+    const json = JSON.parse(result.content[0]!.text!).lifecycle;
+    for (const item of [json.findings[0], json.retainedWarnings[0]]) {
+      expect(item.reason).toBe(`${"😀".repeat(157)}...`);
+      expect(item.reasonTruncated).toBe(true);
+    }
+    const text = await tool.handler({ target: "npm:request" });
+    expect(text.content[0]!.text).not.toMatch(
+      /(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])/,
+    );
+    const summary = await service.packageSummary({
+      registry: "NPM",
+      packageName: "request",
+    });
+    const narrow = formatPackageSummaryTerminal(summary, { terminalWidth: 39 });
+    expect(narrow).not.toMatch(
+      /(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])/,
     );
   });
 

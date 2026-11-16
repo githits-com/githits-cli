@@ -10,8 +10,8 @@
  *   omitted.
  * - **Null-omitted.** Scalars go missing when null; blocks go missing
  *   when every leaf is null; arrays go missing when empty. Agent
- *   callers receive present data only, not a skeleton. Lifecycle evidence is
- *   retained losslessly, including empty arrays and nullable affected versions.
+ *   callers receive present data only, not a skeleton. Full lifecycle evidence
+ *   is available only when verbose output is explicitly requested.
  * - **Stable.** Two identical queries produce byte-identical output
  *   (no clock-dependent fields, no iteration-order tricks), so the
  *   parity test can deep-equal across surfaces.
@@ -30,6 +30,7 @@ import { toPkgseerRegistryLowercase } from "@githits/core-internal";
 import { colorize, highlight } from "./colors.js";
 import { toIsoDate, toRelativeDate } from "./format-date.js";
 import { formatCompactNumber } from "./format-number.js";
+import { terminalWidth } from "./terminal-width.js";
 
 // --------------------------------------------------------------------
 // Lean JSON envelope
@@ -77,6 +78,28 @@ export interface LeanRecentChange {
   summary?: string;
 }
 
+export interface CompactLifecycleFinding {
+  kind: string;
+  /** Release scope is implicit in the overview header. */
+  scope?: string;
+  reason?: string;
+  reasonTruncated?: true;
+  /** Publisher advice, not a verified upgrade recommendation. */
+  replacement?: string;
+}
+
+export interface CompactLifecycleWarning {
+  classification: string;
+  reason?: string;
+  reasonTruncated?: true;
+}
+
+export interface CompactPackageLifecycle {
+  findings?: CompactLifecycleFinding[];
+  retainedWarnings?: CompactLifecycleWarning[];
+  contentSafety?: { filtered: true };
+}
+
 export interface LeanPackageSummary {
   registry: string;
   name: string;
@@ -96,8 +119,8 @@ export interface LeanPackageSummary {
   vulnerabilities?: LeanVulnerabilities;
   advisoryHistory?: LeanAdvisoryHistory;
   recentChanges?: LeanRecentChange[];
-  /** Backend native evidence: preserve empty arrays, null scope identity, and checks. */
-  lifecycle?: PackageLifecycle;
+  /** Compact warnings by default; complete native evidence only with verbose. */
+  lifecycle?: CompactPackageLifecycle | PackageLifecycle;
 }
 
 /**
@@ -106,6 +129,7 @@ export interface LeanPackageSummary {
  */
 export function buildPackageSummarySuccessPayload(
   summary: PackageSummary,
+  options: { verbose?: boolean } = {},
 ): LeanPackageSummary {
   const pkg = summary.package;
 
@@ -150,12 +174,79 @@ export function buildPackageSummarySuccessPayload(
   const advisoryHistory = buildAdvisoryHistory(summary.security);
   if (advisoryHistory) payload.advisoryHistory = advisoryHistory;
 
-  if (summary.lifecycle) payload.lifecycle = summary.lifecycle;
+  const lifecycle = options.verbose
+    ? summary.lifecycle
+    : buildCompactLifecycle(summary.lifecycle);
+  if (lifecycle) payload.lifecycle = lifecycle;
 
   const recent = buildRecentChanges(summary.latestChangelogs);
   if (recent) payload.recentChanges = recent;
 
   return payload;
+}
+
+/** Project the user-facing warnings once for compact text and JSON. */
+function buildCompactLifecycle(
+  lifecycle: PackageLifecycle | undefined,
+): CompactPackageLifecycle | undefined {
+  if (!lifecycle) return undefined;
+  const findings = lifecycle.findings.map(
+    (finding): CompactLifecycleFinding => {
+      const reason = finding.reason?.replace(/\s+/g, " ").trim();
+      const replacement = finding.replacement?.trim();
+      const compactReason = compactLifecycleReason(reason);
+      return {
+        kind: finding.kind,
+        ...(finding.scope !== "RELEASE" ? { scope: finding.scope } : {}),
+        ...compactReason,
+        ...(replacement &&
+        !reasonMentionsReplacement(compactReason.reason, replacement)
+          ? { replacement }
+          : {}),
+      };
+    },
+  );
+  const retainedWarnings = lifecycle.retainedWarnings.map(
+    (warning): CompactLifecycleWarning => ({
+      classification: warning.classification,
+      ...compactLifecycleReason(warning.reason.replace(/\s+/g, " ").trim()),
+    }),
+  );
+  if (findings.length === 0 && retainedWarnings.length === 0) return undefined;
+  return {
+    ...(findings.length > 0 ? { findings } : {}),
+    ...(retainedWarnings.length > 0 ? { retainedWarnings } : {}),
+    ...(lifecycle.contentSafety.filtered
+      ? { contentSafety: { filtered: true } }
+      : {}),
+  };
+}
+
+/** Avoid repeating a publisher package name without matching inside other words. */
+function reasonMentionsReplacement(
+  reason: string | undefined,
+  replacement: string,
+): boolean {
+  if (!reason) return false;
+  const escaped = replacement.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `(?:^|[^\\p{L}\\p{N}@._/~+-])${escaped}(?=$|[^\\p{L}\\p{N}@._/~+-])`,
+    "u",
+  ).test(reason);
+}
+
+function compactLifecycleReason(reason: string | undefined): {
+  reason?: string;
+  reasonTruncated?: true;
+} {
+  if (!reason) return {};
+  const characters = Array.from(reason);
+  return characters.length > 160
+    ? {
+        reason: `${characters.slice(0, 157).join("").trimEnd()}...`,
+        reasonTruncated: true,
+      }
+    : { reason };
 }
 
 function lowerRegistry(value: string | undefined): string {
@@ -368,7 +459,10 @@ export function formatPackageSummaryTerminal(
     sections.push(fields.join("\n"));
   }
 
-  sections.push(formatLifecycle(lean.lifecycle, width));
+  const lifecycle = options.verbose
+    ? formatLifecycle(summary.lifecycle, width)
+    : formatCompactLifecycle(buildCompactLifecycle(summary.lifecycle), width);
+  if (lifecycle) sections.push(lifecycle);
 
   if (options.verbose) {
     const verbose = buildVerboseSections(lean, useColors);
@@ -376,6 +470,67 @@ export function formatPackageSummaryTerminal(
   }
 
   return `${sections.join("\n\n")}\n`;
+}
+
+/** Default text shows actionable warnings; diagnostic evidence belongs in verbose/JSON. */
+function formatCompactLifecycle(
+  lifecycle: CompactPackageLifecycle | undefined,
+  width: number,
+): string {
+  if (!lifecycle) return "";
+  const labels: Record<string, string> = {
+    DEPRECATED: "Deprecated",
+    RETIRED: "Retired",
+    ABANDONED: "Abandoned",
+    DISCONTINUED: "Discontinued",
+    YANKED: "Yanked",
+    PARTIALLY_YANKED: "Partially yanked",
+    RETRACTED: "Retracted",
+    UNLISTED: "Unlisted",
+  };
+  const lines: string[] = [];
+  const append = (label: string, detail: string): void => {
+    const text = detail ? `${label}: ${detail}` : `${label}.`;
+    lines.push(
+      wrapText(text, Math.max(1, width - 2))
+        .split("\n")
+        .map((line, index) => `${index === 0 ? "" : "  "}${line}`)
+        .join("\n"),
+    );
+  };
+  for (const finding of lifecycle.findings ?? []) {
+    const scope =
+      finding.scope === "PACKAGE"
+        ? " (package-wide)"
+        : finding.scope === "FILES"
+          ? " (files)"
+          : finding.scope === undefined
+            ? ""
+            : ` (${finding.scope})`;
+    const details = [finding.reason];
+    if (finding.replacement)
+      details.push(`publisher suggests ${finding.replacement}`);
+    append(
+      `${labels[finding.kind] ?? finding.kind}${scope}`,
+      details.filter(Boolean).join("; "),
+    );
+  }
+  for (const warning of lifecycle.retainedWarnings ?? []) {
+    const classification =
+      warning.classification === "LEGACY_UNCLASSIFIED"
+        ? "unclassified"
+        : warning.classification;
+    append(`Publisher warning (${classification})`, warning.reason ?? "");
+  }
+  if (lines.length > 0 && lifecycle.contentSafety?.filtered)
+    lines.push(wrapText("Publisher text filtered.", width));
+  if (
+    [...(lifecycle.findings ?? []), ...(lifecycle.retainedWarnings ?? [])].some(
+      (item) => item.reasonTruncated,
+    )
+  )
+    lines.push(wrapText("Full publisher reason in verbose output.", width));
+  return lines.join("\n");
 }
 
 /** Present backend classifications verbatim; never infer policy from empty findings. */
@@ -498,17 +653,20 @@ function wrapText(text: string, width: number): string {
   const lines: string[] = [];
   let current = "";
   for (const word of words) {
-    if (word.length > safeWidth) {
+    if (terminalWidth(word) > safeWidth) {
       if (current.length > 0) {
         lines.push(current);
         current = "";
       }
-      for (let offset = 0; offset < word.length; offset += safeWidth) {
-        const chunk = word.slice(offset, offset + safeWidth);
-        if (chunk.length === safeWidth || offset + safeWidth < word.length) {
-          lines.push(chunk);
-        } else {
-          current = chunk;
+      for (const character of word) {
+        if (current && terminalWidth(current + character) > safeWidth) {
+          lines.push(current);
+          current = "";
+        }
+        current += character;
+        if (terminalWidth(current) >= safeWidth) {
+          lines.push(current);
+          current = "";
         }
       }
       continue;
@@ -517,7 +675,7 @@ function wrapText(text: string, width: number): string {
       current = word;
       continue;
     }
-    if (current.length + 1 + word.length > safeWidth) {
+    if (terminalWidth(current) + 1 + terminalWidth(word) > safeWidth) {
       lines.push(current);
       current = word;
     } else {

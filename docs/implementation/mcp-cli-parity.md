@@ -608,28 +608,32 @@ When a new tool lands with both MCP and CLI surfaces:
   root, without another request or registry acquisition. Backend classification
   and content-safety normalization remain authoritative. The service attaches
   `PackageSummary.lifecycle` only when the resolved version matches the overview
-  and the optional root has no errors. Both JSON surfaces add this block
-  losslessly: `findings`, all four `checks`, `retainedWarnings`, and
-  `contentSafety.filtered`. Empty arrays, optional/null publisher details and a
-  null affected version survive; package-wide findings never acquire the
-  displayed release as their affected version. Native lifecycle registry and
-  categorical strings retain backend casing; the existing top-level overview
-  registry stays lowercase. Public lifecycle evidence types are available from
-  `@githits/mcp/client`.
-  Both text surfaces use the shared summary formatter: native category, kind,
-  scope, affected identity, source/authority version, acquisition time and
-  publisher details accompany findings; independent checks are grouped by status
-  and reason. Unknown/future categorical values remain visible verbatim.
-  `CHECKED` alone is neither a positive nor a negative finding, and an empty
-  findings list does not prove coverage. `UNKNOWN`, `NOT_COLLECTED` and
-  `NOT_APPLICABLE` retain their meanings. Lifecycle archival checks are separate
-  from the existing GitHub archive badge; no archival findings are inferred.
-  Retained ambiguous legacy warnings render once, without appending the coarse
-  `deprecated` warning from other package tools. Publisher replacements remain
-  advice, not upgrade recommendations; acquisition times do not establish
-  freshness. Filtered publisher content is labeled and remains untrusted.
-  Missing/mismatched/failed optional provenance produces `Lifecycle unavailable`
-  in text and omits the JSON block. A lifecycle resolver error can null the shared
+  and the optional root has no errors. Default text and JSON show compact warnings
+  only. When there are no findings or retained warnings, lifecycle output is omitted;
+  this silence is not a coverage or health claim. Each compact JSON finding retains
+  `kind`, optional non-release `scope`, publisher `reason` and `replacement`; the
+  overview header provides package and selected-release identity. Replacements
+  already stated in the displayed reason are not repeated. Reasons are bounded to
+  160 characters with `reasonTruncated: true` when shortened. Retained warnings keep
+  their classification and reason once, without guessed native kinds or a second
+  coarse deprecation warning. Empty arrays, nulls and false safety flags are omitted;
+  `contentSafety.filtered: true` accompanies filtered warning prose.
+  CLI `--verbose` and MCP `verbose: true` explicitly request full lifecycle evidence
+  in both text and JSON: native scope/identity, source authority, acquisition time,
+  all check outcomes, reason codes, unabridged publisher details and safety metadata.
+  Full JSON preserves native fields, nulls and empty arrays losslessly. Native
+  categorical strings retain backend casing; the top-level registry stays lowercase.
+  Public evidence types remain available from `@githits/mcp/client`.
+  Both text surfaces share the formatter. Default warnings use readable native
+  status labels and concise package-wide/file qualifiers without repeated package
+  names or versions. Unknown kinds/scopes remain visible. Diagnostic checks are
+  verbose-only; `UNKNOWN`, `NOT_COLLECTED` and `NOT_APPLICABLE` never become warnings
+  or checked-safe claims. Lifecycle archival collection is independent of the GitHub
+  archive badge. Publisher replacements remain advice, not verified upgrade
+  recommendations. Acquisition times do not establish freshness. Missing/mismatched/
+  failed optional provenance is silent by default, reports `Lifecycle unavailable`
+  in verbose text and omits the JSON block in either mode.
+  A lifecycle resolver error can null the shared
   provenance root, losing `registryRepository` alongside lifecycle while retaining
   the overview. Existing auth/access/client-update errors still fail; structural
   malformation still fails whole-response validation. Native lifecycle findings

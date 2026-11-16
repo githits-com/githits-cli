@@ -1053,9 +1053,9 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   );
 
   assert(
-    pkgInfoText.includes("Lifecycle checks:") ||
-      pkgInfoText.includes("Lifecycle unavailable"),
-    "pkg_info default missing lifecycle evidence or explicit unavailability",
+    !pkgInfoText.includes("Lifecycle checks:") &&
+      !pkgInfoText.includes("Lifecycle unavailable"),
+    "pkg_info default should omit lifecycle diagnostics",
   );
 
   const pkgInfoJson = assertJsonResult(
@@ -1101,7 +1101,23 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_info json missing version count",
   );
   if (pkgInfoJson.lifecycle !== undefined) {
-    const lifecycle = pkgInfoJson.lifecycle;
+    assertRecord(pkgInfoJson.lifecycle, "pkg_info compact lifecycle");
+    assert(
+      !("checks" in pkgInfoJson.lifecycle),
+      "pkg_info default JSON leaked lifecycle checks",
+    );
+  }
+  const pkgInfoVerboseJson = assertJsonResult(
+    await callTool(caller, "pkg_info", {
+      target: "npm:express",
+      format: "json",
+      verbose: true,
+    }),
+    "pkg_info verbose json",
+  );
+  assertRecord(pkgInfoVerboseJson, "pkg_info verbose json");
+  if (pkgInfoVerboseJson.lifecycle !== undefined) {
+    const lifecycle = pkgInfoVerboseJson.lifecycle;
     assertRecord(lifecycle, "pkg_info lifecycle");
     assert(
       Array.isArray(lifecycle.findings),

@@ -70,7 +70,9 @@ export async function pkgInfoAction(
     });
 
     if (options.json) {
-      const payload = buildPackageSummarySuccessPayload(summary);
+      const payload = buildPackageSummarySuccessPayload(summary, {
+        verbose: options.verbose,
+      });
       console.log(JSON.stringify(payload));
       return;
     }
@@ -105,12 +107,13 @@ const PKG_INFO_DESCRIPTION = `Default-release package overview for dependency tr
 Default output shows license, description, repository popularity
 (stars/forks/issues and [ARCHIVED] when applicable), downloads,
 publish age, selected-release affected count, and separate package-wide advisory
-history count, plus native lifecycle findings, independent check outcomes,
-and retained warnings. Lifecycle checks are separate from the GitHub archive badge;
-empty findings alone do not establish health. Publisher replacements are advice,
-not upgrade recommendations. --verbose adds GitHub language/topics/last-pushed,
-published-version count, download refresh date, package-wide advisory
-history (all versions), and recent changes. Inspect package history with:
+history count, plus compact lifecycle warnings when present. Omitted warnings do
+not establish health. --verbose adds full lifecycle evidence in text or JSON;
+lifecycle checks are separate from the GitHub archive badge. Publisher
+replacements are advice, not upgrade recommendations. Verbose text also adds
+GitHub language/topics/last-pushed, published-version count, download refresh
+date, package-wide advisory history (all versions), and recent changes.
+Inspect package history with:
 githits pkg vulns <registry>:<name> --scope all.
 
 Package spec: <registry>:<name>. Supported registries: ${PKGSEER_REGISTRY_LIST}.
@@ -127,11 +130,11 @@ export function registerPkgInfoCommand(pkgCommand: Command): Command {
     .argument("<spec>", "Package spec, e.g. npm:express or pypi:requests")
     .option(
       "-v, --verbose",
-      "Show GitHub language/topics/last-pushed, published-version count, download refresh date, package-wide advisory history (all versions), and recent changes",
+      "Show lifecycle sources, checks, timestamps and publisher details, plus GitHub language/topics/last-pushed, published-version count, download refresh date, package-wide advisory history (all versions), and recent changes",
     )
     .option(
       "--json",
-      "Emit JSON with selected version, registry latest/difference, version count, refresh date, advisory history, and native lifecycle evidence",
+      "Emit JSON with selected version, registry latest/difference, version count, refresh date, advisory history, and compact lifecycle warnings; add --verbose for full lifecycle evidence",
     )
     .action(async (spec: string, options: PkgInfoCommandOptions) => {
       const deps = await createContainer();

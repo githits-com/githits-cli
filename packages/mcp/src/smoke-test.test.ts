@@ -502,7 +502,12 @@ describe("runMcpSmoke", () => {
   it("rejects lifecycle JSON that loses a required check", async () => {
     const caller = createCaller(async (name, args) => {
       const result = smokeResponse(name, args);
-      if (name !== "pkg_info" || args.format !== "json") return result;
+      if (
+        name !== "pkg_info" ||
+        args.format !== "json" ||
+        args.verbose !== true
+      )
+        return result;
       const payload = JSON.parse(resultText(result, "fixture"));
       payload.lifecycle = {
         findings: [],
@@ -1584,7 +1589,7 @@ function smokeResponse(
     case "pkg_info":
       return textResult(
         "express\nRepository 1 stars\n" +
-          "Vulnerabilities  Latest: none affected\n                 History: 5 known advisories across all versions\nLifecycle unavailable",
+          "Vulnerabilities  Latest: none affected\n                 History: 5 known advisories across all versions",
       );
     case "pkg_deps":
       if (args.include_issues === true) {
@@ -1744,7 +1749,9 @@ function smokeJsonResponse(
         versionCount: 42,
         downloads: { refreshedAt: "2024-06-15" },
         advisoryHistory: { total: 5 },
-        lifecycle: createMockPackageLifecycle(),
+        ...(args.verbose === true
+          ? { lifecycle: createMockPackageLifecycle() }
+          : {}),
       });
     case "pkg_deps":
       if (args.include_issues === true) {

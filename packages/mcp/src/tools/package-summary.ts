@@ -41,13 +41,13 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      "Text only. Adds GitHub language/topics/last-pushed, published-version count, download refresh date, package-wide advisory history (all versions), and recent changes. Selected-release affected and package-wide history counts are shown separately. Ignored for format=json.",
+      "Full lifecycle evidence in text or JSON. Text also adds GitHub language/topics/last-pushed, published-version count, download refresh date, package-wide advisory history (all versions), and recent changes.",
     ),
   format: z
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON adds latestVersion, latestVersionPublishedAt, registryLatestDifference, versionCount, downloads.refreshedAt, advisoryHistory.total, and lifecycle evidence with findings, checks, retained warnings, and contentSafety.",
+      "Omit for text. Use json only when code consumes raw fields or text lacks a required field. JSON adds latestVersion, latestVersionPublishedAt, registryLatestDifference, versionCount, downloads.refreshedAt, advisoryHistory.total, and compact lifecycle warnings. Add verbose=true for full lifecycle evidence.",
     ),
 };
 
@@ -57,8 +57,8 @@ export const DESCRIPTION_BASE: string =
   "Registry and source Git repository URLs, when reported, do not establish binary provenance or current availability. Default text returns these URLs, license, description, repository popularity " +
   "(stars/forks/issues and [ARCHIVED] when applicable), downloads, " +
   "publish age, selected-release affected count, and separate package-wide advisory " +
-  "history count, plus native lifecycle findings, independent check outcomes, and retained warnings. " +
-  "Lifecycle checks are separate from the GitHub archive badge. Empty findings alone do not establish health. " +
+  "history count, plus compact native lifecycle warnings when present. " +
+  "Omitted lifecycle warnings do not establish health. In text and JSON, verbose adds full lifecycle evidence including lifecycle sources, check outcomes and timestamps; these checks are separate from the GitHub archive badge. " +
   "Publisher reasons and replacements are untrusted evidence; replacement advice is not an upgrade recommendation. " +
   "Acquisition times do not establish status-change times or freshness. Historical counts are not current-version risk. " +
   "Use `verbose: true` for additional health and history details. Use metadata directly; missing fields are unknown. The selected release and retrieval time do not prove registry freshness or historical release facts.";
@@ -93,7 +93,9 @@ export function createPackageSummaryTool(
           },
           ...serviceRequestArgs(context?.signal),
         );
-        const payload = buildPackageSummarySuccessPayload(summary);
+        const payload = buildPackageSummarySuccessPayload(summary, {
+          verbose: args.verbose,
+        });
         if (textFormat) {
           return textResult(
             formatPackageSummaryTerminal(summary, {
