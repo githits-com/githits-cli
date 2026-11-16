@@ -686,14 +686,17 @@ When a new tool lands with both MCP and CLI surfaces:
 - **Temporary metadata failures retain the overview.** The exact nullable
   `packageSummary.package.githubRepository` `RATE_LIMITED` error and optional
   `provenance` `RATE_LIMITED` errors preserve independently readable package,
-  download, security and changelog facts. Core records these alongside package
+  download, security and changelog facts. Because provenance also carries native
+  lifecycle findings, its notice explicitly says registry provenance and lifecycle
+  warnings are unavailable; absence of lifecycle warnings is not complete evidence. Core records these alongside package
   metadata as `githubRepositoryError` and `registryRepositoryError`; lean JSON
   exposes `githubError` and `provenanceError`. These optional objects reuse the
   nullable-source error convention: `code`, safe `message`, `retryable`, and
   the allowlisted scope/source/repository/ref/retry facts above. Text always
   explains temporary unavailability and available retry timing, including in
   compact mode. Simultaneous metadata failures share one text notice naming both
-  sources and retry advice using the larger delay; JSON
+  affected sources, including unavailable lifecycle warnings, and retry advice
+  using the larger delay; JSON
   keeps both independent error objects. MCP returns the useful result without `isError`; CLI prints
   that result and sets exit status 1, as for nullable advisory-source errors.
   Other existing optional provenance failures retain their behavior. Global,

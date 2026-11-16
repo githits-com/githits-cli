@@ -445,7 +445,7 @@ for (const mode of ["github", "provenance", "both"] as const) {
         summary.package.registryRepositoryError = {
           ...facts,
           message:
-            "Registry provenance temporarily unavailable (RATE_LIMITED).",
+            "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
         };
       }
       const packageSummary = mock(async () => summary);

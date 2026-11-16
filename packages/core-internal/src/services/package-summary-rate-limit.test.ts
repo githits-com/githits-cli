@@ -146,6 +146,8 @@ it.each([
       expect(result.lifecycle).toBeUndefined();
       expect(result.package.registryRepositoryError).toMatchObject({
         code: "RATE_LIMITED",
+        message:
+          "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
         retryable: true,
         rateLimitScope: "repository_provider",
         tokenSource: "user",

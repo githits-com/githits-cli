@@ -120,7 +120,7 @@ export interface PackageIdentity {
   registryRepository?: RegistryRepository;
   /** Explicit temporary failure of optional repository popularity metadata. */
   githubRepositoryError?: PackageSummaryMetadataError;
-  /** Explicit temporary failure of optional selected-release registry provenance. */
+  /** Explicit temporary failure of optional selected-release provenance and lifecycle. */
   registryRepositoryError?: PackageSummaryMetadataError;
 }
 
@@ -3419,7 +3419,7 @@ export class PackageIntelligenceServiceImpl
     if (provenanceErrors.length) {
       summary.package.registryRepositoryError = summaryMetadataError(
         provenanceErrors,
-        "Registry provenance temporarily unavailable (RATE_LIMITED).",
+        "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
       );
     }
     const selected = parsed.data.data?.provenance?.selectedVersion;

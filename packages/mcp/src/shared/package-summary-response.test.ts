@@ -814,7 +814,8 @@ for (const verbose of [false, true]) {
       };
       summary.package.registryRepositoryError = {
         ...facts,
-        message: "Registry provenance temporarily unavailable (RATE_LIMITED).",
+        message:
+          "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
         retryAfterMs: provenanceMs,
         retryAfterSeconds: provenanceMs / 1000,
       };
@@ -823,8 +824,8 @@ for (const verbose of [false, true]) {
         terminalWidth: 80,
         now: FIXED_NOW,
       });
-      expect(output).toContain(
-        "GitHub metadata and registry provenance temporarily unavailable",
+      expect(output.replace(/\s+/g, " ")).toContain(
+        "GitHub metadata, registry provenance and lifecycle warnings temporarily unavailable",
       );
       expect(output).not.toContain(
         "Repository provider is temporarily rate limited.",

@@ -392,7 +392,7 @@ for (const mode of ["github", "provenance", "both"] as const) {
         summary.package.registryRepositoryError = {
           ...facts,
           message:
-            "Registry provenance temporarily unavailable (RATE_LIMITED).",
+            "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
         };
       }
       const packageSummary = mock(async () => summary);
@@ -425,16 +425,16 @@ for (const mode of ["github", "provenance", "both"] as const) {
         expect(text).toContain("express @ 4.18.2 | MIT");
         expect(text.replace(/\s+/g, " ")).toContain("Try again in 2 seconds.");
         if (mode === "both")
-          expect(text).toContain(
-            "GitHub metadata and registry provenance temporarily unavailable",
+          expect(text.replace(/\s+/g, " ")).toContain(
+            "GitHub metadata, registry provenance and lifecycle warnings temporarily unavailable",
           );
         if (mode === "github")
           expect(text).toContain(
             "GitHub metadata temporarily unavailable (RATE_LIMITED).",
           );
         if (mode === "provenance")
-          expect(text).toContain(
-            "Registry provenance temporarily unavailable (RATE_LIMITED).",
+          expect(text.replace(/\s+/g, " ")).toContain(
+            "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
           );
       }
       expect(packageSummary).toHaveBeenCalledTimes(1);

@@ -508,7 +508,7 @@ export function formatPackageSummaryTerminal(
           code: firstError.code,
           message:
             metadataErrors.length > 1
-              ? "GitHub metadata and registry provenance temporarily unavailable (RATE_LIMITED)."
+              ? "GitHub metadata, registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED)."
               : firstError.message,
           retryable: metadataErrors.every((error) => error.retryable),
           details: {
