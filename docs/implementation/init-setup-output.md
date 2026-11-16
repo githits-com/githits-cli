@@ -68,7 +68,7 @@ existing `managed_by_cursor` shape; other hosted-only targets report
 `managed_by_host`, and mixed runs include per-host `remoteAuth` steps. When MCP
 setup is needed, the top-level `auth` describes those setup targets. An unchanged
 local target selected alongside remote setup does not trigger local sign-in;
-guidance-only repair retains the same no-auth behavior.
+guidance-only repair retains the same no-local-CLI-auth behavior.
 
 ## Guided hosted sign-in
 
@@ -124,7 +124,9 @@ Hosts without a guidance target report that limitation rather than claiming
 an instruction write.
 
 Guidance outcomes enumerate created, updated, unchanged, removed, and failed
-skill installations. Guidance-only repairs do not mutate MCP or authenticate. During
+skill installations. Guidance-only repairs do not mutate MCP or start local CLI
+authentication. Human setup can separately offer hosted sign-in for those usable
+selected connections. During
 uninstall, an all-absent guidance result collapses to one unchanged row, while
 removed files and failed paths remain individually visible. Failure reasons are
 sanitized; the target path is retained. Guidance contributes to the overall
@@ -174,10 +176,12 @@ does not claim to disconnect that account-level connector.
 ## Partial failures
 
 Interactive setup exits nonzero when any selected setup fails. It retains
-sign-in/discovery instructions for successfully configured hosted targets even
+sign-in actions for successfully configured hosted targets even
 when another tool fails. Selected already-configured hosted targets retain those
 steps during a rerun or guidance-only failure; configuration status does not
-prove OAuth readiness. These are instructions, not automatic sign-in attempts. Probe failures name known configuration paths and
+prove OAuth readiness. Supported hosted targets can use the separately confirmed
+sign-in flow; unresolved targets retain instructions. Probe failures name known
+configuration paths and
 explain that permissions, syntax and the GitHits entry need checking; they
 leave existing config untouched and never echo config contents.
 
@@ -185,7 +189,8 @@ Interactive next steps follow the selected tools. A configured but unselected
 host receives no sign-in or tool-discovery instructions. When no tool selector
 is needed, the no-op report covers the existing detected setup. Choosing a
 guidance repair and then declining keeps that chosen host in the unchanged
-report without writes or login attempts. Ordinary tool choices use names;
+report without configuration writes; hosted sign-in still requires both explicit
+consent steps. Ordinary tool choices use names;
 transport and replacement details belong in the review before confirmation.
 Already-configured rows remain disabled when another tool needs setup or a
 manual handoff. Use `githits init --detect-agents` to see hosted sign-in steps for

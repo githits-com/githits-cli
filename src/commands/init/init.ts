@@ -3055,7 +3055,7 @@ function printScopedNextSteps(
 ): void {
   if (hostedAuthCompleted && !remoteAgents.length && !localAuthApplicable) {
     printSection("Ready", useColors);
-    printInitProse("  GitHits sign-in is complete for the selected tools.");
+    printInitProse("  GitHits sign-in is complete for the checked tools.");
     printTroubleshootingLink();
     return;
   }

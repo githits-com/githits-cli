@@ -14,7 +14,9 @@ Interactive setup and staged `--install-agents` setup use the same per-agent
 status model. A selected agent can need MCP setup, guidance repair, or both;
 an already-configured but unselected agent is reporting-only and is never
 retargeted. Guidance-only and stale-skill cleanup selections do not mutate MCP
-configuration or authenticate. An empty selection prints `Nothing selected, no
+configuration or start local CLI authentication. Interactive setup may separately
+offer hosted sign-in for selected usable connections, with consent for each
+command. An empty selection prints `Nothing selected, no
 changes made` and returns before review, authentication, or writes.
 
 The first prompt asks `How would you like to set up GitHits?` and offers:
@@ -105,9 +107,11 @@ Hosted MCP uses https://mcp.githits.com and host-owned OAuth. Entirely hosted
 setup and guidance-only repairs do not construct CLI login dependencies. Local
 CLI auth only applies to selected local integrations. Configuration success is
 not an authenticated tool-discovery result; remote next steps also appear on
-configured/guidance-only paths. Cursor uses Customize > MCPs and its sign-in prompts,
-`agent mcp login GitHits`, and copyable tool-discovery commands. Other
-hosts receive their own auth action and new-session discovery instructions.
+configured/guidance-only paths. Interactive setup checks supported native host
+status and offers sequential sign-in commands with individual confirmation;
+unresolved hosts retain their own authentication instructions. Cursor uses
+Customize > MCPs and `agent mcp login GitHits`. Verification and new-session
+discovery are documented in `TROUBLESHOOTING.md`.
 Staged Cursor-only auth keeps `managed_by_cursor`; other hosted-only setup uses
 `managed_by_host`, with additive per-host `remoteAuth` instructions for mixed runs.
 
@@ -217,12 +221,14 @@ Verified host contracts (2026-10-20):
   Official Droid docs confirm HTTP config and OAuth. Existing Windsurf scope
   stays explicit; the redirected successor docs' path is not adopted.
 
-Remote sign-in instructions belong to each definition: Claude Code `/mcp`,
+Remote sign-in actions belong to init host adapters: recent Claude Code user
+setup supports `claude mcp login githits`, with `/mcp` for older/project setups;
 Cursor Customize > MCPs and current CLI login commands, Codex `codex mcp login githits`, Gemini
 `/mcp auth githits`, Pi `/mcp-auth GitHits`, OpenCode/Kilo native MCP auth,
 and the other hosts' documented MCP Authenticate/Authorize action. Every remote
-instruction ends with a new-session/tool-discovery check; none claims CLI auth
-proves remote readiness. Preserve exact host/server-name spelling.
+structured instruction ends with a new-session/tool-discovery check; human
+completion shows authentication actions and a troubleshooting link. No CLI auth
+result proves remote readiness. Preserve exact host/server-name spelling.
 
 The native settings-home override does not establish exclusive guidance
 discovery. Before changing guidance locations for a custom Gemini home, verify
