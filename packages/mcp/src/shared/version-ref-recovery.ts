@@ -166,6 +166,7 @@ const CLI_SWITCHES = new Set([
   "-v",
   "--verbose",
   "--json",
+  "--literal-path",
   "--no-color",
   "-F",
   "--fixed-strings",
