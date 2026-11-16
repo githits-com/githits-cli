@@ -195,7 +195,7 @@ Sources:
 51: ...
 
 Read:
-  Files: githits read --lines $start-$end -- $target $path
+  Files: githits read --literal-path --lines $start-$end -- $target $path
   Pages: githits read --lines $start-$end -- $url
 ```
 

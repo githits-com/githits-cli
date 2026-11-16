@@ -594,7 +594,7 @@ describe("unified list CLI", () => {
         `${[
           "Sources:",
           "  - npm:express@5.2.1",
-          "Read files: read -- 'npm:express@5.2.1' $path",
+          "Read files: read --literal-path -- 'npm:express@5.2.1' $path",
           "src/index.ts",
           "",
           "More results: repeat this list, adding:",

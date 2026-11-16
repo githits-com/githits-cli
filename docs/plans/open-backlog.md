@@ -1,31 +1,5 @@
 # Open backlog
 
-## Literal path round-trips — 2026-10-22
-
-The path audit reproduced two accepted-input inconsistencies beyond ordinary
-package/repository root selection:
-
-- `list` actions and backend `PathContract.validate_exact` preserve literal
-  filename bytes, but `resolveReadLocator`, `buildReadFileParams`,
-  `ReadService.normaliseReadRequest`, and legacy CLI builders trim surrounding
-  whitespace. A returned `src/file.ts ` path is therefore read as `src/file.ts`.
-  Existing unit tests explicitly require trimming; correcting this needs a
-  coordinated read-input contract change, not an isolated formatter patch.
-- CLI `parsePathWithOptionalRange` interprets every numeric `:line` suffix as
-  shorthand. An emitted action for literal `src/example:12` is read as
-  `src/example` at line 12; an emitted explicit range then causes a range-form
-  conflict. Shell quoting does not resolve argument-parser ambiguity. MCP
-  treats the same path literally. Selecting an unambiguous literal-path CLI
-  form is a product/input-grammar decision.
-
-Ownership: backend scope helpers retain authoritative coordinates; shared read
-input normalization and CLI argument parsing own these two inconsistencies.
-Do not infer or strip package directories in the client to address either one.
-Acceptance: replay the exact paths from list/search/grep actions through CLI
-and MCP, including leading/trailing spaces, literal numeric-colon filenames,
-normal line shorthand, and explicit ranges; assert the backend receives the
-same target/path pair. Keep blank optional argument behavior intentional.
-
 ## Validation error recovery after PkgSeer phases 3-4
 
 Deferred from the completed version/ref recovery work in PR #485. Start after

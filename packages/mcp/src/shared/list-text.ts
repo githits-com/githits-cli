@@ -143,7 +143,7 @@ function formatSourceReadAction(
 ): string {
   return syntax === "mcp"
     ? `read target=${JSON.stringify(target)} path=$path`
-    : `read -- ${shellQuoteExact(target)} $path`;
+    : `read --literal-path -- ${shellQuoteExact(target)} $path`;
 }
 
 function formatSiteReadGuidance(

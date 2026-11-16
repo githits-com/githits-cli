@@ -14,6 +14,7 @@ describe("CLI path recovery quoting", () => {
     .each([
       "src/$(printf PATH_AUDIT_EXPANDED)/",
       "-$(printf PATH_AUDIT_EXPANDED)/",
+      " src /",
     ])(
     "preserves the literal suggested list path %s through the shell and CLI parser",
     async (prefix) => {

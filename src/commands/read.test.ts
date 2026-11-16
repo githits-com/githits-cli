@@ -15,7 +15,7 @@ import {
   defaultPackageDocResult,
   defaultReadFileResult,
 } from "../services/test-helpers.js";
-import { registerCodeReadCommand } from "./code/read.js";
+import { pkgReadAction, registerCodeReadCommand } from "./code/read.js";
 import { registerDocsReadCommand } from "./docs/read.js";
 import {
   type ReadCommandDependencies,
@@ -34,6 +34,88 @@ function deps(): ReadCommandDependencies {
 }
 
 describe("top-level read", () => {
+  it
+    .skipIf(process.platform === "win32")
+    .each([
+      "src/example:12",
+      "src/example:12-20",
+      "src/example:12-",
+      "--example:0",
+      " src/example:12 ",
+      " src/file.ts ",
+    ])(
+    "replays generated literal path %s through shell and read actions",
+    async (path) => {
+      const log = spyOn(console, "log").mockImplementation(() => {});
+      try {
+        for (const legacy of [false, true]) {
+          for (const range of [{}, { startLine: 5, endLine: 10 }]) {
+            const services = deps();
+            const target = "npm:express@5.2.1";
+            const command = renderReadTarget(
+              { target, path, ...range },
+              "cli",
+            ).replace(
+              /^githits read /,
+              legacy ? "githits code read " : "githits read ",
+            );
+            const child = Bun.spawn(
+              [
+                "/bin/sh",
+                "-c",
+                `githits() { printf '%s\\0' "$@"; }; ${command}`,
+              ],
+              { env: {}, stdout: "pipe", stderr: "pipe" },
+            );
+            const stdout = await new Response(child.stdout).text();
+            expect(await child.exited).toBe(0);
+            const root = new Command().exitOverride();
+            root.configureOutput({ writeErr: () => {} });
+            const registered = legacy
+              ? registerCodeReadCommand(root.command("code"))
+              : registerReadCommand(root);
+            registered.action(async (spec, filePath, options) => {
+              await (legacy ? pkgReadAction : readAction)(
+                spec,
+                filePath,
+                { ...options, json: true },
+                services,
+              );
+            });
+            await root.parseAsync(stdout.split("\0").slice(0, -1), {
+              from: "user",
+            });
+            if (legacy) {
+              expect(
+                services.codeNavigationService!.readFile,
+              ).toHaveBeenCalledWith({
+                target: {
+                  registry: "NPM",
+                  packageName: "express",
+                  version: "5.2.1",
+                },
+                filePath: path,
+                startLine: undefined,
+                endLine: undefined,
+                ...range,
+                waitTimeoutMs: 30_000,
+              });
+            } else {
+              expect(services.readService.read).toHaveBeenCalledWith({
+                target,
+                path,
+                ...range,
+                waitTimeoutMs: 30_000,
+              });
+            }
+          }
+        }
+      } finally {
+        log.mockRestore();
+      }
+    },
+  );
+
   it.each(["-index.ts", "--config.ts", "src/index.ts"])(
     "replays emitted opaque path %s through the registered parser",
     async (path) => {
