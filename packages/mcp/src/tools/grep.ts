@@ -2,6 +2,7 @@ import type { GrepParams, GrepService } from "@githits/core-internal";
 import { z } from "zod";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "../shared/code-navigation-defaults.js";
 import { mapGrepError } from "../shared/grep-error-map.js";
+import { GREP_REPO_SYMBOL_FIELDS_NOTE } from "../shared/grep-repo-request.js";
 import {
   buildGrepParams,
   type GrepRequestTargetInput,
@@ -34,6 +35,7 @@ export interface GrepArgs {
   context_lines_after?: number;
   max_matches?: number;
   cursor?: string;
+  symbol_fields?: string[];
   wait_timeout_ms?: number;
   format?: "text" | "json";
 }
@@ -113,7 +115,13 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Copy the complete returned cursor unchanged. Keep the entire targets array (including corpus/path_selectors), pattern/type, case mode, context counts and max_matches unchanged. To change them, omit cursor and start a new request. Empty starts page one. Hosted pages can change before read.",
+      "Copy the complete returned cursor unchanged. Keep the entire targets array (including corpus/path_selectors), pattern/type, case mode, context counts, max_matches and symbol_fields unchanged. To change them, omit cursor and start a new request. Empty starts page one. Hosted pages can change before read.",
+    ),
+  symbol_fields: z
+    .array(z.string())
+    .optional()
+    .describe(
+      `${GREP_REPO_SYMBOL_FIELDS_NOTE} Text shows compact hints; use format json for complete requested metadata. Empty stays off; repeat the same mask on continuations.`,
     ),
   wait_timeout_ms: z
     .number()
@@ -128,7 +136,7 @@ const schema: ZodRawShape = {
     .enum(["text", "json"])
     .default("text")
     .describe(
-      "Omit for text: grouped matches, read locators, and coverage. Use json only when code consumes raw hit and scope fields.",
+      "Omit for text: grouped matches, read locators, and coverage. Use json for complete requested symbol metadata or programmatic hit and scope fields.",
     ),
 };
 
@@ -162,6 +170,7 @@ export function createGrepTool(
           contextLinesAfter: args.context_lines_after,
           maxMatches: args.max_matches,
           cursor: args.cursor,
+          symbolFields: args.symbol_fields,
           waitTimeoutMs: args.wait_timeout_ms,
           includeDetailedFields: args.format === "json",
         });

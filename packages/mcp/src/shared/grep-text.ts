@@ -6,6 +6,7 @@ import type {
 } from "@githits/core-internal";
 import { colors, highlightMatch } from "./colors.js";
 import { grepPreparationReason } from "./grep-preparation-text.js";
+import { formatGrepSymbolHint } from "./grep-repo-response.js";
 import { summarizeGrepPathWarnings } from "./grep-response.js";
 import { formatPreparationRow } from "./indexing-estimates-text.js";
 import { indexingWaitMs } from "./indexing-wait.js";
@@ -45,6 +46,7 @@ interface RenderLine {
   slice: GrepLineSlice;
   match: boolean;
   spans: MatchSpan[];
+  symbolHints: string[];
 }
 interface FileGroup {
   first: GrepHit;
@@ -253,6 +255,7 @@ export function formatGrepText(
       lines.push(
         `${String(row.number).padStart(gutter)}${row.match ? ":" : "-"} ${renderSlice(row, options.useColors ?? false)}`,
       );
+      for (const hint of row.symbolHints) prose(`  in: ${hint}`);
       previous = row.number;
     }
     if (group.hits.some((hit) => hit.contentSafety.filtered))
@@ -619,6 +622,7 @@ function groupRows(hits: GrepHit[]): RenderLine[] {
     number: number,
     slice: GrepLineSlice,
     span?: MatchSpan,
+    symbolHint?: string,
   ): void => {
     const key = JSON.stringify([
       number,
@@ -631,6 +635,8 @@ function groupRows(hits: GrepHit[]): RenderLine[] {
       if (span) {
         row.match = true;
         row.spans.push(span);
+        if (symbolHint && !row.symbolHints.includes(symbolHint))
+          row.symbolHints.push(symbolHint);
       }
     } else
       rows.set(key, {
@@ -638,16 +644,24 @@ function groupRows(hits: GrepHit[]): RenderLine[] {
         slice,
         match: span !== undefined,
         spans: span ? [span] : [],
+        symbolHints: symbolHint ? [symbolHint] : [],
       });
   };
   for (const hit of hits) {
     hit.contextBeforeSlices.forEach((slice, index) => {
       add(hit.line - hit.contextBeforeSlices.length + index, slice);
     });
-    add(hit.line, hit.lineSlice, {
-      start: hit.matchStartByte,
-      end: hit.matchEndByte,
-    });
+    add(
+      hit.line,
+      hit.lineSlice,
+      {
+        start: hit.matchStartByte,
+        end: hit.matchEndByte,
+      },
+      hit.__typename === "GrepRepositoryHit"
+        ? formatGrepSymbolHint(hit.symbol ?? undefined)
+        : undefined,
+    );
     hit.contextAfterSlices.forEach((slice, index) => {
       add(hit.line + index + 1, slice);
     });

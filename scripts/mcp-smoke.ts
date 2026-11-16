@@ -138,6 +138,12 @@ async function assertMcpSession(
       `${context}: ${tool.name} must advertise destructiveHint: false`,
     );
   }
+  const grep = response.tools.find((tool) => tool.name === "grep");
+  assert(
+    grep?.inputSchema.properties?.symbol_fields !== undefined &&
+      !grep.inputSchema.required?.includes("symbol_fields"),
+    `${context}: grep must expose optional symbol_fields`,
+  );
   let removedFeedbackError = "";
   try {
     const result = await client.callTool({ name: "feedback", arguments: {} });

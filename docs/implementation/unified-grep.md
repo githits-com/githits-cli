@@ -259,7 +259,8 @@ explicit full-search restart in Follow-up, naming `--cursor` (CLI) or `cursor`
 Complete/partial pages exit zero, including zero hits. Failures exit nonzero;
 JSON errors go to stderr with clean stdout. Preparation errors preserve up to
 20 public `targetIssues` with backend keys and per-input recovery data, and use
-reason-based codes as described below. Invalid cursors map to `INVALID_ARGUMENT` with distinct
+reason-based codes as described below. Invalid cursors (including native `MULTI_GREP_CURSOR_INVALID` mask mismatches)
+map to `INVALID_ARGUMENT` with distinct
 `graphqlCode`. Protocol, transport, auth, terms, update, deadline and HTTP
 failures retain mapped categories. There is no legacy fallback or automatic
 preparation retry/cursor restart.
@@ -551,3 +552,65 @@ rather than `Serving indexed version`, with the same version/ref; clients neithe
 parse nor rewrite that prose. Root provenance does not authorize broader scope.
 These additive fields must be deployed and verified, including production,
 before the coordinated public CLI/MCP release selects them.
+
+## Enclosing-symbol metadata
+
+Unified CLI grep accepts repeatable `--symbol-field <field>`; MCP `grep` accepts
+`symbol_fields: string[]`. Both use the legacy `code grep` mask vocabulary:
+`symbol_ref`, `name`, `qualified_path`, `kind`, `category`, `arity`, `is_public`,
+`file_path`, `start_line`, `end_line`, `content_hash`, `parent_path`,
+`file_content_hash`, `is_implementation`.
+
+```sh
+githits grep -F app.listen github:expressjs/express --path lib/application.js \
+  --symbol-field name --symbol-field kind \
+  --symbol-field start_line --symbol-field end_line
+```
+
+The shared request validator rejects `code`, `caller_count`, `parent_symbol_ref`,
+unknown names and blank entries before calling the service. Omitted or empty
+masks do not hydrate symbols: the default query omits the argument, variable and
+symbol selection, including JSON mode. A nonempty mask forwards `symbolFields`
+and selects only requested fields on repository hits using the shared legacy
+`NavigationSymbol` projection. `file_content_hash` and `is_implementation` are
+accepted native mask controls but have no `NavigationSymbol` GraphQL output
+fields. When these are the only requested fields, an available enclosure projects
+to an empty object; no enclosure remains null. The query selects only
+`__typename` in that case and the result allowlist removes it. These masks do not
+expose the ordinary hit's file hash or manufacture a symbol implementation flag.
+
+Text uses the same compact `in:` hint as legacy `code grep`: supplied name or
+qualified path, kind, public visibility, arity and a complete line range. It
+does not dump symbol refs, hashes, repeated file paths or other raw metadata.
+JSON preserves all requested metadata on repository `hit.symbol`, including
+exact opaque refs and individual range bounds. Repository absence is null;
+hosted docs hits have no symbol field. Unrequested scalar defaults never become
+facts because their fields are not selected. Range fields are not inferred from
+match/context lines.
+Metadata does not include source bodies or cause additional read requests.
+
+Symbol refs are opaque, snapshot-bound `_repo` identities containing the served
+repository URL, full commit SHA and repository-root source path. Preserve them
+unchanged. Display `symbol.filePath` can instead be package-relative. Never
+reconstruct identity from that display path or the version of a package input;
+several inputs can share a physical scan. Existing matched-line `read` actions,
+coverage and occurrence ordering remain unchanged. For a separate range read,
+use the exact repository locator/path from the result and explicitly requested
+symbol bounds; do not substitute a package display path for a repository path.
+
+Repeat the same mask with every cursor continuation, alongside the existing
+ordered targets and matching controls. Changing the effective mask is refused;
+the client does not strip it or retry. Enriched metadata can reduce hits admitted
+to a page; `totalMatches` stays page-local. Multiple hits can repeat the same
+symbol, and null enclosure does not change search coverage.
+
+### Producer prerequisite
+
+This opt-in path requires PkgSeer's unified `grep(symbolFields: [String!])` and
+nullable `GrepRepositoryHit.symbol: NavigationSymbol` projection, backed by
+native API61 (aigrep 0.31.1). Verify the configured endpoint accepts the argument
+and all selected fields before releasing this adoption. An older endpoint can
+still serve the lean default query; explicit opt-in fails without a schema
+fallback. A backend merge alone does not prove deployment. Package-owned MCP
+changes reach hosted MCP only after the MCP package is released, adopted and
+deployed by `remote-mcp`.

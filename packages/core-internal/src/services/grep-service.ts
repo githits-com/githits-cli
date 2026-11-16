@@ -17,7 +17,11 @@ import {
   isGraphQLSchemaMismatchError,
 } from "./client-update-required-error.js";
 import {
+  buildGrepSymbolSelection,
   type ContentModification,
+  type GrepRepoSymbolField,
+  type NavigationSymbol,
+  navigationSymbolSchema,
   requiredTargetResolutionSchema,
   type TargetResolution,
 } from "./code-navigation-service.js";
@@ -77,6 +81,7 @@ export interface GrepParams {
   contextLinesAfter: number;
   maxMatches?: number;
   cursor?: string;
+  symbolFields?: GrepRepoSymbolField[];
   waitTimeoutMs?: number;
   includeDetailedFields: boolean;
 }
@@ -117,6 +122,7 @@ export interface GrepRepositoryHit extends GrepHitBase {
   repoUrl?: string;
   commitSha?: string;
   repositoryFilePath?: string;
+  symbol?: NavigationSymbol | null;
 }
 export interface GrepSiteHit extends GrepHitBase {
   __typename: "GrepSiteHit";
@@ -330,6 +336,7 @@ function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
           __typename: z.literal("GrepRepositoryHit"),
           read: readAction.extend({ path: z.string() }),
           filePath: z.string(),
+          symbol: navigationSymbolSchema.nullable().optional(),
           repoUrl: selected(z.string()),
           commitSha: selected(z.string()),
           repositoryFilePath: selected(z.string()),
@@ -434,15 +441,18 @@ function validMatchCoordinates(hit: GrepHit): boolean {
   );
 }
 
-const GRAPHQL_QUERY = `query Grep(
+/** Keep both the argument and projection absent until explicit hydration demand. */
+function buildGrepQuery(symbolFields: GrepParams["symbolFields"]): string {
+  const symbolSelection = buildGrepSymbolSelection(symbolFields);
+  return `query Grep(
   $targets: [GrepTargetInput!]!, $pattern: String!, $patternType: GrepPatternType,
   $caseSensitive: Boolean, $contextLinesBefore: Int, $contextLinesAfter: Int,
-  $maxMatches: Int, $cursor: String, $waitTimeoutMs: Int, $includeDetailedFields: Boolean!
+  $maxMatches: Int, $cursor: String, $waitTimeoutMs: Int, $includeDetailedFields: Boolean!${symbolSelection ? ", $symbolFields: [String!]" : ""}
 ) {
   grep(targets: $targets, pattern: $pattern, patternType: $patternType,
     caseSensitive: $caseSensitive, contextLinesBefore: $contextLinesBefore,
     contextLinesAfter: $contextLinesAfter, maxMatches: $maxMatches,
-    cursor: $cursor, waitTimeoutMs: $waitTimeoutMs) {
+    cursor: $cursor, waitTimeoutMs: $waitTimeoutMs${symbolSelection ? ", symbolFields: $symbolFields" : ""}) {
     traversal nextCursor totalMatches
     targetResolutions {
       inputIndex target
@@ -483,6 +493,7 @@ const GRAPHQL_QUERY = `query Grep(
       __typename
       ... on GrepRepositoryHit {
         filePath
+        ${symbolSelection ? `symbol { ${symbolSelection} }` : ""}
         repoUrl @include(if: $includeDetailedFields)
         commitSha @include(if: $includeDetailedFields)
         repositoryFilePath @include(if: $includeDetailedFields)
@@ -520,6 +531,7 @@ fragment SiteMatch on GrepSiteHit {
   sourceMatchStartByte @include(if: $includeDetailedFields) sourceMatchEndByte @include(if: $includeDetailedFields)
 }
 fragment LineSlice on GrepRepoLineSlice { content startByte endByte originalLineBytes }`;
+}
 
 const graphQLResponse = z.object({
   data: z.object({ grep: z.unknown().optional() }).nullable().optional(),
@@ -572,13 +584,17 @@ export class GrepServiceImpl implements GrepService {
     signal: AbortSignal | undefined,
   ): Promise<GrepResult> {
     let response: PkgseerGraphqlResponse;
-    const { includeDetailedFields, ...controls } = params;
+    const { includeDetailedFields, symbolFields, ...controls } = params;
     try {
       response = await postPkgseerGraphql({
         endpointUrl: this.endpointUrl,
         token,
-        query: GRAPHQL_QUERY,
-        variables: { ...controls, includeDetailedFields },
+        query: buildGrepQuery(symbolFields),
+        variables: {
+          ...controls,
+          includeDetailedFields,
+          ...(symbolFields?.length ? { symbolFields } : {}),
+        },
         signal,
         timeoutMs: indexingRequestTimeoutMs(
           params.waitTimeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS,
@@ -621,7 +637,9 @@ export class GrepServiceImpl implements GrepService {
         );
       if (isGraphQLSchemaMismatchError({ message, code }))
         throw new GrepBackendError(
-          "Backend protocol mismatch: the endpoint must support unified grep. Run `githits update-check` to check your client version.",
+          params.symbolFields?.length
+            ? "Backend protocol mismatch: the endpoint must support unified grep with enclosing-symbol metadata. Retry without symbol fields, or use an endpoint that supports them."
+            : "Backend protocol mismatch: the endpoint must support unified grep. Run `githits update-check` to check your client version.",
           undefined,
           code,
           false,

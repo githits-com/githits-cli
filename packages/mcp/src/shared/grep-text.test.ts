@@ -7,6 +7,8 @@ import type {
 } from "@githits/core-internal";
 import { parseGrepResult } from "../../../core-internal/src/services/grep-service.js";
 import mixed100 from "./fixtures/grep-text/mixed-100.json";
+import { formatGrepSymbolHint } from "./grep-repo-response.js";
+import { projectGrepResult } from "./grep-response.js";
 import { formatGrepText } from "./grep-text.js";
 
 interface HitGroup {
@@ -848,3 +850,83 @@ function sortedCounts(counts: Map<string, number>): Record<string, number> {
     [...counts].sort(([left], [right]) => left.localeCompare(right)),
   );
 }
+
+describe("enclosing-symbol text", () => {
+  it("consolidates equal rendered hints even when raw symbol identities differ", () => {
+    const page = parseGrepResult(mixed100);
+    const hit = page.hits.find(
+      (hit) => hit.__typename === "GrepRepositoryHit",
+    )!;
+    if (hit.__typename !== "GrepRepositoryHit") throw new Error("fixture");
+    page.hits = ["ref-a", "ref-b", "ref-c"].map((symbolRef) => ({
+      ...hit,
+      symbol: { symbolRef, kind: "function" },
+    }));
+    page.totalMatches = 3;
+    expect(formatGrepText(page).split("in: (function)")).toHaveLength(2);
+    expect(projectGrepResult(page).hits).toEqual(page.hits);
+  });
+
+  it("uses the legacy compact hint and leaves complete metadata in JSON", () => {
+    const page = parseGrepResult(mixed100);
+    const hit = page.hits.find(
+      (hit) => hit.__typename === "GrepRepositoryHit",
+    )!;
+    if (hit.__typename !== "GrepRepositoryHit") throw new Error("fixture");
+    const ref =
+      "_repo:https://github.com/o/r:0123456789abcdef0123456789abcdef01234567:id:packages/x/a.ts";
+    hit.symbol = {
+      symbolRef: ref,
+      name: "listen",
+      kind: "function",
+      filePath: "a.ts",
+      startLine: 633,
+      endLine: 636,
+      category: "callable",
+      arity: 0,
+      isPublic: false,
+      contentHash: "hash",
+      parentPath: "app",
+    };
+    page.hits = [hit, structuredClone(hit)];
+    page.totalMatches = 2;
+    const before = structuredClone(page);
+    for (const syntax of ["cli", "mcp"] as const) {
+      const text = formatGrepText(page, { width: 60, syntax });
+      expect(text).toContain(`  in: ${formatGrepSymbolHint(hit.symbol)}`);
+      expect(text.split("in: listen")).toHaveLength(2);
+      expect(text).not.toMatch(
+        /symbolRef:|filePath:|category:|isPublic:|contentHash:|parentPath:/,
+      );
+      expect(text).not.toContain(ref);
+      expect(text).toContain(hit.read.target);
+      expect(text).toContain(hit.read.path!);
+    }
+    expect(projectGrepResult(page).hits).toEqual(before.hits);
+    expect(page).toEqual(before);
+    page.hits[1]!.line += 1;
+    expect(formatGrepText(page).split("in: listen")).toHaveLength(3);
+    page.hits = [hit];
+    hit.symbol = { name: "only_name" };
+    expect(formatGrepText(page)).toContain("in: only_name");
+    expect(formatGrepText(page)).not.toMatch(/arity=|isPublic:|L0-0/);
+    for (const symbol of [
+      { startLine: 633 },
+      { endLine: 636 },
+      { symbolRef: ref, contentHash: "hash" },
+    ]) {
+      hit.symbol = symbol;
+      expect(formatGrepText(page)).not.toMatch(
+        /in:|symbolRef:|startLine:|endLine:|contentHash:/,
+      );
+      expect(projectGrepResult(page).hits[0]).toHaveProperty("symbol", symbol);
+    }
+    hit.symbol = { name: "unsafe\u001b[31m", symbolRef: "ref\nnext" };
+    const safe = formatGrepText(page);
+    expect(safe).not.toContain("\u001b");
+    expect(safe).toContain("unsafe\\u001b[31m");
+    expect(safe).not.toContain("symbolRef:");
+    hit.symbol = null;
+    expect(formatGrepText(page)).not.toContain("in:");
+  });
+});

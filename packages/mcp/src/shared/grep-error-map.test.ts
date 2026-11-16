@@ -339,3 +339,21 @@ describe("unified grep errors", () => {
     );
   });
 });
+
+it("classifies the native mask-bound cursor rejection without discarding its code", () => {
+  expect(
+    mapGrepError(
+      new GrepGraphQLError(
+        "The MULTI_GREP cursor is invalid for this request.",
+        { code: "MULTI_GREP_CURSOR_INVALID", retryable: false },
+      ),
+    ),
+  ).toMatchObject({
+    code: "INVALID_ARGUMENT",
+    retryable: false,
+    details: {
+      graphqlCode: "MULTI_GREP_CURSOR_INVALID",
+      hint: expect.stringContaining("Restart explicitly without the cursor"),
+    },
+  });
+});

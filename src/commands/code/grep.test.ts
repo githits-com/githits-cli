@@ -22,10 +22,13 @@ describe("code grep help", () => {
     const help = command.helpInformation().replace(/\s+/g, " ");
 
     expect(help).toContain(
-      "Valid values: symbol_ref, name, qualified_path, kind, category, arity, is_public, file_path, start_line, end_line, content_hash, parent_path.",
+      "Valid values: symbol_ref, name, qualified_path, kind, category, arity, is_public, file_path, start_line, end_line, content_hash, parent_path, file_content_hash, is_implementation.",
     );
     expect(help).toContain(
       "Matching uses Unicode-aware case folding by default; pass --case-sensitive for exact casing.",
+    );
+    expect(help).toContain(
+      "file_content_hash and is_implementation are accepted but return no metadata.",
     );
     expect(help).toContain("Enable exact case-sensitive matching");
     expect(help).not.toContain("ASCII");

@@ -449,7 +449,7 @@ describe("MCP output format", () => {
           "Omit for text: grouped matches, read locators, and coverage",
         );
         expect(JSON.stringify(formatSchema), descriptor.name).toContain(
-          "Use json only when code consumes raw hit and scope fields",
+          "Use json for complete requested symbol metadata or programmatic hit and scope fields",
         );
       } else {
         expect(JSON.stringify(formatSchema), descriptor.name).toContain(
@@ -486,9 +486,14 @@ describe("MCP grep schema", () => {
       "max_matches",
       "pattern",
       "pattern_type",
+      "symbol_fields",
       "targets",
       "wait_timeout_ms",
     ]);
+    expect(inputSchema.properties?.symbol_fields).toMatchObject({
+      type: "array",
+      items: { type: "string" },
+    });
     expect(inputSchema.required).toEqual(["targets", "pattern"]);
 
     const targetsSchema = inputSchema.properties?.targets as

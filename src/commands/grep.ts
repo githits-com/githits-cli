@@ -3,6 +3,7 @@ import {
   buildGrepContextClampingNotice,
   buildGrepParams,
   formatGrepText,
+  GREP_REPO_SYMBOL_FIELDS_NOTE,
   type GrepRequestTargetInput,
   InvalidGrepRequestError,
   InvalidPackageSpecError,
@@ -34,6 +35,7 @@ export interface GrepCommandOptions {
   corpus?: string;
   limit?: string;
   cursor?: string;
+  symbolField?: string[];
   wait?: string;
   json?: boolean;
   pathSelectors?: GrepRequestTargetInput["pathSelectors"];
@@ -82,6 +84,7 @@ export async function grepAction(
       maxMatches: numeric(options.limit),
       waitTimeoutMs: numeric(options.wait),
       cursor: options.cursor,
+      symbolFields: options.symbolField,
       includeDetailedFields: options.json === true,
     });
     if (!options.json) {
@@ -152,6 +155,7 @@ const CLI_FIELDS: Record<string, string> = {
   patternType: "pattern mode",
   ignoreCase: "--ignore-case",
   cursor: "--cursor",
+  symbol_fields: "--symbol-field",
 };
 function numeric(value: string | undefined): number | undefined {
   return value === undefined
@@ -227,6 +231,11 @@ export function registerGrepCommand(
     .option(
       "--cursor <cursor>",
       "Continue with the same ordered operands and controls, including unvisited scopes. Hosted pages can change between grep and read.",
+    )
+    .option(
+      "--symbol-field <field>",
+      `Repeatable; compact hints in text, full metadata in --json. Repeat the same mask on continuations. ${GREP_REPO_SYMBOL_FIELDS_NOTE}`,
+      collect,
     )
     .option(
       "--wait <ms>",
