@@ -1143,7 +1143,7 @@ function warningForEntry(
     entry.indexingStatus &&
     !isHealthySearchLifecycleState(entry.indexingStatus) &&
     entry.indexingStatus !== "STALE" &&
-    !(entry.indexingStatus === "INDEXING" && options.completed)
+    !(isPreparingSourceState(entry.indexingStatus) && options.completed)
   ) {
     reasons.push(`indexing status ${entry.indexingStatus}`);
   }
@@ -1155,7 +1155,7 @@ function warningForEntry(
     if (
       !isHealthySearchLifecycleState(entry.codeIndexState) &&
       entry.codeIndexState !== "STALE" &&
-      !(entry.codeIndexState === "INDEXING" && options.completed)
+      !(isPreparingSourceState(entry.codeIndexState) && options.completed)
     ) {
       reasons.push(
         entry.codeIndexState === "PROVISIONAL"
@@ -1186,6 +1186,11 @@ function formatSourceStatusTarget(
   );
 }
 
+/** Queued and running source work is progress, not a terminal failure. */
+function isPreparingSourceState(state: string): boolean {
+  return state === "PENDING" || state === "INDEXING";
+}
+
 function terminalLifecycleWarningReason(
   entry: UnifiedSearchSourceStatusPayload,
 ): string | undefined {
@@ -1195,7 +1200,7 @@ function terminalLifecycleWarningReason(
   const terminalStates = states.filter(
     (state) =>
       !isHealthySearchLifecycleState(state) &&
-      state !== "INDEXING" &&
+      !isPreparingSourceState(state) &&
       state !== "STALE" &&
       state !== "PROVISIONAL",
   );
@@ -1407,7 +1412,7 @@ function compactSourceStatusEntry(
   if (
     entry.indexingStatus &&
     entry.indexingStatus !== "INDEXED" &&
-    !(entry.indexingStatus === "INDEXING" && options.completed)
+    !(isPreparingSourceState(entry.indexingStatus) && options.completed)
   ) {
     payload.indexingStatus = entry.indexingStatus;
     interesting = true;
@@ -1416,7 +1421,7 @@ function compactSourceStatusEntry(
     entry.codeIndexState &&
     entry.codeIndexState !== "CURRENT" &&
     (entry.codeIndexState !== "STALE" || staleDiverges) &&
-    !(entry.codeIndexState === "INDEXING" && options.completed)
+    !(isPreparingSourceState(entry.codeIndexState) && options.completed)
   ) {
     payload.codeIndexState = entry.codeIndexState;
     interesting = true;
