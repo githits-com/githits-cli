@@ -68,6 +68,8 @@ fields, except for lifecycle context retained on empty results. Active searches
 retain preparation guidance; actual `FAILED` and unknown terminal states still
 warn. Documentation contributor evidence determines what was searched; a pair's
 informational indexing state does not override that evidence or pinned reads.
+Known requested/served snapshot divergence still warns while a reindex is queued
+or running; preparation-state suppression does not suppress freshness warnings.
 
 Recorded acceptance provenance comes from the 2026-10-01 dev OpenCode response:
 served `bbd72fb8b0bb6de580d2041a0150016227c63ac0`, historically indexed as HEAD;

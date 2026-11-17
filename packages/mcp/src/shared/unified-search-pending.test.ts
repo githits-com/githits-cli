@@ -160,6 +160,30 @@ describe("source preparation warnings", () => {
     ).toEqual([`Source 'docs' for ${target}: status FAILED`]);
   });
 
+  it("retains older-snapshot warnings when a fresh reindex is queued", () => {
+    const expected =
+      "requested npm:express@5.2.1; served older snapshot npm:express@5.1.0 while npm:express@5.2.1 indexes.";
+    for (const state of ["PENDING", "INDEXING", "STALE"]) {
+      for (const completed of [true, false]) {
+        expect(
+          buildSourceStatusWarnings(
+            [
+              {
+                source: "code",
+                targetLabel: "npm:express@5.2.1",
+                requestedTarget: "npm:express@5.2.1",
+                freshTarget: "npm:express@5.2.1",
+                servedTarget: "npm:express@5.1.0",
+                codeIndexState: state,
+              },
+            ],
+            { completed },
+          ),
+        ).toEqual([expected]);
+      }
+    }
+  });
+
   for (const state of ["PENDING", "INDEXING"]) {
     for (const completed of [true, false]) {
       it(`${state}, completed=${completed}: initial/status preserve wiki evidence and native actions`, () => {

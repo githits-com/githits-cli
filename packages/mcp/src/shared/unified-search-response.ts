@@ -1008,7 +1008,7 @@ function freshnessWarning(input: {
 }
 
 function isTrustRelevantFreshness(value: string | undefined): boolean {
-  return value === "STALE" || value === "INDEXING";
+  return value === "STALE" || isPreparingSourceState(value);
 }
 
 function labelsDiverge(input: {
@@ -1187,7 +1187,7 @@ function formatSourceStatusTarget(
 }
 
 /** Queued and running source work is progress, not a terminal failure. */
-function isPreparingSourceState(state: string): boolean {
+function isPreparingSourceState(state: string | undefined): boolean {
   return state === "PENDING" || state === "INDEXING";
 }
 
