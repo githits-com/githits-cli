@@ -1011,7 +1011,7 @@ function projectTrustLimits(
       servedSha &&
       served?.repoUrl &&
       (freshness !== "current" ||
-        ["INDEXING", "STALE", "PROVISIONAL"].includes(
+        ["PENDING", "INDEXING", "STALE", "PROVISIONAL"].includes(
           entry.codeIndexState ?? "",
         ))
     ) {

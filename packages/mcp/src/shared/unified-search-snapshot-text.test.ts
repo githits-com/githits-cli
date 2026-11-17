@@ -112,6 +112,41 @@ function resolution(payload: UnifiedSearchIncompletePresentation) {
 }
 
 describe("snapshot search text received by agents", () => {
+  it.each(["PENDING", "INDEXING"])(
+    "discloses the searched commit while same-snapshot work is %s",
+    (state) => {
+      const payload = snapshot();
+      payload.sourceStatus![0]!.codeIndexState = state;
+      resolution(payload).freshness = "current";
+      resolution(payload).freshnessReason = "exact_current";
+      resolution(payload).resolvedRequested!.commitSha = servedSha;
+      payload.progress!.indexingEstimates = undefined;
+      payload.evidenceNotice = undefined;
+      expect(
+        projectUnifiedSearchPresentation(payload).targetGroups.flatMap(
+          (group) => group.trustLimits,
+        ),
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: "repository_snapshot",
+            commitTarget: "github:anomalyco/opencode@bbd72fb8",
+            requestedCommitDiffers: false,
+            priorHead: false,
+          }),
+        ]),
+      );
+      for (const syntax of ["cli", "mcp"] as const) {
+        for (const text of both(payload, syntax)) {
+          expect(text).toContain("Sources:");
+          expect(text).toContain("github:anomalyco/opencode@bbd72fb8");
+          expect(text).not.toContain("older snapshot");
+          expect(text).not.toContain("If you need current HEAD");
+        }
+      }
+    },
+  );
+
   it.each([
     ["2026-09-01T23:59:59Z", "2026-10-05T00:00:01Z"],
     ["2026-09-01T23:59:59Z", null],
