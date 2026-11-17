@@ -84,7 +84,7 @@ describe("buildMcpQuickStart", () => {
       "`npm:express@5` selects newest eligible stable 5.x.y",
       "`crates:tokio@1.43` selects 1.43.x",
       "Use component matching in every ecosystem",
-      "Use `from..to` only for changelog/code-diff comparisons",
+      "Use `from..to` for release comparisons",
       "do not pass ranges (`^`, `~`, comparisons, unions, intervals)",
     ])
       expect(guide).toContain(phrase);
