@@ -3474,7 +3474,6 @@ export class PackageIntelligenceServiceImpl
     return report;
   }
 
-
   private async fetchTransitiveVulnerabilityAudit(
     token: string,
     directIdentity: PackageVersionIdentity,
