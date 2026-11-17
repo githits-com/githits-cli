@@ -2,6 +2,7 @@ import { describe, expect, it, mock, spyOn } from "bun:test";
 import { FetchTimeoutError } from "../shared/fetch-timeout.js";
 import { TermsAcceptanceRequiredError } from "../shared/terms-acceptance.js";
 import { ClientUpdateRequiredError } from "./client-update-required-error.js";
+import sourceRefusal from "./fixtures/grep-source-refusal.json";
 import { AuthenticationError } from "./githits-service.js";
 import {
   GrepAccessError,
@@ -763,4 +764,83 @@ it("requires the canonical wire array and a non-null input resolution", () => {
       parseGrepResult({ ...result(), targetResolutions: value }),
     ).toThrow(MalformedGrepResponseError);
   }
+});
+
+describe("partial source refusal diagnostics", () => {
+  it.each([false, true])(
+    "retains diagnostics with minimal selections (detailed=%s)",
+    async (detailed) => {
+      const unavailableTargets = sourceRefusal.map((entry) => {
+        if (detailed) return entry;
+        const {
+          requestedVersion,
+          suggestedRefs,
+          availableRefs,
+          availableVersions,
+          ...compact
+        } = entry;
+        return compact;
+      });
+      const page: GrepResult = {
+        ...result(),
+        traversal: "NON_RESUMABLE_PARTIAL",
+        unavailableTargets,
+      };
+      const fetcher = mock(
+        async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+          const body = JSON.parse(String(init?.body));
+          expect(body.variables.includeDetailedFields).toBe(detailed);
+          const selection = body.query.split("unavailableTargets {")[1];
+          expect(selection).toContain("message");
+          expect(selection).not.toContain("message @include");
+          for (const field of [
+            "requestedVersion",
+            "suggestedRefs",
+            "availableRefs",
+            "availableVersions",
+          ])
+            expect(selection).toContain(
+              `${field} @include(if: $includeDetailedFields)`,
+            );
+          return response({ data: { grep: page } });
+        },
+      );
+      expect(
+        await service(fetcher).grep({
+          ...params,
+          includeDetailedFields: detailed,
+        }),
+      ).toEqual(page);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("validates supplied diagnostics and keeps absent fields compatible", () => {
+    for (const invalid of [
+      { message: 42 },
+      { requestedVersion: 42 },
+      { suggestedRefs: [{ ref: 42, version: null }] },
+      { availableRefs: [null] },
+      { availableVersions: [{ ref: "v1", version: false }] },
+    ]) {
+      expect(() =>
+        parseGrepResult({
+          ...result(),
+          unavailableTargets: [{ ...sourceRefusal[0], ...invalid }],
+        }),
+      ).toThrow(MalformedGrepResponseError);
+    }
+    const {
+      message,
+      requestedVersion,
+      suggestedRefs,
+      availableRefs,
+      availableVersions,
+      ...legacy
+    } = sourceRefusal[0]!;
+    expect(
+      parseGrepResult({ ...result(), unavailableTargets: [legacy] })
+        .unavailableTargets,
+    ).toEqual([legacy]);
+  });
 });

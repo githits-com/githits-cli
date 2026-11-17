@@ -44,6 +44,7 @@ import {
 } from "./runtime-diagnostics.js";
 import type { ServiceRequestOptions } from "./service-request-options.js";
 import type { TokenProvider } from "./token-provider.js";
+import type { RecoveryRef } from "./version-ref-recovery.js";
 
 export type GrepCorpus = "SOURCE" | "DOCUMENTATION" | "ALL";
 export type GrepTraversal =
@@ -163,6 +164,12 @@ export interface GrepTargetStatus {
   urlPrefixes?: string[];
 }
 export interface GrepUnavailableTarget {
+  /** Backend diagnostic; display only, never a retry/readiness classifier. */
+  message?: string | null;
+  requestedVersion?: string | null;
+  suggestedRefs?: RecoveryRef[] | null;
+  availableRefs?: RecoveryRef[] | null;
+  availableVersions?: RecoveryRef[] | null;
   inputIndex: number;
   target: string;
   reason: string;
@@ -266,6 +273,10 @@ const traversal = z.enum([
 const corpus = z.enum(["SOURCE", "DOCUMENTATION", "ALL"]);
 const nonnegativeInt = z.number().int().nonnegative();
 const nullableString = z.string().nullable();
+const recoveryRefs = z
+  .array(z.object({ ref: z.string(), version: nullableString.optional() }))
+  .nullable()
+  .optional();
 const lineSlice = z.object({
   content: z.string(),
   startByte: nonnegativeInt,
@@ -399,6 +410,11 @@ function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
     ),
     unavailableTargets: z.array(
       z.object({
+        message: nullableString.optional(),
+        requestedVersion: nullableString.optional(),
+        suggestedRefs: recoveryRefs,
+        availableRefs: recoveryRefs,
+        availableVersions: recoveryRefs,
         inputIndex: nonnegativeInt,
         target: z.string(),
         reason: z.string(),
@@ -509,7 +525,13 @@ const GRAPHQL_QUERY = `query Grep(
         matchEndByte @include(if: $includeDetailedFields)
       }
     }
-    unavailableTargets { inputIndex target reason retryable progressRef suggestedSiteTargets }
+    unavailableTargets {
+      inputIndex target reason retryable progressRef suggestedSiteTargets message
+      requestedVersion @include(if: $includeDetailedFields)
+      suggestedRefs @include(if: $includeDetailedFields) { ref version }
+      availableRefs @include(if: $includeDetailedFields) { ref version }
+      availableVersions @include(if: $includeDetailedFields) { ref version }
+    }
   }
 }
 fragment RepositoryMatch on GrepRepositoryHit {

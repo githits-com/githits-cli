@@ -200,8 +200,11 @@ export function formatGrepText(
   );
   if (otherOmissions.length) lines.push("", "Not searched:");
   for (const omitted of otherOmissions) {
+    const message = omitted.message?.trim();
     prose(
-      `  - ${omitted.target}: ${grepPreparationReason(omitted.reason)}; ${omitted.retryable ? "you can retry" : "do not retry unchanged"}${omitted.reason === "no_grep_scopes" && !omitted.retryable && !omitted.suggestedSiteTargets?.length ? "; choose a different package, repository or site target" : ""}`,
+      message
+        ? `  - ${message} ${omitted.retryable ? "You can retry." : "Do not retry unchanged."}`
+        : `  - ${omitted.target}: ${grepPreparationReason(omitted.reason)}; ${omitted.retryable ? "you can retry" : "do not retry unchanged"}${omitted.reason === "no_grep_scopes" && !omitted.retryable && !omitted.suggestedSiteTargets?.length ? "; choose a different package, repository or site target" : ""}`,
     );
     for (const target of omitted.suggestedSiteTargets ?? [])
       prose(`    Search hosted documentation instead: ${target}`);

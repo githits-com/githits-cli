@@ -100,11 +100,14 @@ helpers inside the package.
 
 Compact text selects complete line/context slices, native UTF-8 display match
 offsets, exact reads, scope provenance/statuses, scan/skip counts, issue summaries,
-omissions, page count, traversal and cursor. Display offsets are required in
+omissions (including backend diagnostic messages), page count, traversal and cursor. Display offsets are required in
 both modes and validated for ordered, in-bounds UTF-8 character boundaries in
 the returned slice. JSON additionally selects duplicate `lineContent`, hit
 repository identities, physical source byte coordinates, safety modifications,
-issue byte details and scope URL-prefix detail. Nullable scope `repoUrl` and
+issue byte details, scope URL-prefix detail and omission recovery metadata
+(`requestedVersion`, `suggestedRefs`, `availableRefs`, `availableVersions`).
+Omission metadata preserves backend nulls, including null ref versions, and
+remains optional for existing injected service providers. Nullable scope `repoUrl` and
 `canonicalSite` are required in both modes for the Sources summary. The JSON-only
 fields use conditional `@include(if: $includeDetailedFields)` selections. Missing selected fields or
 unknown hit branches fail. Selected nulls stay null; excluded details stay
@@ -167,8 +170,14 @@ identity metadata that grep does not currently expose. Ordinary and hosted
 documentation results carry no requested label.
 Pending repository/documentation targets appear under `Preparing`, grouped by
 actual work identity with one advisory total estimate and input-specific child
-rows. Other unavailable targets appear under `Not searched`, with their reason and
-suggestions. Grep supplies no commit-date or observed-HEAD proof.
+rows. Other unavailable targets appear under `Not searched`. A nonblank backend
+`message` supplies the diagnostic instead of the client reason summary and target
+prefix; this preserves published-release/source-ref refusal facts and nearby refs
+without duplicating labels or ref suggestions. Null, absent or whitespace-only
+messages retain the reason-based row. The typed retry instruction follows either
+form, and hosted-documentation alternatives remain separate. Messages are escaped
+and wrapped as prose; they never classify retryability, readiness or exit status.
+The client never chooses a suggested ref or retries automatically. Grep supplies no commit-date or observed-HEAD proof.
 Sources not yet reached by pagination are marked `(not reached on this page)`.
 Other sources without matches on an incomplete search are marked `(no matches
 returned)`.

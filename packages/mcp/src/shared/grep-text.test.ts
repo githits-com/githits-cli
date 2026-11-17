@@ -5,6 +5,7 @@ import type {
   GrepResult,
   GrepTargetStatus,
 } from "@githits/core-internal";
+import sourceRefusal from "../../../core-internal/src/services/fixtures/grep-source-refusal.json";
 import { parseGrepResult } from "../../../core-internal/src/services/grep-service.js";
 import mixed100 from "./fixtures/grep-text/mixed-100.json";
 import { formatGrepText } from "./grep-text.js";
@@ -848,3 +849,49 @@ function sortedCounts(counts: Map<string, number>): Record<string, number> {
     [...counts].sort(([left], [right]) => left.localeCompare(right)),
   );
 }
+
+it.each(["cli", "mcp"] as const)(
+  "shows partial source diagnostics once and preserves message-absent copy in %s",
+  (syntax) => {
+    for (const withHits of [false, true]) {
+      const original = parseGrepResult(mixed100);
+      const result: GrepResult = {
+        ...original,
+        hits: withHits ? original.hits : [],
+        totalMatches: withHits ? original.totalMatches : 0,
+        nextCursor: null,
+        traversal: "NON_RESUMABLE_PARTIAL",
+        unavailableTargets: sourceRefusal,
+      };
+      const before = structuredClone(result);
+      const text = formatGrepText(result, { syntax, width: 80 }).replace(
+        /\s+/g,
+        " ",
+      );
+      expect(text.split(sourceRefusal[0]!.message!).length - 1).toBe(1);
+      expect(text).not.toContain("pypi:modal@1.3.4: Unable");
+      expect(text.split("Did you mean").length - 1).toBe(1);
+      expect(text).not.toContain("py/v1.6.3");
+      expect(text).toContain(
+        "pypi:modal@1.3.4: no searchable documentation pages are available; do not retry unchanged",
+      );
+      expect(text).not.toContain("Repeat the original grep");
+      if (withHits) expect(text).toContain("History.md");
+      expect(result).toEqual(before);
+    }
+  },
+);
+
+it.each([undefined, null, "", " \t\n "])(
+  "uses reason/retryability when the omission message is %j",
+  (message) => {
+    const original = parseGrepResult(mixed100);
+    const text = formatGrepText(
+      { ...original, unavailableTargets: [{ ...sourceRefusal[0]!, message }] },
+      { width: 200 },
+    );
+    expect(text).toContain(
+      "pypi:modal@1.3.4: package source ref was not found; do not retry unchanged",
+    );
+  },
+);
