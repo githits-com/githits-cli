@@ -61,6 +61,16 @@ and docs/other-target limitations stay attached to their targets; one usable hit
 never promotes all targets to ready. There is no commit-age, distance-behind-HEAD,
 or completeness claim. Index completion time cannot establish commit age.
 
+The shared response classifier in `unified-search-response.ts` treats source
+`PENDING` and `INDEXING` as queued/running preparation, not terminal failures.
+Completed searches suppress both preparation warnings and their compact lifecycle
+fields, except for lifecycle context retained on empty results. Active searches
+retain preparation guidance; actual `FAILED` and unknown terminal states still
+warn. Documentation contributor evidence determines what was searched; a pair's
+informational indexing state does not override that evidence or pinned reads.
+Known requested/served snapshot divergence still warns while a reindex is queued
+or running; preparation-state suppression does not suppress freshness warnings.
+
 Recorded acceptance provenance comes from the 2026-10-01 dev OpenCode response:
 served `bbd72fb8b0bb6de580d2041a0150016227c63ac0`, historically indexed as HEAD;
 requested HEAD resolved to `0112a92c416f5ad833d96e7a8308441f0a875d94`.
