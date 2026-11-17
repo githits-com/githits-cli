@@ -35,13 +35,27 @@ its generic path template without a concrete read descriptor.
 `includeDetailedFields` conditionally selects entry titles, browse
 actions, file metadata, detailed source resolution, available refs and versions,
 and singular indexing estimates. Normal text opts into service-only
-`includeTargetProvenance`; silent text opts out and omitted service callers retain
+`includeTargetProvenance`, which also selects the backend-authored empty-package
+`hint`; silent text opts out of both and omitted service callers retain
 the old compact selection. Detailed mode always selects provenance. The minimal
 block contains requested kind/ref and repository/package identity, so unresolved
 requests retain their full target. It also contains resolved-requested and served repo/ref/full SHA/
 nullable `committedAt`, freshness and reason. Recovery arrays and opaque nested
 indexing refs remain detailed-only. Selected nulls and omitted fields stay distinct;
 JSON preserves full timestamps. It does not request content or snippets.
+
+Empty package-source inventories can carry a nullable `hint` containing indexing
+policy and a pinned repository locator with repository-relative path suggestions.
+The backend source-inventory owner derives those suggestions from its certified
+package root and served commit; the client never infers a root or claims missing
+files are binary. Annotated text renders the hint immediately after `No files.`. The hint is opaque
+backend-authored text; its `paths (JSON)` line contains native selectors. Rendering
+preserves whitespace, JSON escaping and line breaks so locators remain copyable,
+while stripping terminal controls per line. It does not prose-wrap or shell-parse
+the hint.
+JSON preserves selected strings/nulls, and unselected hints stay absent. Pending
+and nonempty results do not render this no-files hint. Selection of `hint` requires
+the backend field to be deployed before either client artifact is released.
 
 The service models selected nullable fields as nullable values and preserves
 them in its result. Detail fields excluded by the GraphQL directive remain
@@ -60,6 +74,13 @@ response. The backend's opaque cursor is otherwise preserved exactly.
   selection uses path globs such as `lib/**/*.js`.
 - `list-error-map.ts` maps list-owned and shared service errors into the
   existing `MappedError` envelope without interpreting backend message text.
+  List callers apply its native scope-recovery helper when
+  `SOURCE_INVENTORY_SCOPE_UNAVAILABLE` supplies both repository URL and commit.
+  The retry pins that repository, preserves literal requested paths, recursion,
+  filters, limit, wait and JSON mode, and omits the package cursor. CLI actions shell-quote operands; MCP actions contain a
+  JSON object. Repository-wide results broaden package scope, and paths in the
+  retry are repository-relative. Monorepos may need a package directory prefix;
+  the client does not infer a missing package root.
 - `list-response.ts` copies only the selected camelCase `ListResult` fields.
   It preserves meaningful `null`s and omitted conditional details, clones
   nested values, and adds no total, filter echo, or reconstructed action.

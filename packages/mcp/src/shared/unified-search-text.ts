@@ -927,13 +927,22 @@ function appendPresentationAction(
       ),
     );
   } else if (action.kind === "new_search") {
-    followUp.push(
-      ...prose(
-        useResults
-          ? "For updated results, search again."
-          : "Search again later.",
-      ),
-    );
+    if (action.waitTimeoutMs === undefined)
+      followUp.push(
+        ...prose(
+          useResults
+            ? "For updated results, search again."
+            : "Search again later.",
+        ),
+      );
+    if (action.waitTimeoutMs !== undefined)
+      followUp.push(
+        ...prose(
+          options.actionSyntax === "cli"
+            ? `Retry only the targets still preparing, using the original query and options with --wait ${action.waitTimeoutMs}.`
+            : `Retry only the targets still preparing, using the original query and options with wait_timeout_ms=${action.waitTimeoutMs}.`,
+        ),
+      );
   } else if (action.kind === "query_rewrite") {
     followUp.push(
       ...prose(

@@ -1,4 +1,9 @@
-import { renderPreparationSection } from "./indexing-estimates-text.js";
+import { MAX_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
+import {
+  formatPreparationRetry,
+  renderPreparationSection,
+} from "./indexing-estimates-text.js";
+import { indexingWaitMs } from "./indexing-wait.js";
 import type { LeanReadFileEnvelope } from "./read-file-response.js";
 import { splitReadFileContentLines } from "./read-file-response.js";
 import {
@@ -57,6 +62,15 @@ export function renderReadFileText(
     { width: options.width },
   );
   if (resolutionDetails.length > 0) lines.push("", ...resolutionDetails);
+  if (envelope.indexingEstimates?.length)
+    lines.push(
+      "",
+      formatPreparationRetry({
+        operation: "read",
+        syntax: "mcp",
+        waitMs: indexingWaitMs(envelope.indexingEstimates, MAX_WAIT_TIMEOUT_MS),
+      }),
+    );
   return lines.join("\n");
 }
 

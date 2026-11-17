@@ -9,7 +9,7 @@ import {
   MalformedListResponseError,
   TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
-import { mapListError } from "./list-error-map.js";
+import { mapListError, withListScopeRecovery } from "./list-error-map.js";
 import { InvalidListRequestError } from "./list-request.js";
 import {
   InvalidArgumentError,
@@ -19,6 +19,53 @@ import {
 import { AuthRequiredError } from "./require-auth.js";
 
 describe("mapListError", () => {
+  it("preserves silent output mode on a repository-scope retry", () => {
+    const mapped = withListScopeRecovery(
+      mapListError(
+        new ListGraphQLError(
+          "Scope unavailable.",
+          "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
+          false,
+          "https://github.com/example/repo",
+          "01234567",
+        ),
+      ),
+      "cli",
+      { includeTargetProvenance: false, includeDetailedFields: false },
+    );
+    expect(mapped.details?.action).toBe(
+      "githits list --silent -- 'github:example/repo@01234567'",
+    );
+  });
+  it.each(["mcp", "cli"] as const)(
+    "keeps paths in a pinned repository retry (%s)",
+    (syntax) => {
+      const mapped = withListScopeRecovery(
+        mapListError(
+          new ListGraphQLError(
+            "Scope unavailable.",
+            "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
+            false,
+            "https://github.com/danielgatis/rembg",
+            "860b39d0",
+          ),
+        ),
+        syntax,
+        { paths: ["rembg/sessions/", "space's path/"] },
+      );
+      if (syntax === "mcp")
+        expect(JSON.parse(mapped.details!.action!.slice(5))).toEqual({
+          target: "github:danielgatis/rembg@860b39d0",
+          paths: ["rembg/sessions/", "space's path/"],
+        });
+      else
+        expect(mapped.details?.action).toBe(
+          `githits list -- 'github:danielgatis/rembg@860b39d0' 'rembg/sessions/' 'space'"'"'s path/'`,
+        );
+      expect(mapped.message).toContain("repository-relative");
+      expect(mapped.message).toContain("monorepo");
+    },
+  );
   it("maps common list, auth, update, terms, and invalid-input errors", () => {
     expect(mapListError(new TermsAcceptanceRequiredError())).toMatchObject({
       code: "TERMS_ACCEPTANCE_REQUIRED",
@@ -168,7 +215,8 @@ describe("mapListError", () => {
     );
     expect(complete).toEqual({
       code: "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
-      message: `Package source scope is unavailable. The repository-wide alternative ${repoUrl}@${commitSha} broadens scope; use it only if those broader results are acceptable.`,
+      message:
+        "Package source scope is unavailable. Repository-wide listing broadens package scope; use it only if those broader results are acceptable. Retry paths are repository-relative; for a monorepo, add the package directory prefix.",
       retryable: true,
       details: {
         graphqlCode: "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
@@ -176,7 +224,6 @@ describe("mapListError", () => {
         hint: "Repository scope is broader.",
         repoUrl,
         commitSha,
-        action: `${repoUrl}@${commitSha}`,
       },
     });
 

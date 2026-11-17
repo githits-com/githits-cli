@@ -215,6 +215,97 @@ const ANSI_SGR_PATTERN = new RegExp(
 );
 
 describe("renderUnifiedSearchSuccess", () => {
+  it.each(["terminal-with-recovery", "completed-with-hits"])(
+    "keeps wait guidance for mixed-source %s",
+    (shape) => {
+      const sourceStatus = [
+        source({
+          targetLabel: "npm:missing",
+          source: "code",
+          codeIndexState: "NOT_FOUND",
+          resultCount: 0,
+        }),
+        source({
+          targetLabel: "npm:waiting",
+          source: "code",
+          codeIndexState: "INDEXING",
+          resultCount: 0,
+        }),
+      ];
+      const progress = {
+        status: "TIMEOUT",
+        targetsReady: 0,
+        targetsTotal: 2,
+        elapsedMs: 30000,
+        indexingEstimates: [
+          {
+            kind: "REPOSITORY" as const,
+            targets: ["npm:waiting"],
+            estimate: { lowerSeconds: 30, upperSeconds: 85 },
+          },
+        ],
+      };
+      const payload =
+        shape === "terminal-with-recovery"
+          ? incomplete({ sourceStatus, progress, partialResults: true })
+          : completed([codeHit()], { sourceStatus });
+      for (const actionSyntax of ["cli", "mcp"] as const) {
+        const text = renderUnifiedSearchSuccess(payload, {
+          actionSyntax,
+          width: 200,
+        });
+        if (shape === "terminal-with-recovery")
+          expect(text).toContain("estimated total: 30-85s");
+        expect(text).toContain("Retry only the targets still preparing");
+        const wait = shape === "terminal-with-recovery" ? 100000 : 30000;
+        expect(text).toContain(
+          actionSyntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`,
+        );
+        expect(text).toContain("npm:missing");
+        if (shape === "completed-with-hits") expect(text).toContain("Found 1");
+      }
+    },
+  );
+  it.each([undefined, 85, 200])(
+    "gives terminal preparation a bounded new-search wait (upper %s)",
+    (upperSeconds) => {
+      const result = incomplete({
+        progress: {
+          status: "TIMEOUT",
+          targetsReady: 0,
+          targetsTotal: 1,
+          elapsedMs: 30000,
+          indexingEstimates: [
+            {
+              kind: "REPOSITORY",
+              targets: ["npm:express"],
+              ...(upperSeconds === undefined
+                ? { unavailableReason: "NO_HISTORY" as const }
+                : { estimate: { lowerSeconds: 30, upperSeconds } }),
+            },
+          ],
+        },
+      });
+      for (const actionSyntax of ["mcp", "cli"] as const) {
+        const text = renderUnifiedSearchSuccess(result, { actionSyntax });
+        expect(text).toContain(
+          upperSeconds === undefined
+            ? "not enough history"
+            : `estimated total: 30-${upperSeconds}s`,
+        );
+        const wait =
+          upperSeconds === undefined
+            ? 30000
+            : upperSeconds === 85
+              ? 100000
+              : 120000;
+        expect(text).toContain(
+          actionSyntax === "cli" ? `--wait ${wait}` : `wait_timeout_ms=${wait}`,
+        );
+        expect(text).not.toContain("search_status");
+      }
+    },
+  );
   it("renders completed Express results as compact ranked source-backed hits", () => {
     const repoSummary =
       "5.0.0-alpha.4 / 2017-03-01\n" +
@@ -2276,6 +2367,7 @@ describe("renderUnifiedSearchSuccess", () => {
           }),
         ],
       }),
+      { width: 200 },
     );
 
     expect(text).toBe(
@@ -2284,7 +2376,7 @@ describe("renderUnifiedSearchSuccess", () => {
         "  searched: code; unresolved: symbols\n\n" +
         "- npm:two@2.0.0\n" +
         "  indexing when observed: code\n\n" +
-        "Follow-up:\n  Search again later.",
+        "Follow-up:\n  Retry only the targets still preparing, using the original query and options with wait_timeout_ms=30000.",
     );
   });
 

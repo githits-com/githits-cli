@@ -62,7 +62,13 @@ export function formatGrepText(
   };
   const groups = groupFiles(result.hits);
   const isPreparing = (reason: string): boolean =>
-    ["repository_indexing", "documentation_publishing"].includes(reason);
+    [
+      "repository_indexing",
+      "documentation_publishing",
+      "documentation_discovery",
+      "site_v6_required",
+      "starting_url_pending",
+    ].includes(reason);
   const scopeCoverageGap = result.targets.some(hasPageCoverageGap);
   const pageCoverageGap =
     scopeCoverageGap ||
@@ -336,7 +342,7 @@ export function formatGrepText(
         ),
         ...targets.map((target) => operand(`  ${target}`)),
       );
-      if (pending.length) {
+      if (pending.length || result.indexingEstimates?.length) {
         const wait = indexingWaitMs(result.indexingEstimates);
         const waitOption =
           options.syntax === "mcp"
@@ -352,6 +358,16 @@ export function formatGrepText(
           ...proseLines(`Omit ${cursorOption} to start a new search.`),
         );
       }
+    } else if (result.indexingEstimates?.length) {
+      const wait = indexingWaitMs(result.indexingEstimates);
+      followUp.push(
+        ...proseLines(
+          "For updated results, repeat the original grep and options.",
+        ),
+        ...proseLines(
+          `Omit ${cursorOption}; set ${options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`} to wait up to ${wait / 1000}s for preparation.`,
+        ),
+      );
     }
   }
   appendSearchGrepFooter(

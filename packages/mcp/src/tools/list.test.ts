@@ -46,6 +46,42 @@ function errorPayload(result: { content: Array<{ text: string }> }) {
 }
 
 describe("createListTool", () => {
+  it.each(["text", "json"] as const)(
+    "returns a scoped repository retry with original paths (%s)",
+    async (format) => {
+      const tool = createListTool(
+        createService(async () => {
+          throw new ListGraphQLError(
+            "Package scope unavailable.",
+            "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
+            false,
+            "https://github.com/danielgatis/rembg",
+            "860b39d0",
+          );
+        }),
+      );
+      const result = await tool.handler(
+        {
+          target: "pypi:rembg@2.0.65",
+          paths: ["rembg/sessions/"],
+          after: "old-page",
+          recursive: true,
+          file_types: ["Source"],
+          languages: ["Python"],
+          intents: ["PRODUCTION"],
+          limit: 50,
+          wait_timeout_ms: 0,
+          format,
+        },
+        {},
+      );
+      expect(result.isError).toBe(true);
+      const action = `list ${JSON.stringify({ target: "github:danielgatis/rembg@860b39d0", paths: ["rembg/sessions/"], recursive: true, file_types: ["source"], languages: ["python"], intents: ["PRODUCTION"], limit: 50, wait_timeout_ms: 0, ...(format === "json" ? { format: "json" } : {}) })}`;
+      if (format === "json")
+        expect(errorPayload(result).details.action).toBe(action);
+      else expect(result.content[0]!.text).toContain(action);
+    },
+  );
   it("advertises listing intent and current navigation routes", () => {
     const tool = createListTool(createService(async () => listResult()));
     const firstSentence = tool.description.slice(

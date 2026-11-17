@@ -25,6 +25,53 @@ function deps(
 }
 
 describe("unified grep CLI", () => {
+  it("wraps estimate-bearing indexing errors to stderr width and keeps the wait action copyable", async () => {
+    const error = spyOn(console, "error").mockImplementation(() => {});
+    const exit = spyOn(process, "exit").mockImplementation(() => {
+      throw new Error("exit");
+    });
+    const columns = Object.getOwnPropertyDescriptor(process.stderr, "columns");
+    Object.defineProperty(process.stderr, "columns", {
+      value: 40,
+      configurable: true,
+    });
+    try {
+      await expect(
+        grepAction(
+          "router",
+          ["npm:express"],
+          {},
+          deps({
+            grepService: createMockGrepService({
+              grep: async () => {
+                throw new GrepGraphQLError("Preparation is pending.", {
+                  code: "GREP_TARGET_PREPARATION_REQUIRED",
+                  retryable: true,
+                  target_issues: [
+                    { target: "npm:express", reason: "repository_indexing" },
+                  ],
+                  estimated_indexing_duration: {
+                    lower_seconds: 33,
+                    upper_seconds: 85,
+                  },
+                });
+              },
+            }),
+          }),
+        ),
+      ).rejects.toThrow("exit");
+      const text = String(error.mock.calls[0]?.[0]);
+      expect(text.replace(/\s+/g, " ")).toContain("estimated total: 33-85s");
+      expect(text).toContain("Retry this grep with --wait 100000.");
+      const prose = text.split("\n\nRetry this grep")[0]!;
+      expect(prose.split("\n").every((line) => line.length <= 40)).toBe(true);
+    } finally {
+      if (columns) Object.defineProperty(process.stderr, "columns", columns);
+      else Reflect.deleteProperty(process.stderr, "columns");
+      error.mockRestore();
+      exit.mockRestore();
+    }
+  });
   it("registers grep/rg flags and explains remote differences", () => {
     const help = registerGrepCommand(new Command()).helpInformation();
     expect(help).toContain("<pattern> <targets...>");
@@ -554,8 +601,8 @@ describe("unified grep CLI", () => {
           .reason,
       ).toBe("repository_indexing");
       expect(
-        JSON.parse(String(error.mock.calls.at(-1)?.[0])).details.hint,
-      ).toContain("--wait <ms>");
+        JSON.parse(String(error.mock.calls.at(-1)?.[0])).details.action,
+      ).toContain("--wait 30000");
       await expect(
         grepAction(
           "router",
@@ -653,7 +700,7 @@ describe("unified grep CLI", () => {
             targetIssues: issues,
           },
         });
-        expect((result.details.hint ?? "").includes("--wait")).toBe(
+        expect((result.details.action ?? "").includes("--wait")).toBe(
           code === "INDEXING" && retryable,
         );
       } finally {

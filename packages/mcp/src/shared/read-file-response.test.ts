@@ -333,6 +333,31 @@ describe("formatReadFileTerminal", () => {
 });
 
 describe("read refresh metadata", () => {
+  it("still suggests waiting when there is no timing history", () => {
+    const envelope = buildReadFileSuccessPayload(
+      {
+        ...baseResult,
+        indexingEstimates: [
+          {
+            kind: "REPOSITORY",
+            targets: ["npm:express"],
+            unavailableReason: "NO_HISTORY",
+          },
+        ],
+      },
+      baseOptions,
+    );
+    expect(renderReadFileText(envelope)).toContain(
+      "not enough history for an estimate",
+    );
+    expect(renderReadFileText(envelope)).toContain("wait_timeout_ms=30000");
+    expect(
+      formatReadFileTerminal(envelope, { verbose: true, useColors: false }),
+    ).toContain("--wait 30000");
+    expect(formatReadFileTerminal(envelope, { useColors: false })).toBe(
+      baseResult.content!,
+    );
+  });
   it("separates pending preparation from readable content and keeps raw CLI content unchanged", () => {
     const envelope = buildReadFileSuccessPayload(
       {
@@ -352,6 +377,8 @@ describe("read refresh metadata", () => {
       useColors: false,
       verbose: true,
     });
+    expect(mcp).toContain("Retry this read with wait_timeout_ms=60000.");
+    expect(verbose).toContain("Retry this read with --wait 60000.");
     for (const text of [mcp, verbose]) {
       expect(text).toContain("\n\nPreparing:\n  - npm:express@1.0.3");
       expect(text).toContain("module.exports");

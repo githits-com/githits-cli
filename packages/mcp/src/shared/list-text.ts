@@ -11,7 +11,7 @@ import {
   renderSourceSection,
   resolutionSourceFacts,
 } from "./source-provenance-text.js";
-import { wrapTerminalProse } from "./terminal-text.js";
+import { sanitizeTerminalText, wrapTerminalProse } from "./terminal-text.js";
 
 export interface FormatListTextOptions {
   useColors?: boolean;
@@ -51,6 +51,9 @@ export function formatListText(
         ...(paths.length
           ? []
           : [pending ? "No files available yet." : "No files."]),
+        ...(!paths.length && !pending && result.hint
+          ? result.hint.split("\n").map(sanitizeTerminalText)
+          : []),
         ...renderSourceSection(sourceRows, { width: options.width }),
         ...(paths.length
           ? [

@@ -54,6 +54,42 @@ function entry(
 }
 
 describe("formatListText", () => {
+  it("preserves native selector JSON spacing and escapes in opaque backend hints", () => {
+    const paths = JSON.stringify([
+      "fonts/demo  family/files/",
+      "fonts/\\[demo\\]/files/",
+    ]);
+    const hint = `Binary files are not indexed.\nRepository location: github:fontsource/font-files@02b28c06\npaths (JSON): ${paths}`;
+    const text = formatListText(sourceResult({ hint }), { width: 30 });
+    expect(text).toContain(hint);
+    expect(text).toContain(paths);
+    expect(
+      JSON.parse(text.split("paths (JSON): ")[1]!.split("\n")[0]!),
+    ).toEqual(["fonts/demo  family/files/", "fonts/\\[demo\\]/files/"]);
+  });
+  it("renders the package no-files hint before provenance and keeps silent output empty", () => {
+    const hint =
+      'Binary files are not indexed. Repository location: github:fontsource/font-files@02b28c06, paths: ["fonts/google/manrope/files/"].';
+    const result = sourceResult({
+      requestedTarget: "npm:@fontsource/manrope",
+      canonicalTarget: "npm:@fontsource/manrope",
+      hint,
+    });
+    for (const syntax of ["cli", "mcp"] as const) {
+      const text = formatListText(result, { syntax, width: 200 });
+      expect(text).toStartWith(`No files.\n${hint}\nSources:`);
+    }
+    expect(formatListText(result, { includeHeader: false })).toBe("");
+    expect(formatListText({ ...result, hint: null })).not.toContain(
+      "Binary files",
+    );
+    expect(
+      formatListText({ ...result, codeIndexState: "INDEXING" }),
+    ).not.toContain("Binary files");
+    expect(
+      formatListText({ ...result, entries: [entry("FILE", "index.css")] }),
+    ).not.toContain("Binary files");
+  });
   it("distinguishes pending preparation retry from available continuation", () => {
     const result = sourceResult({
       indexingEstimates: [

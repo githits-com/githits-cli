@@ -147,12 +147,21 @@ describe("unified grep request normalization", () => {
         InvalidGrepRequestError,
       );
   });
-  it("rejects invalid caller shapes and bounded controls instead of clamping", () => {
+  it("caps context while retaining the backend ceiling", () => {
+    expect(
+      buildGrepParams({
+        ...input,
+        contextLinesBefore: 20,
+        contextLinesAfter: 100,
+      }),
+    ).toMatchObject({ contextLinesBefore: 10, contextLinesAfter: 10 });
+  });
+  it("rejects invalid caller shapes and bounded controls", () => {
     for (const patch of [
       { targets: [] },
       { targets: Array.from({ length: 21 }, () => ({ target: "npm:x" })) },
       { targets: [{ target: " " }] },
-      { contextLinesBefore: 11 },
+      { contextLinesBefore: Number.MAX_SAFE_INTEGER + 1 },
       { contextLinesAfter: -1 },
       { contextLinesBefore: 0.5 },
       { maxMatches: 0 },

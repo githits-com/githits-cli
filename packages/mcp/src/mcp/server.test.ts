@@ -530,7 +530,7 @@ describe("MCP grep schema", () => {
       expect(inputSchema.properties?.[field], field).toMatchObject({
         type: "integer",
         minimum: 0,
-        maximum: 10,
+        maximum: Number.MAX_SAFE_INTEGER,
       });
     }
     expect(inputSchema.properties?.max_matches).toMatchObject({

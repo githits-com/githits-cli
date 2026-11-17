@@ -1,3 +1,4 @@
+import type { ListParams } from "@githits/core-internal";
 import {
   AuthenticationError,
   ClientUpdateRequiredError,
@@ -7,20 +8,80 @@ import {
   ListNetworkError,
   MalformedListResponseError,
 } from "@githits/core-internal";
+import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { buildUpdateRequiredError } from "./code-navigation-error-map.js";
 import type {
   MappedError,
   MappedErrorCode,
   MappedErrorDetails,
 } from "./mapped-error.js";
+import { formatRepositoryTarget } from "./repository-target.js";
 import { AuthRequiredError } from "./require-auth.js";
 import { mapSessionIdError } from "./session-id-error-map.js";
+import { shellQuoteExact } from "./shell-quote.js";
 import { mapTermsAcceptanceError } from "./terms-acceptance-error-map.js";
 import { mapVersionRefRecovery } from "./version-ref-recovery.js";
 
 export interface ListErrorContext {
   /** True only when the normalized request carried a nonempty `after` cursor. */
   hasAfter: boolean;
+}
+
+/** Native scope recovery keeps caller paths literal; the target changes their base. */
+export function withListScopeRecovery(
+  mapped: MappedError,
+  syntax: "cli" | "mcp",
+  request: Partial<ListParams> = {},
+): MappedError {
+  if (
+    mapped.code !== "SOURCE_INVENTORY_SCOPE_UNAVAILABLE" ||
+    !mapped.details?.repoUrl ||
+    !mapped.details.commitSha
+  )
+    return mapped;
+  const target = formatRepositoryTarget(
+    mapped.details.repoUrl,
+    mapped.details.commitSha,
+  );
+  const wait =
+    request.waitTimeoutMs !== DEFAULT_WAIT_TIMEOUT_MS
+      ? request.waitTimeoutMs
+      : undefined;
+  const retry = {
+    target,
+    paths: request.paths,
+    recursive: request.recursive,
+    file_types: request.fileTypes,
+    languages: request.languages,
+    intents: request.intents,
+    limit: request.limit,
+    wait_timeout_ms: wait,
+    format: request.includeDetailedFields ? "json" : undefined,
+  };
+  const controls = [
+    ...(request.recursive ? ["--recursive"] : []),
+    ...(
+      [
+        ["--file-type", request.fileTypes],
+        ["--language", request.languages],
+        ["--intent", request.intents],
+      ] as const
+    ).flatMap(([flag, values]) =>
+      (values ?? []).map((value) => `${flag} ${shellQuoteExact(value)}`),
+    ),
+    ...(request.limit !== undefined ? [`--limit ${request.limit}`] : []),
+    ...(wait !== undefined ? [`--wait ${wait}`] : []),
+    ...(request.includeDetailedFields ? ["--json"] : []),
+    ...(request.includeTargetProvenance === false &&
+    !request.includeDetailedFields
+      ? ["--silent"]
+      : []),
+  ];
+  const action =
+    syntax === "mcp"
+      ? `list ${JSON.stringify(retry)}`
+      : `githits list ${controls.length ? `${controls.join(" ")} ` : ""}-- ${[target, ...(request.paths ?? [])].map(shellQuoteExact).join(" ")}`;
+  return { ...mapped, details: { ...mapped.details, action } };
 }
 
 /** Map a unified-list failure into the shared CLI and MCP error envelope. */
@@ -178,12 +239,10 @@ function mapScopeUnavailableError(
     );
   }
 
-  const action = `${repoUrl}@${commitSha}`;
-  extraDetails.action = action;
   return build(
     "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
     false,
-    `${error.message} The repository-wide alternative ${action} broadens scope; use it only if those broader results are acceptable.`,
+    `${error.message} Repository-wide listing broadens package scope; use it only if those broader results are acceptable. Retry paths are repository-relative; for a monorepo, add the package directory prefix.`,
     extraDetails,
   );
 }

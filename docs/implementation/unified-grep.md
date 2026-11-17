@@ -54,8 +54,7 @@ for a larger window. Successful CLI JSON adds `contextClamping` only when
 clamping occurred: `requestedBefore`, `requestedAfter`, `effectiveBefore` and
 `effectiveAfter`. Nonclamped CLI JSON remains identical to MCP JSON. A failed
 JSON invocation emits one error envelope on stderr without a preceding notice.
-MCP context arguments remain strictly bounded at 0–10; CLI tolerance does not
-change the backend ceiling or the MCP schema.
+MCP context arguments also accept nonnegative safe integers and cap each side at ten before calling the service. Successful MCP text adds a notice with requested/effective context counts and a `read` follow-up when a side was reduced; MCP JSON adds the same `contextClamping` facts as CLI JSON. The backend ceiling remains ten.
 
 Every positional operand after the pattern is a target. Use `--path
 lib/express.js` for an exact source file or `--path-prefix lib/` for a directory;

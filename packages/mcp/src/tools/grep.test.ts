@@ -36,6 +36,44 @@ function payload(text: string): Record<string, unknown> {
 }
 
 describe("unified MCP grep", () => {
+  it.each(["text", "json"] as const)(
+    "caps excessive context before calling the service (%s)",
+    async (format) => {
+      const page = parseGrepResult(mixedPage);
+      const grep = mock(async (_params: GrepParams) => page);
+      const tool = createGrepTool(service(grep));
+      const args: GrepArgs = {
+        targets: [{ target: "npm:express" }],
+        pattern: "router",
+        context_lines_before: 20,
+        context_lines_after: 3,
+        format,
+      };
+      expect(() => z.object(tool.schema).parse(args)).not.toThrow();
+      const result = await tool.handler(args);
+      expect(result.isError).not.toBe(true);
+      expect(grep.mock.calls[0]![0]).toMatchObject({
+        contextLinesBefore: 10,
+        contextLinesAfter: 3,
+      });
+      if (format === "text") {
+        expect(result.content[0]!.text).toContain("Found 100 matches");
+        expect(result.content[0]!.text).toContain(
+          "Context capped (before/after): 20/3 -> 10/3. More: read.",
+        );
+      } else {
+        expect(payload(result.content[0]!.text)).toMatchObject({
+          hits: expect.any(Array),
+          contextClamping: {
+            requestedBefore: 20,
+            requestedAfter: 3,
+            effectiveBefore: 10,
+            effectiveAfter: 3,
+          },
+        });
+      }
+    },
+  );
   it("uses original request operands for retryable resolved-source failures", async () => {
     const page: GrepResult = {
       ...emptyPage,
@@ -273,32 +311,44 @@ describe("unified MCP grep", () => {
     expect(grep).not.toHaveBeenCalled();
   });
 
-  it("gives a preparation-wait action for a retryable indexing error", async () => {
-    const tool = createGrepTool(
-      service(async () => {
-        throw new GrepGraphQLError("not ready", {
-          code: "GREP_TARGET_PREPARATION_REQUIRED",
-          retryable: true,
-          target_issues: [{ input_index: 0, reason: "repository_indexing" }],
-        });
-      }),
-    );
-    const result = await tool.handler({
-      targets: [{ target: "npm:express" }],
-      pattern: "router",
-      format: "json",
-    });
+  it.each(["text", "json"] as const)(
+    "gives an estimate-based preparation-wait action (%s)",
+    async (format) => {
+      const tool = createGrepTool(
+        service(async () => {
+          throw new GrepGraphQLError("not ready", {
+            code: "GREP_TARGET_PREPARATION_REQUIRED",
+            retryable: true,
+            target_issues: [{ input_index: 0, reason: "repository_indexing" }],
+            estimated_indexing_duration: {
+              lower_seconds: 33,
+              upper_seconds: 85,
+            },
+          });
+        }),
+      );
+      const result = await tool.handler({
+        targets: [{ target: "npm:express" }],
+        pattern: "router",
+        format,
+      });
 
-    expect(result.isError).toBe(true);
-    expect(payload(result.content[0]!.text)).toMatchObject({
-      code: "INDEXING",
-      retryable: true,
-      details: {
-        targetIssues: [{ input_index: 0, reason: "repository_indexing" }],
-        action: expect.stringContaining("wait_timeout_ms"),
-      },
-    });
-  });
+      expect(result.isError).toBe(true);
+      if (format === "text") {
+        expect(result.content[0]!.text).toContain("estimated total: 33-85s");
+        expect(result.content[0]!.text).toContain("wait_timeout_ms=100000");
+        return;
+      }
+      expect(payload(result.content[0]!.text)).toMatchObject({
+        code: "INDEXING",
+        retryable: true,
+        details: {
+          targetIssues: [{ input_index: 0, reason: "repository_indexing" }],
+          action: expect.stringContaining("wait_timeout_ms=100000"),
+        },
+      });
+    },
+  );
 
   it("propagates caller cancellation instead of returning a service error", async () => {
     const controller = new AbortController();

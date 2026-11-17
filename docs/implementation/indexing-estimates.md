@@ -37,7 +37,7 @@ Discovery and grep/list suggestions cap at 120 seconds; read and legacy navigati
 cap at 60 seconds. These are request budgets, not completion promises. All CLI
 and MCP wait arguments and retry actions use milliseconds. The indexing wait
 default is 30,000 ms across surfaces; unified grep continuation never waits.
-There is no automatic retry, polling or new status API.
+There is no automatic retry, polling or new status API. Grep preparation errors use the same estimate-aware native retry action as list/read, retaining available singular timing evidence. Annotated reads with a pending refresh include a bounded native retry after the content; plain CLI file content remains raw. Ended searches with pending source preparation suggest repeating the original search with a bounded wait, while active searches retain their search-status action. No-history preparation still recommends a wait.
 
 Annotated text displays total duration and active elapsed evidence; JSON preserves
 provenance and work identity. Pipe-friendly raw paths and source content remain

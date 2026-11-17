@@ -252,7 +252,7 @@ export type UnifiedSearchAction =
       waitTimeoutMs: number;
       useResults?: true;
     }
-  | { kind: "new_search"; useResults?: true }
+  | { kind: "new_search"; useResults?: true; waitTimeoutMs?: number }
   | {
       kind: "query_rewrite";
       rewrites: UnifiedSearchRewriteKind[];
@@ -1637,6 +1637,18 @@ interface ActionInput {
 }
 
 function projectAction(input: ActionInput): UnifiedSearchAction {
+  const hasPreparation =
+    input.targetGroups.some(groupHasIndexing) ||
+    (!input.targetGroups.length && Boolean(input.indexingEstimates?.length));
+  const newSearch: UnifiedSearchAction = {
+    kind: "new_search",
+    ...(input.availability.resultCount > 0
+      ? { useResults: true as const }
+      : {}),
+    ...(hasPreparation
+      ? { waitTimeoutMs: discoveryIndexingWaitMs(input.indexingEstimates) }
+      : {}),
+  };
   if (input.lifecycle.kind === "active") {
     return input.searchRef
       ? {
@@ -1653,10 +1665,7 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
     input.lifecycle.kind === "completed" &&
     input.snapshot?.evidenceNotice !== undefined
   ) {
-    return {
-      kind: "new_search",
-      ...(input.availability.resultCount > 0 ? { useResults: true } : {}),
-    };
+    return newSearch;
   }
 
   const hasLocalRecovery = input.targetGroups.some(
@@ -1670,26 +1679,20 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
       input.lifecycle.kind === "unknown") &&
     hasLocalRecovery
   ) {
-    return { kind: "none" };
+    return newSearch.waitTimeoutMs !== undefined ? newSearch : { kind: "none" };
   }
   if (
     input.lifecycle.kind === "terminal" ||
     input.lifecycle.kind === "unknown"
   ) {
-    return {
-      kind: "new_search",
-      ...(input.availability.resultCount > 0 ? { useResults: true } : {}),
-    };
+    return newSearch;
   }
+  if (newSearch.waitTimeoutMs !== undefined) return newSearch;
   if (!input.snapshot || input.availability.kind !== "empty") {
     return { kind: "none" };
   }
 
   if (hasLocalRecovery) return { kind: "none" };
-  const hasIndexing = input.targetGroups.some((group) =>
-    groupHasIndexing(group),
-  );
-  if (hasIndexing) return { kind: "new_search" };
   if (hasBareTerminalReason) {
     return projectQueryRewrite(input.snapshot.query);
   }
@@ -1704,7 +1707,7 @@ function projectAction(input: ActionInput): UnifiedSearchAction {
       ),
     )
   ) {
-    return { kind: "new_search" };
+    return newSearch;
   }
 
   if (

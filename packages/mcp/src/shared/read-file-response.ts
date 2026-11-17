@@ -12,9 +12,14 @@ import type {
   DiscoveryIndexingEstimate,
   ReadFileResult,
 } from "@githits/core-internal";
+import { MAX_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import { colorize, dim } from "./colors.js";
 import { projectIndexingEstimates } from "./indexing-estimates.js";
-import { renderPreparationSection } from "./indexing-estimates-text.js";
+import {
+  formatPreparationRetry,
+  renderPreparationSection,
+} from "./indexing-estimates-text.js";
+import { indexingWaitMs } from "./indexing-wait.js";
 import {
   renderResolutionDetails,
   renderSourceSection,
@@ -235,6 +240,15 @@ function renderTerminalReadMetadata(
   );
   if (details.length > 0)
     lines.push("", ...details.map((line) => dim(line, options.useColors)));
+  if (envelope.indexingEstimates?.length)
+    lines.push(
+      "",
+      formatPreparationRetry({
+        operation: "read",
+        syntax: "cli",
+        waitMs: indexingWaitMs(envelope.indexingEstimates, MAX_WAIT_TIMEOUT_MS),
+      }),
+    );
   return lines;
 }
 

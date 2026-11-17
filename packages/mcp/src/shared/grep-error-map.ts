@@ -6,6 +6,7 @@ import {
   GrepGraphQLError,
   GrepNetworkError,
   MalformedGrepResponseError,
+  parseIndexingDurationEstimate,
   parsePkgseerErrorDetails,
   parseVersionRefRecovery,
 } from "@githits/core-internal";
@@ -100,6 +101,8 @@ export function mapGrepError(error: unknown): MappedError {
       graphqlCode,
       ...parsePkgseerErrorDetails(ext),
     };
+    const indexingEstimate = parseIndexingDurationEstimate(ext);
+    if (indexingEstimate) details.indexingEstimate = indexingEstimate;
     if (Array.isArray(ext.target_issues)) {
       details.targetIssues = ext.target_issues
         .slice(0, 20)
