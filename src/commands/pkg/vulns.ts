@@ -141,7 +141,7 @@ For one advisory report, including dependency advisories: githits vulns <id> --v
 Package spec: <registry>:<name>[@<version>]. Supported registries:
 npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, pub. vcpkg and zig are not supported.
 Omit @<version> to check the latest release.
-Version: exact published version or numeric prefix for the newest eligible stable match; no ranges.
+Version: exact published version, or numeric prefix (5, 1.43) selecting the newest eligible stable match; no ranges.
 Example: githits pkg vulns npm:lodash@4.17.20 --severity high
 
 --severity and --include-withdrawn are passed through to the backend; active

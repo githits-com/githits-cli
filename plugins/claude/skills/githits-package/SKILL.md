@@ -43,7 +43,7 @@ Keep default text; use `--json` only when code consumes raw fields or text lacks
 
 ## Versions, uncertainty, and upgrades
 
-Package reads accept exact published versions or numeric prefixes: `npm:express@5` selects newest eligible stable 5.x.y; `crates:tokio@1.43` selects 1.43.x. Use component matching in every ecosystem; do not pass ranges (`^`, `~`, comparisons, unions, intervals).
+Package reads accept exact published versions or numeric prefixes: `npm:express@5` selects newest eligible stable 5.x.y; `crates:tokio@1.43` selects 1.43.x. Use component matching in every ecosystem; do not pass ranges (`^`, `~`, comparisons, unions, intervals). Use `from..to` only for changelog/code-diff comparisons.
 
 `pkg info` takes an unversioned package, describes the default selected release and explains a skipped registry latest. JSON separates `version`/`publishedAt` from `latestVersion`/`latestVersionPublishedAt` and `registryLatestDifference`; no selected release means no `version`. These are not historical release facts. Retrieval time does not prove registry freshness. Missing fields are unavailable, not evidence of absence.
 
