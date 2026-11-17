@@ -118,6 +118,8 @@ export function createPackageVulnerabilitiesTool(
           });
         const params = {
           ...builtParams,
+          includeVulnerabilityEvidence:
+            args.format === "json" || args.verbose === true,
           includeTransitiveAdvisoryDetails:
             args.format === "json" ||
             (args.verbose === true &&

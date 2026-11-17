@@ -2011,6 +2011,16 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "pkg vulns json",
   );
   assertRecord(vulnsJson, "pkg vulns json");
+  assertRecord(vulnsJson.summary, "vulnerability summary");
+  assert(
+    typeof vulnsJson.summary.assessmentComplete === "boolean",
+    "missing assessment completeness",
+  );
+  assertRecord(vulnsJson.related, "related vulnerabilities");
+  assert(
+    Array.isArray(vulnsJson.related.advisories),
+    "missing Related advisory rows",
+  );
   assert(
     "summary" in vulnsJson || "advisories" in vulnsJson,
     "pkg vulns json missing vulnerability data",

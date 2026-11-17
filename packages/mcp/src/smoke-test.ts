@@ -1328,6 +1328,16 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "pkg_vulns json",
   );
   assertRecord(vulnsJson, "pkg_vulns json");
+  assertRecord(vulnsJson.summary, "vulnerability summary");
+  assert(
+    typeof vulnsJson.summary.assessmentComplete === "boolean",
+    "missing assessment completeness",
+  );
+  assertRecord(vulnsJson.related, "related vulnerabilities");
+  assert(
+    Array.isArray(vulnsJson.related.advisories),
+    "missing Related advisory rows",
+  );
   assert(
     "summary" in vulnsJson || "advisories" in vulnsJson,
     "pkg_vulns json missing vulnerability data",

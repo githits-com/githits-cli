@@ -58,6 +58,21 @@ function createCaller(callTool: McpSmokeCaller["callTool"]): McpSmokeCaller {
 }
 
 describe("MCP smoke-test helpers", () => {
+  it("requires completeness in package vulnerability JSON", async () => {
+    const caller = createCaller(async (name, args) => {
+      if (
+        name === "pkg_vulns" &&
+        args.format === "json" &&
+        !args.include_transitive
+      )
+        return jsonResult({ summary: { total: 0 } });
+      return smokeResponse(name, args);
+    });
+    await expect(
+      runMcpSmoke(caller, { logger: { log: () => {}, error: () => {} } }),
+    ).rejects.toThrow("missing assessment completeness");
+  });
+
   it("requires stable research registration", async () => {
     const caller = createCaller(async (name, args) =>
       smokeResponse(name, args),
@@ -1666,7 +1681,9 @@ function smokeResponse(
           "Scope   non-affecting advisories only\nNo active vulnerabilities affect this version",
         );
       }
-      return textResult("express vulnerabilities");
+      return textResult(
+        "express vulnerabilities\nCoverage: repository checks preparing.",
+      );
     case "pkg_changelog":
       return textResult(
         args.body_lines === 3 && args.verbose !== true && args.verbatim !== true
@@ -1845,7 +1862,12 @@ function smokeJsonResponse(
         });
       }
       return jsonResult({
-        summary: { unknownVulnerabilityCount: 0, assessmentStatus: "AFFECTED" },
+        related: { totalCount: 0, advisories: [] },
+        summary: {
+          unknownVulnerabilityCount: 0,
+          assessmentStatus: "AFFECTED",
+          assessmentComplete: true,
+        },
         filter: {
           minSeverity: args.min_severity,
           advisoryScope: args.advisory_scope,

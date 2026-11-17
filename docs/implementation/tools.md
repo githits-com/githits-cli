@@ -471,7 +471,14 @@ and the existing affectedness flag.
 
 **Partitioning buckets.** Advisories with `isMalicious: true` count **only** under `summary.bySeverity.malware`; severity bands (`critical`/`high`/`medium`/`low`) count non-malicious advisories with a positive CVSS score; non-malicious advisories with no score count under `summary.bySeverity.unrated`. Every returned advisory lands in exactly one bucket. For default affected scope, the bucket sum equals `summary.total`. For `non_affecting` / `all`, the bucket sum describes the selected advisory rows while `summary.total` still describes affected-version risk. The malware bucket sorts to the top of the advisory list regardless of score. The `unrated` bucket keeps Rust / PyPI packages with missing CVSS values explicit.
 
-**Alias-cluster dedup.** Some registries (most visibly Crates) return the GHSA-prefixed and the RUSTSEC-prefixed entry for the same underlying vulnerability as separate advisories, cross-linked via `aliases[]`. The shared envelope builder unions clusters over `id ∪ aliases[]`, picks one canonical advisory per cluster (severity-bearing entries first, then `GHSA-*` over `RUSTSEC-*`, then lexicographic `id` ascending), and merges the rest under the canonical's `aliases`. `affectedRanges`, `fixedIn`, malware/withdrawn flags, and the latest `modifiedAt` are unioned across the cluster; a withdrawal only sticks if every cluster member is withdrawn. `summary.total` and `summary.bySeverity` are recomputed from the deduped list so the partition invariant holds. This is a client-side mitigation for backend issue B3 (https://app.githits.com — eval report 2026-04-28); remove `dedupAdvisoriesByAlias` from `packages/mcp/src/shared/package-vulnerabilities-response.ts` once the backend dedups upstream.
+**Advisory identity.** The backend owns alias deduplication, effective package
+assessment and canonical metadata before filtering/pagination. The direct client
+preserves returned IDs, severity and counts without a second alias union or
+maximum-score merge. Unattributed repository positives use the same advisory
+formatter under Related and contribute no package-scope evidence. Global aliases
+can still reconcile already package-qualified findings; they never grant component
+scope or borrow Related metadata for a package headline. Details and provenance
+are described in `package-vulnerability-assessments.md`.
 
 **Version validation.** The shared package-version request boundary canonicalizes exact Go versions because Go module registries store them with a lowercase `v`: both `1.24.0` / `v1.24.0` and pseudo versions in either form are accepted, and the backend receives the `v`-prefixed form. Tag-style refs with a leading `v` (for example npm `v4.18.0`) remain rejected client-side with `INVALID_ARGUMENT` for other registries except Swift. This is intentionally narrow: full ecosystem-aware version parsing and typed invalid-version errors remain backend responsibilities.
 

@@ -78,7 +78,7 @@ describe("full package source evidence", () => {
       ).toEqual(item.sourceDetails);
     },
   );
-  it("preserves distinct original source rows despite assessment alias dedup, repeated and null IDs", () => {
+  it("preserves distinct original source rows without reconciling backend rows, including repeated and null IDs", () => {
     const item = report();
     const first = item.security!.vulnerabilities![0]!;
     item.security!.vulnerabilities = [
@@ -92,7 +92,7 @@ describe("full package source evidence", () => {
       source: id ? { ...source, osvId: id } : null,
     }));
     const payload = buildPackageVulnerabilitiesSuccessPayload(item);
-    expect(payload.advisories).toHaveLength(3);
+    expect(payload.advisories).toHaveLength(5);
     expect(payload.sourceDetails).toEqual(item.sourceDetails);
     expect(payload.sourceDetails).toHaveLength(5);
     const text = formatPackageVulnerabilitiesTerminal(item).replace(

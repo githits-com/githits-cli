@@ -66,9 +66,12 @@ const full: LeanVulnerabilityReport = JSON.parse(
   await cli(["pkg", "vulns", target, "--scope", "all", "--details", "--json"]),
 );
 check(full);
-const { sourceDetails: _, ...assessment } = full;
+const { sourceDetails: _, related, ...assessment } = full;
+assert(related, "Related connection must be present");
+assert.equal(related.sourceDetails?.length, related.advisories.length);
+const { sourceDetails: _relatedSources, ...relatedAssessment } = related;
 assert.deepEqual(
-  assessment,
+  { ...assessment, related: relatedAssessment },
   base,
   "Current source must not change imported assessment",
 );

@@ -72,6 +72,8 @@ export async function pkgVulnsAction(
     });
     const params = {
       ...builtParams,
+      includeVulnerabilityEvidence:
+        options.json === true || options.verbose === true,
       includeTransitiveAdvisoryDetails:
         options.json === true ||
         (options.verbose === true &&
@@ -80,7 +82,13 @@ export async function pkgVulnsAction(
     const report =
       await deps.packageIntelligenceService.packageVulnerabilities(params);
 
-    if (report.sourceDetails?.some((entry) => entry.error))
+    if (
+      report.paginationComplete === false ||
+      [
+        ...(report.sourceDetails ?? []),
+        ...(report.related?.sourceDetails ?? []),
+      ].some((entry) => entry.error)
+    )
       process.exitCode = 1;
 
     if (options.json) {

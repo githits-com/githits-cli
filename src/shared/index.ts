@@ -42,7 +42,6 @@ export {
   computeBySeverity,
   DEFAULT_WAIT_TIMEOUT_MS,
   type DependencyLifecycle,
-  dedupAdvisoriesByAlias,
   dim,
   error,
   extractSolutionId,

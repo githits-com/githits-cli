@@ -23,6 +23,7 @@ export type {
   PackageLifecycleRetainedWarning,
   PackageLifecycleScope,
 } from "./services/package-lifecycle.js";
+export type { VulnerabilityEvidence } from "./services/package-vulnerability-report.js";
 export * from "./services/progress-request.js";
 export * from "./services/promote-version-not-found.js";
 export * from "./services/read-service.js";

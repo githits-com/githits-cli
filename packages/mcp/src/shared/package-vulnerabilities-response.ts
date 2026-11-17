@@ -9,30 +9,20 @@
  *   backend returns version-aware affected/non-affecting/unknown/all
  *   advisory counts. `summary.total` is the affected count for the inspected
  *   version, not historical package advisory volume.
- * - Alias-cluster dedup runs before bucketing. Some registries (most
- *   visibly Crates) return both the GHSA-prefixed and the
- *   RUSTSEC-prefixed entry for the same underlying vulnerability;
- *   `aliases[]` carries the cross-link. The builder unions clusters
- *   over `id ∪ aliases`, picks one canonical advisory per cluster
- *   (severity-bearing entries first, then GHSA over RUSTSEC, then
- *   lexicographic `id`), and merges the rest under the canonical's
- *   `aliases`. Both `summary.total` and `summary.bySeverity` are
- *   recomputed from the deduped list — the partition invariant
- *   (bucket sum equals total) is preserved post-dedup. This is a
- *   client-side mitigation for backend issue B3; remove once the
- *   backend dedups upstream.
+ * - The backend owns advisory identity, representative metadata and counts.
  * - Malware bucket is disjoint from severity bands. `summary.bySeverity`
  *   carries a `malware` key counting `isMalicious === true` advisories;
  *   severity bands count non-malicious advisories only. Non-malicious
  *   advisories with no CVSS score fall into a disjoint `unrated`
  *   bucket so every returned advisory is accounted for. The buckets
- *   always partition `security.vulnerabilities[]` after dedup.
+ *   always partition `security.vulnerabilities[]` as served by the backend.
  * - `requestedVersion` surfaces whenever the backend-resolved
  *   `version` differs from the normalized request. Exact Go versions
  *   are canonicalized by the shared request boundary; Swift normalization
  *   remains backend-owned and should stay visible as `requestedVersion`
  *   when it differs from the resolved version.
  * - `modifiedAt` is included only when it differs from `publishedAt`.
+ * - Related findings reuse the ordinary advisory shape without package counts.
  * - Sort order: malware bucket first; within a bucket, severity desc,
  *   then `publishedAt` desc, then `osvId` asc (deterministic
  *   tiebreaker). Withdrawn advisories bucket below all active.
@@ -43,6 +33,7 @@ import type {
   TransitiveDependencyVulnerability,
   TransitiveVulnerabilityAuditCounts,
   VulnerabilityDetail,
+  VulnerabilityEvidence,
   VulnerabilityReport,
   VulnerabilitySourceEntry,
 } from "@githits/core-internal";
@@ -77,6 +68,9 @@ export type VulnSeverityLabel = "critical" | "high" | "medium" | "low";
 export type VulnBucket = "malware" | VulnSeverityLabel | "unrated";
 
 export interface LeanAdvisory {
+  relationship?: "PACKAGE" | "RELATED";
+  assessmentComplete?: boolean;
+  evidence?: VulnerabilityEvidence[];
   id?: string;
   aliases?: string[];
   summary?: string;
@@ -146,6 +140,8 @@ export interface LeanTransitiveVulnerabilityOccurrence {
 }
 
 export interface LeanVulnerabilitySummary {
+  assessmentComplete?: boolean;
+  assessmentReasons?: string[];
   /** Affected advisories for the inspected version. Kept for compatibility. */
   total: number;
   unknownVulnerabilityCount?: number;
@@ -158,10 +154,16 @@ export interface LeanVulnerabilitySummary {
 }
 
 export interface LeanVulnerabilityReport {
+  paginationComplete?: false;
+  related?: {
+    totalCount: number;
+    advisories: LeanAdvisory[];
+    sourceDetails?: VulnerabilitySourceEntry[];
+  };
   sourceDetails?: VulnerabilitySourceEntry[];
   registry: string;
   name: string;
-  version: string;
+  version: string | null;
   registryRepository?: RegistryRepository;
   requestedVersion?: string;
   summary: LeanVulnerabilitySummary;
@@ -191,25 +193,27 @@ export function buildPackageVulnerabilitiesSuccessPayload(
   const pkg = report.package;
   const security = report.security;
 
-  // Dedup before counting: alias-clustered duplicates (GHSA + RUSTSEC
-  // pairs on Crates, mainly) collapse to one canonical advisory each.
-  // `total` and `bySeverity` are derived from the deduped list so the
-  // partition invariant holds.
-  //
-  const dedupedAdvisories = dedupAdvisoriesByAlias(
-    security?.vulnerabilities ?? [],
-  );
-  const total =
-    security?.affectedVulnerabilityCount ?? dedupedAdvisories.length;
+  // Backend findings are already canonical; preserve their metadata and verdicts.
+  const advisories = security?.vulnerabilities ?? [];
+  const total = security?.affectedVulnerabilityCount ?? advisories.length;
 
   const payload: LeanVulnerabilityReport = {
     registry: lowerRegistry(pkg.registry),
     name: pkg.name,
     version: pkg.version,
-    summary: buildSummary(total, security, dedupedAdvisories),
+    summary: buildSummary(total, security, advisories),
   };
   if (report.sourceDetails !== undefined)
     payload.sourceDetails = report.sourceDetails;
+  if (report.paginationComplete === false) payload.paginationComplete = false;
+  if (report.related)
+    payload.related = {
+      totalCount: report.related.totalCount,
+      advisories: report.related.vulnerabilities.map(buildAdvisory),
+      ...(report.related.sourceDetails
+        ? { sourceDetails: report.related.sourceDetails }
+        : {}),
+    };
   if (pkg.registryRepository)
     payload.registryRepository = pkg.registryRepository;
 
@@ -225,7 +229,7 @@ export function buildPackageVulnerabilitiesSuccessPayload(
     payload.filter = options.filter;
   }
 
-  const sortedAdvisories = sortAdvisories(dedupedAdvisories.map(buildAdvisory));
+  const sortedAdvisories = sortAdvisories(advisories.map(buildAdvisory));
   if (sortedAdvisories.length > 0) {
     payload.advisories = sortedAdvisories;
   }
@@ -288,7 +292,7 @@ function parseVersionForSort(v: string): { main: number[]; pre?: string } {
 function buildSummary(
   total: number,
   security: VulnerabilityReport["security"],
-  dedupedAdvisories: readonly VulnerabilityDetail[],
+  advisories: readonly VulnerabilityDetail[],
 ): LeanVulnerabilitySummary {
   const summary: LeanVulnerabilitySummary = { total };
   if (security) {
@@ -298,15 +302,17 @@ function buildSummary(
     summary.allVulnerabilityCount = security.allVulnerabilityCount;
     summary.unknownVulnerabilityCount = security.unknownVulnerabilityCount;
     summary.assessmentStatus = security.assessmentStatus;
+    summary.assessmentComplete = security.assessmentComplete;
+    summary.assessmentReasons = security.assessmentReasons;
   }
 
   if (typeof security?.currentVersionAffected === "boolean") {
     summary.affected = security.currentVersionAffected;
   }
 
-  if (dedupedAdvisories.length === 0) return summary;
+  if (advisories.length === 0) return summary;
 
-  const bySeverity = computeBySeverity(dedupedAdvisories);
+  const bySeverity = computeBySeverity(advisories);
   const anyCounted = Object.values(bySeverity).some((n) => n > 0);
   if (anyCounted) {
     const trimmed: Partial<Record<VulnBucket, number>> = {};
@@ -581,333 +587,15 @@ export function vulnSeverityLabel(
 }
 
 // --------------------------------------------------------------------
-// Alias-cluster dedup
-// --------------------------------------------------------------------
-
-/**
- * Collapse advisories that share an `id`/`aliases` identifier into one
- * canonical entry per cluster. The merged entry:
- *   - unions `aliases`, `affectedVersionRanges`, and `fixedInVersions`;
- *   - reports the **maximum** `severityScore` across the cluster
- *     (security tooling errs toward the more conservative band when
- *     OSV and RUSTSEC disagree);
- *   - tracks the latest `modifiedAt` actually present (no fallback to
- *     `publishedAt` — a sibling without a real modification timestamp
- *     does not advance the merged record);
- *   - inherits the malware flag from any member that carries it;
- *   - keeps the withdrawn flag only when **every** cluster member is
- *     withdrawn (a single active member means the vulnerability is
- *     still tracked under at least one source).
- *
- * Canonical preference (deterministic, used to pick the entry whose
- * non-merged fields — `osvId`, `summary`, `publishedAt` — survive):
- *   1. Member with a positive CVSS score wins over a member without.
- *   2. Among severity-bearing members (or among score-less members),
- *      `GHSA-*` ids beat `RUSTSEC-*` and other prefixes.
- *   3. Tiebreak on lexicographic `osvId` ascending.
- *
- * Members without an `osvId` and without aliases are passed through as
- * singleton clusters — they cannot link to anything else. Empty input
- * returns an empty array.
- */
-export function dedupAdvisoriesByAlias(
-  advisories: readonly VulnerabilityDetail[],
-): VulnerabilityDetail[] {
-  if (advisories.length === 0) return [];
-
-  // Union-find over identifier strings. Each advisory's `osvId` and
-  // every alias becomes a node; sharing any node merges the clusters.
-  // Every node passed to `union` is `ensure()`d first, so `parent.get`
-  // never returns `undefined` for a known id.
-  const parent = new Map<string, string>();
-  const find = (id: string): string => {
-    let root = id;
-    let next = parent.get(root);
-    while (next !== undefined && next !== root) {
-      root = next;
-      next = parent.get(root);
-    }
-    // Path compression: walk again, pointing each node directly at root.
-    let cursor = id;
-    while (cursor !== root) {
-      const parentOfCursor = parent.get(cursor);
-      if (parentOfCursor === undefined) break;
-      parent.set(cursor, root);
-      cursor = parentOfCursor;
-    }
-    return root;
-  };
-  const union = (a: string, b: string): void => {
-    const ra = find(a);
-    const rb = find(b);
-    if (ra !== rb) parent.set(ra, rb);
-  };
-  const ensure = (id: string): void => {
-    if (!parent.has(id)) parent.set(id, id);
-  };
-
-  // Track the per-advisory primary identifier so we can group entries
-  // back into their cluster after the union pass. Advisories with
-  // neither id nor aliases get a synthetic key so they remain a
-  // singleton cluster.
-  const advisoryKeys: string[] = [];
-  for (let i = 0; i < advisories.length; i++) {
-    const advisory = advisories[i];
-    if (!advisory) {
-      advisoryKeys.push(`__synthetic_${i}`);
-      continue;
-    }
-    const ids: string[] = [];
-    if (advisory.osvId) ids.push(advisory.osvId);
-    for (const alias of advisory.aliases ?? []) {
-      if (alias) ids.push(alias);
-    }
-    if (ids.length === 0) {
-      const synthetic = `__synthetic_${i}`;
-      ensure(synthetic);
-      advisoryKeys.push(synthetic);
-      continue;
-    }
-    for (const id of ids) ensure(id);
-    for (let j = 1; j < ids.length; j++) {
-      const a = ids[j - 1];
-      const b = ids[j];
-      if (a !== undefined && b !== undefined) union(a, b);
-    }
-    advisoryKeys.push(ids[0] as string);
-  }
-
-  // Group advisories by cluster root, preserving the input order of
-  // first appearance so the eventual sort step gets a stable seed.
-  const clusters = new Map<string, VulnerabilityDetail[]>();
-  for (let i = 0; i < advisories.length; i++) {
-    const advisory = advisories[i];
-    if (!advisory) continue;
-    const key = advisoryKeys[i];
-    if (key === undefined) continue;
-    const root = find(key);
-    const bucket = clusters.get(root);
-    if (bucket) bucket.push(advisory);
-    else clusters.set(root, [advisory]);
-  }
-
-  const merged: VulnerabilityDetail[] = [];
-  for (const cluster of clusters.values()) {
-    merged.push(mergeAdvisoryCluster(cluster));
-  }
-  return merged;
-}
-
-function mergeAdvisoryCluster(
-  cluster: readonly VulnerabilityDetail[],
-): VulnerabilityDetail {
-  if (cluster.length === 1) {
-    const only = cluster[0];
-    if (!only) throw new Error("empty advisory cluster"); // unreachable
-    return only;
-  }
-
-  const canonical = pickCanonical(cluster);
-
-  // Union of all known identifiers across the cluster, with the
-  // canonical's own `osvId` removed from the alias list (it lives on
-  // `osvId` instead).
-  const aliasSet = new Set<string>();
-  for (const member of cluster) {
-    if (member.osvId) aliasSet.add(member.osvId);
-    for (const alias of member.aliases ?? []) {
-      if (alias) aliasSet.add(alias);
-    }
-  }
-  if (canonical.osvId) aliasSet.delete(canonical.osvId);
-  const aliases = Array.from(aliasSet).sort();
-
-  const affectedRangesSet = new Set<string>();
-  const matchedAffectedRangesSet = new Set<string>();
-  const fixedInSet = new Set<string>();
-  const duplicateIdsSet = new Set<string>();
-  const assessmentReasons = new Set<string>();
-  let isMalicious = false;
-  let affectsInspectedVersion = false;
-  const assessmentPrecedence: Record<string, number> = {
-    AFFECTED: 3,
-    UNKNOWN: 2,
-    NON_AFFECTING: 1,
-  };
-  let assessmentStatus = canonical.assessmentStatus;
-  let affectedVersionRangesTruncated = false;
-  let affectedVersionRangesCount = 0;
-  // Latest `modifiedAt` wins, but only counts entries that explicitly
-  // carry one — a sibling whose `modifiedAt` is absent should not
-  // promote its `publishedAt` into the merged record.
-  let latestModifiedAt: string | undefined = canonical.modifiedAt;
-  let withdrawnAt: string | undefined;
-  let allWithdrawn = true;
-  // Take the maximum severity score across the cluster. OSV and
-  // RUSTSEC occasionally disagree on the score for the same CVE; the
-  // safer choice for security tooling is the higher band, not the
-  // canonical's score (which may be lower because GHSA wins the
-  // canonical-pick on a prefix tiebreaker).
-  let maxSeverityScore =
-    typeof canonical.severityScore === "number" ? canonical.severityScore : 0;
-
-  for (const member of cluster) {
-    if (
-      member.assessmentStatus !== undefined &&
-      (assessmentStatus === undefined ||
-        (assessmentPrecedence[member.assessmentStatus] ?? 2) >
-          (assessmentPrecedence[assessmentStatus] ?? 2))
-    )
-      assessmentStatus = member.assessmentStatus;
-    for (const reason of member.assessmentReasons ?? [])
-      assessmentReasons.add(reason);
-    for (const range of member.affectedVersionRanges ?? []) {
-      affectedRangesSet.add(range);
-    }
-    for (const range of member.matchedAffectedVersionRanges ?? []) {
-      matchedAffectedRangesSet.add(range);
-    }
-    for (const fix of member.fixedInVersions ?? []) {
-      fixedInSet.add(fix);
-    }
-    for (const duplicateId of member.duplicateIds ?? []) {
-      duplicateIdsSet.add(duplicateId);
-    }
-    if (member.isMalicious === true) isMalicious = true;
-    if (member.affectsInspectedVersion === true) affectsInspectedVersion = true;
-    if (member.affectedVersionRangesTruncated === true) {
-      affectedVersionRangesTruncated = true;
-    }
-    if (typeof member.affectedVersionRangesCount === "number") {
-      affectedVersionRangesCount = Math.max(
-        affectedVersionRangesCount,
-        member.affectedVersionRangesCount,
-      );
-    }
-    if (member.modifiedAt) {
-      if (!latestModifiedAt || member.modifiedAt > latestModifiedAt) {
-        latestModifiedAt = member.modifiedAt;
-      }
-    }
-    if (member.withdrawnAt) {
-      if (!withdrawnAt || member.withdrawnAt > withdrawnAt) {
-        withdrawnAt = member.withdrawnAt;
-      }
-    } else {
-      allWithdrawn = false;
-    }
-    // Withdrawn members don't contribute severity. The merged record
-    // surfaces the highest *currently authoritative* score; promoting
-    // a retracted advisory's score would mislead callers about an
-    // active vulnerability that no longer claims that band.
-    if (
-      !member.withdrawnAt &&
-      typeof member.severityScore === "number" &&
-      member.severityScore > maxSeverityScore
-    ) {
-      maxSeverityScore = member.severityScore;
-    }
-  }
-
-  const merged: VulnerabilityDetail = {
-    ...canonical,
-    aliases,
-  };
-  if (maxSeverityScore > 0) {
-    merged.severityScore = maxSeverityScore;
-  }
-  if (affectedRangesSet.size > 0) {
-    merged.affectedVersionRanges = Array.from(affectedRangesSet);
-  }
-  const exactOrLowerBoundCount = Math.max(
-    affectedVersionRangesCount,
-    affectedRangesSet.size,
-  );
-  if (exactOrLowerBoundCount > 0) {
-    merged.affectedVersionRangesCount = exactOrLowerBoundCount;
-  }
-  if (affectedVersionRangesTruncated) {
-    merged.affectedVersionRangesTruncated = true;
-  }
-  if (matchedAffectedRangesSet.size > 0) {
-    merged.matchedAffectedVersionRanges = Array.from(matchedAffectedRangesSet);
-  }
-  if (affectsInspectedVersion) merged.affectsInspectedVersion = true;
-  if (assessmentStatus !== undefined)
-    merged.assessmentStatus = assessmentStatus;
-  if (assessmentReasons.size > 0)
-    merged.assessmentReasons = [...assessmentReasons];
-  if (duplicateIdsSet.size > 0) {
-    merged.duplicateIds = Array.from(duplicateIdsSet).sort();
-  }
-  if (fixedInSet.size > 0) {
-    merged.fixedInVersions = Array.from(fixedInSet);
-  }
-  if (isMalicious) merged.isMalicious = true;
-  // `buildAdvisory` later drops `modifiedAt` if it equals `publishedAt`,
-  // so we only need to ensure the field reflects the latest real
-  // modification timestamp here. The seed already filtered out the
-  // "no modifiedAt anywhere in the cluster" case.
-  if (latestModifiedAt) {
-    merged.modifiedAt = latestModifiedAt;
-  } else {
-    delete merged.modifiedAt;
-  }
-  // Only mark the merged advisory as withdrawn when every cluster
-  // member is withdrawn — a single non-withdrawn member means the
-  // vulnerability is still active under at least one source.
-  if (allWithdrawn && withdrawnAt) {
-    merged.withdrawnAt = withdrawnAt;
-  } else {
-    delete merged.withdrawnAt;
-  }
-  return merged;
-}
-
-function pickCanonical(
-  cluster: readonly VulnerabilityDetail[],
-): VulnerabilityDetail {
-  const ranked = cluster.slice().sort((a, b) => {
-    const aHasScore =
-      typeof a.severityScore === "number" && a.severityScore > 0 ? 1 : 0;
-    const bHasScore =
-      typeof b.severityScore === "number" && b.severityScore > 0 ? 1 : 0;
-    if (aHasScore !== bHasScore) return bHasScore - aHasScore;
-
-    const aRank = idPrefixRank(a.osvId);
-    const bRank = idPrefixRank(b.osvId);
-    if (aRank !== bRank) return aRank - bRank;
-
-    const aId = a.osvId ?? "";
-    const bId = b.osvId ?? "";
-    if (aId !== bId) return aId < bId ? -1 : 1;
-    return 0;
-  });
-  const winner = ranked[0];
-  if (!winner) throw new Error("empty cluster passed to pickCanonical"); // unreachable
-  return winner;
-}
-
-/**
- * Lower rank wins. GHSA carries severity reliably; RUSTSEC entries
- * round-tripped through OSV often lose it. Other prefixes fall back
- * to a generic bucket between the two known forms. A missing id is
- * the worst rank — it cannot be cited and rarely surfaces in
- * production (every backend-fed advisory carries an `osvId`).
- */
-function idPrefixRank(id: string | undefined): number {
-  if (!id) return 99; // fallback bucket — all real ids outrank this
-  if (id.startsWith("GHSA-")) return 0;
-  if (id.startsWith("RUSTSEC-")) return 2;
-  return 1;
-}
-
-// --------------------------------------------------------------------
 // Advisory shaping
 // --------------------------------------------------------------------
 
 function buildAdvisory(advisory: VulnerabilityDetail): LeanAdvisory {
   const lean: LeanAdvisory = {};
+  if (advisory.relationship) lean.relationship = advisory.relationship;
+  if (advisory.assessmentComplete !== undefined)
+    lean.assessmentComplete = advisory.assessmentComplete;
+  if (advisory.evidence) lean.evidence = advisory.evidence;
   if (advisory.osvId) lean.id = advisory.osvId;
   if (advisory.aliases && advisory.aliases.length > 0) {
     lean.aliases = advisory.aliases.slice();
@@ -1030,7 +718,7 @@ function compareAdvisories(a: LeanAdvisory, b: LeanAdvisory): number {
 
 function deriveRequestedVersion(
   requested: string | undefined,
-  resolved: string,
+  resolved: string | null,
 ): string | undefined {
   if (requested === undefined) return undefined;
   const trimmed = requested.trim();
@@ -1124,6 +812,48 @@ export function formatPackageVulnerabilitiesTerminal(
           width,
         ).join("\n")
       : undefined;
+  const relatedBlock = payload.related?.advisories.length
+    ? [
+        "Related vulnerabilities (package applicability unproved)",
+        formatAdvisoryList(
+          payload.related.advisories,
+          verbose,
+          useColors,
+          resolveAffectedRangesLimit(options.terminalWidth),
+          surface,
+          options.terminalWidth,
+        ),
+        report.related?.sourceDetails
+          ? formatPackageSourceDetails(
+              report.related.sourceDetails.map((entry) => ({
+                ...entry,
+                unlinked: false,
+                assessmentLabel: "Related; package applicability unproved",
+              })),
+              width,
+            )
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : undefined;
+  const reasons = payload.summary.assessmentReasons ?? [];
+  const coverageBlock = [
+    ...(report.paginationComplete === false
+      ? [
+          "Results changed during pagination; shown findings are incomplete. Run the report again for a complete list.",
+        ]
+      : []),
+    ...(reasons.length
+      ? [
+          `Coverage: ${reasons.map(formatVulnerabilityAssessmentReason).join("; ")}.`,
+        ]
+      : payload.summary.assessmentComplete === false
+        ? ["Assessment coverage is incomplete."]
+        : []),
+  ]
+    .flatMap((line) => wrapTerminalProse(line, width))
+    .join("\n");
   const headerLine = formatHeader(payload, useColors);
   const requestedLine = payload.requestedVersion
     ? dim(
@@ -1165,6 +895,8 @@ export function formatPackageVulnerabilitiesTerminal(
         ),
       );
     }
+    if (relatedBlock) lines.push("", relatedBlock);
+    if (coverageBlock) lines.push("", coverageBlock);
     if (transitiveBlock) lines.push("", transitiveBlock);
     if (sourceBlock) lines.push("", sourceBlock);
     if (dependencySourceHint) lines.push("", dependencySourceHint);
@@ -1209,6 +941,8 @@ export function formatPackageVulnerabilitiesTerminal(
 
   const upgradeFooter = formatUpgradeFooter(payload.upgradePaths);
   if (upgradeFooter) blocks.push(upgradeFooter);
+  if (relatedBlock) blocks.push(relatedBlock);
+  if (coverageBlock) blocks.push(coverageBlock);
   if (transitiveBlock) blocks.push(transitiveBlock);
   if (sourceBlock) blocks.push(sourceBlock);
   if (dependencySourceHint) blocks.push(dependencySourceHint);
@@ -1271,7 +1005,9 @@ function formatHeader(
   useColors: boolean,
 ): string {
   const name = colorize(sanitizeIdentity(payload.name), "bold", useColors);
-  return `${name} @ ${sanitizeIdentity(payload.version)} | ${sanitizeIdentity(payload.registry)}`;
+  return payload.version === null
+    ? `${name} | ${sanitizeIdentity(payload.registry)} (no release selected)`
+    : `${name} @ ${sanitizeIdentity(payload.version)} | ${sanitizeIdentity(payload.registry)}`;
 }
 
 function formatFilterLines(
@@ -1390,6 +1126,7 @@ function formatNoAffectedVulnerabilitiesLine(
 ): string {
   const selectedAdvisoryCount = payload.advisories?.length ?? 0;
   if (
+    payload.summary.assessmentComplete === false ||
     (payload.summary.unknownVulnerabilityCount ?? 0) > 0 ||
     !isAssessmentStatusImplied(payload.summary.assessmentStatus, false)
   ) {
@@ -1533,6 +1270,7 @@ function formatAdvisoryList(
         useColors,
         rangeLimit,
         surface,
+        terminalWidth,
       ),
     );
     lines.push("");
@@ -1615,6 +1353,7 @@ function formatAdvisoryLines(
   useColors: boolean,
   rangeLimit: number,
   surface: VulnerabilitiesTextSurface,
+  terminalWidth: number | undefined,
 ): string[] {
   const rawLabel = severityColumnLabel(advisory);
   const padded = rawLabel.padEnd(labelWidth);
@@ -1622,16 +1361,33 @@ function formatAdvisoryLines(
 
   const parts: string[] = [colouredLabel];
   if (advisory.id) parts.push(sanitizeIdentity(advisory.id));
-  const assessment = formatAdvisoryAssessment(
-    advisory.assessmentStatus,
-    advisory.affectsInspectedVersion,
-  );
+  const assessment =
+    advisory.relationship === "RELATED"
+      ? undefined
+      : formatAdvisoryAssessment(
+          advisory.assessmentStatus,
+          advisory.affectsInspectedVersion,
+        );
   if (assessment !== undefined) parts.push(`[${sanitizeIdentity(assessment)}]`);
   if (advisory.publishedAt) parts.push(sanitizeIdentity(advisory.publishedAt));
   if (advisory.summary) parts.push(sanitizeProse(advisory.summary));
 
   const lines: string[] = [`  ${parts.join("  ")}`];
-
+  if (
+    advisory.assessmentComplete === false &&
+    advisory.relationship !== "RELATED"
+  ) {
+    const reasons = (advisory.assessmentReasons ?? [])
+      .map(formatVulnerabilityAssessmentReason)
+      .map(sanitizeProse)
+      .join("; ");
+    lines.push(
+      ...wrapTerminalProse(
+        `    Coverage incomplete${reasons ? `: ${reasons}` : ""}.`,
+        normaliseTerminalWidth(terminalWidth),
+      ),
+    );
+  }
   // Compact detail rows — indented 4 spaces so they "hang" under the
   // advisory headline.
   const detailWidth = verbose ? 12 : 8;
@@ -1640,6 +1396,8 @@ function formatAdvisoryLines(
   };
   if (
     advisory.assessmentReasons?.length &&
+    (advisory.assessmentComplete !== false ||
+      advisory.relationship === "RELATED") &&
     formatAdvisoryAssessment(
       advisory.assessmentStatus,
       advisory.affectsInspectedVersion,
@@ -1724,7 +1482,66 @@ function formatAdvisoryLines(
     }
   }
 
+  if (verbose)
+    lines.push(
+      ...(advisory.evidence ?? []).flatMap((evidence) =>
+        formatEvidenceLines(evidence, terminalWidth),
+      ),
+    );
   return lines;
+}
+
+/** Human provenance stays concise; JSON retains exact revisions and digests. */
+function formatEvidenceLines(
+  evidence: VulnerabilityEvidence,
+  terminalWidth: number | undefined,
+): string[] {
+  const human = (value: string): string =>
+    value === "NON_AFFECTING"
+      ? "non-affecting"
+      : sanitizeProse(value.replaceAll("_", " ").toLowerCase());
+  const lines = [
+    `    Evidence: ${human(evidence.kind)} | ${human(evidence.relationship)} | ${sanitizeIdentity(evidence.sourceId)} | ${human(evidence.assessmentStatus)}${evidence.complete ? "" : "; incomplete"}`,
+  ];
+  if (evidence.reasons.length)
+    lines.push(
+      `      Reason: ${evidence.reasons.map(formatVulnerabilityAssessmentReason).map(sanitizeProse).join("; ")}`,
+    );
+  const location = [
+    evidence.repositoryUrl
+      ? sanitizeIdentity(evidence.repositoryUrl)
+      : undefined,
+    evidence.commitSha
+      ? `@${sanitizeIdentity(evidence.commitSha.slice(0, 12))}`
+      : undefined,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  if (location)
+    lines.push(
+      `      Repository: ${location}${evidence.proofKind ? ` (${human(evidence.proofKind)})` : ""}`,
+    );
+  if (evidence.evaluatedAt)
+    lines.push(`      Evaluated: ${sanitizeProse(evidence.evaluatedAt)}`);
+  if (evidence.checkedAt)
+    lines.push(`      Checked: ${sanitizeProse(evidence.checkedAt)}`);
+  if (evidence.sourceStale !== null)
+    lines.push(
+      `      Source check: ${evidence.sourceStale ? "stale" : "current"}.`,
+    );
+  if (evidence.withdrawnAt)
+    lines.push(
+      `      Source withdrawn: ${sanitizeProse(evidence.withdrawnAt)}`,
+    );
+  if (
+    evidence.contentDigest !== null &&
+    evidence.assessedContentDigest !== null &&
+    evidence.contentDigest !== evidence.assessedContentDigest
+  )
+    lines.push("      Source content changed since assessment.");
+  return lines.flatMap((line) =>
+    wrapTerminalProse(line, normaliseTerminalWidth(terminalWidth)),
+  );
 }
 
 /**
