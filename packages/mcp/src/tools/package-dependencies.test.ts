@@ -181,10 +181,10 @@ describe("createPackageDependenciesTool — metadata", () => {
       "target",
     ]);
     expect(tool.schema.target?.description).toContain(
-      "exact published version (npm:express@5.2.1)",
+      "npm:express@5.2.1 (exact)",
     );
     expect(tool.schema.target?.description).toContain(
-      "numeric component prefix (npm:express@5)",
+      "npm:express@5 (numeric prefix)",
     );
     const schema = z.toJSONSchema(z.object(tool.schema));
     expect(schema.properties?.include_issues).toMatchObject({

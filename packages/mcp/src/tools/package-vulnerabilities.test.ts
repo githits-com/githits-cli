@@ -98,10 +98,10 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
       "verbose",
     ]);
     expect(tool.schema.target?.description).toContain(
-      "exact published version (npm:lodash@4.17.20)",
+      "npm:lodash@4.17.20 (exact)",
     );
     expect(tool.schema.target?.description).toContain(
-      "numeric component prefix (npm:lodash@4)",
+      "npm:lodash@4 (numeric prefix)",
     );
     expect(tool.annotations?.readOnlyHint).toBe(true);
   });

@@ -405,8 +405,8 @@ describe("pkgDepsAction", () => {
       "Exact Go versions may include or omit their canonical lowercase `v`; the backend receives the `v`-prefixed form",
     );
     expect(help).toContain("--issues");
-    expect(singleLineHelp).toContain("numeric component prefix");
-    expect(singleLineHelp).toContain("general ranges are rejected");
+    expect(singleLineHelp).toContain("numeric prefix");
+    expect(singleLineHelp).toContain("no ranges");
     expect(help).toContain("deprecated");
     expect(help).toContain("outdated");
     expect(help).toContain("duplicate");

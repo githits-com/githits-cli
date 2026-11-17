@@ -32,7 +32,5 @@ kind/freshness values are extensible strings. The legacy nullable
 enum addition is needed. Preserve served-version provenance rather than
 presenting a prefix as an exact published version.
 
-Instruction availability does not prove backend rollout. Hosted MCP also needs
-the released MCP package adopted and deployed by its owning server. Verification
-and rollout evidence belong on the delivery PR; this documentation change does
-not authorize release or deployment.
+Hosted MCP receives this guidance after its server adopts a released
+`@githits/mcp` package and deploys it.

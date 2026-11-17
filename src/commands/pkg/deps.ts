@@ -167,7 +167,7 @@ the resolved dependency graph. Use --verbose for complete issue details.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
 ${SUPPORTED_DEPS_REGISTRIES_LIST}. Omit @<version> for the latest release.
-Version accepts an exact published version or numeric component prefix (e.g. npm:express@5 selects newest eligible stable 5.x.y); general ranges are rejected.
+Version: exact published version or numeric prefix for the newest eligible stable match; no ranges.
 Exact Go versions may include or omit their canonical lowercase \`v\`; the backend receives the \`v\`-prefixed form. Other leading-\`v\` tag-style inputs are rejected except Swift.`;
 
 export function registerPkgDepsCommand(pkgCommand: Command): Command {

@@ -347,8 +347,8 @@ describe("agent skills packaging", () => {
       "upgrade reviews",
     ]);
     for (const content of [codeContent, packageContent]) {
-      expect(content).toContain("numeric component prefixes");
-      expect(content).toContain("rejected in read selectors");
+      expect(content).toContain("numeric prefixes");
+      expect(content).toContain("do not pass ranges");
     }
   });
 
