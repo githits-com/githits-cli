@@ -66,6 +66,8 @@ describe("pkg vulns help", () => {
     );
 
     expect(singleLineDescription).not.toContain("capped");
+    expect(singleLineDescription).toContain("numeric component prefix");
+    expect(singleLineDescription).toContain("general ranges are rejected");
     expect(singleLineDescription).toContain(
       "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, pub. vcpkg and zig are not supported.",
     );

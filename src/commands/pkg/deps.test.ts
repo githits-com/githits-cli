@@ -398,12 +398,15 @@ describe("pkgDepsAction", () => {
     const pkgCommand = new Command();
     const depsCommand = registerPkgDepsCommand(pkgCommand);
     const help = depsCommand.helpInformation();
+    const singleLineHelp = help.replace(/\s+/g, " ");
 
     expect(depsCommand.description()).toContain("--issues");
     expect(depsCommand.description()).toContain(
       "Exact Go versions may include or omit their canonical lowercase `v`; the backend receives the `v`-prefixed form",
     );
     expect(help).toContain("--issues");
+    expect(singleLineHelp).toContain("numeric component prefix");
+    expect(singleLineHelp).toContain("general ranges are rejected");
     expect(help).toContain("deprecated");
     expect(help).toContain("outdated");
     expect(help).toContain("duplicate");
