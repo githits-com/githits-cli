@@ -273,10 +273,6 @@ const traversal = z.enum([
 const corpus = z.enum(["SOURCE", "DOCUMENTATION", "ALL"]);
 const nonnegativeInt = z.number().int().nonnegative();
 const nullableString = z.string().nullable();
-const recoveryRefs = z
-  .array(z.object({ ref: z.string(), version: nullableString.optional() }))
-  .nullable()
-  .optional();
 const lineSlice = z.object({
   content: z.string(),
   startByte: nonnegativeInt,
@@ -302,6 +298,9 @@ const modifications = z.array(
 function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
   const selected = <T extends z.ZodType>(schema: T): T | z.ZodOptional<T> =>
     detailed ? schema : schema.optional();
+  const recoveryRefs = z
+    .array(z.object({ ref: z.string(), version: selected(nullableString) }))
+    .nullable();
   const safety = z.object({
     filtered: z.boolean(),
     modifications: selected(modifications),
@@ -411,10 +410,10 @@ function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
     unavailableTargets: z.array(
       z.object({
         message: nullableString.optional(),
-        requestedVersion: nullableString.optional(),
-        suggestedRefs: recoveryRefs,
-        availableRefs: recoveryRefs,
-        availableVersions: recoveryRefs,
+        requestedVersion: selected(nullableString),
+        suggestedRefs: selected(recoveryRefs),
+        availableRefs: selected(recoveryRefs),
+        availableVersions: selected(recoveryRefs),
         inputIndex: nonnegativeInt,
         target: z.string(),
         reason: z.string(),

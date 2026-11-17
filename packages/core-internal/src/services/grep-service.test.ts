@@ -704,6 +704,14 @@ for (const detailed of [false, true]) {
       {
         inputIndex: 2,
         target: records[1]!.target,
+        ...(detailed
+          ? {
+              requestedVersion: null,
+              suggestedRefs: null,
+              availableRefs: null,
+              availableVersions: null,
+            }
+          : {}),
         reason: "repository_indexing",
         retryable: true,
         progressRef: "pending",
@@ -815,6 +823,33 @@ describe("partial source refusal diagnostics", () => {
     },
   );
 
+  it("requires selected recovery fields on detailed wire responses", () => {
+    const fields = [
+      "requestedVersion",
+      "suggestedRefs",
+      "availableRefs",
+      "availableVersions",
+    ] as const;
+    for (const field of fields) {
+      const omission = { ...sourceRefusal[0]! };
+      Reflect.deleteProperty(omission, field);
+      expect(() =>
+        parseGrepResult({ ...result(), unavailableTargets: [omission] }, true),
+      ).toThrow(MalformedGrepResponseError);
+    }
+    expect(() =>
+      parseGrepResult(
+        {
+          ...result(),
+          unavailableTargets: [
+            { ...sourceRefusal[0]!, suggestedRefs: [{ ref: "v1" }] },
+          ],
+        },
+        true,
+      ),
+    ).toThrow(MalformedGrepResponseError);
+  });
+
   it("validates supplied diagnostics and keeps absent fields compatible", () => {
     for (const invalid of [
       { message: 42 },
@@ -842,5 +877,10 @@ describe("partial source refusal diagnostics", () => {
       parseGrepResult({ ...result(), unavailableTargets: [legacy] })
         .unavailableTargets,
     ).toEqual([legacy]);
+    const injected = { ...legacy, suggestedRefs: [{ ref: "v1" }] };
+    expect(
+      parseGrepResult({ ...result(), unavailableTargets: [injected] })
+        .unavailableTargets,
+    ).toEqual([injected]);
   });
 });
