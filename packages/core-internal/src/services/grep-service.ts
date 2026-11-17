@@ -527,7 +527,7 @@ const GRAPHQL_QUERY = `query Grep(
     unavailableTargets {
       inputIndex target reason retryable progressRef suggestedSiteTargets message
       requestedVersion @include(if: $includeDetailedFields)
-      suggestedRefs @include(if: $includeDetailedFields) { ref version }
+      suggestedRefs { ref version @include(if: $includeDetailedFields) }
       availableRefs @include(if: $includeDetailedFields) { ref version }
       availableVersions @include(if: $includeDetailedFields) { ref version }
     }

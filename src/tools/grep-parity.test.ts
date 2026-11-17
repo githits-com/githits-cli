@@ -544,8 +544,11 @@ it("preserves partial source diagnostics in CLI/MCP text and lossless JSON", asy
     expect(mcpResult.isError).toBeUndefined();
     expect(cliText).toBe(String(mcpResult.content[0]?.text));
     const flat = cliText.replace(/\s+/g, " ");
-    expect(flat).toContain(sourceRefusal[0]!.message!);
-    expect(flat).toContain("Do not retry unchanged.");
+    expect(flat).toContain(
+      "pypi:modal@1.3.4: published, but source not searched (no matching ref).",
+    );
+    expect(flat).toContain("Nearby refs: v1.3.1, v1.3.0, v1.2.4.");
+    expect(flat).not.toContain(sourceRefusal[0]!.message!);
     expect(flat).toContain(
       "no searchable documentation pages are available; do not retry unchanged",
     );

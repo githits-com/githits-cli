@@ -782,12 +782,15 @@ describe("partial source refusal diagnostics", () => {
         if (detailed) return entry;
         const {
           requestedVersion,
-          suggestedRefs,
           availableRefs,
           availableVersions,
           ...compact
         } = entry;
-        return compact;
+        return {
+          ...compact,
+          suggestedRefs:
+            entry.suggestedRefs?.map(({ ref }) => ({ ref })) ?? null,
+        };
       });
       const page: GrepResult = {
         ...result(),
@@ -803,13 +806,16 @@ describe("partial source refusal diagnostics", () => {
           expect(selection).not.toContain("message @include");
           for (const field of [
             "requestedVersion",
-            "suggestedRefs",
             "availableRefs",
             "availableVersions",
           ])
             expect(selection).toContain(
               `${field} @include(if: $includeDetailedFields)`,
             );
+          expect(selection).toContain(
+            "suggestedRefs { ref version @include(if: $includeDetailedFields) }",
+          );
+          expect(selection).not.toContain("suggestedRefs @include");
           return response({ data: { grep: page } });
         },
       );
