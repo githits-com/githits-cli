@@ -48,12 +48,11 @@ Empty package-source inventories can carry a nullable `hint` containing indexing
 policy and a pinned repository locator with repository-relative path suggestions.
 The backend source-inventory owner derives those suggestions from its certified
 package root and served commit; the client never infers a root or claims missing
-files are binary. Annotated text renders the hint immediately after `No files.`. The hint is opaque
-backend-authored text; its `paths (JSON)` line contains native selectors. Rendering
-preserves whitespace, JSON escaping and line breaks so locators remain copyable,
-while stripping terminal controls per line. It does not prose-wrap or shell-parse
-the hint.
-JSON preserves selected strings/nulls, and unselected hints stay absent. Pending
+files are binary. Annotated text renders the hint immediately after `No files.`.
+The hint is opaque backend-authored text and may contain a copyable command or
+quoted selectors. Rendering preserves whitespace, escaping and line breaks so
+locators remain copyable, while stripping terminal controls per line. It does not
+prose-wrap or shell-parse the hint. JSON preserves selected strings/nulls, and unselected hints stay absent. Pending
 and nonempty results do not render this no-files hint. Selection of `hint` requires
 the backend field to be deployed before either client artifact is released.
 
