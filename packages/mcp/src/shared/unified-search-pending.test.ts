@@ -132,7 +132,7 @@ describe("source preparation warnings", () => {
       });
     }
     it(`${field} retains failed and unknown terminal warnings`, () => {
-      for (const state of ["FAILED", "UNRESOLVABLE"]) {
+      for (const state of ["FAILED", "UNRESOLVABLE", "FUTURE_STATE"]) {
         for (const completed of [true, false]) {
           expect(
             buildSourceStatusWarnings(
