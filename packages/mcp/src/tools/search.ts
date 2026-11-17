@@ -73,7 +73,7 @@ const schema: ZodRawShape = {
   target: searchTargetSchema
     .optional()
     .describe(
-      "One compact target: `npm:react@version`, `github:facebook/react@ref`, `launchpad:~owner/+git/repo@ref` (`lp:PROJECT` also accepted), or `site:react.dev`. Omit the suffix for the latest package version or repository default branch; a ref may be a branch, tag, or commit. `#` is for semantic fragments. For a docs page URL use read with that URL as target and no path; search docs with a package, repository, or site: target. Do not also pass `targets`.",
+      "One compact target: `npm:react@version`, `github:facebook/react@ref`, `launchpad:~owner/+git/repo@ref` (`lp:PROJECT` also accepted), or `site:react.dev`. Package versions accept an exact published version or numeric component prefix (npm:react@19); see the guide for read-selector rules. Omit the suffix for the latest package version or repository default branch; a ref may be a branch, tag, or commit. `#` is for semantic fragments. For a docs page URL use read with that URL as target and no path; search docs with a package, repository, or site: target. Do not also pass `targets`.",
     ),
   targets: z
     .array(searchTargetSchema)

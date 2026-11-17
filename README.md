@@ -195,6 +195,11 @@ RubyGems, Go, Swift, Pub, vcpkg, and Zig. Advisory data is unavailable for vcpkg
 Zig; dependency graph support varies by registry. `cargo:` is an input alias for
 `crates:` (public crates.io); canonical registry identities remain `crates`.
 
+Typed package reads accept exact published versions or numeric component prefixes
+such as `npm:express@5` and `crates:tokio@1.43`. See
+[typed package read versions](docs/implementation/typed-package-reads.md) for
+selection rules and the distinction from dependency constraints and release intervals.
+
 ## License Filtering
 
 Code example search supports license filtering:

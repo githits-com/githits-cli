@@ -36,7 +36,7 @@ const schema: ZodRawShape = {
   target: z
     .string()
     .describe(
-      "Package registry:name[@version], for example npm:lodash@4.17.20; omit the version for latest. Go accepts versions with or without v; other registries reject v-prefixed git tags except Swift.",
+      "Package registry:name[@version]; version is an exact published version (npm:lodash@4.17.20) or numeric component prefix (npm:lodash@4), per the guide's read-selector rules. Omit the version for latest. Go accepts versions with or without v; other registries reject v-prefixed git tags except Swift.",
     ),
   min_severity: z
     .string()

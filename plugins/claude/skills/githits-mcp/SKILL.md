@@ -53,6 +53,8 @@ Read known symbols with `read` selector before searching. Follow needed helpers/
 
 Targets: packages use `<registry>:<name>@version` (such as `npm:express`, never literal `registry:`), repositories `github:owner/repo@ref` or another supported provider, and docs `site:host[/path]`. Swift uses `swift:github.com/<owner>/<repo>`; Zig uses `zig:gh/<owner>/<repo>`. Never infer a provider. Omit suffixes for default selection; `#` selects a symbol/heading, not a revision.
 
+Typed package reads accept an exact published version or numeric component prefix selecting the newest eligible stable release: `npm:express@5` selects 5.x.y, `crates:tokio@1.43` selects 1.43.x, `crates:log@0.4` selects 0.4.x. Prefixes are ecosystem-agnostic, including Cargo; native manifest/SBOM/audit dependency resolution is unchanged. General ranges (`^`, `~`, comparisons, unions, intervals) are rejected in read selectors. Equality markers and dotted `x`/`*` aliases remain supported; omitted/latest/default selection is unchanged. Changelog and code-diff release intervals are separate contracts. `pkg_info` remains unversioned.
+
 Cite the source supporting each claim, including advisory IDs for vulnerability claims. Preserve versions and served provenance. Do not guess tags, investigate unrelated versions, or substitute current docs for historical behavior. Retrieval time does not prove freshness.
 
 For `research`: Ask for missing information; sources are included. Use and cite a sufficient answer directly. Open sources only for a specific missing detail, contradiction, or explicit source-inspection request; citations are not a reading checklist. Reuse `thread_id` and state scope changes.

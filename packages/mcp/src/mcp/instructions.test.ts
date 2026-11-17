@@ -77,6 +77,23 @@ describe("buildMcpQuickStart", () => {
     ])
       expect(guide).toContain(phrase);
   });
+  it("distinguishes typed read prefixes from native constraints and release intervals", () => {
+    const guide = normalized(buildMcpQuickStart());
+    for (const phrase of [
+      "exact published version or numeric component prefix",
+      "newest eligible stable release",
+      "`npm:express@5` selects 5.x.y",
+      "`crates:tokio@1.43` selects 1.43.x",
+      "`crates:log@0.4` selects 0.4.x",
+      "native manifest/SBOM/audit dependency resolution is unchanged",
+      "General ranges (`^`, `~`, comparisons, unions, intervals) are rejected in read selectors",
+      "Equality markers and dotted `x`/`*` aliases remain supported",
+      "omitted/latest/default selection is unchanged",
+      "Changelog and code-diff release intervals are separate contracts",
+      "`pkg_info` remains unversioned",
+    ])
+      expect(guide).toContain(phrase);
+  });
   it("shares research answer handling without mandatory rereads", () => {
     const guide = normalized(buildMcpQuickStart());
     expect(guide).toContain(RESEARCH_VERIFIED_ANSWER_GUIDANCE);
