@@ -1670,7 +1670,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
   assert(
     upgradeReviewText.includes("npm:express 5.0.0 -> 5.2.1") &&
       upgradeReviewText.includes("\nSecurity\n") &&
-      upgradeReviewText.includes("\nChanges (classified by agent)\n"),
+      upgradeReviewText.includes("\nChangelog statements\n"),
     "pkg_upgrade_review default missing grouped evidence",
   );
   assert(

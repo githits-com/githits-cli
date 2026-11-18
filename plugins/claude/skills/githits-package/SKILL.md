@@ -37,7 +37,7 @@ Use `pkg vulns --details` for full current OSV reports on selected direct adviso
 
 Start upgrades with `pkg upgrade-review`; add changelog/source detail only for gaps. Expand dependency depth, lifecycle scope, or `--transitive` only when needed. Public graphs do not establish local lockfiles or application reachability.
 
-Use parsed notes when sufficient, `--verbatim` for original wording, `--no-body` for timelines. `from..to` excludes from and includes to; `--limit` is only for latest or an upper cap (`@..to` / `--to`). Preserve generated-from-commits labels and pending/unavailable status; generated statements are not publisher-written notes. Missing or empty notes do not prove no changes. Notes or patches alone do not establish compatibility.
+Use parsed notes when sufficient, `--verbatim` for original wording, `--no-body` for timelines. `from..to` excludes from and includes to; `--limit` is only for latest or an upper cap (`@..to` / `--to`). Distinguish incomplete GitHits analysis from the availability of publisher notes. Preserve unclassified notes and identify statements generated from commits. Missing or empty notes do not prove no changes. Notes or patches alone do not establish compatibility.
 
 Keep default text; use `--json` only when code consumes raw fields or text lacks required fields. Filter/limit output instead of piping through `head`.
 

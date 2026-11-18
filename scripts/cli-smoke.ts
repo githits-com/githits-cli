@@ -2267,7 +2267,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   assert(
     upgradeReviewText.includes("npm:express 5.0.0 -> 5.2.1") &&
       upgradeReviewText.includes("\nSecurity\n") &&
-      upgradeReviewText.includes("\nChanges (classified by agent)\n"),
+      upgradeReviewText.includes("\nChangelog statements\n"),
     "pkg upgrade-review terminal missing grouped evidence",
   );
   assert(

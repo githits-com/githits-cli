@@ -447,7 +447,9 @@ describe("complete statement evidence view", () => {
       );
       expect(text).not.toContain("Server empty notice");
       expect(text).toContain("not evidence of no risk");
-      expect(text).not.toContain("No release notes available");
+      expect(text).not.toContain(
+        "Upstream release notes aren't available to this request",
+      );
     },
   );
   it("does not describe filtered-out generated statements as generated-empty", () => {
@@ -466,10 +468,18 @@ describe("complete statement evidence view", () => {
     expect(text).not.toContain("Server notice");
   });
   it.each([
-    ["PENDING", "generating", "Generation pending"],
-    ["PENDING", "budget", "Generation pending"],
-    ["NOT_GENERATED", "no_repository", "Generation unavailable"],
-    ["NOT_GENERATED", "failed", "Generation unavailable"],
+    ["PENDING", "generating", "GitHits commit analysis is running."],
+    ["PENDING", "budget", "GitHits didn't finish checking the commits."],
+    [
+      "NOT_GENERATED",
+      "no_repository",
+      "Commit-based changelog analysis was unavailable",
+    ],
+    [
+      "NOT_GENERATED",
+      "failed",
+      "Commit-based changelog analysis was unavailable",
+    ],
   ] as const)("explains generation %s: %s", (status, reason, message) => {
     const report = evidence();
     report.entries = report.entries.slice(0, 1);
@@ -483,16 +493,26 @@ describe("complete statement evidence view", () => {
       useColors: false,
     }).replace(/\s+/g, " ");
     expect(text).toContain(message);
-    expect(text).toContain(`(${reason})`);
+    if (status === "NOT_GENERATED") expect(text).toContain(`(${reason})`);
+    expect(payload(report).statements?.coverage[0]?.generation?.reason).toBe(
+      reason,
+    );
     expect(text).toContain("not evidence of no risk");
-    if (status === "PENDING") expect(text).toContain("retry later");
-    expect(text).toContain("No release notes available.");
+    if (status === "PENDING")
+      expect(text).toContain(
+        "Please retry later with githits pkg changelog npm:express@5.2.1",
+      );
+    expect(text).toContain(
+      "Upstream release notes aren't available to this request",
+    );
     expect(text).not.toContain("No statements match this filter");
     report.statements!.coverage[0]!.status = "UNPARSEABLE";
     const unparseable = formatPackageChangelogTerminal(payload(report), {
       useColors: false,
     });
-    expect(unparseable).toContain("Notes contain no parsed statements.");
+    expect(unparseable).toContain(
+      "Upstream notes contain no parsed statements.",
+    );
     expect(unparseable).not.toContain("No statements match this filter");
   });
   it("renders all parsed units once, source URLs nearby, without raw-note duplication", () => {
@@ -511,7 +531,7 @@ describe("complete statement evidence view", () => {
     expect(text).toContain("* [should know] (uncertain) Quoted statement 1");
     expect(text).toContain("* Quoted statement 2");
     expect(text).toContain("[too long to classify - read it]");
-    expect(text).toContain("[not assessed]");
+    expect(text).toContain("[unclassified]");
     expect(text).not.toContain("[no impact identified]");
     expect(text).not.toContain("[requires action");
     expect(text).not.toContain("* i ");
@@ -520,7 +540,7 @@ describe("complete statement evidence view", () => {
     expect(text).toContain("foo(  1)");
     expect(text).toContain("Earlier quote");
     expect(text).toContain("Statement truncated");
-    expect(text).toContain("still in progress or failed");
+    expect(text).toContain("GitHits hasn't checked all the release notes yet");
     expect(text).not.toContain("jev");
     expect(text).not.toContain("Full uncut statement");
   });
@@ -600,10 +620,10 @@ describe("complete statement evidence view", () => {
       });
       expect(text).toContain("0 matching statements of 5 parsed");
       expect(text).toContain(
-        "excludes 1 not-assessed and 1 too-long-to-classify",
+        "excludes 1 unclassified and 1 too-long-to-classify",
       );
       expect(text).toContain("No statements match this filter");
-      expect(text).toContain("Rerun");
+      expect(text).toContain("Please retry later with");
     },
   );
   it("shows missing/unparseable coverage with zero units, never implying safe", () => {
@@ -625,8 +645,10 @@ describe("complete statement evidence view", () => {
     });
     expect(text.replace(/\s+/g, " ")).toContain("1 without notes");
     expect(text).toContain("1 without parsed statements");
-    expect(text).toContain("No release notes available");
-    expect(text).toContain("Notes contain no parsed statements");
+    expect(text).toContain(
+      "Upstream release notes aren't available to this request",
+    );
+    expect(text).toContain("Upstream notes contain no parsed statements");
     expect(text).toContain("not evidence of no risk");
   });
   it("sanitizes every untrusted text field while leaving JSON evidence alone", () => {

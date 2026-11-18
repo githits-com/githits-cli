@@ -102,7 +102,7 @@ use `--verbatim --json` for original bodies.
 
 `--from` (excluded) and `--to` (included) remain package range flags on a bare spec. Inline single-release targets reject those flags. Omit `--limit` for exact versions or ranges with a starting version; only latest and upper-cap `@..to` / `--to` accept it. Repository and site targets are not supported.
 
-Generated statements are not publisher-written notes. They follow original notes and are marked `(generated from commits)`. Generation status/reason remains distinct from classification coverage. Pending or unavailable generation and missing/unparseable original notes remain explicit evidence limits; generated-empty output does not prove no changes. JSON uses `source: "generated"`, omits duplicate text/fullText and boilerplate notices, and retains one commit locator plus `commitsOmitted` for additional citations.
+Generated statements are not publisher-written notes. They follow original notes and are marked `(generated from commits)`. Distinguish incomplete classification of parsed notes, incomplete or unavailable commit-based analysis, and missing or unparseable original notes. Keep any returned unclassified notes. If the tool reports incomplete analysis, retry with an exact version. Generated-empty output does not prove no changes. JSON uses `source: "generated"`, omits duplicate text/fullText and boilerplate notices, and retains one commit locator plus `commitsOmitted` for additional citations.
 
 ## Upgrade Review
 
@@ -120,7 +120,7 @@ Release-note statements follow backend source order with nearby source URLs and
 agent classification coverage. Ambiguous classifications are shown as uncertain;
 keyword matches remain separate evidence hints. Detailed views collect every
 statement matching the selection across the range. The default focused selection
-includes action, knowledge and unclassified statements. `--changes actionable`
+includes action, knowledge, oversize and unclassified statements. `--changes actionable`
 selects action labels, `important` selects action and knowledge labels, and `all`
 includes no-impact statements too. Filters retain uncertain labels and change
 only detailed evidence, not whole-range counters or batch ranking.
@@ -134,7 +134,7 @@ or zero counter does not establish compatibility with your code.
 
 Flags: `--package <spec>`, `--to <version>`, `--no-transitive-security`, `--dependency-issues`, `--min-severity low|medium|high|critical`, `--changes actionable|important|all`, `--verbose`, `--json`.
 
-Use `pkg upgrade-review` for dependency update assessment instead of inferring safety from semver alone. Use `pkg changelog` directly only when you need release notes without a current-to-target comparison.
+Use `pkg upgrade-review` for dependency update assessment instead of inferring safety from semver alone. Use `pkg changelog` for release notes without a current-to-target comparison or to retry incomplete changelog analysis at an exact version.
 
 Use signals as a starting point to evaluate the impact of changes on the codebase. You can use `pkg changelog` and `code diff` to obtain full release-note and source-change details.
 

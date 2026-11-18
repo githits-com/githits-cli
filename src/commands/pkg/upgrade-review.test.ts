@@ -121,13 +121,7 @@ describe("pkg upgrade-review help", () => {
 
 describe("pkgUpgradeReviewAction", () => {
   it.each([
-    [
-      "single text",
-      "npm:express@4.18.0",
-      { to: "5.0.0" },
-      "text",
-      ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"],
-    ],
+    ["single text", "npm:express@4.18.0", { to: "5.0.0" }, "text", undefined],
     [
       "verbose single",
       "npm:express@4.18.0",
@@ -165,7 +159,7 @@ describe("pkgUpgradeReviewAction", () => {
         changes: "   ",
       },
       "json",
-      ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"],
+      undefined,
     ],
     [
       "single JSON",

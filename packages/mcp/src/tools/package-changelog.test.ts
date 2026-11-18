@@ -22,6 +22,12 @@ describe("createPackageChangelogTool — metadata", () => {
     expect(tool.description).toContain("releases after from through to");
     expect(tool.description).not.toContain("closed interval");
     expect(tool.description).toContain("verbatim:true shows original notes");
+    expect(tool.description).toContain(
+      "keep any returned unclassified statements and retry pkg_changelog with the exact target",
+    );
+    expect(tool.description).toContain(
+      "Keep commit-based analysis and its availability distinct from publisher notes",
+    );
     expect(tool.schema.body_lines?.description).toContain(
       "original-note preview",
     );

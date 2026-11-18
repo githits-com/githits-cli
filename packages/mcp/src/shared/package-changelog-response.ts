@@ -23,7 +23,13 @@ import type {
   ChangelogStatements,
   PackageChangelogView,
 } from "@githits/core-internal";
-import { RISK_KIND_LABELS } from "./changelog-risk-presentation.js";
+import {
+  buildChangelogAnalysisNotices,
+  type ChangelogAnalysisNotice,
+  formatChangelogAnalysisNotice,
+  RISK_KIND_LABELS,
+  UPSTREAM_NOTES_UNAVAILABLE,
+} from "./changelog-risk-presentation.js";
 import { colorize, dim, highlight } from "./colors.js";
 import type {
   ChangelogChangesView,
@@ -70,6 +76,7 @@ export interface LeanChangelogFilter {
 
 export interface LeanChangelogEnvelope {
   statements?: LeanChangelogStatements;
+  analysis?: ChangelogAnalysisNotice[];
   /** Present for spec addressing. */
   registry?: string;
   /** Present for spec addressing. */
@@ -134,6 +141,13 @@ export function buildPackageChangelogSuccessPayload(
 
   if (options.view === "statements" && report.statements) {
     envelope.statements = normaliseChangelogStatements(report.statements);
+    const analysis = buildChangelogAnalysisNotices(
+      report.statements.coverage,
+      options.registry && options.name
+        ? `${options.registry}:${options.name}`
+        : undefined,
+    );
+    if (analysis) envelope.analysis = analysis;
   }
   if (report.source) envelope.source = report.source;
 
@@ -166,6 +180,9 @@ export function normaliseChangelogStatements(
           ? { commitsOmitted: commits.length - 1 }
           : {}),
         ...(item.source ? { source: item.source.toLowerCase() } : {}),
+        ...(item.classification === null
+          ? { classificationStatus: "unclassified" as const }
+          : {}),
         classification:
           item.classification === null
             ? null
@@ -234,6 +251,7 @@ export interface LeanChangelogStatement
   extends Omit<ChangelogStatement, "classification" | "commits"> {
   commits?: string[];
   commitsOmitted?: number;
+  classificationStatus?: "unclassified";
   classification:
     | (Omit<
         NonNullable<ChangelogStatement["classification"]>,
@@ -256,6 +274,7 @@ export interface LeanChangelogStatements
 
 export interface FormatChangelogTerminalOptions {
   useColors: boolean;
+  surface?: "cli" | "mcp";
   fullBodyHint?: string;
   fullStatementHint?: string;
   bodyPreviewLines?: number;
@@ -288,13 +307,10 @@ export function formatPackageChangelogTerminal(
   );
   const statements = envelope.statements;
   if (statements) {
-    lines.push(
-      "",
-      highlight("Changes (classified by agent)", options.useColors),
-    );
+    lines.push("", highlight("Changelog statements", options.useColors));
     const c = statements.coverage;
     prose(
-      `${statements.count} ${envelope.filter?.changes && envelope.filter.changes !== "all" ? "matching " : ""}statements of ${statements.totalCount} parsed | versions: ${c.filter((v) => v.status === "classified").length} classified | ${c.filter((v) => v.status === "not_assessed").length} not assessed | ${c.filter((v) => v.status === "without_notes").length} without notes | ${c.filter((v) => v.status === "unparseable").length} without parsed statements`,
+      `${statements.count} ${envelope.filter?.changes && envelope.filter.changes !== "all" ? "matching " : ""}statements of ${statements.totalCount} parsed | versions: ${c.filter((v) => v.status === "classified").length} classified | ${c.filter((v) => v.status === "not_assessed").length} not assessed | ${c.filter((v) => v.status === "without_notes").length} without notes in this response | ${c.filter((v) => v.status === "unparseable").length} without parsed statements`,
       "  ",
     );
     if (
@@ -309,16 +325,11 @@ export function formatPackageChangelogTerminal(
         "! requires action | kind tags: should know | plain: no impact identified",
         "  ",
       );
-    const pending = c.reduce((sum, v) => sum + v.statementsNotAssessed, 0);
+    const unclassified = c.reduce((sum, v) => sum + v.statementsNotAssessed, 0);
     const oversize = c.reduce((sum, v) => sum + v.statementsUnclassified, 0);
     if (envelope.filter?.changes && envelope.filter.changes !== "all")
       prose(
-        `Filter excludes ${pending} not-assessed and ${oversize} too-long-to-classify statements.`,
-        "  ",
-      );
-    if (pending)
-      prose(
-        "Classification is still in progress or failed. Rerun in a few seconds to a minute to fill stored answers.",
+        `Filter excludes ${unclassified} unclassified and ${oversize} too-long-to-classify statements.`,
         "  ",
       );
     if (
@@ -343,7 +354,7 @@ export function formatPackageChangelogTerminal(
       if (entry.body !== undefined)
         renderOriginalNotes(lines, entry.body, options);
       else if (entry.hasChangelog === false)
-        lines.push("  No release notes available.");
+        prose(UPSTREAM_NOTES_UNAVAILABLE, "  ");
       continue;
     }
     const items = statements.items.filter(
@@ -352,21 +363,33 @@ export function formatPackageChangelogTerminal(
     const coverage = statements.coverage.find(
       (v) => v.version === entry.version,
     );
+    const noUpstreamNotes =
+      coverage?.status === "without_notes" || entry.hasChangelog === false;
+    for (const notice of envelope.analysis ?? []) {
+      if (notice.version !== entry.version) continue;
+      for (const line of formatChangelogAnalysisNotice(
+        notice,
+        options.surface,
+        noUpstreamNotes,
+      ))
+        prose(line, "  ");
+    }
     lines.push(...formatChangelogGeneration(coverage, options));
     if (!items.length) {
       if (entry.htmlUrl) prose(sanitizeTerminalText(entry.htmlUrl), "  ");
       if (
-        coverage?.generation?.status === "generated" &&
-        coverage.statementsTotal === 0
+        (coverage?.generation?.status === "generated" &&
+          coverage.statementsTotal === 0) ||
+        (noUpstreamNotes && coverage?.generation?.status === "pending")
       )
         continue;
       prose(
-        coverage?.generation && coverage.statementsTotal > 0
+        coverage && coverage.statementsTotal > 0
           ? "No statements match this filter."
-          : coverage?.status === "without_notes"
-            ? "No release notes available."
+          : noUpstreamNotes
+            ? UPSTREAM_NOTES_UNAVAILABLE
             : coverage?.status === "unparseable"
-              ? "Notes contain no parsed statements."
+              ? "Upstream notes contain no parsed statements."
               : "No statements match this filter.",
         "  ",
       );
@@ -387,30 +410,14 @@ export function formatChangelogGeneration(
     | undefined,
   options: FormatChangelogTerminalOptions,
 ): string[] {
-  const generation = coverage?.generation;
-  if (!generation) return [];
-  const lines: string[] = [];
-  const prose = (text: string): void => {
-    lines.push(
-      ...wrapTerminalProse(
-        `  ${sanitizeTerminalText(text)}`,
+  return coverage?.generation?.status === "generated" &&
+    coverage.statementsTotal === 0
+    ? wrapTerminalProse(
+        "  No actionable statements (generated from commits).",
         Math.max(20, options.terminalWidth ?? 80),
         "  ",
-      ),
-    );
-  };
-  if (generation.status === "generated") {
-    if (coverage.statementsTotal === 0)
-      prose("No actionable statements (generated from commits).");
-  } else {
-    const reason = generation.reason ? ` (${generation.reason})` : "";
-    prose(
-      generation.status === "pending"
-        ? `Generation pending${reason}; retry later.`
-        : `Generation unavailable${reason}.`,
-    );
-  }
-  return lines;
+      )
+    : [];
 }
 
 /** Source ordering and trusted tags belong to the shared statement presentation. */
@@ -466,7 +473,7 @@ export function formatChangelogVersionStatements(
         : tier === "unclassified"
           ? "[too long to classify - read it]"
           : !classification
-            ? "[not assessed]"
+            ? "[unclassified]"
             : kind
               ? `[${tier === "must_act" ? "!" : ""}${kind}]`
               : tier === "must_act"

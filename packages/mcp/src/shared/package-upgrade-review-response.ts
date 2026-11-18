@@ -5,8 +5,14 @@ import type {
   PackageUpgradeUnknownEvidence,
 } from "@githits/core-internal";
 import {
-  PENDING_CLASSIFICATION_MESSAGE,
+  buildChangelogAnalysisNotices,
+  buildChangelogRetry,
+  type ChangelogAnalysisNotice,
+  formatChangelogAnalysisNotice,
+  formatChangelogRetry,
+  INCOMPLETE_CHANGELOG_ANALYSIS,
   safeRiskText,
+  UPSTREAM_NOTES_UNAVAILABLE,
 } from "./changelog-risk-presentation.js";
 import { colorize, colors, highlight } from "./colors.js";
 import {
@@ -112,6 +118,7 @@ export interface UpgradeChangelogEntry {
 }
 
 export interface UpgradeChangelog {
+  analysis?: ChangelogAnalysisNotice[];
   statements?: LeanChangelogStatements & {
     selection: UpgradeChangelogSelection;
   };
@@ -244,7 +251,11 @@ function normaliseBackendUpgradeReviewResponse(
       versionDelta: lowerEnum(review.versionDelta) as VersionDelta,
       migrationGuides: review.migrationGuides,
       security: normaliseBackendSecurity(review.security),
-      changelog: normaliseBackendChangelog(review.changelog, selection),
+      changelog: normaliseBackendChangelog(
+        review.changelog,
+        selection,
+        `${lowerEnum(review.registry) ?? review.registry}:${review.name}`,
+      ),
       compatibility: review.compatibility,
       dependencyChanges: review.dependencyChanges
         ? normaliseBackendDependencyChanges(review.dependencyChanges)
@@ -418,12 +429,31 @@ function normaliseBackendTransitivePackage(
 function normaliseBackendChangelog(
   changelog: BackendPackageUpgradeReviewResponse["reviews"][number]["changelog"],
   selection: UpgradeChangelogSelection,
+  identity: string,
 ): UpgradeChangelog {
+  const statements = changelog.statements;
+  const analysis =
+    statements && buildChangelogAnalysisNotices(statements.coverage, identity);
+  const selected =
+    statements && selection === "focused"
+      ? statements.items.filter(
+          (item) => item.classification?.tier !== "NO_IMPACT",
+        )
+      : undefined;
   return {
-    ...(changelog.statements
+    ...(analysis ? { analysis } : {}),
+    ...(statements
       ? {
           statements: {
-            ...normaliseChangelogStatements(changelog.statements),
+            ...normaliseChangelogStatements(
+              selected
+                ? {
+                    ...statements,
+                    items: selected,
+                    matchingCount: selected.length,
+                  }
+                : statements,
+            ),
             selection,
           },
         }
@@ -963,7 +993,7 @@ function formatChangesSection(
   const statements = changelog.statements;
   const coverage = changelog.riskCoverage;
   const lines = [
-    sectionTitle("Changes (classified by agent)", options.useColors === true),
+    sectionTitle("Changelog statements", options.useColors === true),
   ];
   appendWrappedText(
     lines,
@@ -987,7 +1017,7 @@ function formatChangesSection(
     width,
     "  ",
   );
-  const pending = statements.coverage.reduce(
+  const unclassified = statements.coverage.reduce(
     (n, c) => n + c.statementsNotAssessed,
     0,
   );
@@ -995,12 +1025,12 @@ function formatChangesSection(
     appendWrappedText(
       lines,
       "  ",
-      `Filter excludes ${coverage.unitsNoImpact} no-impact and ${pending} not-assessed statements${statements.selection !== "focused" ? `, and ${coverage.itemsUnclassified} too-long-to-classify statements` : ""}${statements.selection === "actionable" ? ", and should-know statements" : ""}.`,
+      statements.selection === "focused"
+        ? `Filter excludes ${coverage.unitsNoImpact} no-impact statements.`
+        : `Filter excludes ${coverage.unitsNoImpact} no-impact and ${unclassified} unclassified statements, and ${coverage.itemsUnclassified} too-long-to-classify statements${statements.selection === "actionable" ? ", and should-know statements" : ""}.`,
       width,
       "  ",
     );
-  if (coverage.versionsNotAssessed)
-    appendWrappedText(lines, "  ", PENDING_CLASSIFICATION_MESSAGE, width, "  ");
   if (coverage.versionsWithoutNotes || coverage.versionsUnparseable)
     appendWrappedText(
       lines,
@@ -1013,7 +1043,7 @@ function formatChangesSection(
     appendWrappedText(
       lines,
       "  ",
-      "Release notes unavailable; using package versions.",
+      "Using package-version metadata for the release list.",
       width,
       "  ",
     );
@@ -1033,10 +1063,14 @@ function formatChangesSection(
       (item) => item.version === release.version,
     );
     const metadata = entries.find((entry) => entry.version === release.version);
+    const notices = changelog.analysis?.filter(
+      (notice) => notice.version === release.version,
+    );
     if (
       !items.length &&
       (release.statementsTotal ?? 0) > 0 &&
-      !release.generation
+      !release.generation &&
+      !notices?.length
     )
       continue;
     lines.push("");
@@ -1049,6 +1083,14 @@ function formatChangesSection(
         "  ",
       ).map((line) => highlight(line, options.useColors === true)),
     );
+    const noUpstreamNotes = release.status === "without_notes";
+    for (const notice of notices ?? [])
+      for (const line of formatChangelogAnalysisNotice(
+        notice,
+        options.surface,
+        noUpstreamNotes,
+      ))
+        appendWrappedText(lines, "    ", line, width, "    ");
     lines.push(
       ...formatChangelogGeneration(
         { ...release, statementsTotal: release.statementsTotal ?? 0 },
@@ -1069,6 +1111,7 @@ function formatChangesSection(
     }
     if (
       !items.length &&
+      !(noUpstreamNotes && release.generation?.status === "pending") &&
       !(
         release.generation?.status === "generated" &&
         release.statementsTotal === 0
@@ -1077,11 +1120,13 @@ function formatChangesSection(
       appendWrappedText(
         lines,
         "    ",
-        release.generation && (release.statementsTotal ?? 0) > 0
+        (release.statementsTotal ?? 0) > 0
           ? "No statements match this filter."
-          : release.status === "without_notes"
-            ? "No release notes available."
-            : "Notes contain no parsed statements.",
+          : noUpstreamNotes
+            ? UPSTREAM_NOTES_UNAVAILABLE
+            : release.status === "unparseable"
+              ? "Upstream notes contain no parsed statements."
+              : "No statements match this filter.",
         width,
         "    ",
       );
@@ -1108,7 +1153,7 @@ function formatRiskTierCount(
 
 function riskCoverageText(changelog: UpgradeChangelog): string {
   const c = changelog.riskCoverage;
-  return `${c.versionsClassified} classified | ${c.versionsNotAssessed} not assessed | ${c.versionsWithoutNotes} without notes${c.versionsUnparseable > 0 ? ` | ${c.versionsUnparseable} unparseable` : ""}`;
+  return `${c.versionsClassified} classified | ${c.versionsNotAssessed} not assessed | ${c.versionsWithoutNotes} without notes in this review${c.versionsUnparseable > 0 ? ` | ${c.versionsUnparseable} unparseable` : ""}`;
 }
 
 /** Share compact guide links across detailed reports and batch triage rows. */
@@ -1143,6 +1188,7 @@ function formatBatchTriage(
   const lines = [
     sectionTitle("Batch triage - statement totals", options.useColors === true),
   ];
+  const width = normaliseTerminalWidth(options.terminalWidth);
   for (const review of reviews) {
     const c = review.changelog;
     const target = review.security.target;
@@ -1205,23 +1251,30 @@ function formatBatchTriage(
     );
     if (!options.verbose)
       lines.push(...formatMigrationGuides(review, options, "    "));
+    if (!options.verbose && c.riskCoverage.versionsNotAssessed > 0) {
+      const retry = buildChangelogRetry(
+        `${review.registry}:${review.name}@${review.targetVersion}`,
+      );
+      appendWrappedText(
+        lines,
+        "    ",
+        safeRiskText(
+          `${INCOMPLETE_CHANGELOG_ANALYSIS} For the target release, please retry later with ${formatChangelogRetry(retry, options.surface)}`,
+        ),
+        width,
+        "    ",
+      );
+    }
     for (const detail of options.verbose ? [] : (review.unknownDetails ?? [])) {
       appendWrappedText(
         lines,
         "    Unknown: ",
         safeRiskText(`${detail.section} (${detail.code}): ${detail.message}`),
-        normaliseTerminalWidth(options.terminalWidth),
+        width,
         "      ",
       );
     }
   }
-  const width = normaliseTerminalWidth(options.terminalWidth);
-  if (
-    reviews.some(
-      (review) => review.changelog.riskCoverage.versionsNotAssessed > 0,
-    )
-  )
-    appendWrappedText(lines, "  ", PENDING_CLASSIFICATION_MESSAGE, width, "  ");
   appendWrappedText(
     lines,
     "  ",
@@ -1232,7 +1285,7 @@ function formatBatchTriage(
   appendWrappedText(
     lines,
     "  ",
-    "Classified by an agent. Missing or unparseable notes are not evidence of no risk. Use verbose for full per-package quotes and evidence.",
+    "Counts reflect available agent classifications. Missing or unparseable notes are not evidence of no risk. Use verbose for full per-package quotes and evidence.",
     width,
     "  ",
   );

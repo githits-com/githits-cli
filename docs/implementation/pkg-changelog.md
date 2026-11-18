@@ -18,9 +18,12 @@ Generation coverage is independent of assessment status: GENERATED, PENDING or
 NOT_GENERATED does not replace WITHOUT_NOTES or UNPARSEABLE. Generated-empty
 releases say `No actionable statements (generated from commits).` This describes
 the generated statements, not an absence of changes or risk. Pending generation
-uses `Generation pending (reason); retry later.` Unavailable generation uses
-`Generation unavailable (reason).` Pending and unavailable
-results also identify missing or unparseable maintainer notes for that release.
+explains whether GitHits is still checking commits or did not finish checking them
+and points to an exact-version retry under the release heading. Unavailable generation names
+the limitation and includes the reason when the API supplies it. An exact release
+with `hasChangelog: false`, or coverage marked WITHOUT_NOTES, describes upstream
+notes unavailable to that request. The source may have notes that GitHits has
+not acquired.
 These messages also appear in detailed upgrade review, even when a filter hides
 all statements. A nonempty release hidden by a filter is never described as
 generated-empty. Missing or unparseable notes remain explicitly insufficient
@@ -64,7 +67,7 @@ these tags and plain no-impact bullets. Red/yellow highlighting is optional;
 the action marker keeps meaning visible without color. NO_IMPACT stays untagged.
 Uncertain statements retain `(uncertain)` with muted highlighting, based only on
 the backend `ambiguous` boolean; confidence values remain JSON evidence.
-Unassessed statements retain `[not assessed]`; oversize UNCLASSIFIED statements
+Unassessed statements use `[unclassified]`; oversize UNCLASSIFIED statements
 retain `[too long to classify - read it]`. Model/formulation remain per-item JSON
 provenance. Omitting no-impact tags changes presentation only, not classification
 or coverage data.
@@ -85,13 +88,12 @@ statement's source. Terminal controls are removed from all untrusted text at
 presentation; JSON preserves evidence with lowercase enum spelling and the
 existing absent-null convention, except classification:null is preserved.
 
-Coverage names classified/not-assessed versions, versions without notes and
-versions without parsed statements. Missing notes never establish no risk.
-Filtered text explicitly reports pending and oversize statements excluded by
-the filter, including zero matches. Coverage in JSON includes every selected
-release, regardless of filtering. Pending may mean a background job is still
-running, failed or exceeded the request budget; rerun in a few seconds to a
-minute to read completed stored labels. No client polling or automatic reruns.
+Coverage names classified/not-assessed versions, versions without available notes
+and versions without parsed statements. Filtered text names excluded unclassified
+and oversize statements, including when nothing matches. Coverage in JSON includes
+every selected release regardless of filtering. Incomplete GitHits classification
+gets an exact-version retry and makes no claim about the backend cause or upstream
+publication. The client does not poll or rerun automatically.
 
 ## Transport, pagination and ownership
 
@@ -154,6 +156,12 @@ remaining references and is absent when none were omitted. Empty commit arrays
 are omitted. This bounded preview never claims to be the full citation list.
 Coverage includes `generation` with lowercase status and a non-null reason when
 available; notices and null reasons are omitted. The API notice is never selected.
+The optional client `analysis` array describes incomplete classification,
+incomplete commit-based analysis or unavailable commit-based analysis per release.
+Retryable notices carry the exact CLI command and the equivalent MCP call in
+`retry.cli` and `retry.mcp`. An unassessed item keeps `classification: null` and
+adds `classificationStatus: "unclassified"`. The explicit classifier tier
+`unclassified` retains its existing oversize meaning.
 Commit evidence is selected only for JSON; missing selected detail fields fail
 JSON validation, while text decoding accepts their omission. Statement/context
 fullText is omitted when identical to text; distinct fullText remains available.

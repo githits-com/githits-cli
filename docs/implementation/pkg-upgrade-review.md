@@ -62,7 +62,7 @@ CLI `--changes <view>` and MCP `changes` share these meanings:
 
 | Selection | Backend tiers | Evidence shown |
 | --- | --- | --- |
-| Omitted or blank: `focused` | MUST_ACT, SHOULD_KNOW, UNCLASSIFIED | Action, knowledge and oversize statements |
+| Omitted or blank: `focused` | Unfiltered | Action, knowledge, oversize and unassessed statements |
 | `actionable` | MUST_ACT | Includes uncertain action labels |
 | `important` | MUST_ACT, SHOULD_KNOW | Action and knowledge labels, including uncertain ones |
 | `all` | Unfiltered | Every parsed statement, including no impact and null classification |
@@ -70,6 +70,10 @@ CLI `--changes <view>` and MCP `changes` share these meanings:
 Input is trimmed and lowercased; invalid values fail locally. `focused` is
 output metadata, not an accepted explicit filter. Standalone `pkg changelog`
 continues to default to `all`; the explicit filter meanings are identical.
+The API excludes null classifications under any tier filter. Focused fetches
+unfiltered pages and the shared response drops only classified NO_IMPACT items.
+Its matching count describes the retained selection. Explicit tier filters still
+apply on the backend.
 
 Filters limit detailed quotes only. Whole-range security, classification counters
 and batch ranking do not change. Detailed text always names the effective
@@ -158,7 +162,7 @@ Statement tags preserve meaning without color:
 - SHOULD_KNOW: `[security fix]`, or `[should know]` when kind is absent.
 - Backend `ambiguous: true`: muted `(uncertain)`; never a client confidence cutoff.
 - NO_IMPACT: plain bullet.
-- Null classification: `[not assessed]`.
+- Null classification: `[unclassified]`.
 - UNCLASSIFIED: `[too long to classify - read it]`.
 
 Headings, predecessor context and nested evidence remain intact. Confident and
@@ -185,6 +189,11 @@ Compact batches show one triage row per review, sorted by whole-range confident
 MUST_ACT counts. Uncertain counts are separate and never a secondary ranking key;
 ties retain backend order. JSON order remains backend order. Rows retain target
 deprecation, security, compatibility, dependency and unknown facts.
+Compact triage uses the existing range totals to flag incomplete classification
+and suggest an exact changelog check for the target. Detailed text and JSON have
+per-release assessment and commit-generation evidence. They report exactly which
+analysis is incomplete and point to a retry for that release. An upstream note
+availability gap refers to evidence acquired for the request.
 
 ## JSON migration
 
@@ -192,7 +201,8 @@ The top-level summary/reviews envelope and security, compatibility, dependency,
 unknown and ordinary entry facts remain. Deprecated keyword heuristic fields
 are omitted from JSON. Enum spelling is normalized to
 lowercase. Existing null omission conventions apply to optional evidence, while
-`classification: null` remains explicit and distinct from NO_IMPACT. False
+`classification: null` remains explicit and carries
+`classificationStatus: "unclassified"`. False
 ambiguity and zero numeric values remain evidence.
 
 The complete detailed collection replaces `changelog.riskItems`:

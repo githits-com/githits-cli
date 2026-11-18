@@ -545,6 +545,137 @@ describe("package_changelog parity", () => {
 });
 
 describe("changelog statement and view parity", () => {
+  it.each([
+    "unclassified",
+    "without_notes",
+    "commit_analysis_incomplete",
+  ] as const)(
+    "distinguishes %s in exact CLI and MCP text and JSON",
+    async (state) => {
+      const target = "hex:plug@1.20.4";
+      const report = structuredClone(defaultChangelogReport);
+      const hasNotes = state === "unclassified";
+      report.entries = [
+        {
+          ...report.entries[0]!,
+          version: "1.20.4",
+          hasChangelog: hasNotes,
+          body: hasNotes ? "Publisher's release note" : undefined,
+        },
+      ];
+      const statements = report.statements!;
+      statements.items = hasNotes
+        ? [
+            {
+              ...statements.items[0]!,
+              version: "1.20.4",
+              text: "Publisher's release note",
+              fullText: undefined,
+              classification: null,
+            },
+          ]
+        : [];
+      statements.totalCount = statements.matchingCount =
+        statements.items.length;
+      statements.coverage = [
+        {
+          version: "1.20.4",
+          status: hasNotes ? "NOT_ASSESSED" : "WITHOUT_NOTES",
+          statementsTotal: statements.totalCount,
+          statementsAssessed: 0,
+          statementsNotAssessed: statements.totalCount,
+          statementsNoImpact: 0,
+          statementsUnclassified: 0,
+          ...(state === "commit_analysis_incomplete"
+            ? { generation: { status: "PENDING", reason: "generating" } }
+            : {}),
+        },
+      ];
+      const packageChangelog = mock(async () => report);
+      const service = createMockPackageIntelligenceService({
+        packageChangelog,
+      });
+      const deps = cliDeps({ packageIntelligenceService: service });
+      const cli = await cliJson(target, {}, deps);
+      expect(cli).toEqual((await mcpJson({ target }, packageChangelog)).json);
+      expect(cli).toHaveProperty("entries.items.0.hasChangelog", hasNotes);
+      expect(cli).toHaveProperty(
+        "statements.coverage.0.status",
+        hasNotes ? "not_assessed" : "without_notes",
+      );
+      if (hasNotes) {
+        expect(cli).toHaveProperty("statements.items.0.classification", null);
+        expect(cli).toHaveProperty(
+          "statements.items.0.classificationStatus",
+          "unclassified",
+        );
+      }
+      if (state === "without_notes") {
+        expect(cli).not.toHaveProperty("analysis");
+      } else {
+        expect(cli).toHaveProperty(
+          "analysis.0.kind",
+          hasNotes ? "classification_incomplete" : state,
+        );
+        expect(cli).toHaveProperty(
+          "analysis.0.retry.cli",
+          `githits pkg changelog ${target}`,
+        );
+        expect(cli).toHaveProperty("analysis.0.retry.mcp", {
+          tool: "pkg_changelog",
+          arguments: { target },
+        });
+      }
+
+      const write = spyOn(process.stdout, "write").mockImplementation(
+        () => true,
+      );
+      let cliText: string;
+      try {
+        await pkgChangelogAction(target, {}, deps);
+        cliText = write.mock.calls.map(([chunk]) => String(chunk)).join("");
+      } finally {
+        write.mockRestore();
+      }
+      const tool = createParityMcpTool("pkg_changelog", {
+        packageIntelligenceService: service,
+      });
+      const mcpText = (await tool.handler({ target }, {})).content[0]!.text!;
+      for (const raw of [cliText, mcpText]) {
+        const text = Bun.stripANSI(raw).replace(/\s+/g, " ");
+        expect(
+          text.includes(
+            "Upstream release notes aren't available to this request",
+          ),
+        ).toBe(!hasNotes);
+        expect(text.includes("[unclassified] Publisher's release note")).toBe(
+          hasNotes,
+        );
+        expect(
+          text.includes("GitHits hasn't checked all the release notes yet"),
+        ).toBe(hasNotes);
+        expect(text.includes("GitHits commit analysis is running.")).toBe(
+          state === "commit_analysis_incomplete",
+        );
+        if (state === "commit_analysis_incomplete") {
+          expect(text).toMatch(
+            /1\.20\.4(?: \([^)]+\))? Upstream release notes aren't available to this request and GitHits commit analysis is running\. Please retry later with/,
+          );
+        }
+        expect(text).not.toMatch(/release notes.*\bpending\b/i);
+      }
+      expect(
+        cliText
+          .replace(/\s+/g, " ")
+          .includes(`githits pkg changelog ${target}`),
+      ).toBe(state !== "without_notes");
+      expect(
+        mcpText
+          .replace(/\s+/g, " ")
+          .includes(`pkg_changelog {"target":"${target}"}`),
+      ).toBe(state !== "without_notes");
+    },
+  );
   for (const target of [
     "npm:express",
     "npm:express@5.2.1",

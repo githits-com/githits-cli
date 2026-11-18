@@ -115,14 +115,14 @@ export function buildPackageUpgradeReviewRequest(
     : undefined;
   const changesSelection: UpgradeChangelogSelection =
     explicitChanges ?? "focused";
+  // The API excludes null classifications under every tier filter. Keep them
+  // in the implicit focused view and omit known no-impact items at presentation.
   const statementTiers: ChangelogStatementTier[] | undefined =
-    changesSelection === "focused"
-      ? ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"]
-      : changesSelection === "actionable"
-        ? ["MUST_ACT"]
-        : changesSelection === "important"
-          ? ["MUST_ACT", "SHOULD_KNOW"]
-          : undefined;
+    changesSelection === "actionable"
+      ? ["MUST_ACT"]
+      : changesSelection === "important"
+        ? ["MUST_ACT", "SHOULD_KNOW"]
+        : undefined;
   const changelogView =
     input.format === "json"
       ? "json"

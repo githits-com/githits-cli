@@ -9,7 +9,7 @@ function parseText(result: { content: Array<{ text: string }> }): unknown {
 }
 
 describe("createPackageUpgradeReviewTool", () => {
-  it("distinguishes oversize from unassessed", () => {
+  it("distinguishes oversize statements from missing classifications", () => {
     const tool = createPackageUpgradeReviewTool(
       createMockPackageIntelligenceService(),
     );
@@ -21,7 +21,7 @@ describe("createPackageUpgradeReviewTool", () => {
         : undefined;
 
     expect(changesDescription).toContain("too-long-to-classify");
-    expect(changesDescription).toContain("oversize");
+    expect(changesDescription).toContain("unclassified statements");
     expect(changesDescription).not.toContain("UNCLASSIFIED");
   });
 
@@ -31,9 +31,21 @@ describe("createPackageUpgradeReviewTool", () => {
     );
 
     expect(tool.name).toBe("pkg_upgrade_review");
+    const firstSentence = tool.description.match(/^[^.]+\./)?.[0] ?? "";
+    expect(firstSentence).toBe(
+      "Review a package upgrade: vulnerabilities, releases, peers, dependency changes.",
+    );
+    expect(firstSentence.length).toBeLessThanOrEqual(79);
+    expect(tool.description.slice(0, 80)).toBe(`${firstSentence} `);
     expect(tool.description).toContain("Reports facts only");
     expect(tool.description).toContain("start assessments here");
     expect(tool.description).toContain("pkg_changelog or code_diff");
+    expect(tool.description).toContain(
+      "keep any returned unclassified statements and retry pkg_changelog with the exact target",
+    );
+    expect(tool.description).toContain(
+      "Keep commit-based analysis and its availability distinct from publisher notes",
+    );
     expect(tool.annotations?.readOnlyHint).toBe(true);
     expect(Object.keys(tool.schema).sort()).toEqual([
       "changes",
@@ -67,7 +79,7 @@ describe("createPackageUpgradeReviewTool", () => {
         target_version: "5.0.0",
       },
       "text",
-      ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"],
+      undefined,
     ],
     [
       "verbose single",
@@ -148,7 +160,7 @@ describe("createPackageUpgradeReviewTool", () => {
         format: "json",
       },
       "json",
-      ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"],
+      undefined,
     ],
     [
       "single JSON",
@@ -333,7 +345,7 @@ describe("createPackageUpgradeReviewTool", () => {
     expect(text.isError).toBeUndefined();
     expect(text.content[0]?.text).toStartWith("Upgrade review - 1 package");
     expect(text.content[0]?.text).toContain("Security");
-    expect(text.content[0]?.text).toContain("Changes");
+    expect(text.content[0]?.text).toContain("Changelog statements");
     expect(text.content[0]?.text).not.toContain("pkg_upgrade_review");
     expect(text.content[0]?.text).not.toContain("\x1b[");
     expect(() => JSON.parse(text.content[0]?.text ?? "")).toThrow();
