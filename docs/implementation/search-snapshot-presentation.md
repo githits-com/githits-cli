@@ -108,7 +108,7 @@ exact raw repository URL and full SHA equality. Explicit branch/tag/SHA/package
 intent never proves observed HEAD. Different coalesced work stays separate;
 `Requested:` retains the independently observed commit/date instead. Missing
 job identity keeps the supplied request label. No metadata lookup occurs.
-Retained ended-search estimates say `indexing when observed` and do not revive
+Retained ended-search estimates say `indexing at last check` and do not revive
 polling. Empty estimates on provisional results do not fabricate active work.
 
 Known served dates and historical refs appear for healthy current sources too.

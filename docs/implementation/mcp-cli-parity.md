@@ -957,7 +957,7 @@ served content; Preparing identifies actual work. Only exact raw repository/full
 SHA equality plus HEAD/default-branch intent proves `observed HEAD`. Public grep
 has no selected date or HEAD proof and omits them. Requested commits differing
 from actual preparation remain separately labelled. Retained ended searches say
-`indexing when observed` and require a new search for updated results.
+`indexing at last check` and require a new search for updated results.
 
 List text requests minimal provenance; JSON retains selected full timestamps,
 nulls/omissions and existing metadata/actions. Its read guidance retains the
