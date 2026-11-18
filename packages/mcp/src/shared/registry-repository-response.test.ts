@@ -57,7 +57,7 @@ describe("registry repository presentation", () => {
         expect("registryRepository" in json).toBe(false);
       }
       expect(text).toContain("https://github.com/expressjs/express");
-      expect(text).toContain("History:");
+      expect(text).toContain("Native history:");
       const colored = formatPackageSummaryTerminal(summary, {
         useColors: true,
       });
