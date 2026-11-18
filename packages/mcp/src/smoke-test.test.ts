@@ -1682,7 +1682,7 @@ function smokeResponse(
         );
       }
       return textResult(
-        "express vulnerabilities\nCoverage: repository checks preparing.",
+        "express vulnerabilities\nAdditional vulnerability checks are running; their results are not included yet.",
       );
     case "pkg_changelog":
       return textResult(

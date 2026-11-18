@@ -667,3 +667,57 @@ describe("combined overview compatibility parity", () => {
     },
   );
 });
+
+describe("actionable overview native follow-ups", () => {
+  it("uses CLI/MCP native syntax for the same retained Related applicability gap", async () => {
+    const summary = structuredClone(defaultPackageSummary);
+    summary.security = {
+      ...summary.security!,
+      vulnerabilityCount: 0,
+      hasCurrentVulnerabilities: false,
+      assessmentStatus: "NON_AFFECTING",
+      assessmentComplete: false,
+      assessmentReasons: ["RELATED_APPLICABILITY_UNPROVED"],
+      unknownVulnerabilityCount: 0,
+    };
+    const packageSummary = mock(async () => summary);
+    const service = createMockPackageIntelligenceService({ packageSummary });
+    const output: string[] = [];
+    const write = spyOn(process.stdout, "write").mockImplementation(((
+      chunk: string | Uint8Array,
+    ) => {
+      output.push(String(chunk));
+      return true;
+    }) as typeof process.stdout.write);
+    try {
+      await pkgInfoAction(
+        "npm:express",
+        {},
+        cliDeps({ packageIntelligenceService: service }),
+      );
+    } finally {
+      write.mockRestore();
+    }
+    const tool = createParityMcpTool("pkg_info", {
+      packageIntelligenceService: service,
+    });
+    const result = await tool.handler({ target: "npm:express" }, {});
+    const cli = output.join("");
+    const mcp = result.content[0]?.text ?? "";
+    for (const text of [cli, mcp]) {
+      expect(text.replace(/\s+/g, " ")).toContain(
+        "Review related advisory evidence to determine whether it applies to this package.",
+      );
+      expect(text).not.toMatch(/Coverage|retry|wait/i);
+    }
+    expect(cli).toContain(
+      "githits pkg vulns --scope all --verbose -- 'npm:express@4.18.2'",
+    );
+    expect(cli).not.toContain("pkg_vulns(");
+    expect(mcp).toContain(
+      'pkg_vulns({"target":"npm:express@4.18.2","advisory_scope":"all","verbose":true})',
+    );
+    expect(mcp).not.toContain("githits pkg vulns");
+    expect(packageSummary).toHaveBeenCalledTimes(2);
+  });
+});

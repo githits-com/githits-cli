@@ -11,7 +11,9 @@ surface-native exceptions.
 Human/agent default rendering may differ from JSON envelopes: MCP tools
 default to compact `text` where available, while CLI has human
 terminal output and `--json`. Structured parity is enforced through CLI
-`--json` and MCP `format: "json"`.
+`--json` and MCP `format: "json"`. Package overview vulnerability follow-ups use
+native `githits pkg vulns` commands or `pkg_vulns` arguments, pinned to the same
+displayed release; the underlying counts, uncertainty and JSON remain identical.
 
 Smoke coverage runs through `scripts/mcp-smoke.ts` and `scripts/cli-smoke.ts`.
 The default `bun run smoke:mcp` and `bun run smoke:cli` commands launch source

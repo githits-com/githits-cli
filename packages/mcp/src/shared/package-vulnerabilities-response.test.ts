@@ -2599,3 +2599,38 @@ it("normalizes zero-column widths for dependency source follow-ups", () => {
     );
   }
 });
+
+describe("actionable report assessment notices", () => {
+  it.each([
+    ["SOURCE_PREPARING", "Additional vulnerability checks are running"],
+    [
+      "SOURCE_NOT_ASSESSED",
+      "Additional vulnerability checks have not run for this release",
+    ],
+    [
+      "SOURCE_INCOMPLETE",
+      "Review the advisory assessments and source evidence",
+    ],
+    [
+      "SOURCE_UNAVAILABLE",
+      "Review the advisory assessments and source evidence",
+    ],
+  ])("explains %s without the generic coverage dump", (reason, expected) => {
+    const report = zeroVulnsFixture();
+    Object.assign(report.security!, {
+      assessmentComplete: false,
+      assessmentReasons: [reason],
+      assessmentStatus: "NON_AFFECTING",
+      unknownVulnerabilityCount: 0,
+    });
+    const before = buildPackageVulnerabilitiesSuccessPayload(report);
+    const text = formatPackageVulnerabilitiesTerminal(report);
+    expect(text.replace(/\s+/g, " ")).toContain(expected);
+    expect(text).not.toMatch(
+      /Coverage:|coverage is incomplete|checks preparing|checks not assessed/,
+    );
+    expect(text).toContain("No confirmed vulnerabilities affect this version.");
+    expect(buildPackageVulnerabilitiesSuccessPayload(report)).toEqual(before);
+    expect(before.summary.assessmentReasons).toEqual([reason]);
+  });
+});

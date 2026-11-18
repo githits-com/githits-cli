@@ -11,7 +11,8 @@ new infrastructure, public flags or metadata migration is needed. PR #567 remain
 on its independent docs branch and is not folded into this change.
 
 Approved governing scope: `/tmp/vulnerability-overview-next/overview-client-approved-scope.md`.
-No open product decisions. Main reorientation verified at `e4b25a1`. Optional
+Juha rejected generic Coverage/incomplete output after the initial clean review;
+that review does not establish acceptance of the revised human output. Main reorientation verified at `e4b25a1`. Optional
 history and selected security remain independent. Registry comparison uses existing
 normalization (`npm` / `NPM`); mismatched or failed security never falls back to
 native current counts. Nullable facet errors preserve valid siblings. Non-null leaf errors that null the
@@ -37,12 +38,25 @@ source-job and binding identities. Direct demand can move a missing-source reaso
 from `SOURCE_NOT_ASSESSED` to `SOURCE_PREPARING`; compare the same retained subject's
 counts/verdict/completeness without requiring identical admission-state reasons.
 
+Human output now separates known affecting counts, actual package unknowns,
+unfinished checks and Related applicability review, with native release-pinned
+follow-ups. JSON and the complete 103-cost query are unchanged. Standalone Related rows are always loaded through an independent ALL
+connection. Related evidence attached to a non-affecting PACKAGE row instead
+requires the ALL package scope and verbose output to expose its aliases and
+proof; the applicability-review action uses those existing options, including
+when actual package unknowns are present. Generic coverage/pipeline labels are removed from human summaries and
+the full report; Related advisory rows carry the concrete applicability question.
+
 Remaining before this final increment can be declared fully verified:
 
-1. Complete the existing targeted overview-vulnerability agent evaluation or
+1. Verify and review the revised actionable text against complete zero, missing
+   checks, running checks, package unknowns and Related positives, including
+   combined unknown/Related cases and real CLI/MCP examples. Get user acceptance
+   of the corrected product output; prior green review is superseded for that.
+2. Complete the existing targeted overview-vulnerability agent evaluation or
    obtain explicit user acceptance of its gap. Its isolated Claude process lacks
    noninteractive authentication; zero tool calls prove no product behavior.
-2. Run draft-PR CI for the final reviewed code. Execution receipts, exact failed
+3. Run draft-PR CI for the final reviewed code. Execution receipts, exact failed
    commands and blockers belong on the PR. Retire this plan with the final clean
    increment after these gates; the implementation docs already own the permanent
    contract. Keep the clean external reviewer retained through merge approval.

@@ -440,9 +440,27 @@ identity/license, description, repository popularity, publish age, downloads and
 selected-release security. `Latest` (or `Selected` when registry latest differs)
 uses combined package-attributed native and repository findings for the displayed
 release. Counts, affectedness and uncertainty come from the backend; Related
-evidence affects coverage, never package counts. Unknown, unsupported, unassessed
-and incomplete checks do not imply a negative result. Native package-wide history
-is separately labelled `Native history`; it is not a bound on combined findings.
+evidence never increases package counts. A partial zero is labelled as zero
+known to affect the release, rather than a completed negative; actual unresolved
+package-advisory counts remain visible. Native package-wide history is separately
+labelled `Native history`; it is not a bound on combined findings.
+
+Human text does not dump a generic `Coverage` line or backend processing reasons.
+Instead it gives the next useful action for the displayed release: start missing
+checks, view the findings while checks run, inspect unresolved package advisories,
+or review related advisory evidence for package applicability. Starting a report can
+admit missing checks; its immediate response is not a promise of completion.
+Additional waiting does not establish Related package applicability. CLI uses a
+shell-quoted, release-pinned `githits pkg vulns` command; MCP uses `pkg_vulns` with
+the same target. Actual package unknowns select the unknown scope unless there is also a
+Related applicability gap. Related evidence may be attached to a non-affecting
+PACKAGE row, so an applicability-review action selects ALL with verbose output
+to expose that row, its aliases and evidence without the compact row cap.
+Standalone Related rows use an independent ALL connection regardless of the
+package scope; a package filter does not hide that separate stream. Free prose
+wraps; exact follow-up commands remain intact at narrow widths. No extra overview
+request or advisory-body fetch is added. Full reports show the particular Related
+advisories instead of repeating a generic global coverage warning.
 
 JSON `vulnerabilities.total` is the matched selected release's confirmed affected
 count; the compatibility key `affectsLatest` maps directly to

@@ -838,19 +838,35 @@ export function formatPackageVulnerabilitiesTerminal(
         .join("\n")
     : undefined;
   const reasons = payload.summary.assessmentReasons ?? [];
-  const coverageBlock = [
+  const assessmentNotice = [
     ...(report.paginationComplete === false
       ? [
           "Results changed during pagination; shown findings are incomplete. Run the report again for a complete list.",
         ]
       : []),
-    ...(reasons.length
+    ...(reasons.includes("SOURCE_PREPARING")
       ? [
-          `Coverage: ${reasons.map(formatVulnerabilityAssessmentReason).join("; ")}.`,
+          "Additional vulnerability checks are running; their results are not included yet.",
         ]
-      : payload.summary.assessmentComplete === false
-        ? ["Assessment coverage is incomplete."]
-        : []),
+      : reasons.includes("SOURCE_NOT_ASSESSED")
+        ? ["Additional vulnerability checks have not run for this release."]
+        : reasons.includes("SOURCE_INCOMPLETE") ||
+            reasons.includes("SOURCE_UNAVAILABLE")
+          ? [
+              "Some vulnerability checks could not finish. Review the advisory assessments and source evidence before relying on the affected count.",
+            ]
+          : []),
+    ...(reasons.includes("RELATED_APPLICABILITY_UNPROVED") &&
+    (payload.filter?.advisoryScope !== "all" || !verbose)
+      ? [
+          `Review related advisory evidence for package applicability: use ${surface === "cli" ? "--scope all --verbose" : 'advisory_scope="all", verbose=true'}.`,
+        ]
+      : []),
+    ...(payload.summary.assessmentComplete === false && reasons.length === 0
+      ? [
+          "Some advisory results could not be determined. Review the per-advisory assessments before relying on the affected count.",
+        ]
+      : []),
   ]
     .flatMap((line) => wrapTerminalProse(line, width))
     .join("\n");
@@ -896,7 +912,7 @@ export function formatPackageVulnerabilitiesTerminal(
       );
     }
     if (relatedBlock) lines.push("", relatedBlock);
-    if (coverageBlock) lines.push("", coverageBlock);
+    if (assessmentNotice) lines.push("", assessmentNotice);
     if (transitiveBlock) lines.push("", transitiveBlock);
     if (sourceBlock) lines.push("", sourceBlock);
     if (dependencySourceHint) lines.push("", dependencySourceHint);
@@ -942,7 +958,7 @@ export function formatPackageVulnerabilitiesTerminal(
   const upgradeFooter = formatUpgradeFooter(payload.upgradePaths);
   if (upgradeFooter) blocks.push(upgradeFooter);
   if (relatedBlock) blocks.push(relatedBlock);
-  if (coverageBlock) blocks.push(coverageBlock);
+  if (assessmentNotice) blocks.push(assessmentNotice);
   if (transitiveBlock) blocks.push(transitiveBlock);
   if (sourceBlock) blocks.push(sourceBlock);
   if (dependencySourceHint) blocks.push(dependencySourceHint);
@@ -1378,12 +1394,13 @@ function formatAdvisoryLines(
     advisory.relationship !== "RELATED"
   ) {
     const reasons = (advisory.assessmentReasons ?? [])
+      .filter((reason) => reason !== "RELATED_APPLICABILITY_UNPROVED")
       .map(formatVulnerabilityAssessmentReason)
       .map(sanitizeProse)
       .join("; ");
     lines.push(
       ...wrapTerminalProse(
-        `    Coverage incomplete${reasons ? `: ${reasons}` : ""}.`,
+        `    ${advisory.assessmentReasons?.includes("RELATED_APPLICABILITY_UNPROVED") ? `Review the related evidence to establish package applicability.${reasons ? ` Other assessment reasons: ${reasons}.` : ""}` : reasons ? `Review advisory assessment: ${reasons}.` : "Additional evidence for this advisory needs review."}`,
         normaliseTerminalWidth(terminalWidth),
       ),
     );

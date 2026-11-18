@@ -34,12 +34,9 @@ import { colorize, highlight } from "./colors.js";
 import { toIsoDate, toRelativeDate } from "./format-date.js";
 import { formatCompactNumber } from "./format-number.js";
 import { formatMappedErrorText } from "./mapped-error-text.js";
+import { shellQuoteExact } from "./shell-quote.js";
 import { sanitizeTerminalText } from "./terminal-text.js";
 import { terminalWidth } from "./terminal-width.js";
-import {
-  formatAssessmentUncertainty,
-  formatVulnerabilityAssessmentReason,
-} from "./vulnerability-assessment.js";
 
 // --------------------------------------------------------------------
 // Lean JSON envelope
@@ -463,6 +460,8 @@ export interface FormatTerminalOptions {
   useColors?: boolean;
   /** Column width for wrapping the description line. Defaults to 80. */
   terminalWidth?: number;
+  /** Native syntax for a release-pinned vulnerability follow-up. */
+  surface?: "cli" | "mcp";
   /**
    * Clock injection for relative-date rendering. Tests pin this; in
    * production `new Date()` is used.
@@ -510,6 +509,12 @@ export function formatPackageSummaryTerminal(
   if (fields.length > 0) {
     sections.push(fields.join("\n"));
   }
+  const nextStep = formatVulnerabilityNextStep(
+    lean,
+    options.surface ?? "cli",
+    width,
+  );
+  if (nextStep) sections.push(nextStep);
 
   const lifecycle = options.verbose
     ? formatLifecycle(summary.lifecycle, width, summary.package.version)
@@ -910,26 +915,30 @@ function formatVulnerabilityStatus(
   const status = vulns?.assessmentStatus;
   if (!vulns) selected = `${label}: unavailable`;
   else if (vulns.total > 0) selected = `${label}: ${vulns.total} affected`;
-  else if (status === "UNKNOWN" || (vulns.unknownVulnerabilityCount ?? 0) > 0)
-    selected = `${label}: no confirmed affected findings; assessment incomplete`;
-  else if (status === "UNSUPPORTED" || status === "NOT_ASSESSED")
-    selected = `${label}: ${formatAssessmentUncertainty(status, vulns.affectsLatest)}`;
+  else if (status === "UNSUPPORTED")
+    selected = `${label}: vulnerability data unavailable for this registry`;
+  else if (status === "NOT_ASSESSED")
+    selected = `${label}: no release assessed`;
   else if (
     status !== undefined &&
     status !== "NON_AFFECTING" &&
-    status !== "AFFECTED"
+    status !== "AFFECTED" &&
+    status !== "UNKNOWN"
   )
     selected = `${label}: ${status}`;
-  else if (vulns.assessmentComplete === false)
-    selected = `${label}: no confirmed affected findings; coverage incomplete`;
+  else if (
+    vulns.assessmentComplete === false ||
+    status === "UNKNOWN" ||
+    (vulns.unknownVulnerabilityCount ?? 0) > 0
+  )
+    selected = `${label}: 0 known to affect this release`;
   else selected = `${label}: none affected`;
   const lines = [selected];
-  if (vulns?.assessmentReasons?.length)
+  const unknown = vulns?.unknownVulnerabilityCount ?? 0;
+  if (unknown > 0)
     lines.push(
-      `Coverage: ${vulns.assessmentReasons.map(formatVulnerabilityAssessmentReason).join("; ")}.`,
+      `${unknown} ${unknown === 1 ? "advisory needs" : "advisories need"} review; affectedness could not be determined.`,
     );
-  else if (vulns?.assessmentComplete === false && vulns.total > 0)
-    lines.push("Coverage incomplete.");
   if (history) {
     const noun = history.total === 1 ? "advisory" : "advisories";
     lines.push(
@@ -939,6 +948,56 @@ function formatVulnerabilityStatus(
     );
   } else lines.push("Native history: unavailable");
   return lines.join("\n");
+}
+
+/** Overview owns the next useful action; backend processing reasons stay in JSON. */
+function formatVulnerabilityNextStep(
+  lean: LeanPackageSummary,
+  surface: "cli" | "mcp",
+  width: number,
+): string {
+  const vulns = lean.vulnerabilities;
+  if (!vulns || vulns.assessmentStatus === "UNSUPPORTED") return "";
+  const reasons = vulns.assessmentReasons ?? [];
+  const related = reasons.includes("RELATED_APPLICABILITY_UNPROVED");
+  const explanations: string[] = [];
+  if (related)
+    explanations.push(
+      "Review related advisory evidence to determine whether it applies to this package.",
+    );
+  if (reasons.includes("SOURCE_NOT_ASSESSED"))
+    explanations.push(
+      "Start the remaining vulnerability checks with the report below.",
+    );
+  else if (reasons.includes("SOURCE_PREPARING"))
+    explanations.push(
+      "Vulnerability checks are running. View the available findings in the report below.",
+    );
+  else if (
+    reasons.includes("SOURCE_INCOMPLETE") ||
+    reasons.includes("SOURCE_UNAVAILABLE")
+  )
+    explanations.push(
+      "Some vulnerability checks could not be completed. Inspect the report for the unresolved results.",
+    );
+  const unknown = (vulns.unknownVulnerabilityCount ?? 0) > 0;
+  if (unknown)
+    explanations.push("Inspect the unresolved advisories in the report below.");
+  if (explanations.length === 0 && vulns.assessmentComplete === false)
+    explanations.push(
+      "Some vulnerability results are unresolved. Inspect the report before relying on the affected count.",
+    );
+  if (explanations.length === 0) return "";
+  const target = `${lean.registry}:${lean.name}${lean.version ? `@${lean.version}` : ""}`;
+  // Related evidence can be attached to a non-affecting PACKAGE row. ALL plus
+  // verbose includes that row, its aliases and proof rather than just a row cap.
+  const scope = related ? "all" : unknown ? "unknown" : undefined;
+  const action =
+    surface === "cli"
+      ? `githits pkg vulns${scope ? ` --scope ${scope}` : ""}${related ? " --verbose" : ""} -- ${shellQuoteExact(target)}`
+      : `pkg_vulns(${JSON.stringify({ target, ...(scope ? { advisory_scope: scope } : {}), ...(related ? { verbose: true } : {}) })})`;
+  // Prose wraps; the exact command/locator stays copyable even at narrow widths.
+  return `${wrapText(explanations.join(" "), width)}\n${action}`;
 }
 
 function buildVerboseSections(
