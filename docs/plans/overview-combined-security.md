@@ -49,10 +49,10 @@ the full report; Related advisory rows carry the concrete applicability question
 
 Remaining before this final increment can be declared fully verified:
 
-1. Verify and review the revised actionable text against complete zero, missing
-   checks, running checks, package unknowns and Related positives, including
-   combined unknown/Related cases and real CLI/MCP examples. Get user acceptance
-   of the corrected product output; prior green review is superseded for that.
+1. Get user acceptance of the corrected actionable text. The revised known-count
+   and native follow-up contract is verified and reviewed; this does not grant
+   product acceptance on Juha's behalf. Execution evidence and examples belong on
+   the PR, rather than in this plan.
 2. Complete the existing targeted overview-vulnerability agent evaluation or
    obtain explicit user acceptance of its gap. Its isolated Claude process lacks
    noninteractive authentication; zero tool calls prove no product behavior.
