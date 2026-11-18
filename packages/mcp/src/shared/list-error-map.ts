@@ -242,7 +242,7 @@ function mapScopeUnavailableError(
   return build(
     "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
     false,
-    `${error.message} Repository-wide listing broadens package scope; use it only if those broader results are acceptable. Retry paths are repository-relative; for a monorepo, add the package directory prefix.`,
+    `${error.message} Try listing the whole repository instead; add the package folder prefix to paths if needed.`,
     extraDetails,
   );
 }

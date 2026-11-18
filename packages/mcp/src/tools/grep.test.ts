@@ -59,7 +59,7 @@ describe("unified MCP grep", () => {
       if (format === "text") {
         expect(result.content[0]!.text).toContain("Found 100 matches");
         expect(result.content[0]!.text).toContain(
-          "Context capped (before/after): 20/3 -> 10/3. More: read.",
+          "Context limited to 10 lines before and 3 after (requested 20/3).",
         );
       } else {
         expect(payload(result.content[0]!.text)).toMatchObject({
@@ -94,9 +94,7 @@ describe("unified MCP grep", () => {
       pattern: "router",
     });
     const recovery = result.content[0]!.text.split("Follow-up:\n")[1]!;
-    expect(recovery).toContain(
-      "Repeat the same pattern and options for:\n    npm:requested",
-    );
+    expect(recovery).toContain("Repeat this grep for:\n    npm:requested");
     expect(recovery).toContain("Omit cursor to start a new search.");
     expect(recovery).not.toMatch(/healthy|github|wait_timeout_ms/);
   });
@@ -495,14 +493,11 @@ describe("unified MCP grep", () => {
     },
   );
   it.each([
-    ["repository_indexing", "repository is being indexed"],
-    ["documentation_publishing", "documentation is being prepared"],
-    ["documentation_discovery", "documentation sources are being discovered"],
-    [
-      "site_v6_required",
-      "documentation site requires a publication format update",
-    ],
-    ["starting_url_pending", "requested documentation URL is being prepared"],
+    ["repository_indexing", "indexing"],
+    ["documentation_publishing", "preparing documentation"],
+    ["documentation_discovery", "preparing documentation"],
+    ["site_v6_required", "preparing documentation"],
+    ["starting_url_pending", "preparing documentation"],
   ] as const)(
     "retains the pending target and %s reason in text",
     async (reason, copy) => {
@@ -530,7 +525,8 @@ describe("unified MCP grep", () => {
       });
       const text = result.content[0]!.text.replace(/\s+/g, " ");
       expect(result.isError).toBe(true);
-      expect(text).toContain(`npm:x: ${copy}`);
+      expect(text).toContain(`npm:x (${copy},`);
+      expect(text.match(/npm:x/g)).toHaveLength(1);
       expect(text).toContain("wait_timeout_ms");
       expect(text).not.toContain(reason);
     },

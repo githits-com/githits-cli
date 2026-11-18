@@ -393,7 +393,7 @@ describe("unified grep CLI", () => {
       );
       expect(error).toHaveBeenCalledTimes(1);
       expect(error.mock.calls[0]?.[0]).toBe(
-        "Context capped (before/after): 20/3 -> 10/3. More: githits read.",
+        "Context limited to 10 lines before and 3 after (requested 20/3).",
       );
       expect(write).toHaveBeenCalledTimes(1);
       expect(String(write.mock.calls[0]?.[0])).not.toContain("Context capped");
@@ -805,14 +805,11 @@ describe("unified grep CLI", () => {
     },
   );
   it.each([
-    ["repository_indexing", "repository is being indexed"],
-    ["documentation_publishing", "documentation is being prepared"],
-    ["documentation_discovery", "documentation sources are being discovered"],
-    [
-      "site_v6_required",
-      "documentation site requires a publication format update",
-    ],
-    ["starting_url_pending", "requested documentation URL is being prepared"],
+    ["repository_indexing", "indexing"],
+    ["documentation_publishing", "preparing documentation"],
+    ["documentation_discovery", "preparing documentation"],
+    ["site_v6_required", "preparing documentation"],
+    ["starting_url_pending", "preparing documentation"],
   ] as const)(
     "retains the pending target and %s reason in text",
     async (reason, copy) => {
@@ -849,7 +846,8 @@ describe("unified grep CLI", () => {
           ),
         ).rejects.toThrow("exit");
         const text = String(error.mock.calls[0]?.[0]).replace(/\s+/g, " ");
-        expect(text).toContain(`npm:x: ${copy}`);
+        expect(text).toContain(`npm:x (${copy},`);
+        expect(text.match(/npm:x/g)).toHaveLength(1);
         expect(text).toContain("--wait");
         expect(text).not.toContain(reason);
       } finally {

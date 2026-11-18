@@ -42,7 +42,7 @@ export interface SourceRowFacts {
 
 export interface SourceTextOptions {
   width?: number;
-  repositoryState?: "indexing" | "indexing when observed";
+  repositoryState?: "indexing" | "indexing at last check";
 }
 
 export function formatProvenanceRow(
@@ -208,7 +208,7 @@ export function formatRequestedIndexingExplanation(
     preparationConveysRequestedFacts(resolution, preparation)
   )
     return undefined;
-  const historical = repositoryState === "indexing when observed";
+  const historical = repositoryState === "indexing at last check";
   const indexing = historical
     ? "was being indexed when observed"
     : "is being indexed";
@@ -298,7 +298,7 @@ function renderFreshnessDetails(
   return lines.flatMap((line) =>
     wrapTerminalProse(
       sanitizeTerminalText(
-        options.repositoryState === "indexing when observed"
+        options.repositoryState === "indexing at last check"
           ? line.replaceAll(
               "is being indexed",
               "was being indexed when observed",

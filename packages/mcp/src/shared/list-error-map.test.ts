@@ -62,8 +62,8 @@ describe("mapListError", () => {
         expect(mapped.details?.action).toBe(
           `githits list -- 'github:danielgatis/rembg@860b39d0' 'rembg/sessions/' 'space'"'"'s path/'`,
         );
-      expect(mapped.message).toContain("repository-relative");
-      expect(mapped.message).toContain("monorepo");
+      expect(mapped.message).toContain("package folder prefix");
+      expect(mapped.message).toContain("whole repository");
     },
   );
   it("maps common list, auth, update, terms, and invalid-input errors", () => {
@@ -216,7 +216,7 @@ describe("mapListError", () => {
     expect(complete).toEqual({
       code: "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
       message:
-        "Package source scope is unavailable. Repository-wide listing broadens package scope; use it only if those broader results are acceptable. Retry paths are repository-relative; for a monorepo, add the package directory prefix.",
+        "Package source scope is unavailable. Try listing the whole repository instead; add the package folder prefix to paths if needed.",
       retryable: true,
       details: {
         graphqlCode: "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",

@@ -189,7 +189,7 @@ export function createGrepTool(
           useColors: false,
           requestedTargets: params.targets.map((target) => target.target),
         });
-        const notice = buildGrepContextClampingNotice(contextClamping, "mcp");
+        const notice = buildGrepContextClampingNotice(contextClamping);
         return textResult(notice ? `${text}\n\n${notice}` : text);
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);
@@ -200,6 +200,9 @@ export function createGrepTool(
         );
         return mcpMappedErrorResult(mapped, context, args.format, {
           recovery: { syntax: "mcp", tool: "grep", args },
+          indexingOutcome: "No matches available yet.",
+          indexingTarget:
+            args.targets.length === 1 ? args.targets[0]?.target : undefined,
         });
       }
     },

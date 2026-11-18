@@ -125,7 +125,6 @@ export function buildEmptyGrepGuidance(
   const lines = [formatEmptyGrepFileCounts(envelope)];
   const contextNotice = buildGrepContextClampingNotice(
     envelope.contextClamping,
-    surface,
   );
   if (contextNotice) lines.push(contextNotice);
   const served = formatGrepServedTarget(envelope);

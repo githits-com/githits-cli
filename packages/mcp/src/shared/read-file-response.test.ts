@@ -333,6 +333,30 @@ describe("formatReadFileTerminal", () => {
 });
 
 describe("read refresh metadata", () => {
+  it("describes a pending binary-file wait as checking for a newer file", () => {
+    const envelope = buildReadFileSuccessPayload(
+      {
+        filePath: "assets/logo.png",
+        isBinary: true,
+        indexingEstimates: [
+          {
+            kind: "REPOSITORY",
+            targets: ["npm:express"],
+            unavailableReason: "NO_HISTORY",
+          },
+        ],
+      },
+      { requestedFilePath: "assets/logo.png" },
+    );
+    const mcp = renderReadFileText(envelope);
+    expect(mcp).toContain("Binary file - cannot display as text.");
+    expect(mcp).toEndWith(
+      "To check for a newer file, retry read with wait_timeout_ms=30000.",
+    );
+    expect(
+      formatReadFileTerminal(envelope, { verbose: true, useColors: false }),
+    ).toContain("To check for a newer file, retry read with --wait 30000.");
+  });
   it("still suggests waiting when there is no timing history", () => {
     const envelope = buildReadFileSuccessPayload(
       {
@@ -347,9 +371,7 @@ describe("read refresh metadata", () => {
       },
       baseOptions,
     );
-    expect(renderReadFileText(envelope)).toContain(
-      "not enough history for an estimate",
-    );
+    expect(renderReadFileText(envelope)).toContain("no estimate yet");
     expect(renderReadFileText(envelope)).toContain("wait_timeout_ms=30000");
     expect(
       formatReadFileTerminal(envelope, { verbose: true, useColors: false }),
@@ -377,8 +399,12 @@ describe("read refresh metadata", () => {
       useColors: false,
       verbose: true,
     });
-    expect(mcp).toContain("Retry this read with wait_timeout_ms=60000.");
-    expect(verbose).toContain("Retry this read with --wait 60000.");
+    expect(mcp).toContain(
+      "To check for a newer file, retry read with wait_timeout_ms=60000.",
+    );
+    expect(verbose).toContain(
+      "To check for a newer file, retry read with --wait 60000.",
+    );
     for (const text of [mcp, verbose]) {
       expect(text).toContain("\n\nPreparing:\n  - npm:express@1.0.3");
       expect(text).toContain("module.exports");

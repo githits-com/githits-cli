@@ -645,7 +645,7 @@ describe("unified list CLI", () => {
           "Read files: read --literal-path -- 'npm:express@5.2.1' $path",
           "src/index.ts",
           "",
-          "More results: repeat this list, adding:",
+          "More results:",
           "  --after 'next/%2F cursor'",
         ].join("\n")}\n`,
       );

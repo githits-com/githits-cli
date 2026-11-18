@@ -293,7 +293,7 @@ export function formatGrepText(
   }
   if (result.nextCursor)
     more.push(
-      ...proseLines("Repeat the original grep, adding:"),
+      ...proseLines("Continue with:"),
       operand(
         options.syntax === "mcp"
           ? `cursor=${JSON.stringify(result.nextCursor)}`
@@ -337,8 +337,8 @@ export function formatGrepText(
       followUp.push(
         ...proseLines(
           requestedTargets
-            ? "Repeat the same pattern and options for:"
-            : "Repeat the original grep inputs for these sources:",
+            ? "Repeat this grep for:"
+            : "Repeat the original grep inputs for:",
         ),
         ...targets.map((target) => operand(`  ${target}`)),
       );
@@ -349,9 +349,7 @@ export function formatGrepText(
             ? `wait_timeout_ms=${wait}`
             : `--wait ${wait}`;
         followUp.push(
-          ...proseLines(
-            `Omit ${cursorOption}; set ${waitOption} to wait up to ${wait / 1000}s for preparation.`,
-          ),
+          ...proseLines(`Use ${waitOption}; omit ${cursorOption}.`),
         );
       } else {
         followUp.push(
@@ -361,11 +359,9 @@ export function formatGrepText(
     } else if (result.indexingEstimates?.length) {
       const wait = indexingWaitMs(result.indexingEstimates);
       followUp.push(
+        ...proseLines("To check for newer results, repeat this grep."),
         ...proseLines(
-          "For updated results, repeat the original grep and options.",
-        ),
-        ...proseLines(
-          `Omit ${cursorOption}; set ${options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`} to wait up to ${wait / 1000}s for preparation.`,
+          `Use ${options.syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`}; omit ${cursorOption}.`,
         ),
       );
     }

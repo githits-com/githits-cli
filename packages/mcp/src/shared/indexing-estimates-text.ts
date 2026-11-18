@@ -37,7 +37,7 @@ export function formatIndexingDuration(
   if (estimate.elapsedSeconds !== undefined)
     parts.push(
       style === "compact"
-        ? `time spent indexing: ${estimate.elapsedSeconds}s`
+        ? `elapsed: ${estimate.elapsedSeconds}s`
         : `Time spent indexing: ${estimate.elapsedSeconds}s`,
     );
   return parts.length
@@ -56,7 +56,7 @@ export function formatIndexingEstimate(
   if (style === "compact") {
     const missing =
       entry.unavailableReason === "NO_HISTORY"
-        ? "not enough history for an estimate"
+        ? "no estimate yet"
         : entry.unavailableReason === "UNSUPPORTED_WORK"
           ? "no estimate available"
           : undefined;
@@ -181,6 +181,8 @@ export interface PreparationRetryOptions {
   syntax: "cli" | "mcp";
   waitMs: number;
   hasAfter?: boolean;
+  /** Successful reads check for a newer file, including when the current file is binary. */
+  refresh?: boolean;
 }
 
 /** Native retry copy shared by successful preparation notices and mapped errors. */
@@ -193,8 +195,11 @@ export function formatPreparationRetry(
       : `--wait ${options.waitMs}`;
   const cursor = options.hasAfter
     ? options.syntax === "mcp"
-      ? " Leave out the after argument."
-      : " Leave out --after."
+      ? " Omit after."
+      : " Omit --after."
     : "";
-  return `Retry this ${options.operation} with ${argument}.${cursor}`;
+  const retry = options.refresh
+    ? "To check for a newer file, retry read"
+    : `Retry this ${options.operation}`;
+  return `${retry} with ${argument}.${cursor}`;
 }

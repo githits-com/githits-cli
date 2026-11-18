@@ -47,7 +47,7 @@ describe("CLI path recovery quoting", () => {
         const start = action.indexOf("githits list <target>");
         expect(start).toBeGreaterThanOrEqual(0);
         const command = action
-          .slice(start, action.indexOf("` to list", start))
+          .slice(start, action.indexOf("`", start))
           .replace("<target>", "github:owner/repo");
         const child = Bun.spawn(
           ["/bin/sh", "-c", `githits() { printf '%s\\n' "$@"; }; ${command}`],

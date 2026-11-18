@@ -666,19 +666,18 @@ describe("list indexing errors", () => {
           details: {
             indexingEstimate,
             indexingRef: "opaque-progress",
-            action:
-              "Retry this list with wait_timeout_ms=100000. Leave out the after argument.",
+            action: "Retry this list with wait_timeout_ms=100000. Omit after.",
           },
         });
       else {
         expect(text).toContain("No files available yet.");
         expect(text.replace(/\s+/g, " ")).toContain(
-          "npm:example@1.0.2 (indexing, estimated total: 33-85s, time spent indexing: 4s)",
+          "npm:example@1.0.2 (indexing, estimated total: 33-85s, elapsed: 4s)",
         );
         expect(text).toContain("Indexed alternatives: versions/refs 1.0.1");
         expect(text).toContain("Backend preparation hint.");
         expect(text).toEndWith(
-          "Retry this list with wait_timeout_ms=100000. Leave out the after argument.",
+          "Retry this list with wait_timeout_ms=100000. Omit after.",
         );
         expect(text).not.toContain("opaque-progress");
       }

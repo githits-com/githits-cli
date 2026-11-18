@@ -258,7 +258,7 @@ fields; other cases name the contributing fields when known. The candidate range
 is an inspection window, not a verified source match. Summaries and scopes are
 not rendered as matched source. A same-file definition that contains the window
 adds its kind and qualified name to the header. Older results without repository
-evidence still use `Snippet unavailable`; structured navigation locators remain
+evidence still use `Source not shown.`; structured navigation locators remain
 available. Proven source is not prose-wrapped or renumbered, match gutters work
 without ANSI, and truncation/trust facts remain visible. Crawled documentation
 uses its dedicated grapheme-highlighted preview. Text and JSON omit legacy hit

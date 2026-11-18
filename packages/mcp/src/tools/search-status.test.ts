@@ -301,7 +301,7 @@ describe("searchStatusTool", () => {
     const text = await tool.handler({ search_ref: "search-ref-docs" }, {});
     const textOutput = text.content[0]?.text ?? "";
     expect(textOutput).toContain(
-      "indexing when observed: expressjs.com/en/guide docs",
+      "indexing at last check: expressjs.com/en/guide docs",
     );
     expect(textOutput).not.toContain("Sources:");
   });
@@ -382,7 +382,7 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "ref-timeout" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("No result snapshot available.");
+    expect(text).toContain("No results available.");
     expect(text).not.toContain("search_status |");
     expect(text).toContain("Search again later.");
     expect(text).not.toContain("search_ref=");
@@ -399,7 +399,7 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "ref-failed" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("No result snapshot available.");
+    expect(text).toContain("No results available.");
     expect(text).toContain("Search again later.");
     expect(text).not.toContain("search_ref=");
   });
@@ -462,7 +462,7 @@ describe("searchStatusTool", () => {
 
     const result = await tool.handler({ search_ref: "ref-deferred-empty" }, {});
     const text = result.content[0]?.text ?? "";
-    expect(text).toContain("No result snapshot available.");
+    expect(text).toContain("No results available.");
     expect(text).toContain("Search again later.");
     expect(text).not.toContain("No hits");
     expect(text).not.toContain("Indexing in progress");

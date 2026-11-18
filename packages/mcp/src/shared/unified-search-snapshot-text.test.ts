@@ -38,7 +38,7 @@ function snapshot(): UnifiedSearchIncompletePresentation {
       ],
     },
     evidenceNotice:
-      "Results from commit: github:anomalyco/opencode@bbd72fb8b0bb6de580d2041a0150016227c63ac0 (indexed from ref HEAD; requested HEAD resolves to a different commit). Read the linked files now for code lookup; wait for HEAD only if its freshness matters. Indexing may change results and their order. If you need updated results, check search status while this search is running; after it ends, search again. For an exact version or Git ref, include it in the search target.",
+      "Results from commit: github:anomalyco/opencode@bbd72fb8b0bb6de580d2041a0150016227c63ac0 (indexed from ref HEAD; requested HEAD resolves to a different commit). Read the linked files now for code lookup; wait for HEAD only if its freshness matters. Indexing may change results and their order. For newer results, check search status while this search is running; after it ends, search again. For an exact version or Git ref, include it in the search target.",
     sourceStatus: [
       {
         source: "code",
@@ -144,8 +144,8 @@ describe("snapshot search text received by agents", () => {
         expect(text.match(/committed \d{4}-\d{2}-\d{2}/g) ?? []).toHaveLength(
           Number(Boolean(servedDate)) + Number(Boolean(requestedDate)),
         );
-        expect(text).toContain("Use these results now; example read:");
-        expect(text).toContain("If you need current HEAD");
+        expect(text).toContain("Read:");
+        expect(text).toContain("For the latest repository version");
         expect(text).not.toContain("T23:");
         expect(text).not.toContain("unknown date");
         expect(text).not.toContain("days ago");
@@ -176,8 +176,8 @@ describe("snapshot search text received by agents", () => {
         const sourceSection = text.split("Preparing:")[0]!;
         expect(sourceSection).not.toContain("2026-10-05");
         expect(text).not.toContain("different commit");
-        expect(text).not.toContain("If you need current HEAD");
-        expect(text).toContain("Use these results now");
+        expect(text).not.toContain("For the latest repository version");
+        expect(text).toContain("\nRead:\n");
         if (servedDate) expect(text).toContain("committed 2026-09-01");
         else expect(sourceSection).not.toContain("committed");
       }
@@ -222,14 +222,14 @@ describe("snapshot search text received by agents", () => {
         expect(text).toContain(syntax === "mcp" ? "offset=3" : "--offset 3");
         expect(text).toContain("Found 1");
         expect(text).not.toContain("partial result");
-        expect(text).toContain("Use these results now; example read:");
+        expect(text).toContain("\nRead:\n");
         const read =
           syntax === "mcp"
             ? `read target="github:anomalyco/opencode@bbd72fb8" path="${path}" start_line=480 end_line=490`
             : `githits read 'github:anomalyco/opencode@bbd72fb8' '${path}' --lines 480-490`;
         expect(text).toContain(read);
         expect(text.indexOf(read)).toBeLessThan(
-          text.indexOf("If you need current HEAD"),
+          text.indexOf("For the latest repository version"),
         );
         expect(text).toContain(
           syntax === "mcp"
@@ -278,10 +278,10 @@ describe("snapshot search text received by agents", () => {
     const payload = snapshot();
     payload.results[0]!.readTarget = undefined;
     for (const text of both(payload)) {
-      expect(text).toContain("Use these results now.");
+      expect(text).toContain("Use the results above.");
       expect(text).not.toContain("read for details:");
       expect(text.split("\n\nRead:")[0]).not.toContain("read target=");
-      expect(text).toContain("If you need current HEAD");
+      expect(text).toContain("For the latest repository version");
     }
   });
 
@@ -312,7 +312,7 @@ describe("snapshot search text received by agents", () => {
       };
       resolution(payload).resolvedRequested!.gitRef = undefined;
       const text = both(payload)[0]!;
-      expect(text).toContain("If you need current HEAD");
+      expect(text).toContain("For the latest repository version");
       expect(text.replace(/\s+/g, " ")).toContain("observed HEAD");
     },
   );
@@ -325,12 +325,12 @@ describe("snapshot search text received by agents", () => {
       resolution(payload).requested = { kind, gitRef: ref };
       resolution(payload).resolvedRequested!.gitRef = ref;
       for (const text of both(payload)) {
-        expect(text).not.toContain("If you need current HEAD");
+        expect(text).not.toContain("For the latest repository version");
         expect(text).not.toContain("HEAD is indexing");
         expect(text.replace(/\s+/g, " ")).toContain(
           "github:anomalyco/opencode@0112a92c (indexing, estimated total: 100-120s)",
         );
-        expect(text).toContain("If you need updated results");
+        expect(text).toContain("For newer results");
       }
     },
   );
@@ -348,7 +348,7 @@ describe("snapshot search text received by agents", () => {
         if (freshness === "fallback_recent")
           expect(text).toContain("older snapshot");
         else expect(text).not.toContain("older snapshot");
-        expect(text).not.toContain("If you need current HEAD");
+        expect(text).not.toContain("For the latest repository version");
       }
     },
   );
@@ -361,7 +361,9 @@ describe("snapshot search text received by agents", () => {
         "2026-10-05T00:00:00Z";
       if (missing === "resolvedRequested")
         expect(both(payload)[0]).not.toContain("2026-10-05");
-      expect(both(payload)[0]).not.toContain("If you need current HEAD");
+      expect(both(payload)[0]).not.toContain(
+        "For the latest repository version",
+      );
     }
   });
 
@@ -400,12 +402,12 @@ describe("snapshot search text received by agents", () => {
         expect(text.replace(/\s+/g, " ")).toContain(
           status === "INDEXING"
             ? "(indexing, estimated"
-            : "(indexing when observed, estimated",
+            : "(indexing at last check, estimated",
         );
         expect(text).toContain("committed 2026-09-01");
-        expect(text).not.toContain("Use these results");
+        expect(text).not.toContain("\nRead:\n");
         expect(text.split("\n\nRead:")[0]).not.toContain("read target=");
-        expect(text).not.toContain("If you need current HEAD");
+        expect(text).not.toContain("For the latest repository version");
         if (status === "INDEXING") expect(text).toContain("search_status");
         else {
           expect(text).toContain("Search again later");
@@ -438,7 +440,7 @@ describe("snapshot search text received by agents", () => {
     payload.results[0]!.servedTarget = target;
     for (const text of both(payload)) {
       expect(text).toContain("github:anomalyco/opencode@bbd72fb8");
-      expect(text).toContain("If you need current HEAD");
+      expect(text).toContain("For the latest repository version");
     }
   });
 
@@ -481,8 +483,8 @@ describe("snapshot search text received by agents", () => {
             projectUnifiedSearchPresentation(payload).provenance[0]!.sources,
           ).toHaveLength(0);
         }
-        expect(text).not.toContain("If you need current HEAD");
-        expect(text).toContain("Use these results");
+        expect(text).not.toContain("For the latest repository version");
+        expect(text).toContain("\nRead:\n");
         expect(text).toContain(explicitTarget);
       }
     },
@@ -504,7 +506,7 @@ describe("snapshot search text received by agents", () => {
       expect(text).not.toContain("1/2 ready");
       expect(text).toContain("site:example.com docs");
       expect(text).toContain("indexing: site:example.com docs");
-      expect(text).toContain("Use these results");
+      expect(text).toContain("\nRead:\n");
     }
   });
 
@@ -515,7 +517,7 @@ describe("snapshot search text received by agents", () => {
       payload.progress!.status = status;
       resolution(payload).served!.committedAt = "2026-09-01T00:00:00Z";
       for (const text of both(payload)) {
-        expect(text).toContain("Use these results");
+        expect(text).toContain("\nRead:\n");
         expect(text).toContain("committed 2026-09-01");
         expect(text).toContain("search again");
         expect(text).not.toContain("search_status");
@@ -549,7 +551,7 @@ describe("snapshot search text received by agents", () => {
       const prep = flat.split("Preparing:")[1]!.split("Requested:")[0]!;
       expect(prep).not.toContain("observed HEAD");
       expect(prep).not.toContain("committed");
-      expect(text).toContain("Use these results now");
+      expect(text).toContain("\nRead:\n");
     }
   });
   it("shared rows never join requested dates or HEAD across raw repository identities", () => {
@@ -570,7 +572,7 @@ describe("snapshot search text received by agents", () => {
     expect(presentation.provenance[0]!.sources).toHaveLength(0);
     for (const text of both(payload)) {
       expect(text).not.toContain("Sources:");
-      expect(text).not.toContain("If you need current HEAD");
+      expect(text).not.toContain("For the latest repository version");
     }
   });
   it("shared rows keep a same-SHA provisional artifact without inventing work", () => {
@@ -583,7 +585,7 @@ describe("snapshot search text received by agents", () => {
       expect(text).toContain("provisional");
       expect(text).not.toContain("Preparing:");
       expect(text).not.toContain("observed HEAD");
-      expect(text).not.toContain("If you need current HEAD");
+      expect(text).not.toContain("For the latest repository version");
     }
   });
 });
@@ -608,7 +610,7 @@ describe("requested indexing explanation without matching estimates", () => {
           expect(flat).toContain("Requested ref is being indexed.");
           expect(text).not.toContain("requested_ref_indexing");
           expect(text).not.toContain("\nHEAD)");
-          expect(text).toContain("Use these results now");
+          expect(text).toContain("\nRead:\n");
           if (estimates === "unmatched") {
             expect(flat).toContain(
               "github:anomalyco/opencode@cccccccc (indexing, estimated total: 100-120s)",

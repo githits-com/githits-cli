@@ -87,10 +87,7 @@ export async function grepAction(
       includeDetailedFields: options.json === true,
     });
     if (!options.json) {
-      const notice = buildGrepContextClampingNotice(
-        context.contextClamping,
-        "cli",
-      );
+      const notice = buildGrepContextClampingNotice(context.contextClamping);
       if (notice) console.error(notice);
     }
     const spinner =
@@ -132,7 +129,11 @@ export async function grepAction(
       };
       console.error(
         mapped.code === "INDEXING"
-          ? formatMappedErrorText(safeMapped, { width: process.stderr.columns })
+          ? formatMappedErrorText(safeMapped, {
+              width: process.stderr.columns,
+              indexingOutcome: "No matches available yet.",
+              indexingTarget: targets.length === 1 ? targets[0] : undefined,
+            })
           : formatMappedErrorForTerminal(safeMapped),
       );
     }

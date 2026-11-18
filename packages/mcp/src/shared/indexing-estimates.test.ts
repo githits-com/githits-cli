@@ -62,10 +62,8 @@ describe("uniform indexing evidence presentation", () => {
         "No matches available yet; requested content is still being prepared.",
       );
       expect(output).toContain("(indexing, estimated total: 38-57s");
-      expect(output).toContain("time spent indexing: 90s");
-      expect(output).toContain(
-        "Repeat the original grep inputs for these sources:",
-      );
+      expect(output).toContain("elapsed: 90s");
+      expect(output).toContain("Repeat the original grep inputs for:");
       expect(output).toContain(
         syntax === "cli" ? "--wait 70000" : "wait_timeout_ms=70000",
       );

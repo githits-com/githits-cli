@@ -1867,7 +1867,7 @@ async function runLiveSmoke(caller: McpSmokeCaller): Promise<void> {
     "list package root first page text",
   );
   assert(
-    firstRootPage.includes("More results: repeat this list, adding:") &&
+    firstRootPage.split("\n").includes("More results:") &&
       firstRootPath.length > 0 &&
       nextCursor.length > 0,
     "list package root first page must expose one path and a text continuation",

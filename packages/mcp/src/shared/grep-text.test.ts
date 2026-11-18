@@ -60,7 +60,7 @@ describe("grep text formatting", () => {
         const text = formatGrepText(result, { syntax, width: 200 });
         expect(text).toContain(
           upperSeconds === undefined
-            ? "not enough history"
+            ? "no estimate yet"
             : `estimated total: 30-${upperSeconds}s`,
         );
         const wait =
@@ -73,7 +73,7 @@ describe("grep text formatting", () => {
           syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`,
         );
         expect(text).toContain(
-          syntax === "mcp" ? "Omit cursor" : "Omit --cursor",
+          syntax === "mcp" ? "omit cursor" : "omit --cursor",
         );
       }
     },
@@ -217,9 +217,7 @@ describe("grep text formatting", () => {
           : "Pages: read target=$url start_line=$start end_line=$end";
       const fileRecipeIndex = lines.indexOf(`  ${fileRecipe}`);
       const pageRecipeIndex = lines.indexOf(`  ${pageRecipe}`);
-      const continuationIndex = lines.indexOf(
-        "  Repeat the original grep, adding:",
-      );
+      const continuationIndex = lines.indexOf("  Continue with:");
 
       expect(finalContentRowIndex).toBeGreaterThanOrEqual(0);
       expect(lines[finalContentRowIndex + 1]).toBe("");
@@ -338,7 +336,7 @@ describe("grep text formatting", () => {
       expect(text).not.toContain("Run grep again");
       expect(text).not.toContain("Use the cursor below");
       expect(lines.at(-1)).toBe(
-        `  Omit ${syntax === "cli" ? "--cursor" : "cursor"}; set ${syntax === "cli" ? "--wait 100000" : "wait_timeout_ms=100000"} to wait up to 100s for preparation.`,
+        `  Use ${syntax === "cli" ? "--wait 100000" : "wait_timeout_ms=100000"}; omit ${syntax === "cli" ? "--cursor" : "cursor"}.`,
       );
       const cursor = syntax === "cli" ? "  --cursor " : "  cursor=";
       expect(
@@ -397,7 +395,7 @@ describe("grep text formatting", () => {
       expect(text).not.toContain("not visited");
       expect(text).not.toContain("Not searched:");
       expect(text).not.toContain("To retry omitted targets");
-      expect(text).toContain("Repeat the original grep, adding:");
+      expect(text).toContain("Continue with:");
       expect(text).toContain(syntax === "cli" ? "  --cursor " : "  cursor=");
     }
     expect(result).toEqual(before);
@@ -538,7 +536,7 @@ describe("grep text formatting", () => {
         `  - site:${"a".repeat(64)}.test\n    (not reached on this page, hosted documentation)`,
       );
       expect(text).toContain(
-        `  - ${target} (indexing, estimated total: 33-85s, time spent indexing:\n    90s)`,
+        `  - ${target} (indexing, estimated total: 33-85s, elapsed: 90s)`,
       );
       expect(
         text

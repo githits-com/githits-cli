@@ -1,3 +1,18 @@
+/** Name preparation work in a compact target row; raw reasons stay in JSON. */
+export function grepPreparationState(reason: unknown): string {
+  switch (reason) {
+    case "repository_indexing":
+      return "indexing";
+    case "documentation_publishing":
+    case "documentation_discovery":
+    case "site_v6_required":
+    case "starting_url_pending":
+      return "preparing documentation";
+    default:
+      return "preparing";
+  }
+}
+
 /** Translate known reasons; callers choose how to present unknown diagnostics. */
 export function grepPreparationReason(reason: string): string {
   switch (reason) {

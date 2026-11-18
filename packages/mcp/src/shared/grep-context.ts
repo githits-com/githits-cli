@@ -55,12 +55,10 @@ export function resolveGrepContext(
   };
 }
 
-/** Explain reduced context consistently across legacy and unified grep. */
+/** Explain requested and returned context once, without duplicating read guidance. */
 export function buildGrepContextClampingNotice(
   adjustment: GrepContextClamping | undefined,
-  surface: "mcp" | "cli" = "mcp",
 ): string | undefined {
   if (!adjustment) return undefined;
-  const read = surface === "cli" ? "githits read" : "read";
-  return `Context capped (before/after): ${adjustment.requestedBefore}/${adjustment.requestedAfter} -> ${adjustment.effectiveBefore}/${adjustment.effectiveAfter}. More: ${read}.`;
+  return `Context limited to ${adjustment.effectiveBefore} lines before and ${adjustment.effectiveAfter} after (requested ${adjustment.requestedBefore}/${adjustment.requestedAfter}).`;
 }

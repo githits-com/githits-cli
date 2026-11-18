@@ -68,6 +68,7 @@ export function renderReadFileText(
       formatPreparationRetry({
         operation: "read",
         syntax: "mcp",
+        refresh: true,
         waitMs: indexingWaitMs(envelope.indexingEstimates, MAX_WAIT_TIMEOUT_MS),
       }),
     );

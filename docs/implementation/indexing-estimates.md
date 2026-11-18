@@ -33,60 +33,82 @@ uniform timing while the singular estimate is null.
 The shared wait recommendation takes the largest upper bound, adds ten seconds,
 and rounds up to ten seconds. Uncovered work adds a 30-second floor; no bounds
 uses the unchanged 30-second default. It never sums work or target labels.
-Discovery and grep/list suggestions cap at 120 seconds; read and legacy navigation
-cap at 60 seconds. These are request budgets, not completion promises. All CLI
-and MCP wait arguments and retry actions use milliseconds. The indexing wait
-default is 30,000 ms across surfaces; unified grep continuation never waits.
-There is no automatic retry, polling or new status API. Grep preparation errors use the same estimate-aware native retry action as list/read, retaining available singular timing evidence. Annotated reads with a pending refresh include a bounded native retry after the content; plain CLI file content remains raw. Ended searches with pending source preparation suggest repeating the original search with a bounded wait, while active searches retain their search-status action. No-history preparation still recommends a wait.
+Discovery and grep/list suggestions cap at 120 seconds; read and legacy
+navigation cap at 60 seconds. These are request budgets, not completion
+promises. All CLI and MCP wait arguments and retry actions use milliseconds. The
+indexing wait default is 30,000 ms across surfaces; unified grep continuation
+never waits. There is no automatic retry, polling or new status API. Grep
+preparation errors use the same estimate-aware native retry action as list/read,
+retaining available singular timing evidence. Annotated reads with a pending
+refresh offer a bounded check for a newer file after the content. This does not
+imply that waiting converts binary content into text; plain CLI file content
+remains raw. Ended searches with pending source preparation suggest repeating
+the original search with a bounded wait, while active searches retain their
+search-status action. No-history preparation still recommends a wait.
 
-Annotated text displays total duration and active elapsed evidence; JSON preserves
-provenance and work identity. Pipe-friendly raw paths and source content remain
-raw. Grep lists resolved sources one per line under `Sources:`, marking sources
-not yet reached by pagination as `(not reached on this page)`, other sources
-without returned matches on an incomplete search as `(no matches returned)`, or
-`(no results)` when the search is complete. A separate
+Annotated text displays total duration and active elapsed evidence; JSON
+preserves provenance and work identity. Pipe-friendly raw paths and source
+content remain raw. Grep lists resolved sources one per line under `Sources:`,
+marking sources not yet reached by pagination as `(not reached on this page)`,
+other sources without returned matches on an incomplete search as `(no matches
+returned)`, or `(no results)` when the search is complete. A separate
 `Preparing:` block groups actual repository/documentation work and timing once
 per estimate. Duplicate/package requested inputs and their suggestions remain
 attached beneath that work; pending inputs without an estimate keep label-only
 rows. Non-preparation omissions remain under `Not searched:`, with the supplied
 reason and `you can retry` or `do not retry unchanged`. `you can retry` does not
 guarantee recovery, and `do not retry unchanged` does not mean permanently
-unavailable.
-Hosted-site matches do not establish package-version
-provenance. The existing cursor instructions follow the matches. Follow-up names only the
-original inputs with retryable omissions or scope failures, preserving the pattern
-and matching controls. It names the cursor control to omit for a fresh search;
-preparation also suggests setting a bounded wait and states the maximum in
-seconds. Generic native retryability does not imply preparation. Terminal failures
-do not invite an unchanged retry. The cursor continues the existing search,
-including sources not yet visited, and cannot retry omitted targets.
+unavailable. Hosted-site matches do not establish package-version provenance.
+The existing cursor instructions follow the matches. Follow-up names only the
+original inputs with retryable omissions or scope failures, preserving the
+pattern and matching controls. It names the cursor control to omit for a fresh
+search; preparation also suggests setting a bounded wait without repeating the
+same duration in seconds. Generic native retryability does not imply
+preparation. Terminal failures do not invite an unchanged retry. The cursor
+continues the existing search, including sources not yet visited, and cannot
+retry omitted targets.
 
 ## Consistent preparation and error presentation
 
 Human read/list output combines each target's preparation state and compact
-`estimated total: lower-upper` / `time spent indexing` evidence on one row.
-Hosted documentation has no estimate; no history remains explicit. Readable
-content may coexist with these rows and does not become an omitted source.
-Search/status retain their lifecycle and session-native actions; their preparation
-annotations do not label queued/searching work as active index execution.
-Legacy annotated consumers reuse the same rows; raw CLI reads and `list --silent`
-remain suitable for piping.
+`estimated total: lower-upper` / `elapsed: seconds` evidence on one row. Hosted
+documentation has no estimate; missing timing history says `no estimate yet`.
+Readable content may coexist with these rows and does not become an omitted
+source. Search/status retain their lifecycle and session-native actions; their
+preparation annotations do not label queued/searching work as active index
+execution. Legacy annotated consumers reuse the same rows; raw CLI reads and
+`list --silent` remain suitable for piping.
 
 Preparing repository rows prefer the actual entry's repository/full SHA, rendered
 with an 8-character display SHA. Matching independently dated resolved-requested
 facts may add a date and `observed HEAD`; full raw URL/SHA equality and verified
 HEAD/default-branch intent are required. Ref labels, dates and SHA prefixes are
 not proof. Served dates are never borrowed. Missing job identity keeps the
-supplied labels. Ended search timing says `indexing when observed`; it supplies
+supplied labels. Ended search timing says `indexing at last check`; it supplies
 no poll action. `source-provenance-text.ts` owns the common row grammar.
 
-`indexing-estimates-text.ts` owns the Preparing section, Indexed alternatives prefix, and native retry sentence shared by successful notices and errors. Immediately indexed version/ref alternatives stay beneath their matching requested target; suggested refs remain separate advisory facts. Its rows use terminal-aware hanging indentation and stay separated from file content. Free prose normalizes word spacing; raw file content and copyable actions bypass prose wrapping. `mapped-error-text.ts` owns human error wording. Tool boundaries supply native
-retry actions; core and error classifiers retain backend facts instead of
-appending mixed CLI/MCP syntax. Default/text MCP errors are readable `isError`
+`indexing-estimates-text.ts` owns the Preparing section, Indexed alternatives
+prefix, and native retry sentence shared by successful notices and errors.
+Immediately indexed version/ref alternatives stay beneath their matching
+requested target; suggested refs remain separate advisory facts. Its rows use
+terminal-aware hanging indentation and stay separated from file content. Free
+prose normalizes word spacing; raw file content and copyable actions bypass
+prose wrapping. `mapped-error-text.ts` owns human error wording. Tool boundaries
+supply native retry actions; core and error classifiers retain backend facts
+instead of appending mixed CLI/MCP syntax. A single grep preparation issue
+renders its target, compact state, and timing once; any path detail remains
+separate. Multiple issues retain their individual diagnostics. The JSON
+classifier output is unchanged. Default/text MCP errors are readable `isError`
 results; only explicit JSON serializes the existing error envelope. Progress IDs
 remain in JSON; actionable backend hints and ref/version alternatives remain
-visible. Non-indexing errors describe alternatives as available rather than indexed; code-diff alternatives retain their version and ref identity. Rate-limit retry durations render in seconds while JSON retains the supplied timing fields. Core preserves supplied hints even when embedded in the raw message;
-only presentation deduplicates visible prose. Host auth/terms remediation and cancellation retain their contracts. Retryable failures without a supplied action or existing retry wording end with readable retry advice; JSON retains the retryability field.
+visible. Non-indexing errors describe alternatives as available rather than
+indexed; code-diff alternatives retain their version and ref identity.
+Rate-limit retry durations render in seconds while JSON retains the supplied
+timing fields. Core preserves supplied hints even when embedded in the raw
+message; only presentation deduplicates visible prose. Host auth/terms
+remediation and cancellation retain their contracts. Retryable failures without
+a supplied action or existing retry wording end with readable retry advice; JSON
+retains the retryability field.
 
 Zero-wait list GraphQL errors supply `estimated_indexing_duration` separately
 from successful uniform arrays. Core shares the existing error-duration decoder

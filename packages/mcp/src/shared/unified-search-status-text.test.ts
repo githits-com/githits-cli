@@ -119,8 +119,8 @@ describe("renderUnifiedSearchStatusText", () => {
       expect(mcp).toContain("offset=5");
       expect(cli).toContain("--offset 5");
       if (!completed) {
-        expect(mcp).toContain("Use these results");
-        expect(cli).toContain("Use these results");
+        expect(mcp).toContain("\nRead:\n");
+        expect(cli).toContain("\nRead:\n");
       }
     },
   );
@@ -345,7 +345,7 @@ describe("renderUnifiedSearchStatusText", () => {
           },
         }),
       );
-      expect(firstLine(text)).toBe("No result snapshot available.");
+      expect(firstLine(text)).toBe("No results available.");
       expect(text).toContain("Search again later.");
       expect(text).not.toContain("Do not poll");
       expect(text).not.toContain("search_status");
@@ -363,7 +363,7 @@ describe("renderUnifiedSearchStatusText", () => {
         },
       }),
     );
-    expect(firstLine(text)).toBe("No result snapshot available.");
+    expect(firstLine(text)).toBe("No results available.");
     expect(text).toContain("Search again later.");
     expect(text).not.toContain("Do not poll");
     expect(text).not.toContain("search_status");

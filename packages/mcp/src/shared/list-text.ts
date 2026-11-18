@@ -114,9 +114,7 @@ export function formatListText(
   }
   if (result.nextCursor) {
     const continuation = [
-      result.indexingEstimates?.length
-        ? "More results available now: repeat this list, adding:"
-        : "More results: repeat this list, adding:",
+      "More results:",
       options.syntax === "mcp"
         ? `  after=${JSON.stringify(result.nextCursor)}`
         : `  --after ${shellQuoteExact(result.nextCursor)}`,

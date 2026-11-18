@@ -106,12 +106,10 @@ describe("formatListText", () => {
     });
     for (const syntax of ["cli", "mcp"] as const) {
       const text = formatListText(result, { syntax, hasAfter: true });
-      expect(text).toContain(
-        syntax === "cli" ? "Leave out --after" : "Leave out the after argument",
-      );
-      expect(text).toContain("More results available now");
+      expect(text).toContain(syntax === "cli" ? "Omit --after" : "Omit after");
+      expect(text).toContain("More results:");
       expect(text).toContain("Retry this list with");
-      expect(text.indexOf("More results available now")).toBeLessThan(
+      expect(text.indexOf("More results:")).toBeLessThan(
         text.indexOf("Retry this list with"),
       );
       expect(text).toContain("available-page");
@@ -142,7 +140,7 @@ describe("formatListText", () => {
         "examples/",
         "README.md",
         "",
-        "More results: repeat this list, adding:",
+        "More results:",
         "  --after 'opaque-cursor'",
       ].join("\n"),
     );
@@ -156,7 +154,7 @@ describe("formatListText", () => {
     });
 
     expect(formatListText(result, { syntax: "mcp" })).toEndWith(
-      'More results: repeat this list, adding:\n  after="opaque \\"cursor\\""',
+      'More results:\n  after="opaque \\"cursor\\""',
     );
   });
 

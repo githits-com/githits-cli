@@ -35,7 +35,7 @@ describe("grep context normalization", () => {
     expect(buildGrepContextClampingNotice(undefined)).toBeUndefined();
   });
 
-  it("reports the requested and effective asymmetric sides with a surface-native read action", () => {
+  it("reports the requested and effective asymmetric sides without repeating read guidance", () => {
     const context = resolveGrepContext(20, 3);
     expect(context).toEqual({
       contextLinesBefore: 10,
@@ -47,11 +47,8 @@ describe("grep context normalization", () => {
         effectiveAfter: 3,
       },
     });
-    expect(buildGrepContextClampingNotice(context.contextClamping, "cli")).toBe(
-      "Context capped (before/after): 20/3 -> 10/3. More: githits read.",
+    expect(buildGrepContextClampingNotice(context.contextClamping)).toBe(
+      "Context limited to 10 lines before and 3 after (requested 20/3).",
     );
-    expect(
-      buildGrepContextClampingNotice(context.contextClamping, "mcp"),
-    ).toContain("More: read.");
   });
 });

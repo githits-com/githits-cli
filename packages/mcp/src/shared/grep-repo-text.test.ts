@@ -304,7 +304,9 @@ it("reports clamping for matching and empty results in both text surfaces", () =
         effectiveAfter: 10,
       },
     });
-    expect(renderGrepRepoText(data)).toContain("More: read.");
+    expect(renderGrepRepoText(data)).toContain(
+      "Context limited to 0 lines before and 10 after (requested 0/12).",
+    );
     for (const verbose of [false, true]) {
       const rendered = formatGrepRepoTerminal(data, {
         useColors: false,
@@ -312,7 +314,9 @@ it("reports clamping for matching and empty results in both text surfaces", () =
         headingStyle: false,
         withContext: true,
       });
-      expect(rendered.stderr).toContain("More: githits read.");
+      expect(rendered.stderr).toContain(
+        "Context limited to 0 lines before and 10 after (requested 0/12).",
+      );
     }
   }
 });

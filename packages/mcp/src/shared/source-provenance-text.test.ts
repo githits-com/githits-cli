@@ -191,10 +191,10 @@ describe("shared source and preparation rows", () => {
     expect(
       renderPreparationSection([work], {
         resolutions: [resolution],
-        repositoryState: "indexing when observed",
+        repositoryState: "indexing at last check",
         width: 240,
       }).join("\n"),
-    ).toContain("indexing when observed");
+    ).toContain("indexing at last check");
     expect(resolution).toEqual(before);
   });
 });

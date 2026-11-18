@@ -14,7 +14,7 @@ import type {
 } from "@githits/core-internal";
 import {
   buildContainingPathPrefix,
-  buildPathPrefixSuggestion,
+  buildReadFileNotFoundAction,
   formatMappedErrorText,
   InvalidPackageSpecError,
   isExactPathAuthorityError,
@@ -172,16 +172,19 @@ export function withCliReadFileRecovery(
     mapped.code !== "FILE_NOT_FOUND" &&
     (mapped.code !== "NOT_FOUND" ||
       !looksLikeMissingFileMessage(mapped.message))
-  ) {
+  )
     return mapped;
-  }
-
-  return withCliPathRecovery(
-    mapped,
-    mapped.details?.filePath ?? requestedPath,
-    "read",
-    mapped.code === "FILE_NOT_FOUND",
-  );
+  return {
+    ...mapped,
+    details: {
+      ...mapped.details,
+      action: buildReadFileNotFoundAction(
+        mapped.details?.filePath ?? requestedPath,
+        mapped.code === "FILE_NOT_FOUND",
+        "cli",
+      ),
+    },
+  };
 }
 
 /** Add CLI-native structured recovery for an exact-path `code grep` miss. */
@@ -197,7 +200,14 @@ export function withCliGrepFileRecovery(mapped: MappedError): MappedError {
     return mapped;
   }
 
-  return withCliPathRecovery(mapped, mapped.details.filePath, "grep", true);
+  const prefix = buildContainingPathPrefix(mapped.details.filePath);
+  return {
+    ...mapped,
+    details: {
+      ...mapped.details,
+      action: `Use \`${buildCliListRecoveryCommand(prefix)}\`, then pass a returned file path as \`--path <path>\` to \`githits code grep\`.`,
+    },
+  };
 }
 
 /** Render a literal list path while leaving the target placeholder for the caller. */
@@ -231,36 +241,6 @@ function withCliExactPathAuthorityRecovery(
       action:
         `${reason} ${listing} to list indexed paths available to ` +
         `\`githits ${command === "read" ? "read" : "code grep"}\`.`,
-    },
-  };
-}
-
-function withCliPathRecovery(
-  mapped: MappedError,
-  requestedPath: string,
-  command: "read" | "grep",
-  exactFilePath: boolean,
-): MappedError {
-  const prefix = exactFilePath
-    ? buildContainingPathPrefix(requestedPath)
-    : buildPathPrefixSuggestion(requestedPath);
-  const handoff =
-    command === "grep"
-      ? "pass an emitted path as `--path <path>` to `githits code grep`."
-      : "pass an emitted path to `githits read`.";
-  const readPreamble =
-    command === "read"
-      ? exactFilePath
-        ? "`githits read` requires an indexed exact file path. "
-        : "With a path, `githits read` reads files, not directories. "
-      : "";
-  const listing = `Use \`${buildCliListRecoveryCommand(prefix)}\``;
-
-  return {
-    ...mapped,
-    details: {
-      ...mapped.details,
-      action: `${readPreamble}${listing} to list valid indexed paths, then ${handoff}`,
     },
   };
 }
