@@ -97,15 +97,16 @@ prose wrapping. `mapped-error-text.ts` owns human error wording. Tool boundaries
 supply native retry actions; core and error classifiers retain backend facts
 instead of appending mixed CLI/MCP syntax. A single grep preparation issue
 renders its target, compact state, and timing once; any path detail remains
-separate. Multiple issues retain their individual diagnostics. The JSON
-classifier output is unchanged. Default/text MCP errors are readable `isError`
-results; only explicit JSON serializes the existing error envelope. Progress IDs
-remain in JSON; actionable backend hints and ref/version alternatives remain
-visible. Non-indexing errors describe alternatives as available rather than
-indexed; code-diff alternatives retain their version and ref identity.
-Rate-limit retry durations render in seconds while JSON retains the supplied
-timing fields. Core preserves supplied hints even when embedded in the raw
-message; only presentation deduplicates visible prose. Host auth/terms
+separate. Multiple issues retain their individual diagnostics. Classification,
+raw input indices and backend diagnostics are preserved; derived unnamed-input
+hint labels consistently use one-based `Target` numbers. Default/text MCP errors
+are readable `isError` results; only explicit JSON serializes the existing error
+envelope. Progress IDs remain in JSON; actionable backend hints and ref/version
+alternatives remain visible. Non-indexing errors describe alternatives as
+available rather than indexed; code-diff alternatives retain their version and
+ref identity. Rate-limit retry durations render in seconds while JSON retains
+the supplied timing fields. Core preserves supplied hints even when embedded in
+the raw message; only presentation deduplicates visible prose. Host auth/terms
 remediation and cancellation retain their contracts. Retryable failures without
 a supplied action or existing retry wording end with readable retry advice; JSON
 retains the retryability field.
