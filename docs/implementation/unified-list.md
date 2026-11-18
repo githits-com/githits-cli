@@ -44,11 +44,11 @@ nullable `committedAt`, freshness and reason. Recovery arrays and opaque nested
 indexing refs remain detailed-only. Selected nulls and omitted fields stay distinct;
 JSON preserves full timestamps. It does not request content or snippets.
 
-Empty package-source inventories can carry a nullable `hint` containing indexing
-policy and a pinned repository locator with repository-relative path suggestions.
-The backend source-inventory owner derives those suggestions from its certified
-package root and served commit; the client never infers a root or claims missing
-files are binary. Annotated text renders the hint immediately after `No files.`.
+Empty package-source inventories can carry a nullable `hint` explaining the package
+scope and offering a pinned repository-root retry with the original path selectors.
+The backend source-inventory owner supplies the certified package root and served
+commit; the client never infers a root. Annotated text uses the hint instead of the
+generic `No files.` line when present.
 The hint is opaque backend-authored text and may contain a copyable command or
 quoted selectors. Rendering preserves whitespace, escaping and line breaks so
 locators remain copyable, while stripping terminal controls per line. It does not

@@ -67,9 +67,9 @@ describe("formatListText", () => {
       JSON.parse(text.split("paths (JSON): ")[1]!.split("\n")[0]!),
     ).toEqual(["fonts/demo  family/files/", "fonts/\\[demo\\]/files/"]);
   });
-  it("renders the package no-files hint before provenance and keeps silent output empty", () => {
+  it("uses the package hint as the empty result before provenance and keeps silent output empty", () => {
     const hint =
-      'Binary files are not indexed. Repository location: github:fontsource/font-files@02b28c06, paths: ["fonts/google/manrope/files/"].';
+      "No indexed files under files/. Package scope: fonts/google/manrope/.\nIf you meant to search from the repository root:\nlist github:fontsource/font-files@02b28c06 -- 'files/'";
     const result = sourceResult({
       requestedTarget: "npm:@fontsource/manrope",
       canonicalTarget: "npm:@fontsource/manrope",
@@ -77,18 +77,19 @@ describe("formatListText", () => {
     });
     for (const syntax of ["cli", "mcp"] as const) {
       const text = formatListText(result, { syntax, width: 200 });
-      expect(text).toStartWith(`No files.\n${hint}\nSources:`);
+      expect(text).toStartWith(`${hint}\nSources:`);
+      expect(text).not.toContain("No files.");
     }
     expect(formatListText(result, { includeHeader: false })).toBe("");
-    expect(formatListText({ ...result, hint: null })).not.toContain(
-      "Binary files",
+    expect(formatListText({ ...result, hint: null })).toStartWith(
+      "No files.\n",
     );
     expect(
       formatListText({ ...result, codeIndexState: "INDEXING" }),
-    ).not.toContain("Binary files");
+    ).not.toContain(hint);
     expect(
       formatListText({ ...result, entries: [entry("FILE", "index.css")] }),
-    ).not.toContain("Binary files");
+    ).not.toContain(hint);
   });
   it("distinguishes pending preparation retry from available continuation", () => {
     const result = sourceResult({

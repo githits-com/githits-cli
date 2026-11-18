@@ -48,7 +48,7 @@ export function formatListText(
   }
   const lines = isSource
     ? [
-        ...(paths.length
+        ...(paths.length || (!pending && result.hint)
           ? []
           : [pending ? "No files available yet." : "No files."]),
         ...(!paths.length && !pending && result.hint
