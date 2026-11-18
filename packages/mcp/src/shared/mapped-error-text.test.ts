@@ -59,7 +59,7 @@ describe("readable mapped error content", () => {
       retryable: true,
       details: {
         targetIssues: [{ input_index: 1, reason: "future_reason" }],
-        hint: "Input 1: target is being prepared",
+        hint: "Target 2: target is being prepared",
       },
     });
     expect(output).toContain("Target 2 (preparing, no estimate available)");

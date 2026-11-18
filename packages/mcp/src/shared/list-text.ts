@@ -130,6 +130,7 @@ export function formatListText(
       formatPreparationRetry({
         operation: "list",
         syntax: options.syntax ?? "cli",
+        refresh: paths.length > 0 || Boolean(result.nextCursor),
         waitMs: indexingWaitMs(result.indexingEstimates),
         hasAfter: options.hasAfter,
       }),

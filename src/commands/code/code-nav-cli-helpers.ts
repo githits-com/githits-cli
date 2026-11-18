@@ -13,6 +13,7 @@ import type {
   CodeNavigationTarget,
 } from "@githits/core-internal";
 import {
+  buildCliListRecoveryCommand,
   buildContainingPathPrefix,
   buildReadFileNotFoundAction,
   formatMappedErrorText,
@@ -22,7 +23,6 @@ import {
   MAX_WAIT_TIMEOUT_MS,
   type MappedError,
   parseCodeNavigationTargetSpec,
-  shellQuoteExact,
   withIndexingRetryAction,
 } from "@githits/mcp/internal";
 import { mapCodeNavigationErrorForCli } from "../../shared/cli-error-diagnostics.js";
@@ -31,6 +31,7 @@ import {
   formatMappedErrorForTerminal,
 } from "../format-mapped-error.js";
 
+export { buildCliListRecoveryCommand } from "@githits/mcp/internal";
 export { parseIntCliOption } from "../../shared/cli-options.js";
 
 /**
@@ -208,13 +209,6 @@ export function withCliGrepFileRecovery(mapped: MappedError): MappedError {
       action: `Use \`${buildCliListRecoveryCommand(prefix)}\`, then pass a returned file path as \`--path <path>\` to \`githits code grep\`.`,
     },
   };
-}
-
-/** Render a literal list path while leaving the target placeholder for the caller. */
-export function buildCliListRecoveryCommand(prefix: string): string {
-  if (prefix === "") return "githits list <target>";
-  const terminator = prefix.startsWith("-") ? "-- " : "";
-  return `githits list <target> ${terminator}${shellQuoteExact(prefix)}`;
 }
 
 function withCliExactPathAuthorityRecovery(

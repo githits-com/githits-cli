@@ -1,4 +1,12 @@
 import type { MappedError } from "./mapped-error.js";
+import { shellQuoteExact } from "./shell-quote.js";
+
+/** Render a literal list path while leaving the target placeholder for the caller. */
+export function buildCliListRecoveryCommand(prefix: string): string {
+  if (prefix === "") return "githits list <target>";
+  const terminator = prefix.startsWith("-") ? "-- " : "";
+  return `githits list <target> ${terminator}${shellQuoteExact(prefix)}`;
+}
 
 /** Whether the backend gave an authoritative reason an exact path is unavailable. */
 export function isExactPathAuthorityError(mapped: MappedError): boolean {

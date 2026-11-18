@@ -108,9 +108,9 @@ describe("formatListText", () => {
       const text = formatListText(result, { syntax, hasAfter: true });
       expect(text).toContain(syntax === "cli" ? "Omit --after" : "Omit after");
       expect(text).toContain("More results:");
-      expect(text).toContain("Retry this list with");
+      expect(text).toContain("To check for newer results, retry list with");
       expect(text.indexOf("More results:")).toBeLessThan(
-        text.indexOf("Retry this list with"),
+        text.indexOf("To check for newer results, retry list with"),
       );
       expect(text).toContain("available-page");
     }
@@ -638,7 +638,7 @@ describe("list source rows", () => {
         "queryable now: refs=main",
         "suggested refs (may need indexing): candidate",
         "",
-        "Retry this list with --wait 60000.",
+        "To check for newer results, retry list with --wait 60000.",
       ].join("\n"),
     );
   });
@@ -885,7 +885,9 @@ describe("list preparation outcomes", () => {
     expect(text).toContain("preparing documentation, no estimate available");
     expect(text).toContain('after="next-page"');
     expect(text).not.toContain("Omitted");
-    expect(text).toEndWith("Retry this list with wait_timeout_ms=30000.");
+    expect(text).toEndWith(
+      "To check for newer results, retry list with wait_timeout_ms=30000.",
+    );
   });
 });
 

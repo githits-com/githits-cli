@@ -181,7 +181,7 @@ export interface PreparationRetryOptions {
   syntax: "cli" | "mcp";
   waitMs: number;
   hasAfter?: boolean;
-  /** Successful reads check for a newer file, including when the current file is binary. */
+  /** Distinguish a refresh check from continuing available results. */
   refresh?: boolean;
 }
 
@@ -199,7 +199,7 @@ export function formatPreparationRetry(
       : " Omit --after."
     : "";
   const retry = options.refresh
-    ? "To check for a newer file, retry read"
+    ? `To check for ${options.operation === "read" ? "a newer file" : "newer results"}, retry ${options.operation}`
     : `Retry this ${options.operation}`;
   return `${retry} with ${argument}.${cursor}`;
 }

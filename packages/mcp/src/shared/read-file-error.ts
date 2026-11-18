@@ -1,4 +1,5 @@
 import {
+  buildCliListRecoveryCommand,
   buildContainingPathPrefix,
   buildPathPrefixSuggestion,
   isExactPathAuthorityError,
@@ -6,7 +7,6 @@ import {
   withExactPathAuthorityRecovery,
 } from "./file-path-recovery.js";
 import type { MappedError } from "./mapped-error.js";
-import { shellQuoteExact } from "./shell-quote.js";
 
 export function withReadFileRecovery(
   mapped: MappedError,
@@ -48,7 +48,7 @@ export function buildReadFileNotFoundAction(
     : buildPathPrefixSuggestion(requestedPath);
   const listing =
     syntax === "cli"
-      ? `Use \`githits list <target>${prefix ? ` ${prefix.startsWith("-") ? "-- " : ""}${shellQuoteExact(prefix)}` : ""}\``
+      ? `Use \`${buildCliListRecoveryCommand(prefix)}\``
       : prefix === ""
         ? "Use `list` without `paths`"
         : `Use \`list\` with \`paths: ${JSON.stringify([prefix])}\``;

@@ -53,7 +53,7 @@ marking sources not yet reached by pagination as `(not reached on this page)`,
 other sources without returned matches on an incomplete search as `(no matches
 returned)`, or `(no results)` when the search is complete. A separate
 `Preparing:` block groups actual repository/documentation work and timing once
-per estimate. Duplicate/package requested inputs and their suggestions remain
+per estimate. When readable list rows or a continuation are available, the retry sentence explicitly checks for newer results and omits the old cursor. Duplicate/package requested inputs and their suggestions remain
 attached beneath that work; pending inputs without an estimate keep label-only
 rows. Non-preparation omissions remain under `Not searched:`, with the supplied
 reason and `you can retry` or `do not retry unchanged`. `you can retry` does not

@@ -1,5 +1,8 @@
 import { MAX_DISCOVERY_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
-import { grepPreparationState } from "./grep-preparation-text.js";
+import {
+  grepIssueTargetLabel,
+  grepPreparationState,
+} from "./grep-preparation-text.js";
 import {
   escapePreparationTarget,
   formatIndexedAlternatives,
@@ -119,12 +122,7 @@ export function formatMappedErrorText(
   }
   const issue =
     details.targetIssues?.length === 1 ? details.targetIssues[0] : undefined;
-  const issueTarget =
-    typeof issue?.target === "string"
-      ? issue.target
-      : typeof issue?.input_index === "number"
-        ? `Target ${issue.input_index + 1}`
-        : undefined;
+  const issueTarget = issue ? grepIssueTargetLabel(issue) : undefined;
   const target =
     options.indexingTarget ?? issueTarget ?? details.package ?? details.repoUrl;
   const preparingDocumentation = target?.startsWith("site:") === true;

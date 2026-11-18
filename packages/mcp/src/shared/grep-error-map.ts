@@ -11,7 +11,10 @@ import {
   parseVersionRefRecovery,
 } from "@githits/core-internal";
 import { buildUpdateRequiredError } from "./code-navigation-error-map.js";
-import { grepPreparationReason } from "./grep-preparation-text.js";
+import {
+  grepIssueTargetLabel,
+  grepPreparationReason,
+} from "./grep-preparation-text.js";
 import { InvalidGrepRequestError } from "./grep-request.js";
 import type {
   MappedError,
@@ -113,12 +116,7 @@ export function mapGrepError(error: unknown): MappedError {
           ),
         );
       const hints = details.targetIssues.flatMap((issue, index) => {
-        const target =
-          typeof issue.target === "string"
-            ? issue.target
-            : typeof issue.input_index === "number"
-              ? `Input ${issue.input_index}`
-              : undefined;
+        const target = grepIssueTargetLabel(issue);
         const translatedReason =
           typeof issue.reason === "string"
             ? grepPreparationReason(issue.reason)

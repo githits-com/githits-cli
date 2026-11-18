@@ -8,6 +8,26 @@ import {
 import { mapGrepError } from "./grep-error-map.js";
 
 describe("unified grep errors", () => {
+  it("uses the same one-based labels for unnamed preparation targets without changing raw indices", () => {
+    const issues = [
+      { input_index: 0, reason: "repository_indexing", retryable: true },
+      { input_index: 1, reason: "documentation_publishing", retryable: true },
+    ];
+    const mapped = mapGrepError(
+      new GrepGraphQLError("Pending", {
+        code: "GREP_TARGET_PREPARATION_REQUIRED",
+        retryable: true,
+        target_issues: issues,
+      }),
+    );
+    expect(mapped.details?.hint).toContain(
+      "Target 1: repository is being indexed",
+    );
+    expect(mapped.details?.hint).toContain(
+      "Target 2: documentation is being prepared",
+    );
+    expect(mapped.details?.targetIssues).toEqual(issues);
+  });
   it("describes a no-scopes issue without fabricated input attribution", () => {
     const mapped = mapGrepError(
       new GrepGraphQLError("No searchable scopes.", {
