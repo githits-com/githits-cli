@@ -190,6 +190,7 @@ export class AgenticAskServiceImpl implements AgenticAskService {
                 (error instanceof AgenticAskHttpError &&
                   error.code === "AUTH_REQUIRED") ||
                 isTokenRefreshableError(error),
+              signal,
               executeWithToken: (token) =>
                 this.executeAsk(token, request, signal, options.progress),
             }),
