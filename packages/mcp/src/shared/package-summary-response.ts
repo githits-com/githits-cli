@@ -35,6 +35,10 @@ import { formatCompactNumber } from "./format-number.js";
 import { formatMappedErrorText } from "./mapped-error-text.js";
 import { sanitizeTerminalText } from "./terminal-text.js";
 import { terminalWidth } from "./terminal-width.js";
+import {
+  formatAssessmentUncertainty,
+  formatVulnerabilityAssessmentReason,
+} from "./vulnerability-assessment.js";
 
 // --------------------------------------------------------------------
 // Lean JSON envelope
@@ -68,12 +72,19 @@ export interface LeanVulnerability {
 
 export interface LeanVulnerabilities {
   total: number;
-  affectsLatest: boolean;
+  /** Combined selected-release affectedness; compatibility name, not registry latest. */
+  affectsLatest?: boolean;
+  assessmentStatus?: string;
+  assessmentComplete?: boolean;
+  assessmentReasons?: string[];
+  unknownVulnerabilityCount?: number;
+  /** @deprecated Native history alias; use advisoryHistory.recent. */
   recent?: LeanVulnerability[];
 }
 
 export interface LeanAdvisoryHistory {
   total: number;
+  recent?: LeanVulnerability[];
 }
 
 export interface LeanRecentChange {
@@ -126,6 +137,8 @@ export interface LeanPackageSummary {
   github?: LeanGithub;
   githubError?: PackageSummaryMetadataError;
   provenanceError?: PackageSummaryMetadataError;
+  securityError?: PackageSummaryMetadataError;
+  /** Omitted when combined security for the displayed release is unavailable. */
   vulnerabilities?: LeanVulnerabilities;
   advisoryHistory?: LeanAdvisoryHistory;
   recentChanges?: LeanRecentChange[];
@@ -181,12 +194,12 @@ export function buildPackageSummarySuccessPayload(
     payload.githubError = pkg.githubRepositoryError;
   if (pkg.registryRepositoryError)
     payload.provenanceError = pkg.registryRepositoryError;
-
-  const vulns = buildVulnerabilities(summary.security);
-  if (vulns) payload.vulnerabilities = vulns;
+  if (summary.securityError) payload.securityError = summary.securityError;
 
   const advisoryHistory = buildAdvisoryHistory(summary.security);
   if (advisoryHistory) payload.advisoryHistory = advisoryHistory;
+  const vulns = buildVulnerabilities(summary.security, advisoryHistory?.recent);
+  if (vulns) payload.vulnerabilities = vulns;
 
   const lifecycle = buildLifecyclePayload(summary.lifecycle, options.verbose);
   if (lifecycle) payload.lifecycle = lifecycle;
@@ -342,30 +355,41 @@ function buildGithub(
 
 function buildVulnerabilities(
   security: PackageSecurityOverview | undefined,
+  recent: LeanVulnerability[] | undefined,
 ): LeanVulnerabilities | undefined {
-  if (!security) return undefined;
-  if (typeof security.vulnerabilityCount !== "number") return undefined;
-  const total = security.vulnerabilityCount;
-
-  const result: LeanVulnerabilities = {
-    total,
-    affectsLatest: security.hasCurrentVulnerabilities ?? false,
+  if (typeof security?.vulnerabilityCount !== "number") return undefined;
+  return {
+    total: security.vulnerabilityCount,
+    ...(security.hasCurrentVulnerabilities !== undefined
+      ? { affectsLatest: security.hasCurrentVulnerabilities }
+      : {}),
+    ...(security.assessmentStatus !== undefined
+      ? { assessmentStatus: security.assessmentStatus }
+      : {}),
+    ...(security.assessmentComplete !== undefined
+      ? { assessmentComplete: security.assessmentComplete }
+      : {}),
+    ...(security.assessmentReasons !== undefined
+      ? { assessmentReasons: security.assessmentReasons }
+      : {}),
+    ...(security.unknownVulnerabilityCount !== undefined
+      ? { unknownVulnerabilityCount: security.unknownVulnerabilityCount }
+      : {}),
+    ...(recent ? { recent } : {}),
   };
-
-  const recent = security.recentVulnerabilities
-    ?.map(buildVulnerability)
-    .filter((entry): entry is LeanVulnerability => entry !== undefined);
-  if (recent && recent.length > 0) {
-    result.recent = recent;
-  }
-  return result;
 }
 
 function buildAdvisoryHistory(
   security: PackageSecurityOverview | undefined,
 ): LeanAdvisoryHistory | undefined {
-  if (!security) return undefined;
-  return { total: security.allVulnerabilityCount };
+  if (typeof security?.allVulnerabilityCount !== "number") return undefined;
+  const recent = security.recentVulnerabilities
+    ?.map(buildVulnerability)
+    .filter((entry): entry is LeanVulnerability => entry !== undefined);
+  return {
+    total: security.allVulnerabilityCount,
+    ...(recent?.length ? { recent } : {}),
+  };
 }
 
 function buildVulnerability(
@@ -490,9 +514,11 @@ export function formatPackageSummaryTerminal(
     ? formatLifecycle(summary.lifecycle, width, summary.package.version)
     : formatCompactLifecycle(buildLifecyclePayload(summary.lifecycle), width);
   if (lifecycle) sections.push(lifecycle);
-  const metadataErrors = [lean.githubError, lean.provenanceError].filter(
-    (error) => error !== undefined,
-  );
+  const metadataErrors = [
+    lean.githubError,
+    lean.provenanceError,
+    lean.securityError,
+  ].filter((error) => error !== undefined);
   const firstError = metadataErrors[0];
   if (firstError) {
     const delays = metadataErrors.flatMap((error) => {
@@ -508,7 +534,17 @@ export function formatPackageSummaryTerminal(
           code: firstError.code,
           message:
             metadataErrors.length > 1
-              ? "GitHub metadata, registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED)."
+              ? `${metadataErrors
+                  .map((error, i) => {
+                    const label = error.message.replace(
+                      / temporarily unavailable \(RATE_LIMITED\)\.$/,
+                      "",
+                    );
+                    return i === 0
+                      ? label
+                      : label.charAt(0).toLowerCase() + label.slice(1);
+                  })
+                  .join(", ")} temporarily unavailable (RATE_LIMITED).`
               : firstError.message,
           retryable: metadataErrors.every((error) => error.retryable),
           details: {
@@ -811,17 +847,14 @@ function buildFieldList(
       value: `${formatCompactNumber(lean.downloads.total)} total${refreshed}`,
     });
   }
-
-  if (lean.advisoryHistory) {
-    fields.push({
-      label: "Vulnerabilities",
-      value: formatVulnerabilityStatus(
-        lean.vulnerabilities,
-        lean.advisoryHistory,
-        lean.registryLatestDifference !== undefined,
-      ),
-    });
-  }
+  fields.push({
+    label: "Vulnerabilities",
+    value: formatVulnerabilityStatus(
+      lean.vulnerabilities,
+      lean.advisoryHistory,
+      lean.registryLatestDifference !== undefined,
+    ),
+  });
 
   // Label column sized to the widest *raw* label (no ANSI, matching
   // the locked padding rule). Minimum 10 cols for a readable gutter.
@@ -868,27 +901,43 @@ function formatGithubPopularity(
 
 function formatVulnerabilityStatus(
   vulns: LeanVulnerabilities | undefined,
-  history: LeanAdvisoryHistory,
+  history: LeanAdvisoryHistory | undefined,
   hasDifference: boolean,
 ): string {
   const label = hasDifference ? "Selected" : "Latest";
-  let latest: string;
-  if (!vulns) {
-    latest = `${label}: unavailable`;
-  } else if (vulns.total === 0) {
-    latest = `${label}: none affected`;
-  } else {
-    latest = `${label}: ${vulns.total} affected`;
-  }
-
-  const historyNoun = history.total === 1 ? "advisory" : "advisories";
-  const inconsistent = vulns !== undefined && history.total < vulns.total;
-  const historySuffix = inconsistent ? " (inconsistent backend evidence)" : "";
-  const historyText =
-    history.total === 0
-      ? `History: none known across all versions${historySuffix}`
-      : `History: ${history.total} known ${historyNoun} across all versions${historySuffix}`;
-  return `${latest}\n${historyText}`;
+  let selected: string;
+  const status = vulns?.assessmentStatus;
+  if (!vulns) selected = `${label}: unavailable`;
+  else if (vulns.total > 0) selected = `${label}: ${vulns.total} affected`;
+  else if (status === "UNKNOWN" || (vulns.unknownVulnerabilityCount ?? 0) > 0)
+    selected = `${label}: no confirmed affected findings; assessment incomplete`;
+  else if (status === "UNSUPPORTED" || status === "NOT_ASSESSED")
+    selected = `${label}: ${formatAssessmentUncertainty(status, vulns.affectsLatest)}`;
+  else if (
+    status !== undefined &&
+    status !== "NON_AFFECTING" &&
+    status !== "AFFECTED"
+  )
+    selected = `${label}: ${status}`;
+  else if (vulns.assessmentComplete === false)
+    selected = `${label}: no confirmed affected findings; coverage incomplete`;
+  else selected = `${label}: none affected`;
+  const lines = [selected];
+  if (vulns?.assessmentReasons?.length)
+    lines.push(
+      `Coverage: ${vulns.assessmentReasons.map(formatVulnerabilityAssessmentReason).join("; ")}.`,
+    );
+  else if (vulns?.assessmentComplete === false && vulns.total > 0)
+    lines.push("Coverage incomplete.");
+  if (history) {
+    const noun = history.total === 1 ? "advisory" : "advisories";
+    lines.push(
+      history.total === 0
+        ? "Native history: none known across all versions"
+        : `Native history: ${history.total} known ${noun} across all versions`,
+    );
+  } else lines.push("Native history: unavailable");
+  return lines.join("\n");
 }
 
 function buildVerboseSections(
@@ -902,9 +951,9 @@ function buildVerboseSections(
     if (github) blocks.push(github);
   }
 
-  if (lean.vulnerabilities?.recent && lean.vulnerabilities.recent.length > 0) {
+  if (lean.advisoryHistory?.recent?.length) {
     blocks.push(
-      formatVerboseAdvisories(lean.vulnerabilities.recent, useColors),
+      formatVerboseAdvisories(lean.advisoryHistory.recent, useColors),
     );
   }
 
@@ -946,7 +995,9 @@ function formatVerboseAdvisories(
   const labelWidth = Math.max(
     ...advisories.map((a) => (a.severityLabel ?? "").length),
   );
-  const lines = [highlight("Advisory history (all versions)", useColors)];
+  const lines = [
+    highlight("Native advisory history (all versions)", useColors),
+  ];
   for (const advisory of advisories) {
     const parts: string[] = [];
     const label = (advisory.severityLabel ?? "").padEnd(labelWidth);

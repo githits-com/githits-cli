@@ -284,7 +284,7 @@ describe("package_summary parity", () => {
       ((cli as Record<string, unknown>).downloads as Record<string, unknown>)
         .refreshedAt,
     ).toBe("2024-06-15");
-    expect((cli as Record<string, unknown>).advisoryHistory).toEqual({
+    expect((cli as Record<string, unknown>).advisoryHistory).toMatchObject({
       total: 5,
     });
   });
@@ -547,7 +547,7 @@ describe("registry repository CLI/MCP parity", () => {
         } else {
           expect(text).not.toContain("Package registry");
         }
-        expect(text).toContain("History:");
+        expect(text).toContain("Native history:");
         expect(text).toContain("Repository");
       }
     });
@@ -617,6 +617,53 @@ describe("selected-release CLI/MCP parity", () => {
         if (version) expect(text.split("\n")[0]).toContain(`@ ${version}`);
         else expect(text.split("\n")[0]).toContain("no selected version");
       }
+    },
+  );
+});
+
+describe("combined overview compatibility parity", () => {
+  it.each([true, false])(
+    "preserves independent history with selected security available=%s",
+    async (available) => {
+      const summary = structuredClone(defaultPackageSummary);
+      summary.security = {
+        ...summary.security!,
+        vulnerabilityCount: available ? 1 : undefined,
+        hasCurrentVulnerabilities: available ? true : undefined,
+        assessmentStatus: available ? "AFFECTED" : undefined,
+        assessmentComplete: available ? false : undefined,
+        assessmentReasons: available
+          ? ["RELATED_APPLICABILITY_UNPROVED"]
+          : undefined,
+      };
+      const packageSummary = mock(() => Promise.resolve(summary));
+      const cli = await cliJson(
+        "npm:express",
+        cliDeps({
+          packageIntelligenceService: createMockPackageIntelligenceService({
+            packageSummary,
+          }),
+        }),
+      );
+      const mcp = await mcpJson({ target: "npm:express" }, packageSummary);
+      expect(cli).toEqual(mcp.json);
+      expect(mcp.isError).toBeUndefined();
+      const result = cli as {
+        vulnerabilities?: {
+          total: number;
+          assessmentComplete?: boolean;
+          recent?: unknown[];
+        };
+        advisoryHistory: { recent: unknown[] };
+      };
+      expect(result.advisoryHistory.recent).toHaveLength(2);
+      if (available) {
+        expect(result.vulnerabilities?.recent).toEqual(
+          result.advisoryHistory.recent,
+        );
+        expect(result.vulnerabilities?.assessmentComplete).toBe(false);
+        expect(result.vulnerabilities?.total).toBe(1);
+      } else expect(result.vulnerabilities).toBeUndefined();
     },
   );
 });

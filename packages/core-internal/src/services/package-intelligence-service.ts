@@ -30,7 +30,12 @@ import {
   PkgseerTransportError,
   postPkgseerGraphql,
 } from "../shared/pkgseer-graphql.js";
-import type { PkgseerRegistry } from "../shared/pkgseer-registry.js";
+import {
+  isKnownPkgseerRegistryArg,
+  type PkgseerRegistry,
+  toPkgseerRegistry,
+  toPkgseerRegistryLowercase,
+} from "../shared/pkgseer-registry.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
 import {
   ClientUpdateRequiredError,
@@ -149,9 +154,16 @@ export interface VulnerabilityOverview {
 }
 
 export interface PackageSecurityOverview {
+  /** Combined confirmed findings for the matched selected release. */
   vulnerabilityCount?: number;
-  allVulnerabilityCount: number;
+  /** Native package-wide history, independently optional. */
+  allVulnerabilityCount?: number;
+  /** Compatibility name for selectedVersionAffected, not the registry pointer. */
   hasCurrentVulnerabilities?: boolean;
+  assessmentStatus?: string;
+  assessmentComplete?: boolean;
+  assessmentReasons?: string[];
+  unknownVulnerabilityCount?: number;
   recentVulnerabilities?: VulnerabilityOverview[];
 }
 
@@ -166,6 +178,8 @@ export interface PackageSummary {
   /** Absent when the optional selected-release assessment is unavailable. */
   lifecycle?: PackageLifecycle;
   security?: PackageSecurityOverview;
+  /** Explicit temporary failure of the optional selected-release security facet. */
+  securityError?: PackageSummaryMetadataError;
   latestChangelogs?: ChangelogEntry[];
 }
 
@@ -1207,9 +1221,7 @@ const vulnerabilityOverviewSchema = z.object({
 
 const packageSecurityOverviewSchema = z
   .object({
-    vulnerabilityCount: z.number().int().nullable().optional(),
     allVulnerabilityCount: z.number().int(),
-    hasCurrentVulnerabilities: z.boolean().nullable().optional(),
     recentVulnerabilities: z
       .array(vulnerabilityOverviewSchema)
       .nullable()
@@ -1248,11 +1260,31 @@ const graphQLResponseSchema = z.object({
       packageSummary: packageSummaryResponseSchema.nullable().optional(),
       provenance: z
         .object({
-          selectedVersion: z.object({
-            resolvedVersion: z.string(),
-            lifecycle: packageLifecycleSchema,
-            registryRepository: registryRepositorySchema.nullable().optional(),
-          }),
+          package: z
+            .object({ registry: z.string(), name: z.string() })
+            .nullable()
+            .optional(),
+          security: z
+            .object({
+              selectedVersionAffected: z.boolean(),
+              assessmentStatus: z.string(),
+              assessmentComplete: z.boolean(),
+              assessmentReasons: z.array(z.string()),
+              affectedVulnerabilityCount: z.number().int().nonnegative(),
+              unknownVulnerabilityCount: z.number().int().nonnegative(),
+            })
+            .nullable()
+            .optional(),
+          selectedVersion: z
+            .object({
+              resolvedVersion: z.string(),
+              lifecycle: packageLifecycleSchema.nullable().optional(),
+              registryRepository: registryRepositorySchema
+                .nullable()
+                .optional(),
+            })
+            .nullable()
+            .optional(),
         })
         .nullable()
         .optional(),
@@ -1299,9 +1331,7 @@ query PackageSummary(
       }
     }
     security {
-      vulnerabilityCount
       allVulnerabilityCount
-      hasCurrentVulnerabilities
       recentVulnerabilities @include(if: $includeVerboseFields) {
         osvId
         summary
@@ -1316,6 +1346,11 @@ query PackageSummary(
     }
   }
   provenance: packageInfo(registry: $registry, name: $name) {
+    package { registry name }
+    security {
+      selectedVersionAffected assessmentStatus assessmentComplete assessmentReasons
+      affectedVulnerabilityCount unknownVulnerabilityCount
+    }
     selectedVersion {
       resolvedVersion
       lifecycle {
@@ -3295,21 +3330,78 @@ export class PackageIntelligenceServiceImpl
         "GitHub metadata temporarily unavailable (RATE_LIMITED).",
       );
     }
-    if (provenanceErrors.length) {
+    // An error invalidates its own subtree, not an independently readable sibling.
+    const facetFailed = (...path: string[]): boolean =>
+      errors.some((error) => {
+        if (error.path?.[0] !== "provenance") return false;
+        const failed = error.path.slice(1);
+        return failed
+          .slice(0, Math.min(failed.length, path.length))
+          .every((part, i) => part === path[i]);
+      });
+    const selectedErrors = provenanceErrors.filter(
+      (error) =>
+        error.path?.length === 1 || error.path?.[1] === "selectedVersion",
+    );
+    const securityErrors = provenanceErrors.filter(
+      (error) => error.path?.length === 1 || error.path?.[1] === "security",
+    );
+    if (selectedErrors.length) {
       summary.package.registryRepositoryError = summaryMetadataError(
-        provenanceErrors,
-        "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
+        selectedErrors,
+        `${
+          facetFailed("selectedVersion", "resolvedVersion") ||
+          (
+            facetFailed("selectedVersion", "lifecycle") &&
+              facetFailed("selectedVersion", "registryRepository")
+          )
+            ? "Registry provenance and lifecycle warnings"
+            : facetFailed("selectedVersion", "lifecycle")
+              ? "Lifecycle warnings"
+              : "Registry provenance"
+        } temporarily unavailable (RATE_LIMITED).`,
       );
     }
-    const selected = parsed.data.data?.provenance?.selectedVersion;
-    if (
-      !errors.some((error) => error.path?.[0] === "provenance") &&
+    if (securityErrors.length) {
+      summary.securityError = summaryMetadataError(
+        securityErrors,
+        "Selected-release vulnerability assessment temporarily unavailable (RATE_LIMITED).",
+      );
+    }
+    const provenance = parsed.data.data?.provenance;
+    const selected = provenance?.selectedVersion;
+    const versionMatches =
+      !facetFailed("selectedVersion", "resolvedVersion") &&
       summary.package.version !== undefined &&
-      selected?.resolvedVersion === summary.package.version
-    ) {
-      summary.package.registryRepository =
-        selected.registryRepository ?? undefined;
-      summary.lifecycle = selected.lifecycle;
+      selected?.resolvedVersion === summary.package.version;
+    const sourcePackage = provenance?.package;
+    const sourceRegistry = sourcePackage?.registry.toLowerCase();
+    const subjectMatches =
+      versionMatches &&
+      !facetFailed("package") &&
+      sourcePackage?.name === summary.package.name &&
+      sourceRegistry !== undefined &&
+      isKnownPkgseerRegistryArg(sourceRegistry) &&
+      toPkgseerRegistryLowercase(toPkgseerRegistry(sourceRegistry)) ===
+        summary.package.registry?.toLowerCase();
+    if (!facetFailed("security") && subjectMatches && provenance?.security) {
+      const security = provenance.security;
+      summary.security = {
+        ...summary.security,
+        vulnerabilityCount: security.affectedVulnerabilityCount,
+        hasCurrentVulnerabilities: security.selectedVersionAffected,
+        assessmentStatus: security.assessmentStatus,
+        assessmentComplete: security.assessmentComplete,
+        assessmentReasons: security.assessmentReasons,
+        unknownVulnerabilityCount: security.unknownVulnerabilityCount,
+      };
+    }
+    if (versionMatches) {
+      if (!facetFailed("selectedVersion", "registryRepository"))
+        summary.package.registryRepository =
+          selected.registryRepository ?? undefined;
+      if (!facetFailed("selectedVersion", "lifecycle"))
+        summary.lifecycle = selected.lifecycle ?? undefined;
     }
     return summary;
   }
@@ -3377,10 +3469,7 @@ export class PackageIntelligenceServiceImpl
 
     const security: PackageSecurityOverview | undefined = data.security
       ? {
-          vulnerabilityCount: data.security.vulnerabilityCount ?? undefined,
           allVulnerabilityCount: data.security.allVulnerabilityCount,
-          hasCurrentVulnerabilities:
-            data.security.hasCurrentVulnerabilities ?? undefined,
           recentVulnerabilities:
             data.security.recentVulnerabilities?.map((vuln) => ({
               osvId: vuln.osvId ?? undefined,

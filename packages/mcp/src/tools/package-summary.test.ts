@@ -126,7 +126,7 @@ describe("createPackageSummaryTool — happy path", () => {
     expect(text).toContain("63k stars, 14k forks, 123 issues");
     expect(text).toContain("Vulnerabilities");
     expect(text.replace(/\s+/g, " ")).toContain(
-      "Latest: 5 affected History: 5 known advisories across all versions",
+      "Latest: 5 affected Native history: 5 known advisories across all versions",
     );
     expect(text).not.toContain("githits pkg vulns");
     expect(text).not.toContain("Install");
@@ -143,7 +143,7 @@ describe("createPackageSummaryTool — happy path", () => {
     );
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("GitHub");
-    expect(text).toContain("Advisory history (all versions)");
+    expect(text).toContain("Native advisory history (all versions)");
     expect(text).toContain("Recent changes");
     expect(text).toContain("Versions");
     expect(text).toContain("214 published");
@@ -167,7 +167,7 @@ describe("createPackageSummaryTool — happy path", () => {
     expect((payload.downloads as Record<string, unknown>).refreshedAt).toBe(
       "2024-06-15",
     );
-    expect(payload.advisoryHistory).toEqual({ total: 5 });
+    expect(payload.advisoryHistory).toMatchObject({ total: 5 });
     expect("install" in payload).toBe(false);
     expect("usage" in payload).toBe(false);
   });
@@ -189,7 +189,9 @@ describe("createPackageSummaryTool — happy path", () => {
     const result = await tool.handler({ target: "npm:express" }, {});
     const text = result.content[0]?.text ?? "";
     expect(text).toContain("Latest: none affected");
-    expect(text).toContain("History: 5 known advisories across all versions");
+    expect(text).toContain(
+      "Native history: 5 known advisories across all versions",
+    );
     expect(text).not.toContain("Inspect history");
     expect(text).not.toContain("githits pkg vulns");
   });
@@ -365,7 +367,7 @@ describe("createPackageSummaryTool — service errors", () => {
   });
 });
 
-for (const mode of ["github", "provenance", "both"] as const) {
+for (const mode of ["github", "provenance", "both", "security"] as const) {
   it.each(["text", "verbose", "json"] as const)(
     `retains readable ${mode} partial summary in %s without isError`,
     async (format) => {
@@ -380,19 +382,27 @@ for (const mode of ["github", "provenance", "both"] as const) {
         repoUrl: "https://github.com/example/repo",
         gitRef: null,
       };
-      if (mode !== "provenance") {
+      if (mode === "github" || mode === "both") {
         delete summary.package.githubRepository;
         summary.package.githubRepositoryError = {
           ...facts,
           message: "GitHub metadata temporarily unavailable (RATE_LIMITED).",
         };
       }
-      if (mode !== "github") {
+      if (mode === "provenance" || mode === "both") {
         delete summary.package.registryRepository;
         summary.package.registryRepositoryError = {
           ...facts,
           message:
             "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
+        };
+      }
+      if (mode === "security") {
+        delete summary.security!.vulnerabilityCount;
+        summary.securityError = {
+          ...facts,
+          message:
+            "Selected-release vulnerability assessment temporarily unavailable (RATE_LIMITED).",
         };
       }
       const packageSummary = mock(async () => summary);
@@ -409,14 +419,23 @@ for (const mode of ["github", "provenance", "both"] as const) {
       );
       expect(result.isError).toBeUndefined();
       const text = result.content[0]!.text;
+      if (mode === "security") {
+        const payload = format === "json" ? JSON.parse(text) : undefined;
+        if (payload) {
+          expect(payload.vulnerabilities).toBeUndefined();
+          expect(payload.securityError).toEqual(summary.securityError);
+          expect(payload.advisoryHistory.total).toBe(5);
+        } else expect(text).toContain("Latest: unavailable");
+      }
+
       if (format === "json") {
         expect(JSON.parse(text)).toMatchObject({
           name: "express",
           version: "4.18.2",
-          ...(mode !== "provenance"
+          ...(mode === "github" || mode === "both"
             ? { githubError: summary.package.githubRepositoryError }
             : {}),
-          ...(mode !== "github"
+          ...(mode === "provenance" || mode === "both"
             ? { provenanceError: summary.package.registryRepositoryError }
             : {}),
         });

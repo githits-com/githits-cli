@@ -75,7 +75,7 @@ const HAPPY_BODY = {
     packageSummary: {
       package: {
         name: "express",
-        registry: "NPM",
+        registry: "npm",
         description: "Fast web framework",
         version: "4.18.2",
         publishedAt: "2023-05-28T00:00:00Z",
@@ -118,6 +118,18 @@ const HAPPY_BODY = {
           body: "Bug fixes",
         },
       ],
+    },
+    provenance: {
+      package: { name: "express", registry: "NPM" },
+      selectedVersion: { resolvedVersion: "4.18.2" },
+      security: {
+        selectedVersionAffected: true,
+        affectedVulnerabilityCount: 5,
+        unknownVulnerabilityCount: 0,
+        assessmentStatus: "AFFECTED",
+        assessmentComplete: true,
+        assessmentReasons: [],
+      },
     },
   },
 };
