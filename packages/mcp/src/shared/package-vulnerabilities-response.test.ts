@@ -2634,3 +2634,56 @@ describe("actionable report assessment notices", () => {
     expect(before.summary.assessmentReasons).toEqual([reason]);
   });
 });
+
+describe("global advisory reasons stay actionable", () => {
+  it.each([
+    ["LOOKUP_FAILED", "Advisory lookup failed", "Run the report again"],
+    [
+      "INVALID_VERSION",
+      "Version could not be evaluated",
+      "Verify the selected package version",
+    ],
+    [
+      "FUTURE_REASON\u001b[31m",
+      "FUTURE_REASON",
+      "Review the reported assessment reasons",
+    ],
+  ])(
+    "keeps %s visible when there are no advisory rows",
+    (reason, explanation, action) => {
+      const report = zeroVulnsFixture();
+      Object.assign(report.security!, {
+        assessmentComplete: false,
+        assessmentStatus: "UNKNOWN",
+        assessmentReasons: [reason],
+        unknownVulnerabilityCount: 0,
+      });
+      for (const surface of ["cli", "mcp"] as const) {
+        const text = formatPackageVulnerabilitiesTerminal(report, { surface });
+        expect(text.replace(/\s+/g, " ")).toContain(explanation);
+        expect(text.replace(/\s+/g, " ")).toContain(action);
+        expect(text).not.toContain("Coverage");
+        expect(text).not.toContain(ESC);
+      }
+      expect(
+        buildPackageVulnerabilitiesSuccessPayload(report).summary
+          .assessmentReasons,
+      ).toEqual([reason]);
+    },
+  );
+  it("does not let a running-check notice hide an independent advisory lookup failure", () => {
+    const report = zeroVulnsFixture();
+    Object.assign(report.security!, {
+      assessmentComplete: false,
+      assessmentStatus: "UNKNOWN",
+      assessmentReasons: ["SOURCE_PREPARING", "LOOKUP_FAILED"],
+    });
+    const text = formatPackageVulnerabilitiesTerminal(report).replace(
+      /\s+/g,
+      " ",
+    );
+    expect(text).toContain("Additional vulnerability checks are running");
+    expect(text).toContain("Advisory lookup failed");
+    expect(text).toContain("Run the report again");
+  });
+});

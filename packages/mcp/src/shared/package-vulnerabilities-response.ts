@@ -838,6 +838,16 @@ export function formatPackageVulnerabilitiesTerminal(
         .join("\n")
     : undefined;
   const reasons = payload.summary.assessmentReasons ?? [];
+  const remainingReasons = reasons.filter(
+    (reason) =>
+      ![
+        "SOURCE_PREPARING",
+        "SOURCE_NOT_ASSESSED",
+        "SOURCE_INCOMPLETE",
+        "SOURCE_UNAVAILABLE",
+        "RELATED_APPLICABILITY_UNPROVED",
+      ].includes(reason),
+  );
   const assessmentNotice = [
     ...(report.paginationComplete === false
       ? [
@@ -862,9 +872,10 @@ export function formatPackageVulnerabilitiesTerminal(
           `Review related advisory evidence for package applicability: use ${surface === "cli" ? "--scope all --verbose" : 'advisory_scope="all", verbose=true'}.`,
         ]
       : []),
-    ...(payload.summary.assessmentComplete === false && reasons.length === 0
+    ...(payload.summary.assessmentComplete === false &&
+    (reasons.length === 0 || remainingReasons.length > 0)
       ? [
-          "Some advisory results could not be determined. Review the per-advisory assessments before relying on the affected count.",
+          `${remainingReasons.length ? remainingReasons.map(formatVulnerabilityAssessmentReason).join("; ") : "Some advisory results could not be determined"}. ${remainingReasons.includes("INVALID_VERSION") ? "Verify the selected package version before rerunning this report." : remainingReasons.includes("LOOKUP_FAILED") ? "Run the report again before relying on the affected count." : "Review the reported assessment reasons before relying on the affected count."}`,
         ]
       : []),
   ]

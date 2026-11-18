@@ -936,6 +936,8 @@ describe("published native recent history alias", () => {
 describe("actionable overview vulnerability results", () => {
   it.each([
     ["SOURCE_NOT_ASSESSED", "Start the remaining vulnerability checks"],
+    ["LOOKUP_FAILED", "Advisory lookup failed"],
+    ["INVALID_VERSION", "The selected version could not be evaluated"],
     ["SOURCE_PREPARING", "Vulnerability checks are running"],
     ["SOURCE_INCOMPLETE", "Some vulnerability checks could not be completed"],
     ["SOURCE_UNAVAILABLE", "Some vulnerability checks could not be completed"],

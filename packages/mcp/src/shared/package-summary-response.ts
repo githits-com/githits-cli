@@ -981,6 +981,14 @@ function formatVulnerabilityNextStep(
       "Some vulnerability checks could not be completed. Inspect the report for the unresolved results.",
     );
   const unknown = (vulns.unknownVulnerabilityCount ?? 0) > 0;
+  if (reasons.includes("LOOKUP_FAILED"))
+    explanations.push(
+      "Advisory lookup failed. Check the report below before relying on the affected count.",
+    );
+  if (reasons.includes("INVALID_VERSION"))
+    explanations.push(
+      "The selected version could not be evaluated. Verify the version in the report below.",
+    );
   if (unknown)
     explanations.push("Inspect the unresolved advisories in the report below.");
   if (explanations.length === 0 && vulns.assessmentComplete === false)
@@ -990,7 +998,7 @@ function formatVulnerabilityNextStep(
   if (explanations.length === 0) return "";
   const target = `${lean.registry}:${lean.name}${lean.version ? `@${lean.version}` : ""}`;
   // Related evidence can be attached to a non-affecting PACKAGE row. ALL plus
-  // verbose includes that row, its aliases and proof rather than just a row cap.
+  // verbose shows its aliases and proof, and avoids the MCP compact row cap.
   const scope = related ? "all" : unknown ? "unknown" : undefined;
   const action =
     surface === "cli"
