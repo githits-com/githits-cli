@@ -5,6 +5,7 @@ import type {
   GrepResult,
   GrepTargetStatus,
 } from "@githits/core-internal";
+import sourceRefusal from "../../../core-internal/src/services/fixtures/grep-source-refusal.json";
 import { parseGrepResult } from "../../../core-internal/src/services/grep-service.js";
 import mixed100 from "./fixtures/grep-text/mixed-100.json";
 import { formatGrepText } from "./grep-text.js";
@@ -848,3 +849,90 @@ function sortedCounts(counts: Map<string, number>): Record<string, number> {
     [...counts].sort(([left], [right]) => left.localeCompare(right)),
   );
 }
+
+it.each(["cli", "mcp"] as const)(
+  "shows partial source diagnostics once and preserves message-absent copy in %s",
+  (syntax) => {
+    for (const withHits of [false, true]) {
+      const original = parseGrepResult(mixed100);
+      const result: GrepResult = {
+        ...original,
+        hits: withHits ? original.hits : [],
+        totalMatches: withHits ? original.totalMatches : 0,
+        nextCursor: null,
+        traversal: "NON_RESUMABLE_PARTIAL",
+        unavailableTargets: sourceRefusal,
+      };
+      const before = structuredClone(result);
+      const text = formatGrepText(result, { syntax, width: 80 }).replace(
+        /\s+/g,
+        " ",
+      );
+      expect(text).toContain(
+        "pypi:modal@1.3.4: published, but source not searched (no matching ref).",
+      );
+      expect(text).toContain("Nearby refs: v1.3.1, v1.3.0, v1.2.4.");
+      expect(text).not.toContain("v1.2.3");
+      expect(text).not.toContain(sourceRefusal[0]!.message!);
+      expect(text).not.toContain("pypi:modal@1.3.4: Unable");
+      expect(text).not.toContain("Did you mean");
+      expect(text.split("Nearby refs:").length - 1).toBe(1);
+      expect(text).not.toContain("py/v1.6.3");
+      expect(text).toContain(
+        "pypi:modal@1.3.4: no searchable documentation pages are available; do not retry unchanged",
+      );
+      expect(text).not.toContain("Repeat the original grep");
+      if (withHits) expect(text).toContain("History.md");
+      expect(result).toEqual(before);
+    }
+  },
+);
+
+it.each([undefined, null, "", " \t\n "])(
+  "uses reason/retryability when the omission message is %j",
+  (message) => {
+    const original = parseGrepResult(mixed100);
+    const text = formatGrepText(
+      { ...original, unavailableTargets: [{ ...sourceRefusal[0]!, message }] },
+      { width: 200 },
+    );
+    expect(text).toContain(
+      "pypi:modal@1.3.4: package source ref was not found; do not retry unchanged",
+    );
+  },
+);
+
+it.each(["null", "absent", "empty"] as const)(
+  "omits nearby-ref scaffolding without suggested refs (%s)",
+  (kind) => {
+    const suggestedRefs =
+      kind === "null" ? null : kind === "empty" ? [] : undefined;
+    const original = parseGrepResult(mixed100);
+    const text = formatGrepText({
+      ...original,
+      unavailableTargets: [{ ...sourceRefusal[0]!, suggestedRefs }],
+    });
+    expect(text.replace(/\s+/g, " ")).toContain(
+      "published, but source not searched (no matching ref).",
+    );
+    expect(text).not.toContain("Nearby refs:");
+  },
+);
+
+it("keeps other backend messages without inferring a source refusal from prose", () => {
+  const original = parseGrepResult(mixed100);
+  const message =
+    "The package version is published. Source was not searched; contact the repository owner.";
+  const text = formatGrepText(
+    {
+      ...original,
+      unavailableTargets: [
+        { ...sourceRefusal[0]!, reason: "repository_legally_blocked", message },
+      ],
+    },
+    { width: 200 },
+  );
+  expect(text).toContain(message);
+  expect(text).not.toContain("Nearby refs:");
+  expect(text).not.toContain("no matching ref");
+});

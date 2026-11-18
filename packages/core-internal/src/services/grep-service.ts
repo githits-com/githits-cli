@@ -44,6 +44,7 @@ import {
 } from "./runtime-diagnostics.js";
 import type { ServiceRequestOptions } from "./service-request-options.js";
 import type { TokenProvider } from "./token-provider.js";
+import type { RecoveryRef } from "./version-ref-recovery.js";
 
 export type GrepCorpus = "SOURCE" | "DOCUMENTATION" | "ALL";
 export type GrepTraversal =
@@ -163,6 +164,12 @@ export interface GrepTargetStatus {
   urlPrefixes?: string[];
 }
 export interface GrepUnavailableTarget {
+  /** Backend diagnostic; display only, never a retry/readiness classifier. */
+  message?: string | null;
+  requestedVersion?: string | null;
+  suggestedRefs?: RecoveryRef[] | null;
+  availableRefs?: RecoveryRef[] | null;
+  availableVersions?: RecoveryRef[] | null;
   inputIndex: number;
   target: string;
   reason: string;
@@ -291,6 +298,9 @@ const modifications = z.array(
 function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
   const selected = <T extends z.ZodType>(schema: T): T | z.ZodOptional<T> =>
     detailed ? schema : schema.optional();
+  const recoveryRefs = z
+    .array(z.object({ ref: z.string(), version: selected(nullableString) }))
+    .nullable();
   const safety = z.object({
     filtered: z.boolean(),
     modifications: selected(modifications),
@@ -399,6 +409,11 @@ function resultSchema(detailed: boolean): z.ZodType<GrepResult> {
     ),
     unavailableTargets: z.array(
       z.object({
+        message: nullableString.optional(),
+        requestedVersion: selected(nullableString),
+        suggestedRefs: selected(recoveryRefs),
+        availableRefs: selected(recoveryRefs),
+        availableVersions: selected(recoveryRefs),
         inputIndex: nonnegativeInt,
         target: z.string(),
         reason: z.string(),
@@ -509,7 +524,13 @@ const GRAPHQL_QUERY = `query Grep(
         matchEndByte @include(if: $includeDetailedFields)
       }
     }
-    unavailableTargets { inputIndex target reason retryable progressRef suggestedSiteTargets }
+    unavailableTargets {
+      inputIndex target reason retryable progressRef suggestedSiteTargets message
+      requestedVersion @include(if: $includeDetailedFields)
+      suggestedRefs { ref version @include(if: $includeDetailedFields) }
+      availableRefs @include(if: $includeDetailedFields) { ref version }
+      availableVersions @include(if: $includeDetailedFields) { ref version }
+    }
   }
 }
 fragment RepositoryMatch on GrepRepositoryHit {

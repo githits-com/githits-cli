@@ -1,6 +1,7 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import type { GrepParams, GrepResult } from "@githits/core-internal";
 import { Command } from "commander";
+import sourceRefusal from "../../packages/core-internal/src/services/fixtures/grep-source-refusal.json";
 import { registerGrepCommand } from "../commands/grep.js";
 import {
   createMockGrepService,
@@ -492,3 +493,79 @@ it.each(["ready", "pending"] as const)(
     }
   },
 );
+
+it("preserves partial source diagnostics in CLI/MCP text and lossless JSON", async () => {
+  const result: GrepResult = {
+    ...defaultGrepResult,
+    traversal: "NON_RESUMABLE_PARTIAL",
+    unavailableTargets: sourceRefusal,
+  };
+  const before = structuredClone(result);
+  const grep = mock(async () => result);
+  const grepService = createMockGrepService({ grep });
+  const program = new Command("githits");
+  registerGrepCommand(program, async () => ({
+    grepService,
+    hasValidToken: true,
+    mcpUrl: "https://example.test",
+    createSpinner: () => ({ stop: () => {} }),
+  }));
+  const tool = createParityMcpTool("grep", { grepService });
+  const out = spyOn(process.stdout, "write").mockImplementation(() => true);
+  const log = spyOn(console, "log").mockImplementation(() => {});
+  try {
+    const cliArgs = [
+      "grep",
+      "max_containers",
+      "pypi:modal@1.3.4",
+      "--path",
+      "modal/app.py",
+      "-F",
+      "--limit",
+      "2",
+    ];
+    const mcpArgs = {
+      targets: [
+        {
+          target: "pypi:modal@1.3.4",
+          path_selectors: [{ kind: "exact" as const, value: "modal/app.py" }],
+        },
+      ],
+      pattern: "max_containers",
+      pattern_type: "literal" as const,
+      max_matches: 2,
+    };
+    await program.parseAsync(cliArgs, { from: "user" });
+    const cliText = out.mock.calls
+      .map(([v]) => String(v))
+      .join("")
+      .trim();
+    const mcpResult = await tool.handler(mcpArgs, {});
+    expect(mcpResult.isError).toBeUndefined();
+    expect(cliText).toBe(String(mcpResult.content[0]?.text));
+    const flat = cliText.replace(/\s+/g, " ");
+    expect(flat).toContain(
+      "pypi:modal@1.3.4: published, but source not searched (no matching ref).",
+    );
+    expect(flat).toContain("Nearby refs: v1.3.1, v1.3.0, v1.2.4.");
+    expect(flat).not.toContain(sourceRefusal[0]!.message!);
+    expect(flat).toContain(
+      "no searchable documentation pages are available; do not retry unchanged",
+    );
+    await program.parseAsync([...cliArgs, "--json"], { from: "user" });
+    const cliJson = JSON.parse(String(log.mock.calls[0]?.[0]));
+    const mcpJson = JSON.parse(
+      String(
+        (await tool.handler({ ...mcpArgs, format: "json" }, {})).content[0]
+          ?.text,
+      ),
+    );
+    expect(cliJson).toEqual(mcpJson);
+    expect(cliJson.unavailableTargets).toEqual(sourceRefusal);
+    expect(result).toEqual(before);
+    expect(grep).toHaveBeenCalledTimes(4);
+  } finally {
+    out.mockRestore();
+    log.mockRestore();
+  }
+});

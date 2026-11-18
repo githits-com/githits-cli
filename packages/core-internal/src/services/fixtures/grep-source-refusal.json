@@ -1,0 +1,33 @@
+[
+  {
+    "inputIndex": 0,
+    "target": "pypi:modal@1.3.4",
+    "reason": "package_source_ref_not_found",
+    "retryable": false,
+    "progressRef": null,
+    "suggestedSiteTargets": null,
+    "message": "Unable to resolve the source ref for pypi:modal@1.3.4; source was not searched. The package version is published. Did you mean v1.3.1, v1.3.0, v1.2.4, v1.2.3?",
+    "requestedVersion": "1.3.4",
+    "suggestedRefs": [
+      { "ref": "v1.3.1", "version": null },
+      { "ref": "v1.3.0", "version": null },
+      { "ref": "v1.2.4", "version": null },
+      { "ref": "v1.2.3", "version": null }
+    ],
+    "availableRefs": null,
+    "availableVersions": [{ "ref": "py/v1.6.3", "version": null }]
+  },
+  {
+    "inputIndex": 0,
+    "target": "pypi:modal@1.3.4",
+    "reason": "no_site_pages",
+    "retryable": false,
+    "progressRef": null,
+    "suggestedSiteTargets": null,
+    "message": null,
+    "requestedVersion": null,
+    "suggestedRefs": null,
+    "availableRefs": null,
+    "availableVersions": null
+  }
+]

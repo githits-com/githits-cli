@@ -99,16 +99,23 @@ workspace-only `@githits/mcp/internal` entry point; the MCP tool imports those
 helpers inside the package.
 
 Compact text selects complete line/context slices, native UTF-8 display match
-offsets, exact reads, scope provenance/statuses, scan/skip counts, issue summaries,
-omissions, page count, traversal and cursor. Display offsets are required in
-both modes and validated for ordered, in-bounds UTF-8 character boundaries in
-the returned slice. JSON additionally selects duplicate `lineContent`, hit
-repository identities, physical source byte coordinates, safety modifications,
-issue byte details and scope URL-prefix detail. Nullable scope `repoUrl` and
-`canonicalSite` are required in both modes for the Sources summary. The JSON-only
-fields use conditional `@include(if: $includeDetailedFields)` selections. Missing selected fields or
-unknown hit branches fail. Selected nulls stay null; excluded details stay
-absent. JSON keeps camelCase fields without `hasMore` or an invented global total.
+offsets, exact reads, scope provenance/statuses, scan/skip counts, issue
+summaries, omissions (including backend diagnostic messages), page count,
+traversal and cursor. Display offsets are required in both modes and validated
+for ordered, in-bounds UTF-8 character boundaries in the returned slice. JSON
+additionally selects duplicate `lineContent`, hit repository identities,
+physical source byte coordinates, safety modifications, issue byte details,
+scope URL-prefix detail and omission recovery metadata (`requestedVersion`,
+`availableRefs`, `availableVersions`, and ref versions). Suggested ref names are
+also selected for compact text. Omission metadata
+preserves backend nulls, including null ref versions. Detailed wire responses
+require the selected recovery fields; compact parsing and JSON projection allow
+their absence for existing injected service providers. Nullable scope `repoUrl`
+and `canonicalSite` are required in both modes for the Sources summary. The
+JSON-only fields use conditional `@include(if: $includeDetailedFields)`
+selections. Missing selected fields or unknown hit branches fail. Selected
+nulls stay null; excluded details stay absent. JSON keeps camelCase fields
+without `hasMore` or an invented global total.
 
 ## Results and recovery
 
@@ -167,8 +174,19 @@ identity metadata that grep does not currently expose. Ordinary and hosted
 documentation results carry no requested label.
 Pending repository/documentation targets appear under `Preparing`, grouped by
 actual work identity with one advisory total estimate and input-specific child
-rows. Other unavailable targets appear under `Not searched`, with their reason and
-suggestions. Grep supplies no commit-date or observed-HEAD proof.
+rows. Other unavailable targets appear under `Not searched`. A nonblank message
+with typed `package_source_ref_not_found` renders as `<target>: published, but
+source not searched (no matching ref).` and up to three `Nearby refs` from
+`suggestedRefs`. The backend uses this reason for a published release whose source
+ref cannot be resolved. Text keeps the canonical target and does not repeat the
+full diagnostic, repository URL or retry prohibition; JSON retains the full
+message and every ref. No prose parsing establishes publication or retryability.
+Other messages retain their backend diagnostic and typed retry instruction.
+Null, absent or whitespace-only messages retain the reason-based row.
+Hosted-documentation alternatives remain separate. Messages and refs are escaped
+and wrapped as prose; they never classify retryability, readiness or exit status.
+The client never chooses a suggested ref or retries automatically.
+Grep supplies no commit-date or observed-HEAD proof.
 Sources not yet reached by pagination are marked `(not reached on this page)`.
 Other sources without matches on an incomplete search are marked `(no matches
 returned)`.

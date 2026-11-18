@@ -200,9 +200,20 @@ export function formatGrepText(
   );
   if (otherOmissions.length) lines.push("", "Not searched:");
   for (const omitted of otherOmissions) {
-    prose(
-      `  - ${omitted.target}: ${grepPreparationReason(omitted.reason)}; ${omitted.retryable ? "you can retry" : "do not retry unchanged"}${omitted.reason === "no_grep_scopes" && !omitted.retryable && !omitted.suggestedSiteTargets?.length ? "; choose a different package, repository or site target" : ""}`,
-    );
+    const message = omitted.message?.trim();
+    if (message && omitted.reason === "package_source_ref_not_found") {
+      prose(
+        `  - ${omitted.target}: published, but source not searched (no matching ref).`,
+      );
+      const refs = omitted.suggestedRefs?.slice(0, 3).map((entry) => entry.ref);
+      if (refs?.length) prose(`    Nearby refs: ${refs.join(", ")}.`);
+    } else {
+      prose(
+        message
+          ? `  - ${message} ${omitted.retryable ? "You can retry." : "Do not retry unchanged."}`
+          : `  - ${omitted.target}: ${grepPreparationReason(omitted.reason)}; ${omitted.retryable ? "you can retry" : "do not retry unchanged"}${omitted.reason === "no_grep_scopes" && !omitted.retryable && !omitted.suggestedSiteTargets?.length ? "; choose a different package, repository or site target" : ""}`,
+      );
+    }
     for (const target of omitted.suggestedSiteTargets ?? [])
       prose(`    Search hosted documentation instead: ${target}`);
   }

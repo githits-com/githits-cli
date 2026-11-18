@@ -2,6 +2,7 @@ import { describe, expect, it, mock, spyOn } from "bun:test";
 import { FetchTimeoutError } from "../shared/fetch-timeout.js";
 import { TermsAcceptanceRequiredError } from "../shared/terms-acceptance.js";
 import { ClientUpdateRequiredError } from "./client-update-required-error.js";
+import sourceRefusal from "./fixtures/grep-source-refusal.json";
 import { AuthenticationError } from "./githits-service.js";
 import {
   GrepAccessError,
@@ -703,6 +704,14 @@ for (const detailed of [false, true]) {
       {
         inputIndex: 2,
         target: records[1]!.target,
+        ...(detailed
+          ? {
+              requestedVersion: null,
+              suggestedRefs: null,
+              availableRefs: null,
+              availableVersions: null,
+            }
+          : {}),
         reason: "repository_indexing",
         retryable: true,
         progressRef: "pending",
@@ -763,4 +772,121 @@ it("requires the canonical wire array and a non-null input resolution", () => {
       parseGrepResult({ ...result(), targetResolutions: value }),
     ).toThrow(MalformedGrepResponseError);
   }
+});
+
+describe("partial source refusal diagnostics", () => {
+  it.each([false, true])(
+    "retains diagnostics with minimal selections (detailed=%s)",
+    async (detailed) => {
+      const unavailableTargets = sourceRefusal.map((entry) => {
+        if (detailed) return entry;
+        const {
+          requestedVersion,
+          availableRefs,
+          availableVersions,
+          ...compact
+        } = entry;
+        return {
+          ...compact,
+          suggestedRefs:
+            entry.suggestedRefs?.map(({ ref }) => ({ ref })) ?? null,
+        };
+      });
+      const page: GrepResult = {
+        ...result(),
+        traversal: "NON_RESUMABLE_PARTIAL",
+        unavailableTargets,
+      };
+      const fetcher = mock(
+        async (_url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+          const body = JSON.parse(String(init?.body));
+          expect(body.variables.includeDetailedFields).toBe(detailed);
+          const selection = body.query.split("unavailableTargets {")[1];
+          expect(selection).toContain("message");
+          expect(selection).not.toContain("message @include");
+          for (const field of [
+            "requestedVersion",
+            "availableRefs",
+            "availableVersions",
+          ])
+            expect(selection).toContain(
+              `${field} @include(if: $includeDetailedFields)`,
+            );
+          expect(selection).toContain(
+            "suggestedRefs { ref version @include(if: $includeDetailedFields) }",
+          );
+          expect(selection).not.toContain("suggestedRefs @include");
+          return response({ data: { grep: page } });
+        },
+      );
+      expect(
+        await service(fetcher).grep({
+          ...params,
+          includeDetailedFields: detailed,
+        }),
+      ).toEqual(page);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("requires selected recovery fields on detailed wire responses", () => {
+    const fields = [
+      "requestedVersion",
+      "suggestedRefs",
+      "availableRefs",
+      "availableVersions",
+    ] as const;
+    for (const field of fields) {
+      const omission = { ...sourceRefusal[0]! };
+      Reflect.deleteProperty(omission, field);
+      expect(() =>
+        parseGrepResult({ ...result(), unavailableTargets: [omission] }, true),
+      ).toThrow(MalformedGrepResponseError);
+    }
+    expect(() =>
+      parseGrepResult(
+        {
+          ...result(),
+          unavailableTargets: [
+            { ...sourceRefusal[0]!, suggestedRefs: [{ ref: "v1" }] },
+          ],
+        },
+        true,
+      ),
+    ).toThrow(MalformedGrepResponseError);
+  });
+
+  it("validates supplied diagnostics and keeps absent fields compatible", () => {
+    for (const invalid of [
+      { message: 42 },
+      { requestedVersion: 42 },
+      { suggestedRefs: [{ ref: 42, version: null }] },
+      { availableRefs: [null] },
+      { availableVersions: [{ ref: "v1", version: false }] },
+    ]) {
+      expect(() =>
+        parseGrepResult({
+          ...result(),
+          unavailableTargets: [{ ...sourceRefusal[0], ...invalid }],
+        }),
+      ).toThrow(MalformedGrepResponseError);
+    }
+    const {
+      message,
+      requestedVersion,
+      suggestedRefs,
+      availableRefs,
+      availableVersions,
+      ...legacy
+    } = sourceRefusal[0]!;
+    expect(
+      parseGrepResult({ ...result(), unavailableTargets: [legacy] })
+        .unavailableTargets,
+    ).toEqual([legacy]);
+    const injected = { ...legacy, suggestedRefs: [{ ref: "v1" }] };
+    expect(
+      parseGrepResult({ ...result(), unavailableTargets: [injected] })
+        .unavailableTargets,
+    ).toEqual([injected]);
+  });
 });
