@@ -39,19 +39,13 @@ counts/verdict/completeness without requiring identical admission-state reasons.
 
 Remaining before this final increment can be declared fully verified:
 
-1. Complete the revised full-delta internal review after the accepted external
-   review correction: classify a provenance root nulled by a non-null leaf error
-   as unavailable in every dependent facet. Actual wire fixtures must distinguish
-   this case from nullable security/repository errors with valid siblings.
-2. Complete the retained Opus 5.5 external review after the internal gate, fixing
-   any findings and retaining the reviewer through merge approval. The initial
-   direction check is sound; the fresh Luna preflight has no findings.
-3. Complete the existing targeted overview-vulnerability agent evaluation or
+1. Complete the existing targeted overview-vulnerability agent evaluation or
    obtain explicit user acceptance of its gap. Its isolated Claude process lacks
    noninteractive authentication; zero tool calls prove no product behavior.
-4. Run draft-PR CI. Execution receipts, exact failed commands and blockers belong
-   on the PR. Retire this plan with the final clean increment after these gates;
-   the implementation docs already own the permanent contract.
+2. Run draft-PR CI for the final reviewed code. Execution receipts, exact failed
+   commands and blockers belong on the PR. Retire this plan with the final clean
+   increment after these gates; the implementation docs already own the permanent
+   contract. Keep the clean external reviewer retained through merge approval.
 
 One Luna implementor slice added only the explicit historical-alias regression.
 Production selection, error semantics and presentation remained coordinator-owned.
