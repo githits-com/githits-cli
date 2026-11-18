@@ -9,7 +9,7 @@ export interface PackageVersionNormalisationOptions {
 }
 
 /**
- * Normalise an optional exact package version at the shared CLI/MCP boundary.
+ * Normalise an optional exact version or numeric prefix at the shared CLI/MCP boundary.
  * Go module versions are canonical with a lowercase `v`; callers may omit it.
  * Other registries retain the existing package-version contract.
  */

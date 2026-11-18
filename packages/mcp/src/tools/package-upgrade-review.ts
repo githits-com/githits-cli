@@ -43,16 +43,8 @@ const packageSchema = z.object({
     .string()
     .describe("Registry; see top-level registry for supported values."),
   package_name: z.string().describe("Package name, scoped names ok."),
-  current_version: z
-    .string()
-    .describe(
-      "Current version; see top-level current_version for spelling rules.",
-    ),
-  target_version: z
-    .string()
-    .describe(
-      "Target version; see top-level current_version for spelling rules.",
-    ),
+  current_version: z.string().describe("Current version."),
+  target_version: z.string().describe("Target version."),
 });
 
 const schema: ZodRawShape = {
@@ -69,15 +61,11 @@ const schema: ZodRawShape = {
   current_version: z
     .string()
     .optional()
-    .describe(
-      "Currently used version for single-package mode. Go accepts versions with or without its canonical v prefix; tag-style v prefixes are rejected for other registries except Swift.",
-    ),
+    .describe("Currently used version for single-package mode."),
   target_version: z
     .string()
     .optional()
-    .describe(
-      "Target version for single-package mode; spelling rules as current_version.",
-    ),
+    .describe("Target version for single-package mode."),
   packages: z
     .array(packageSchema)
     .optional()

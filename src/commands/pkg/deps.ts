@@ -166,7 +166,8 @@ and circular-dependency flags capped to that traversal depth.
 the resolved dependency graph. Use --verbose for complete issue details.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
-${SUPPORTED_DEPS_REGISTRIES_LIST}. Omit @<version> for the latest release. Exact Go versions may include or omit their canonical lowercase \`v\`; the backend receives the \`v\`-prefixed form. Other leading-\`v\` tag-style inputs are rejected except Swift.`;
+${SUPPORTED_DEPS_REGISTRIES_LIST}. Omit @<version> for the latest release.
+Version: exact published version, or numeric prefix (5, 1.43) selecting the newest eligible stable match; no ranges.`;
 
 export function registerPkgDepsCommand(pkgCommand: Command): Command {
   return pkgCommand

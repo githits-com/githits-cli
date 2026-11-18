@@ -24,6 +24,9 @@ describe("searchTool", () => {
 
     expect(targetSchema).toContain("compact");
     expect(targetSchema).toContain("npm:react@version");
+    expect(targetSchema).toContain(
+      "Package @version is exact or a numeric prefix.",
+    );
     expect(targetSchema).toContain("github:facebook/react@ref");
     expect(targetSchema).toContain("site:react.dev");
     expect(targetSchema).toContain(

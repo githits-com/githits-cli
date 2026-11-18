@@ -40,7 +40,7 @@ const schema: ZodRawShape = {
   target: z
     .string()
     .describe(
-      "Package registry:name[@version], for example npm:express@5.2.1; omit the version for latest. Go accepts versions with or without v; other registries reject v-prefixed git tags except Swift.",
+      "Package registry:name[@version], e.g. npm:express@5.2.1 (exact) or npm:express@5 (numeric prefix); omit for latest.",
     ),
   lifecycle: z
     .union([z.string(), z.array(z.string())])

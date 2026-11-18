@@ -329,7 +329,7 @@ describe("agent skills packaging", () => {
     ]);
   });
 
-  it("keeps CLI skill triggers transport-specific and domain-separated", async () => {
+  it("keeps CLI skill scope and typed read policy aligned", async () => {
     const [codeContent, packageContent] = await Promise.all([
       read(githitsCodeSkillPath),
       read(join(root, "skills", "githits-package", "SKILL.md")),
@@ -346,6 +346,10 @@ describe("agent skills packaging", () => {
       "vulnerabilities",
       "upgrade reviews",
     ]);
+    for (const content of [codeContent, packageContent]) {
+      expect(content).toContain("numeric prefixes");
+      expect(content).toContain("do not pass ranges");
+    }
   });
 
   it("maps CLI inventories to the current MCP list tool", async () => {

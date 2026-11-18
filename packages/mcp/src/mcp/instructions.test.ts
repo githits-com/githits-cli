@@ -77,6 +77,18 @@ describe("buildMcpQuickStart", () => {
     ])
       expect(guide).toContain(phrase);
   });
+  it("documents exact/prefix reads and rejected range syntax", () => {
+    const guide = normalized(buildMcpQuickStart());
+    for (const phrase of [
+      "exact published versions or numeric prefixes",
+      "`npm:express@5` selects newest eligible stable 5.x.y",
+      "`crates:tokio@1.43` selects 1.43.x",
+      "Use component matching in every ecosystem",
+      "Use `from..to` for release comparisons",
+      "do not pass ranges (`^`, `~`, comparisons, unions, intervals)",
+    ])
+      expect(guide).toContain(phrase);
+  });
   it("shares research answer handling without mandatory rereads", () => {
     const guide = normalized(buildMcpQuickStart());
     expect(guide).toContain(RESEARCH_VERIFIED_ANSWER_GUIDANCE);

@@ -31,6 +31,8 @@ GitHits cannot access private repositories, your local workspace, or uncommitted
 
 Choose the direct command. Package targets require a registry, e.g. `npm:express@5.2.1`. Use canonical targets without resolution; check CLI version only for compatibility problems. For unclear identity, use known registry/context and follow returned confidence and ambiguity rules. Never choose by popularity alone or treat CLEAR as vulnerability-free.
 
+Package reads accept exact published versions or numeric prefixes: `npm:express@5` selects newest eligible stable 5.x.y; `crates:tokio@1.43` selects 1.43.x. Use component matching in every ecosystem; do not pass ranges (`^`, `~`, comparisons, unions, intervals). Use `from..to` for release comparisons.
+
 ## Depth and symbols
 
 Reuse results. Investigate missing information that could change implementation, decisions, or answers. Stop when enough is known; state material gaps.
