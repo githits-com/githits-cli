@@ -478,7 +478,8 @@ casing through the shared registry helper. Deprecated `packageSummary` supplies
 metadata and native history only; its current-count/boolean fields are not
 selected. There is one request and no advisory-page, evidence, digest or OSV body
 fetch. Error paths invalidate only their own security or selected-version subtree;
-a parent provenance error invalidates both. Security throttling has its own
+a parent provenance error or a non-null leaf error that nulls the whole root
+invalidates all its facets and reports their unavailability. Security throttling has its own
 `securityError`, while provenance/lifecycle and GitHub errors retain existing
 metadata fields. Authentication, access and client-update errors stay fatal.
 The combined security schema must be delivered before release/hosted adoption;

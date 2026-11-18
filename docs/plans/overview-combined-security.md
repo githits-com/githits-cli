@@ -14,7 +14,8 @@ Approved governing scope: `/tmp/vulnerability-overview-next/overview-client-appr
 No open product decisions. Main reorientation verified at `e4b25a1`. Optional
 history and selected security remain independent. Registry comparison uses existing
 normalization (`npm` / `NPM`); mismatched or failed security never falls back to
-native current counts. Facet-specific errors preserve valid siblings; auth/access/
+native current counts. Nullable facet errors preserve valid siblings. Non-null leaf errors that null the
+whole provenance root invalidate all its facets and report their unavailability; auth/access/
 client-update errors remain fatal. Missing selected counts/affectedness are absent,
 not zero/false; backend status is authoritative. Native history does not contain
 all combined selected findings and is never a count bound.
@@ -38,12 +39,13 @@ counts/verdict/completeness without requiring identical admission-state reasons.
 
 Remaining before this final increment can be declared fully verified:
 
-1. Obtain the required fresh Luna preflight and internal code review. Local
-   reviewer starts failed before any verdict; the coordinator's Luna context also
-   lacked its tool host. Restore the operator runtime/auth prerequisites without
-   credential inspection or reviewer substitution.
-2. Complete the fresh Opus 5.5 external review after the internal gate. No external
-   round has run. Fix findings and retain the reviewer through merge approval.
+1. Complete the revised full-delta internal review after the accepted external
+   review correction: classify a provenance root nulled by a non-null leaf error
+   as unavailable in every dependent facet. Actual wire fixtures must distinguish
+   this case from nullable security/repository errors with valid siblings.
+2. Complete the retained Opus 5.5 external review after the internal gate, fixing
+   any findings and retaining the reviewer through merge approval. The initial
+   direction check is sound; the fresh Luna preflight has no findings.
 3. Complete the existing targeted overview-vulnerability agent evaluation or
    obtain explicit user acceptance of its gap. Its isolated Claude process lacks
    noninteractive authentication; zero tool calls prove no product behavior.

@@ -1033,10 +1033,10 @@ for (const combined of [false, true]) {
     async (json) => {
       const body = bodyFor(cases[0]!);
       const data = body.data as {
-        provenance: { selectedVersion: { lifecycle: unknown } };
+        provenance: unknown;
         packageSummary: { package: Record<string, unknown> };
       };
-      data.provenance.selectedVersion.lifecycle = null;
+      data.provenance = null;
       if (combined) data.packageSummary.package.githubRepository = null;
       const error = (path: string[]) => ({
         message: "GitHub rate limit exceeded; retry after the limit resets.",
@@ -1070,12 +1070,15 @@ for (const combined of [false, true]) {
         if (json) {
           const result = JSON.parse(cli);
           expect(result).not.toHaveProperty("lifecycle");
-          expect(result.registryRepository.id).toBe("public");
-          expect(result.vulnerabilities.total).toBe(0);
+          expect(result).not.toHaveProperty("registryRepository");
+          expect(result).not.toHaveProperty("vulnerabilities");
+          expect(result.securityError.message).toBe(
+            "Selected-release vulnerability assessment temporarily unavailable (RATE_LIMITED).",
+          );
           expect(result.provenanceError).toMatchObject({
             code: "RATE_LIMITED",
             message:
-              "Lifecycle warnings temporarily unavailable (RATE_LIMITED).",
+              "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
             retryAfterMs: 12501,
           });
           expect(Boolean(result.githubError)).toBe(combined);
@@ -1083,8 +1086,8 @@ for (const combined of [false, true]) {
           const text = cli.replace(/\s+/g, " ");
           expect(text).toContain(
             combined
-              ? "GitHub metadata, lifecycle warnings temporarily unavailable (RATE_LIMITED). Try again in 13 seconds."
-              : "Lifecycle warnings temporarily unavailable (RATE_LIMITED). Try again in 13 seconds.",
+              ? "GitHub metadata, registry provenance and lifecycle warnings, selected-release vulnerability assessment temporarily unavailable (RATE_LIMITED). Try again in 13 seconds."
+              : "Registry provenance and lifecycle warnings, selected-release vulnerability assessment temporarily unavailable (RATE_LIMITED). Try again in 13 seconds.",
           );
           expect(text).not.toContain("Deprecated: No longer supported");
         }

@@ -212,20 +212,14 @@ describe("overview combined selected security", () => {
       assessmentReasons: ["RELATED_APPLICABILITY_UNPROVED"],
     });
   });
-  it.each(["security", "lifecycle", "repository", "parent"])(
+  it.each(["security", "repository"])(
     "isolates %s optional errors",
     async (facet) => {
       const b = fixture();
       const path =
-        facet === "parent"
-          ? ["provenance"]
-          : facet === "security"
-            ? ["provenance", "security"]
-            : [
-                "provenance",
-                "selectedVersion",
-                facet === "lifecycle" ? "lifecycle" : "registryRepository",
-              ];
+        facet === "security"
+          ? ["provenance", "security"]
+          : ["provenance", "selectedVersion", "registryRepository"];
       b.errors = [
         {
           message: "private provider response",
@@ -238,45 +232,49 @@ describe("overview combined selected security", () => {
         },
       ];
       if (facet === "security") b.data.provenance!.security = null;
-      if (facet === "lifecycle")
-        b.data.provenance!.selectedVersion!.lifecycle = null;
       if (facet === "repository")
         b.data.provenance!.selectedVersion!.registryRepository = null;
-      if (facet === "parent") b.data.provenance = null;
       const r = await setup(b).run();
       expect(r.package.license).toBe("MIT");
       expect(r.security?.allVulnerabilityCount).toBe(0);
       expect(r.security?.vulnerabilityCount).toBe(
-        facet === "security" || facet === "parent" ? undefined : 1,
+        facet === "security" ? undefined : 1,
       );
       if (facet === "security") {
         expect(r.lifecycle).toBeDefined();
         expect(r.package.registryRepository?.id).toBe("npm");
         expect(r.package.registryRepositoryError).toBeUndefined();
       } else {
-        expect(r.lifecycle === undefined).toBe(facet !== "repository");
-        expect(r.package.registryRepository === undefined).toBe(
-          facet !== "lifecycle",
-        );
+        expect(r.lifecycle).toBeDefined();
+        expect(r.package.registryRepository).toBeUndefined();
         expect(r.package.registryRepositoryError).toBeDefined();
       }
-      expect(r.securityError === undefined).toBe(
-        facet !== "security" && facet !== "parent",
-      );
+      expect(r.securityError === undefined).toBe(facet !== "security");
       expect(JSON.stringify(r)).not.toContain("private provider response");
     },
   );
-  it.each(["selectedVersion", "resolvedVersion"])(
-    "invalidates dependent facets when %s fails",
+  it.each([
+    "parent",
+    "package",
+    "selectedVersion",
+    "resolvedVersion",
+    "lifecycle",
+  ])(
+    "reports every unavailable facet when %s errors null the provenance root",
     async (facet) => {
       const b = fixture();
+      b.data.provenance = null;
       b.errors = [
         {
           message: "unavailable",
           path:
-            facet === "selectedVersion"
-              ? ["provenance", "selectedVersion"]
-              : ["provenance", "selectedVersion", "resolvedVersion"],
+            facet === "parent"
+              ? ["provenance"]
+              : facet === "package"
+                ? ["provenance", "package"]
+                : facet === "selectedVersion"
+                  ? ["provenance", "selectedVersion"]
+                  : ["provenance", "selectedVersion", facet],
           extensions: { code: "RATE_LIMITED" },
         },
       ];
@@ -287,6 +285,9 @@ describe("overview combined selected security", () => {
       expect(r.package.registryRepository).toBeUndefined();
       expect(r.package.registryRepositoryError?.message).toBe(
         "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
+      );
+      expect(r.securityError?.message).toBe(
+        "Selected-release vulnerability assessment temporarily unavailable (RATE_LIMITED).",
       );
     },
   );

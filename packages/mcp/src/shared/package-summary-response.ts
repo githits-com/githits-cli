@@ -9,7 +9,8 @@
  *   unrelated schema metadata and duplicate GitHub identifiers remain
  *   omitted.
  * - **Null-omitted.** Summary data scalars go missing when null; blocks go missing
- *   when every leaf is null; arrays go missing when empty. Agent
+ *   when every leaf is null; empty history arrays go missing. Backend assessment
+ *   reasons retain their array, including an empty array. Agent
  *   callers receive present data only, not a skeleton. Publisher/source details
  *   expand only when verbose output is explicitly requested. Failure facts retain
  *   an explicit null gitRef when source selection has not completed.

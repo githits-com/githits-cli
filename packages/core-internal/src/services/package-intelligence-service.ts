@@ -31,9 +31,8 @@ import {
   postPkgseerGraphql,
 } from "../shared/pkgseer-graphql.js";
 import {
-  isKnownPkgseerRegistryArg,
+  PKGSEER_REGISTRY_VALUES,
   type PkgseerRegistry,
-  toPkgseerRegistry,
   toPkgseerRegistryLowercase,
 } from "../shared/pkgseer-registry.js";
 import type { ClientHeaderBuilder } from "../shared/request-headers.js";
@@ -3330,8 +3329,14 @@ export class PackageIntelligenceServiceImpl
         "GitHub metadata temporarily unavailable (RATE_LIMITED).",
       );
     }
-    // An error invalidates its own subtree, not an independently readable sibling.
+    const provenance = parsed.data.data?.provenance;
+    // Non-null leaf errors can bubble to the entire optional root. Otherwise an
+    // error invalidates its own subtree, not an independently readable sibling.
+    const provenanceFailed =
+      provenance == null &&
+      errors.some((error) => error.path?.[0] === "provenance");
     const facetFailed = (...path: string[]): boolean =>
+      provenanceFailed ||
       errors.some((error) => {
         if (error.path?.[0] !== "provenance") return false;
         const failed = error.path.slice(1);
@@ -3341,24 +3346,23 @@ export class PackageIntelligenceServiceImpl
       });
     const selectedErrors = provenanceErrors.filter(
       (error) =>
-        error.path?.length === 1 || error.path?.[1] === "selectedVersion",
+        provenanceFailed ||
+        error.path?.length === 1 ||
+        error.path?.[1] === "selectedVersion",
     );
     const securityErrors = provenanceErrors.filter(
-      (error) => error.path?.length === 1 || error.path?.[1] === "security",
+      (error) =>
+        provenanceFailed ||
+        error.path?.length === 1 ||
+        error.path?.[1] === "security",
     );
     if (selectedErrors.length) {
       summary.package.registryRepositoryError = summaryMetadataError(
         selectedErrors,
         `${
-          facetFailed("selectedVersion", "resolvedVersion") ||
-          (
-            facetFailed("selectedVersion", "lifecycle") &&
-              facetFailed("selectedVersion", "registryRepository")
-          )
+          facetFailed("selectedVersion", "lifecycle")
             ? "Registry provenance and lifecycle warnings"
-            : facetFailed("selectedVersion", "lifecycle")
-              ? "Lifecycle warnings"
-              : "Registry provenance"
+            : "Registry provenance"
         } temporarily unavailable (RATE_LIMITED).`,
       );
     }
@@ -3368,21 +3372,21 @@ export class PackageIntelligenceServiceImpl
         "Selected-release vulnerability assessment temporarily unavailable (RATE_LIMITED).",
       );
     }
-    const provenance = parsed.data.data?.provenance;
     const selected = provenance?.selectedVersion;
     const versionMatches =
       !facetFailed("selectedVersion", "resolvedVersion") &&
       summary.package.version !== undefined &&
       selected?.resolvedVersion === summary.package.version;
     const sourcePackage = provenance?.package;
-    const sourceRegistry = sourcePackage?.registry.toLowerCase();
+    const sourceRegistry = PKGSEER_REGISTRY_VALUES.find(
+      (registry) => registry === sourcePackage?.registry,
+    );
     const subjectMatches =
       versionMatches &&
       !facetFailed("package") &&
       sourcePackage?.name === summary.package.name &&
       sourceRegistry !== undefined &&
-      isKnownPkgseerRegistryArg(sourceRegistry) &&
-      toPkgseerRegistryLowercase(toPkgseerRegistry(sourceRegistry)) ===
+      toPkgseerRegistryLowercase(sourceRegistry) ===
         summary.package.registry?.toLowerCase();
     if (!facetFailed("security") && subjectMatches && provenance?.security) {
       const security = provenance.security;
