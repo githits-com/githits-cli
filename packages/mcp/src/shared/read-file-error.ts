@@ -1,4 +1,5 @@
 import {
+  buildCliListRecoveryCommand,
   buildContainingPathPrefix,
   buildPathPrefixSuggestion,
   isExactPathAuthorityError,
@@ -36,22 +37,21 @@ export function withReadFileRecovery(
   };
 }
 
-function buildReadFileNotFoundAction(
+/** Shared missing-file wording; callers retain their existing error classification. */
+export function buildReadFileNotFoundAction(
   requestedPath: string,
   exactFilePath: boolean,
+  syntax: "mcp" | "cli" = "mcp",
 ): string {
   const prefix = exactFilePath
     ? buildContainingPathPrefix(requestedPath)
     : buildPathPrefixSuggestion(requestedPath);
-  const preamble = exactFilePath
-    ? "`read` requires an indexed exact file path. "
-    : "With path, `read` reads files only, not directories. ";
   const listing =
-    prefix === ""
-      ? "Use `list` without `paths`"
-      : `Use \`list\` with \`paths: ${JSON.stringify([prefix])}\``;
-  return (
-    `${preamble}${listing} to list valid indexed paths, then ` +
-    "pass an emitted `path` back to `read`."
-  );
+    syntax === "cli"
+      ? `Use \`${buildCliListRecoveryCommand(prefix)}\``
+      : prefix === ""
+        ? "Use `list` without `paths`"
+        : `Use \`list\` with \`paths: ${JSON.stringify([prefix])}\``;
+  const read = syntax === "cli" ? "githits read" : "read";
+  return `${listing}, then \`${read}\` a returned file path.`;
 }

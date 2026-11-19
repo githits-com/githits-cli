@@ -237,7 +237,7 @@ describe("searchTool", () => {
     );
     const textOutput = text.content[0]?.text ?? "";
     expect(textOutput).toContain(
-      "indexing when observed: expressjs.com/en/guide docs",
+      "indexing at last check: expressjs.com/en/guide docs",
     );
     expect(textOutput).not.toContain("Sources:");
   });

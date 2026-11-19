@@ -1,6 +1,10 @@
 import type { GrepParams, GrepService } from "@githits/core-internal";
 import { z } from "zod";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "../shared/code-navigation-defaults.js";
+import {
+  buildGrepContextClampingNotice,
+  resolveGrepContext,
+} from "../shared/grep-context.js";
 import { mapGrepError } from "../shared/grep-error-map.js";
 import {
   buildGrepParams,
@@ -8,6 +12,7 @@ import {
 } from "../shared/grep-request.js";
 import { projectGrepResult } from "../shared/grep-response.js";
 import { formatGrepText } from "../shared/grep-text.js";
+import { withIndexingRetryAction } from "../shared/mapped-error-text.js";
 import { serviceRequestArgs } from "../shared/service-request-args.js";
 import { CODE_GREP_GUARDRAIL } from "./guardrails.js";
 import { mcpMappedErrorResult, throwIfCallerCancellation } from "./shared.js";
@@ -90,16 +95,14 @@ const schema: ZodRawShape = {
     .number()
     .int()
     .min(0)
-    .max(10)
     .optional()
-    .describe("Lines before each match (0-10; default 0)."),
+    .describe("Lines before each match (default 0; capped at 10)."),
   context_lines_after: z
     .number()
     .int()
     .min(0)
-    .max(10)
     .optional()
-    .describe("Lines after each match (0-10; default 0)."),
+    .describe("Lines after each match (default 0; capped at 10)."),
   max_matches: z
     .number()
     .int()
@@ -170,27 +173,36 @@ export function createGrepTool(
           ...serviceRequestArgs(context?.signal),
         );
         const projected = projectGrepResult(result);
-        return textResult(
-          args.format === "json"
-            ? JSON.stringify(projected)
-            : formatGrepText(result, {
-                syntax: "mcp",
-                useColors: false,
-                requestedTargets: params.targets.map((target) => target.target),
-              }),
+        const { contextClamping } = resolveGrepContext(
+          args.context_lines_before,
+          args.context_lines_after,
         );
+        if (args.format === "json")
+          return textResult(
+            JSON.stringify({
+              ...projected,
+              ...(contextClamping ? { contextClamping } : {}),
+            }),
+          );
+        const text = formatGrepText(result, {
+          syntax: "mcp",
+          useColors: false,
+          requestedTargets: params.targets.map((target) => target.target),
+        });
+        const notice = buildGrepContextClampingNotice(contextClamping);
+        return textResult(notice ? `${text}\n\n${notice}` : text);
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);
-        const mapped = mapGrepError(error);
-        if (mapped.code === "INDEXING" && mapped.retryable) {
-          mapped.details = {
-            ...mapped.details,
-            action:
-              "Retry grep with the same targets, pattern, and other controls; set wait_timeout_ms (up to 300000) to wait for target preparation.",
-          };
-        }
+        const mapped = withIndexingRetryAction(
+          mapGrepError(error),
+          "grep",
+          "mcp",
+        );
         return mcpMappedErrorResult(mapped, context, args.format, {
           recovery: { syntax: "mcp", tool: "grep", args },
+          indexingOutcome: "No matches available yet.",
+          indexingTarget:
+            args.targets.length === 1 ? args.targets[0]?.target : undefined,
         });
       }
     },

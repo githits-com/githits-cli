@@ -49,13 +49,11 @@ supplied value is validated before precedence, so an invalid overridden value
 still fails. A valid excessive value that is overridden by in-range sides
 produces no notice. Negative, fractional, nonnumeric and unsafe values fail.
 
-Text mode reports reduced context once on stderr and points to `githits read`
-for a larger window. Successful CLI JSON adds `contextClamping` only when
+Text mode reports requested and effective context once on stderr; the result already provides read guidance. Successful CLI JSON adds `contextClamping` only when
 clamping occurred: `requestedBefore`, `requestedAfter`, `effectiveBefore` and
 `effectiveAfter`. Nonclamped CLI JSON remains identical to MCP JSON. A failed
 JSON invocation emits one error envelope on stderr without a preceding notice.
-MCP context arguments remain strictly bounded at 0–10; CLI tolerance does not
-change the backend ceiling or the MCP schema.
+MCP context arguments also accept nonnegative safe integers and cap each side at ten before calling the service. Successful MCP text adds a notice with requested/effective context counts when a side was reduced, without repeating the read footer; MCP JSON adds the same `contextClamping` facts as CLI JSON. The backend ceiling remains ten.
 
 Every positional operand after the pattern is a target. Use `--path
 lib/express.js` for an exact source file or `--path-prefix lib/` for a directory;
@@ -417,7 +415,7 @@ requested content is still being prepared; cursor pages explicitly limit the
 empty result to that page.
 Other empty gaps use qualified coverage copy. Read templates are absent without
 hits. Cursor continuation and fresh retries remain separate: preparation gets
-a bounded wait suggestion stating the maximum wait in seconds; other retryable
+a bounded native wait argument; other retryable
 omissions and native scope gaps get a fresh-query action without a preparation
 wait. Recovery names only eligible original operands and tells callers to keep
 the pattern/options and omit `--cursor` or `cursor`. Operand rows are quoted,

@@ -1,5 +1,9 @@
 import { MAX_DISCOVERY_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
 import {
+  grepIssueTargetLabel,
+  grepPreparationState,
+} from "./grep-preparation-text.js";
+import {
   escapePreparationTarget,
   formatIndexedAlternatives,
   formatIndexingDuration,
@@ -116,14 +120,25 @@ export function formatMappedErrorText(
       output.push("", ...details.action.split("\n").map(sanitizeTerminalText));
     return output.join("\n");
   }
-  const target = options.indexingTarget ?? details.package ?? details.repoUrl;
+  const issue =
+    details.targetIssues?.length === 1 ? details.targetIssues[0] : undefined;
+  const issueTarget = issue ? grepIssueTargetLabel(issue) : undefined;
+  const target =
+    options.indexingTarget ?? issueTarget ?? details.package ?? details.repoUrl;
   const preparingDocumentation = target?.startsWith("site:") === true;
+  const preparationState = issue
+    ? grepPreparationState(issue.reason)
+    : preparingDocumentation
+      ? "preparing documentation"
+      : "indexing";
   const lines: string[] = [
     mapped.code === "INDEXING"
       ? (options.indexingOutcome ??
-        (preparingDocumentation
-          ? "Documentation is being prepared."
-          : "Source is being indexed."))
+        (issue
+          ? "Requested content is being prepared."
+          : preparingDocumentation
+            ? "Documentation is being prepared."
+            : "Source is being indexed."))
       : mapped.message,
   ];
   const versions = details.availableVersions
@@ -169,7 +184,7 @@ export function formatMappedErrorText(
         "",
         "Preparing:",
         target
-          ? `  - ${escapePreparationTarget(target)} (${preparingDocumentation ? "preparing documentation" : "indexing"}, ${timing})`
+          ? `  - ${escapePreparationTarget(target)} (${preparationState}, ${timing})`
           : `  - Source (indexing, ${timing})`,
       );
     }
@@ -221,10 +236,13 @@ export function formatMappedErrorText(
     mapped.code === "RATE_LIMITED" && retryAfterSeconds !== undefined;
   if (
     details.hint &&
+    !(mapped.code === "INDEXING" && issue) &&
     !lines.join("\n").includes(details.hint) &&
     details.hint !== details.action
   )
     lines.push("", details.hint);
+  if (mapped.code === "INDEXING" && typeof issue?.file_path === "string")
+    lines.push("", `Path: ${issue.file_path}`);
   const unwrappedText = [...lines, details.action ?? ""].join("\n");
   const seconds =
     retryAfterSeconds === undefined ? undefined : Math.ceil(retryAfterSeconds);

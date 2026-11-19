@@ -154,6 +154,14 @@ function siteSubtreeFixture(): ListResult {
 }
 
 describe("projectListResult", () => {
+  it.each([undefined, null, "Binary files are not indexed."])(
+    "retains selected hint %s without inventing absent values",
+    (hint) => {
+      const projected = projectListResult(baseResult({ hint }));
+      if (hint === undefined) expect(projected).not.toHaveProperty("hint");
+      else expect(JSON.parse(JSON.stringify(projected)).hint).toBe(hint);
+    },
+  );
   it("projects all four target fixtures without changing selected values", () => {
     const fixtures = [
       repositoryRootFixture(),

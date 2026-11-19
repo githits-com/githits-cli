@@ -9,7 +9,7 @@ import {
   MalformedListResponseError,
   TermsAcceptanceRequiredError,
 } from "@githits/core-internal";
-import { mapListError } from "./list-error-map.js";
+import { mapListError, withListScopeRecovery } from "./list-error-map.js";
 import { InvalidListRequestError } from "./list-request.js";
 import {
   InvalidArgumentError,
@@ -19,6 +19,53 @@ import {
 import { AuthRequiredError } from "./require-auth.js";
 
 describe("mapListError", () => {
+  it("preserves silent output mode on a repository-scope retry", () => {
+    const mapped = withListScopeRecovery(
+      mapListError(
+        new ListGraphQLError(
+          "Scope unavailable.",
+          "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
+          false,
+          "https://github.com/example/repo",
+          "01234567",
+        ),
+      ),
+      "cli",
+      { includeTargetProvenance: false, includeDetailedFields: false },
+    );
+    expect(mapped.details?.action).toBe(
+      "githits list --silent -- 'github:example/repo@01234567'",
+    );
+  });
+  it.each(["mcp", "cli"] as const)(
+    "keeps paths in a pinned repository retry (%s)",
+    (syntax) => {
+      const mapped = withListScopeRecovery(
+        mapListError(
+          new ListGraphQLError(
+            "Scope unavailable.",
+            "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
+            false,
+            "https://github.com/danielgatis/rembg",
+            "860b39d0",
+          ),
+        ),
+        syntax,
+        { paths: ["rembg/sessions/", "space's path/"] },
+      );
+      if (syntax === "mcp")
+        expect(JSON.parse(mapped.details!.action!.slice(5))).toEqual({
+          target: "github:danielgatis/rembg@860b39d0",
+          paths: ["rembg/sessions/", "space's path/"],
+        });
+      else
+        expect(mapped.details?.action).toBe(
+          `githits list -- 'github:danielgatis/rembg@860b39d0' 'rembg/sessions/' 'space'"'"'s path/'`,
+        );
+      expect(mapped.message).toContain("package folder prefix");
+      expect(mapped.message).toContain("Try listing the repository instead");
+    },
+  );
   it("maps common list, auth, update, terms, and invalid-input errors", () => {
     expect(mapListError(new TermsAcceptanceRequiredError())).toMatchObject({
       code: "TERMS_ACCEPTANCE_REQUIRED",
@@ -114,7 +161,9 @@ describe("mapListError", () => {
         message:
           code === "VALIDATION_ERROR"
             ? "Backend message Correct the request and try again."
-            : "Backend message",
+            : code === "SOURCE_INVENTORY_SCOPE_UNAVAILABLE"
+              ? "GitHits could not determine which repository files belong to this package."
+              : "Backend message",
         retryable: defaultRetryable,
         details: { graphqlCode: code },
       });
@@ -168,7 +217,8 @@ describe("mapListError", () => {
     );
     expect(complete).toEqual({
       code: "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
-      message: `Package source scope is unavailable. The repository-wide alternative ${repoUrl}@${commitSha} broadens scope; use it only if those broader results are acceptable.`,
+      message:
+        "GitHits could not determine which repository files belong to this package. Try listing the repository instead; add the package folder prefix to paths if needed.",
       retryable: true,
       details: {
         graphqlCode: "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
@@ -176,7 +226,6 @@ describe("mapListError", () => {
         hint: "Repository scope is broader.",
         repoUrl,
         commitSha,
-        action: `${repoUrl}@${commitSha}`,
       },
     });
 
@@ -188,7 +237,9 @@ describe("mapListError", () => {
         repoUrl,
       ),
     );
-    expect(repoOnly.message).toBe("Scope unavailable.");
+    expect(repoOnly.message).toBe(
+      "GitHits could not determine which repository files belong to this package.",
+    );
     expect(repoOnly.details).toEqual({
       graphqlCode: "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
       repoUrl,
@@ -203,7 +254,9 @@ describe("mapListError", () => {
         commitSha,
       ),
     );
-    expect(commitOnly.message).toBe("Scope unavailable.");
+    expect(commitOnly.message).toBe(
+      "GitHits could not determine which repository files belong to this package.",
+    );
     expect(commitOnly.details).toEqual({
       graphqlCode: "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
       commitSha,
@@ -220,7 +273,9 @@ describe("mapListError", () => {
         " ",
       ),
     );
-    expect(emptyRecovery.message).toBe("Scope unavailable.");
+    expect(emptyRecovery.message).toBe(
+      "GitHits could not determine which repository files belong to this package.",
+    );
     expect(emptyRecovery.details).toEqual({
       graphqlCode: "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
     });

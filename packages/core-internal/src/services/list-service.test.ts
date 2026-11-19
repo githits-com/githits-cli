@@ -33,6 +33,7 @@ function successBody(
   return {
     data: {
       list: {
+        hint: null,
         indexingEstimates: [],
         inventoryKind: "SOURCE",
         requestedTarget: "npm:express@5.2.1",
@@ -178,6 +179,61 @@ function diagnosticRuntime(area: string): ServiceDiagnostics {
 }
 
 describe("ListServiceImpl", () => {
+  it.each([
+    {
+      includeDetailedFields: false,
+      includeTargetProvenance: true,
+      selected: true,
+    },
+    {
+      includeDetailedFields: true,
+      includeTargetProvenance: false,
+      selected: true,
+    },
+    {
+      includeDetailedFields: false,
+      includeTargetProvenance: false,
+      selected: false,
+    },
+  ])(
+    "selects and decodes the empty-package hint only for annotated/JSON output: %j",
+    async (mode) => {
+      const hint =
+        'Binary files are not indexed. Repository location: github:fontsource/font-files@02b28c06, paths: ["fonts/google/manrope/files/"].';
+      const fetchFn = mock(async () =>
+        jsonResponse(successBody({ hint: mode.selected ? hint : undefined })),
+      );
+      const service = new ListServiceImpl(
+        ENDPOINT,
+        createMockTokenProvider(),
+        asFetchFn(fetchFn),
+      );
+      const result = await service.list({
+        target: "npm:@fontsource/manrope",
+        paths: ["files/"],
+        includeDetailedFields: mode.includeDetailedFields,
+        includeTargetProvenance: mode.includeTargetProvenance,
+      });
+      const request = readRequest(fetchFn);
+      expect(request.query).toContain(
+        "hint @include(if: $includeTargetProvenance)",
+      );
+      expect(request.variables.includeTargetProvenance).toBe(mode.selected);
+      expect(result.hint).toBe(mode.selected ? hint : undefined);
+    },
+  );
+  it("rejects a missing selected hint rather than pretending the backend supports it", async () => {
+    const service = new ListServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetchFn(
+        mock(async () => jsonResponse(successBody({ hint: undefined }))),
+      ),
+    );
+    await expect(
+      service.list({ target: "npm:express", includeDetailedFields: true }),
+    ).rejects.toBeInstanceOf(MalformedListResponseError);
+  });
   it("retains nonempty uniform timing through compact list decoding", async () => {
     const service = new ListServiceImpl(
       ENDPOINT,
@@ -1401,6 +1457,7 @@ function expectedListSelection(): SelectionTree {
       },
     },
     inventoryKind: null,
+    hint: { __directive: includeTargetProvenance },
     requestedTarget: null,
     canonicalTarget: null,
     entries: {

@@ -1992,7 +1992,10 @@ describe("projectUnifiedSearchPresentation", () => {
       }),
     );
 
-    expect(presentation.action).toEqual({ kind: "none" });
+    expect(presentation.action).toEqual({
+      kind: "new_search",
+      waitTimeoutMs: 30000,
+    });
     expect(presentation.targetGroups[0]?.recovery).toEqual({
       kind: "try",
       category: "version",
@@ -2203,7 +2206,10 @@ describe("projectUnifiedSearchPresentation", () => {
       undefined,
       undefined,
     ]);
-    expect(presentation.action).toEqual({ kind: "new_search" });
+    expect(presentation.action).toEqual({
+      kind: "new_search",
+      waitTimeoutMs: 30000,
+    });
   });
 
   it("keeps terminal alternatives informational beside a bare lane reason", () => {

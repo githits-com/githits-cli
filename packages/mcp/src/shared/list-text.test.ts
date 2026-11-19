@@ -54,6 +54,43 @@ function entry(
 }
 
 describe("formatListText", () => {
+  it("preserves native selector JSON spacing and escapes in opaque backend hints", () => {
+    const paths = JSON.stringify([
+      "fonts/demo  family/files/",
+      "fonts/\\[demo\\]/files/",
+    ]);
+    const hint = `Binary files are not indexed.\nRepository location: github:fontsource/font-files@02b28c06\npaths (JSON): ${paths}`;
+    const text = formatListText(sourceResult({ hint }), { width: 30 });
+    expect(text).toContain(hint);
+    expect(text).toContain(paths);
+    expect(
+      JSON.parse(text.split("paths (JSON): ")[1]!.split("\n")[0]!),
+    ).toEqual(["fonts/demo  family/files/", "fonts/\\[demo\\]/files/"]);
+  });
+  it("uses the package hint as the empty result before provenance and keeps silent output empty", () => {
+    const hint =
+      "No indexed files under files/. Package scope: fonts/google/manrope/.\nIf you meant to search from the repository root:\nlist github:fontsource/font-files@02b28c06 -- 'files/'";
+    const result = sourceResult({
+      requestedTarget: "npm:@fontsource/manrope",
+      canonicalTarget: "npm:@fontsource/manrope",
+      hint,
+    });
+    for (const syntax of ["cli", "mcp"] as const) {
+      const text = formatListText(result, { syntax, width: 200 });
+      expect(text).toStartWith(`${hint}\nSources:`);
+      expect(text).not.toContain("No files.");
+    }
+    expect(formatListText(result, { includeHeader: false })).toBe("");
+    expect(formatListText({ ...result, hint: null })).toStartWith(
+      "No files.\n",
+    );
+    expect(
+      formatListText({ ...result, codeIndexState: "INDEXING" }),
+    ).not.toContain(hint);
+    expect(
+      formatListText({ ...result, entries: [entry("FILE", "index.css")] }),
+    ).not.toContain(hint);
+  });
   it("distinguishes pending preparation retry from available continuation", () => {
     const result = sourceResult({
       indexingEstimates: [
@@ -69,13 +106,11 @@ describe("formatListText", () => {
     });
     for (const syntax of ["cli", "mcp"] as const) {
       const text = formatListText(result, { syntax, hasAfter: true });
-      expect(text).toContain(
-        syntax === "cli" ? "Leave out --after" : "Leave out the after argument",
-      );
-      expect(text).toContain("More results available now");
-      expect(text).toContain("Retry this list with");
-      expect(text.indexOf("More results available now")).toBeLessThan(
-        text.indexOf("Retry this list with"),
+      expect(text).toContain(syntax === "cli" ? "Omit --after" : "Omit after");
+      expect(text).toContain("More results:");
+      expect(text).toContain("To check for newer results, retry list with");
+      expect(text.indexOf("More results:")).toBeLessThan(
+        text.indexOf("To check for newer results, retry list with"),
       );
       expect(text).toContain("available-page");
     }
@@ -105,7 +140,7 @@ describe("formatListText", () => {
         "examples/",
         "README.md",
         "",
-        "More results: repeat this list, adding:",
+        "More results:",
         "  --after 'opaque-cursor'",
       ].join("\n"),
     );
@@ -119,7 +154,7 @@ describe("formatListText", () => {
     });
 
     expect(formatListText(result, { syntax: "mcp" })).toEndWith(
-      'More results: repeat this list, adding:\n  after="opaque \\"cursor\\""',
+      'More results:\n  after="opaque \\"cursor\\""',
     );
   });
 
@@ -603,7 +638,7 @@ describe("list source rows", () => {
         "queryable now: refs=main",
         "suggested refs (may need indexing): candidate",
         "",
-        "Retry this list with --wait 60000.",
+        "To check for newer results, retry list with --wait 60000.",
       ].join("\n"),
     );
   });
@@ -850,7 +885,9 @@ describe("list preparation outcomes", () => {
     expect(text).toContain("preparing documentation, no estimate available");
     expect(text).toContain('after="next-page"');
     expect(text).not.toContain("Omitted");
-    expect(text).toEndWith("Retry this list with wait_timeout_ms=30000.");
+    expect(text).toEndWith(
+      "To check for newer results, retry list with wait_timeout_ms=30000.",
+    );
   });
 });
 

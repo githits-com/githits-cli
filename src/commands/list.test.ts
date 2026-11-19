@@ -33,6 +33,61 @@ function listResult(overrides: Partial<ListResult> = {}): ListResult {
 }
 
 describe("unified list CLI", () => {
+  it.each([false, true])(
+    "returns native pinned scope recovery with paths (JSON %s)",
+    async (json) => {
+      const error = spyOn(console, "error").mockImplementation(() => {});
+      const exit = spyOn(process, "exit").mockImplementation((() => {
+        throw new Error("exit");
+      }) as typeof process.exit);
+      const deps = createDeps({
+        listService: createMockListService({
+          list: mock(async () => {
+            throw new ListGraphQLError(
+              "Package scope unavailable.",
+              "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
+              false,
+              "https://github.com/danielgatis/rembg",
+              "860b39d0",
+            );
+          }),
+        }),
+      });
+      try {
+        await expect(
+          listAction(
+            "pypi:rembg@2.0.65",
+            ["rembg/sessions/"],
+            {
+              json,
+              after: "old-page",
+              recursive: true,
+              fileType: ["source"],
+              language: ["python"],
+              intent: ["PRODUCTION"],
+              limit: "50",
+              wait: "0",
+            },
+            deps,
+          ),
+        ).rejects.toThrow("exit");
+        const output = String(error.mock.calls[0]?.[0]);
+        const message = json
+          ? JSON.parse(output).error
+          : output.replace(/\s+/g, " ");
+        expect(message).toContain(
+          "GitHits could not determine which repository files belong to this package.",
+        );
+        expect(message).not.toContain("scope is unavailable");
+        const action = `githits list --recursive --file-type 'source' --language 'python' --intent 'PRODUCTION' --limit 50 --wait 0 ${json ? "--json " : ""}-- 'github:danielgatis/rembg@860b39d0' 'rembg/sessions/'`;
+        if (json) expect(JSON.parse(output).details.action).toBe(action);
+        else expect(output).toContain(action);
+      } finally {
+        error.mockRestore();
+        exit.mockRestore();
+      }
+    },
+  );
   it("registers the target, variadic selectors, and ls-style options", () => {
     const command = registerListCommand(new Command());
     const help = command.helpInformation();
@@ -597,7 +652,7 @@ describe("unified list CLI", () => {
           "Read files: read --literal-path -- 'npm:express@5.2.1' $path",
           "src/index.ts",
           "",
-          "More results: repeat this list, adding:",
+          "More results:",
           "  --after 'next/%2F cursor'",
         ].join("\n")}\n`,
       );

@@ -315,7 +315,7 @@ describe("grep evidence rendering", () => {
       nextCursor: cursor,
       targets: [scope({ traversal: "RESUMABLE_LIMIT" })],
     });
-    const intro = "Repeat the original grep, adding:";
+    const intro = "Continue with:";
     const cases = [
       {
         syntax: "cli" as const,
@@ -344,7 +344,7 @@ describe("grep evidence rendering", () => {
       expect(stripAnsi(colored)).toBe(plain);
     }
 
-    const narrowIntro = ["  Repeat the original", "  grep, adding:"];
+    const narrowIntro = ["  Continue with:"];
     const narrowPlain = formatGrepText(data, {
       syntax: "cli",
       useColors: false,
@@ -558,9 +558,7 @@ describe("grep coverage copy", () => {
       expect(text).not.toContain(".;");
       expect(text).not.toContain("Traversal is incomplete");
       expect(text).not.toContain("Some requested content");
-      expect(text).toContain(
-        "Repeat the original grep inputs for these sources:",
-      );
+      expect(text).toContain("Repeat the original grep inputs for:");
       expect(text).toContain(
         syntax === "cli"
           ? "Omit --cursor to start a new search."
@@ -595,13 +593,11 @@ describe("grep coverage copy", () => {
         "npm:unsupported: no searchable source or documentation is available",
       );
       expect(text).toContain("npm:retryable: resolution_failed");
-      expect(text).toContain(
-        "Repeat the original grep inputs for these sources:",
-      );
+      expect(text).toContain("Repeat the original grep inputs for:");
       expect(text).toContain(
         syntax === "cli"
-          ? "set --wait 30000 to wait up to 30s for preparation."
-          : "set wait_timeout_ms=30000 to wait up to 30s for preparation.",
+          ? "Use --wait 30000; omit --cursor."
+          : "Use wait_timeout_ms=30000; omit cursor.",
       );
       expect(text).toContain(
         syntax === "cli" ? "--cursor 'exact cursor'" : 'cursor="exact cursor"',
@@ -635,9 +631,7 @@ describe("grep coverage copy", () => {
     const text = formatGrepText(data, { width: 160 });
     expect(text.startsWith(incomplete)).toBe(true);
     expect(text).toContain("npm:unsupported: resolution_failed");
-    expect(text).toContain(
-      "Repeat the original grep inputs for these sources:",
-    );
+    expect(text).toContain("Repeat the original grep inputs for:");
     expect(text).not.toMatch(/--wait|wait_timeout_ms|Preparing:/);
   });
 });
@@ -844,13 +838,13 @@ describe("explicit grep recovery", () => {
       });
       const recovery = text.split("Follow-up:\n")[1]!;
       expect(recovery).toContain(
-        "Repeat the same pattern and options for:\n    npm:original\n    npm:preparing",
+        "Repeat this grep for:\n    npm:original\n    npm:preparing",
       );
       expect(recovery).not.toMatch(/terminal|backend-alias|resolved|retryable/);
       expect(recovery).toContain(
         syntax === "cli"
-          ? "Omit --cursor; set --wait 30000 to wait up to 30s for preparation."
-          : "Omit cursor; set wait_timeout_ms=30000 to wait up to 30s for preparation.",
+          ? "Use --wait 30000; omit --cursor."
+          : "Use wait_timeout_ms=30000; omit cursor.",
       );
     }
   });

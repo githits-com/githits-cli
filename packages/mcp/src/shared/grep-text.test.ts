@@ -15,6 +15,70 @@ interface HitGroup {
 }
 
 describe("grep text formatting", () => {
+  it.each([
+    "documentation_discovery",
+    "site_v6_required",
+    "starting_url_pending",
+  ])("suggests a wait for %s preparation without an estimate", (reason) => {
+    const result = parseGrepResult(mixed100);
+    result.indexingEstimates = [];
+    result.unavailableTargets = [
+      {
+        inputIndex: 0,
+        target: "site:expressjs.com",
+        reason,
+        retryable: true,
+        progressRef: null,
+        suggestedSiteTargets: null,
+      },
+    ];
+    const text = formatGrepText(result, { syntax: "mcp", width: 200 });
+    expect(text).toContain("preparing documentation");
+    expect(text).toContain("wait_timeout_ms=30000");
+  });
+  it.each([undefined, 85, 200])(
+    "offers a bounded wait for readable results with pending refresh (upper %s)",
+    (upperSeconds) => {
+      const result = parseGrepResult(mixed100);
+      result.unavailableTargets = [];
+      result.targets = result.targets.map((scope) => ({
+        ...scope,
+        traversal: "COMPLETE",
+        retryable: false,
+      }));
+      result.traversal = "COMPLETE";
+      result.nextCursor = null;
+      result.indexingEstimates = [
+        {
+          kind: "REPOSITORY",
+          targets: ["npm:express"],
+          ...(upperSeconds === undefined
+            ? { unavailableReason: "NO_HISTORY" }
+            : { estimate: { lowerSeconds: 30, upperSeconds } }),
+        },
+      ];
+      for (const syntax of ["cli", "mcp"] as const) {
+        const text = formatGrepText(result, { syntax, width: 200 });
+        expect(text).toContain(
+          upperSeconds === undefined
+            ? "no estimate yet"
+            : `estimated total: 30-${upperSeconds}s`,
+        );
+        const wait =
+          upperSeconds === undefined
+            ? 30000
+            : upperSeconds === 85
+              ? 100000
+              : 120000;
+        expect(text).toContain(
+          syntax === "mcp" ? `wait_timeout_ms=${wait}` : `--wait ${wait}`,
+        );
+        expect(text).toContain(
+          syntax === "mcp" ? "omit cursor" : "omit --cursor",
+        );
+      }
+    },
+  );
   it("groups an interleaved page by exact file identity while preserving JSON occurrence order", () => {
     const parsedOriginal = parseGrepResult(mixed100);
     const formattedInput = parseGrepResult(mixed100);
@@ -154,9 +218,7 @@ describe("grep text formatting", () => {
           : "Pages: read target=$url start_line=$start end_line=$end";
       const fileRecipeIndex = lines.indexOf(`  ${fileRecipe}`);
       const pageRecipeIndex = lines.indexOf(`  ${pageRecipe}`);
-      const continuationIndex = lines.indexOf(
-        "  Repeat the original grep, adding:",
-      );
+      const continuationIndex = lines.indexOf("  Continue with:");
 
       expect(finalContentRowIndex).toBeGreaterThanOrEqual(0);
       expect(lines[finalContentRowIndex + 1]).toBe("");
@@ -275,7 +337,7 @@ describe("grep text formatting", () => {
       expect(text).not.toContain("Run grep again");
       expect(text).not.toContain("Use the cursor below");
       expect(lines.at(-1)).toBe(
-        `  Omit ${syntax === "cli" ? "--cursor" : "cursor"}; set ${syntax === "cli" ? "--wait 100000" : "wait_timeout_ms=100000"} to wait up to 100s for preparation.`,
+        `  Use ${syntax === "cli" ? "--wait 100000" : "wait_timeout_ms=100000"}; omit ${syntax === "cli" ? "--cursor" : "cursor"}.`,
       );
       const cursor = syntax === "cli" ? "  --cursor " : "  cursor=";
       expect(
@@ -334,7 +396,7 @@ describe("grep text formatting", () => {
       expect(text).not.toContain("not visited");
       expect(text).not.toContain("Not searched:");
       expect(text).not.toContain("To retry omitted targets");
-      expect(text).toContain("Repeat the original grep, adding:");
+      expect(text).toContain("Continue with:");
       expect(text).toContain(syntax === "cli" ? "  --cursor " : "  cursor=");
     }
     expect(result).toEqual(before);
@@ -475,7 +537,7 @@ describe("grep text formatting", () => {
         `  - site:${"a".repeat(64)}.test\n    (not reached on this page, hosted documentation)`,
       );
       expect(text).toContain(
-        `  - ${target} (indexing, estimated total: 33-85s, time spent indexing:\n    90s)`,
+        `  - ${target} (indexing, estimated total: 33-85s, elapsed: 90s)`,
       );
       expect(
         text

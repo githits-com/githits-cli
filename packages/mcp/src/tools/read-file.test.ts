@@ -338,7 +338,7 @@ describe("createCodeReadTool — service errors", () => {
     expect(payload.details?.action).toContain("Use `list` without `paths`");
     expect(payload.details?.action).not.toContain("code_files");
     expect(payload.details?.action).not.toContain("path_prefix");
-    expect(payload.details?.action).toContain("emitted `path`");
+    expect(payload.details?.action).toContain("returned file path");
   });
 
   it.each([
@@ -434,7 +434,9 @@ describe("createCodeReadTool — service errors", () => {
       details?: { action?: string };
     };
     expect(payload.code).toBe("NOT_FOUND");
-    expect(payload.details?.action).toContain("reads files only");
+    expect(payload.details?.action).toContain(
+      "then `read` a returned file path",
+    );
     expect(payload.details?.action).toContain('`list` with `paths: ["lib/"]`');
     expect(payload.details?.action).not.toContain("code_files");
     expect(payload.details?.action).not.toContain("path_prefix");

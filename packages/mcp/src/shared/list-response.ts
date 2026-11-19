@@ -17,6 +17,7 @@ export type ListResponse = ListResult;
 /** Copy only fields selected by `Query.list`, retaining meaningful nulls. */
 export function projectListResult(result: ListResult): ListResponse {
   const projected: ListResponse = {
+    ...(result.hint !== undefined ? { hint: result.hint } : {}),
     inventoryKind: result.inventoryKind,
     ...(result.indexingEstimates !== undefined
       ? {

@@ -20,12 +20,11 @@ With returned hits, an active search now leads with:
 Found 1 code result.
 
 Read:
-  Use these results now; example read:
   read target="github:anomalyco/opencode@bbd72fb8" path="..." start_line=480 end_line=490
   For a specific ref, search github:anomalyco/opencode@<ref>.
 
 Follow-up:
-  If you need current HEAD, wait (hits and order may change):
+  For the latest repository version (order may change):
   search_status search_ref="..." wait_timeout_ms=120000
 ```
 
@@ -119,7 +118,7 @@ exact raw repository URL and full SHA equality. Explicit branch/tag/SHA/package
 intent never proves observed HEAD. Different coalesced work stays separate;
 `Requested:` retains the independently observed commit/date instead. Missing
 job identity keeps the supplied request label. No metadata lookup occurs.
-Retained ended-search estimates say `indexing when observed` and do not revive
+Retained ended-search estimates say `indexing at last check` and do not revive
 polling. Empty estimates on provisional results do not fabricate active work.
 
 Known served dates and historical refs appear for healthy current sources too.
@@ -554,8 +553,8 @@ availability projection retains partialResults, including completed empty
 snapshots; public JSON is unchanged. Dates do not drive these decisions.
 
 Healthy searches offer one exact read example without use-now prose. When a wait
-is offered beside usable hits, the read comes first with short use-now advice;
-the wait remains conditional. Readless usable results put `Use these results now.`
+is offered beside usable hits, the exact read action comes first without an extra
+use-now sentence; the wait remains conditional. Readless usable results put `Use the results above.`
 first in Follow-up. Grep templates follow all matches; CLI templates include
 `githits`. Standalone read, pagination and status actions remain unwrapped;
 grep omitted-target retry remains wrapped guidance, as in the approved copy.

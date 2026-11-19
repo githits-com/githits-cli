@@ -1551,7 +1551,7 @@ function smokeListText(args: Record<string, unknown>): string {
   const entries = result.entries as Array<Record<string, unknown>>;
   const path = entries[0]?.path;
   const continuation = result.nextCursor
-    ? `\n\nMore results: repeat this list, adding:\n  after=${JSON.stringify(result.nextCursor)}`
+    ? `\n\nMore results:\n  after=${JSON.stringify(result.nextCursor)}`
     : "";
   return `Sources:\n  - ${String(source)}${isSite ? " (hosted documentation)" : ""}\n${followUp}\n${path}${continuation}`;
 }

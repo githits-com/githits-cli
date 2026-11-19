@@ -4,7 +4,7 @@ import type {
   GrepPathSelector,
 } from "@githits/core-internal";
 import { DEFAULT_WAIT_TIMEOUT_MS } from "./code-navigation-defaults.js";
-import { GREP_CONTEXT_MAX } from "./grep-context.js";
+import { resolveGrepContext } from "./grep-context.js";
 import { InvalidArgumentError } from "./package-spec.js";
 
 const MAX_TARGETS = 20;
@@ -92,13 +92,9 @@ export function buildGrepParams(input: GrepRequestInput): GrepParams {
 
   const patternType = normalizePatternType(input.patternType);
   const ignoreCase = normalizeBoolean(input.ignoreCase, "ignoreCase");
-  const contextLinesBefore = normalizeGrepContextLines(
-    input.contextLinesBefore,
-    "contextLinesBefore",
-  );
-  const contextLinesAfter = normalizeGrepContextLines(
-    input.contextLinesAfter,
-    "contextLinesAfter",
+  const { contextLinesBefore, contextLinesAfter } = resolveGrepContext(
+    normalizeGrepContextLines(input.contextLinesBefore, "contextLinesBefore"),
+    normalizeGrepContextLines(input.contextLinesAfter, "contextLinesAfter"),
   );
   const maxMatches = normalizeInteger(input.maxMatches, "maxMatches", 1, 1000);
   const waitTimeoutMs = normalizeInteger(
@@ -162,8 +158,8 @@ export function buildGrepParams(input: GrepRequestInput): GrepParams {
     pattern: input.pattern,
     patternType,
     caseSensitive: !(ignoreCase ?? false),
-    contextLinesBefore: contextLinesBefore ?? 0,
-    contextLinesAfter: contextLinesAfter ?? 0,
+    contextLinesBefore,
+    contextLinesAfter,
     ...(maxMatches !== undefined ? { maxMatches } : {}),
     ...(cursor !== undefined ? { cursor } : {}),
     waitTimeoutMs: waitTimeoutMs ?? (cursor ? 0 : DEFAULT_WAIT_TIMEOUT_MS),
@@ -291,12 +287,12 @@ function normalizeInteger(
   return value;
 }
 
-/** Validate one context side using the shared grep request bounds. */
+/** Validate one context side before applying the shared context policy. */
 export function normalizeGrepContextLines(
   value: number | undefined,
   field: string,
 ): number | undefined {
-  return normalizeInteger(value, field, 0, GREP_CONTEXT_MAX);
+  return normalizeInteger(value, field, 0, Number.MAX_SAFE_INTEGER);
 }
 
 function normalizeCursor(value: string | undefined): string | undefined {

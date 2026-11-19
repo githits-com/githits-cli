@@ -819,10 +819,10 @@ describe("usable snapshot presentation parity", () => {
         expect(text.replace(/\s+/g, " ")).toContain(
           "indexing, estimated total: 100-120s, committed 2026-10-05, observed HEAD",
         );
-        expect(text).toContain("Use these results");
+        expect(text).toContain("\nRead:\n");
         expect(text).not.toContain("Follow-up:\n  search_status");
         expect(text).not.toContain("Follow-up:\n  githits search-status");
-        expect(text).toContain("If you need current HEAD");
+        expect(text).toContain("For the latest repository version");
       }
       expect(mcp).toContain(
         `read target="github:anomalyco/opencode@bbd72fb8" path="${path}" start_line=177 end_line=1362`,
@@ -1066,7 +1066,7 @@ describe("healthy source provenance through actual search adapters", () => {
           expect(text.split("Sources:\n")[1]?.split("\n\n")[0]).not.toContain(
             "aaaaaaaa",
           );
-        expect(text).not.toContain("If you need current HEAD");
+        expect(text).not.toContain("For the latest repository version");
         expect(text).not.toContain("sourceStatusForText");
       }
       const service = createMockCodeNavigationService({

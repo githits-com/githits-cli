@@ -215,7 +215,7 @@ assert an exact backend match. Candidate scope blocks stay out of the body.
 A definition that contains the
 candidate window in the displayed file adds its kind and qualified name to the
 same header. Older hits without repository
-evidence use `Snippet unavailable`.
+evidence use `Source not shown.`.
 A present matched snippet always survives regardless of
 provenance. Both text and JSON callers omit the unused compatibility selection.
 Crawled previews use grapheme offsets before heading trimming and wrapping.
@@ -957,7 +957,7 @@ served content; Preparing identifies actual work. Only exact raw repository/full
 SHA equality plus HEAD/default-branch intent proves `observed HEAD`. Public grep
 has no selected date or HEAD proof and omits them. Requested commits differing
 from actual preparation remain separately labelled. Retained ended searches say
-`indexing when observed` and require a new search for updated results.
+`indexing at last check` and require a new search for updated results.
 
 List text requests minimal provenance; JSON retains selected full timestamps,
 nulls/omissions and existing metadata/actions. Its read guidance retains the

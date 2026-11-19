@@ -218,10 +218,10 @@ describe("semantic search text", () => {
     );
     expect(render(scopesOnly)).not.toContain("- method Client.send");
     expect(render(scopesOnly)).not.toContain("LEGACY SUMMARY CONTEXT");
-    expect(render(scopesOnly)).not.toContain("Snippet unavailable");
+    expect(render(scopesOnly)).not.toContain("Source not shown.");
     const neither = semanticHit();
     neither.repositoryEvidence = null;
-    expect(render(neither)).toContain("Snippet unavailable");
+    expect(render(neither)).toContain("Source not shown.");
     expect(render(neither)).not.toContain("LEGACY SUMMARY CONTEXT");
   });
 
@@ -289,7 +289,7 @@ describe("v31 search presentation", () => {
     );
     expect(text).not.toContain("send");
     expect(text).not.toContain("return response");
-    expect(text).not.toContain("Snippet unavailable");
+    expect(text).not.toContain("Source not shown.");
     expect(text.split("\n\nRead:")[0]!.split("\n")).toHaveLength(3);
     hit.type = "repository_doc";
     hit.title = "Arbitrary heading";
@@ -390,7 +390,7 @@ describe("v31 search presentation", () => {
     expect(render(hit)).toContain(
       "src/client.ts:120-165 [repo code, candidate]",
     );
-    expect(render(hit)).not.toContain("Snippet unavailable");
+    expect(render(hit)).not.toContain("Source not shown.");
   });
 
   it("keeps explicit symbol coordinates when repository evidence has no matched source", () => {
@@ -403,7 +403,7 @@ describe("v31 search presentation", () => {
   it("marks an older injected service hit without evidence as unavailable", () => {
     const hit = semanticHit();
     delete hit.repositoryEvidence;
-    expect(render(hit)).toContain("Snippet unavailable");
+    expect(render(hit)).toContain("Source not shown.");
   });
 
   it("uses matched bounds for proven source", () => {
@@ -462,6 +462,6 @@ describe("v31 search presentation", () => {
     expect(plain).not.toContain("LEGACY SUMMARY CONTEXT");
     hit.documentationPreview = null;
     expect(render(hit)).not.toContain("LEGACY SUMMARY CONTEXT");
-    expect(render(hit)).not.toContain("Snippet unavailable");
+    expect(render(hit)).not.toContain("Source not shown.");
   });
 });

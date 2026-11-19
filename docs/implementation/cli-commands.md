@@ -242,13 +242,39 @@ refs may contain later `@` characters.
 
 Partial mode is the default now that Sources and Preparing disclose which content was searched and which work remains. The backend partialResults Boolean remains authoritative; callers can explicitly require atomic results when all runnable pairs are necessary.
 
-**Output.** CLI human output and MCP `text-v1` use one shared outcome-first formatter. The headline combines result count/type breakdown, active or terminal lifecycle, aggregate readiness, and pagination when applicable. Served sources appear as compact bullets under `Sources:`, with known commit dates, historical refs, request aliases, and relevant snapshot or website-crawl limits. Matching provenance is shown once; routine content-category labels and zero-hit source rows are omitted. `Preparing:` identifies actual work and advisory timing; unresolved intent is not repeated when its request alias is already shown, while independently resolved commits remain separate. Target-local state, alternatives, suggestions, constraints and recovery follow when relevant. Repository metadata requires supplied identity facts; hosted documentation retains exact scope. Source and preparation rows use the same wording as grep, list and annotated reads. Hits remain a separate numbered ranked evidence list with their follow-up locators: `[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01` or `[2] https://expressjs.com/en/4x/api/router/ [docs page] npm:express - router.route()`. Proven repository snippets use their matched range in the header; candidate hits show a labeled bounded inspection window and visible identifier-query fragments when available. Explicit symbol hits preserve qualified identity, signature detail, kind, and any differing definition range. A differing indexed range without a definition is labelled as a chunk; equal ranges are printed once. Backend `readTarget` owns each read action, independently of evidence coordinates.
+**Output.** CLI human output and MCP `text-v1` use one shared outcome-first formatter. The headline summarizes returned results. Separate notices explain lifecycle when needed; target rows retain readiness and limitations, and pagination follows the hits. Served sources appear as compact bullets under `Sources:`, with known commit dates, historical refs, request aliases, and relevant snapshot or website-crawl limits. Matching provenance is shown once; routine content-category labels and zero-hit source rows are omitted. `Preparing:` identifies actual work and advisory timing; unresolved intent is not repeated when its request alias is already shown, while independently resolved commits remain separate. Target-local state, alternatives, suggestions, constraints and recovery follow when relevant. Repository metadata requires supplied identity facts; hosted documentation retains exact scope. Source and preparation rows use the same wording as grep, list and annotated reads. Hits remain a separate numbered ranked evidence list with their follow-up locators: `[1] npm:express@5.2.1 History.md:169-179 [repo doc] - 5.0.0-alpha.4 / 2017-03-01` or `[2] https://expressjs.com/en/4x/api/router/ [docs page] npm:express - router.route()`. Proven repository snippets use their matched range in the header; candidate hits show a labeled bounded inspection window and visible identifier-query fragments when available. Explicit symbol hits preserve qualified identity, signature detail, kind, and any differing definition range. A differing indexed range without a definition is labelled as a chunk; equal ranges are printed once. Backend `readTarget` owns each read action, independently of evidence coordinates.
 Text omits per-hit read actions. Headers retain the target and location for
 direct reads; JSON `followUp` retains the backend-selected target, path,
 selector, and bounds when an exact replay is needed. Original snapshot
 provenance and evidence stay in JSON; internal descriptors are removed through
 explicit success/status projections. Qualified
-internal IDs remain omitted from default text. Active empty output is `No results yet | indexing | 0/1 ready`; no-snapshot output is `No result snapshot yet | indexing | 0/1 ready`, with the corresponding lower-case lifecycle for other active states. Terminal no-snapshot output is `No result snapshot | failed | 0/1 ready`, and completed output omits lifecycle/readiness. Query-wide warnings appear once after target rows and before hits. There is no separate session row: at most one `Next:` line follows the hit list, and an active `searchRef` appears exactly once there. CLI uses `Next: githits search-status <ref> --wait <ms>`; MCP uses its own `search_status` syntax. Active follow-up waits use the largest indexing upper bound plus ten seconds, rounded upward to ten seconds and capped at 120 seconds (120000 ms). Missing ranges use the 30-second default as a floor; no ranges keep 30 seconds. The examples below show that default. Completed evidence-status retrieval keeps the default. These are advisory total indexing durations, not remaining time or a search ETA; JSON progress preserves the full `indexingEstimates` evidence. See [discovery indexing estimates](tools.md) for the contract and production backend rollout prerequisite. CLI enables ANSI emphasis when supported, but removing ANSI leaves the same hierarchy and wording apart from surface-native actions; line breaks can differ because CLI uses terminal width while MCP defaults to 80 columns. `--json` emits the shared stable success/error envelope used by MCP `search`, including the full initial `query` echo and exact result-bearing `partialResults` Boolean. Repository hit locators preserve legacy target-relative evidence coordinates plus `commitSha`, `repositoryFilePath`, `evidenceRange`, `indexedRange`, and relation-aware `symbolContext`; the preferred `followUp` renders the backend descriptor with MCP syntax/caps on both JSON surfaces. JSON remains lossless while text is optimized for agent decisions.
+internal IDs remain omitted from default text. Active empty output is `No
+results available yet.` Ended searches without returned evidence say `No results
+available.`; searched empty results say `No results found.` A separate notice
+reports timeout or failure. Query-wide warnings appear once after target rows
+and before hits. Optional footers appear in order: `Read:`, `More results:`,
+then `Follow-up:`. Read actions use the emitted locator; pagination continues
+the original query with the returned offset. An active search reference appears
+once under `Follow-up:`, using `githits search-status <ref> --wait <ms>` for CLI
+or the native `search_status` call for MCP. Active follow-up waits use the
+largest indexing upper bound plus ten seconds, rounded upward to ten seconds and
+capped at 120 seconds (120000 ms). Missing ranges use the 30-second default as a
+floor; no ranges keep 30 seconds. The examples below show that default.
+Completed evidence-status retrieval keeps the default. These are advisory total
+indexing durations, not remaining time or a search ETA; JSON progress preserves
+the full `indexingEstimates` evidence. See [discovery indexing
+estimates](tools.md) for the contract and production backend rollout
+prerequisite. CLI enables ANSI emphasis when supported, but removing ANSI leaves
+the same hierarchy and wording apart from surface-native actions; line breaks
+can differ because CLI uses terminal width while MCP defaults to 80 columns.
+`--json` emits the shared stable success/error envelope used by MCP `search`,
+including the full initial `query` echo and exact result-bearing
+`partialResults` Boolean. Repository hit locators preserve legacy
+target-relative evidence coordinates plus `commitSha`, `repositoryFilePath`,
+`evidenceRange`, `indexedRange`, and relation-aware `symbolContext`; the
+preferred `followUp` renders the backend descriptor with MCP syntax/caps on both
+JSON surfaces. JSON remains lossless while text is optimized for agent
+decisions.
 
 Repository code/docs display proven numbered `matchedSource` and enclosing scope
 metadata, without routine authority captions. Hits without matched source show
@@ -258,7 +284,7 @@ fields; other cases name the contributing fields when known. The candidate range
 is an inspection window, not a verified source match. Summaries and scopes are
 not rendered as matched source. A same-file definition that contains the window
 adds its kind and qualified name to the header. Older results without repository
-evidence still use `Snippet unavailable`; structured navigation locators remain
+evidence still use `Source not shown.`; structured navigation locators remain
 available. Proven source is not prose-wrapped or renumbered, match gutters work
 without ANSI, and truncation/trust facts remain visible. Crawled documentation
 uses its dedicated grapheme-highlighted preview. Text and JSON omit legacy hit
@@ -266,16 +292,17 @@ summaries, summary highlights, content safety, and compatibility `focusedSource`
 JSON retains the v31 evidence and navigation locators. See
 [repository search evidence](tools.md) for authority, query cost, and rollout details.
 
-The representative CLI n8n active-empty output shape is:
+The representative CLI n8n active-empty output below is rendered from the shared test fixture:
 
 ```text
-No results yet | indexing | 0/1 ready
+No results available yet.
 
-- npm:n8n
-  indexing: code, repository docs; available: n8n.io docs (<pages> pages; capped);
-  indexed: versions 2.26.9, 2.26.5, 2.23.2 +2, refs HEAD, master
+- npm:n8n -> 2.36.7
+  indexing: code, repository docs; available: n8n.io docs (1,480 pages; capped);
+  indexed: versions 2.26.9, 2.26.5, 2.23.2 (+2 more), refs HEAD, master
 
-Next: githits search-status <search-ref> --wait 30000
+Follow-up:
+  githits search-status fabUr1S3MEVeSgD93pMoSQ --wait 30000
 ```
 
 **Highlighting and width.** The shared formatter applies backend-provided title and summary spans and uses a small semantic color hierarchy on CLI: active/degraded outcomes and warnings are yellow, failed outcomes are red, primary identities and exact actions receive emphasis, and target details remain plain. Color never carries meaning or changes wording. CLI target details and hit summaries wrap to the current terminal width; MCP uses the shared 80-column fallback.
@@ -293,7 +320,7 @@ githits search-status ref_abc123
 githits search-status ref_abc123 --json
 ```
 
-Follow-up for a prior unified search. Use the `searchRef` only when `githits search` emits an active continuation action and updated results matter. Completed references are stored, not poll targets. Before completion, `search-status` can return an atomic interim result when every runnable target/source pair is serveable; unless the original request used `--no-allow-partial`, it can return a serveable subset while other pairs remain unavailable. Its human output uses the same Sources and Preparing sections as `search`: the headline carries lifecycle/readiness, target-local state and recovery stay with each identity, hits remain separate, and an optional active continuation can follow.
+Follow-up for a prior unified search. Use the `searchRef` only when `githits search` emits an active continuation action and updated results matter. Completed references are stored, not poll targets. Before completion, `search-status` can return an atomic interim result when every runnable target/source pair is serveable; unless the original request used `--no-allow-partial`, it can return a serveable subset while other pairs remain unavailable. Its human output uses the same Sources and Preparing sections as `search`: the headline gives the outcome, lifecycle notices remain separate, target-local state and recovery stay with each identity, hits remain separate, and an optional active continuation can follow.
 
 `PENDING`, `INDEXING`, and `SEARCHING` are active incomplete states and can be checked again with the same reference. `DEFERRED` is terminal even though JSON keeps `completed: false`: the session has stopped following lifecycle work, any stored `result` and progress remain usable, and a later `search` starts a fresh session when needed. `TIMEOUT` and `FAILED` are also terminal.
 

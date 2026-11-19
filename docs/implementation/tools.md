@@ -327,7 +327,7 @@ list or a term-to-field map. If no fragment is visible, the header names the
 contributing indexed fields instead. Unknown
 field provenance stays a plain candidate. Scope blocks are not rendered as
 matched lines; older injected results
-without repository evidence still show `Snippet unavailable`. A present matched
+without repository evidence still show `Source not shown.`. A present matched
 snippet always wins regardless of indexed-field provenance.
 When the returned symbol definition shares the displayed file and contains the
 candidate window, its kind and qualified name appear at the end of that header.

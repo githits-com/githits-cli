@@ -1,4 +1,4 @@
-import type { ListService } from "@githits/core-internal";
+import type { ListParams, ListService } from "@githits/core-internal";
 import {
   buildListParams,
   formatListText,
@@ -11,6 +11,7 @@ import {
   sanitizeTerminalText,
   shouldUseColors,
   withIndexingRetryAction,
+  withListScopeRecovery,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
@@ -65,9 +66,10 @@ export async function listAction(
   options: ListCommandOptions,
   deps: ListCommandDependencies,
 ): Promise<void> {
+  let params: ListParams | undefined;
   try {
     requireAuth(deps);
-    const params = buildListParams({
+    params = buildListParams({
       target,
       paths,
       recursive: options.recursive,
@@ -106,6 +108,7 @@ export async function listAction(
       options.json === true,
       hasNonemptyAfter(options.after),
       target,
+      params,
     );
   }
 }
@@ -124,8 +127,13 @@ function handleListError(
   json: boolean,
   hasAfter: boolean,
   target: string,
+  params?: ListParams,
 ): never {
-  const sharedMapped = mapListErrorForCli(error, { hasAfter });
+  const sharedMapped = withListScopeRecovery(
+    mapListErrorForCli(error, { hasAfter }),
+    "cli",
+    params,
+  );
   const mapped = withIndexingRetryAction(
     error instanceof InvalidListRequestError
       ? {
@@ -156,7 +164,8 @@ function handleListError(
         : {}),
     };
     console.error(
-      mapped.code === "INDEXING"
+      mapped.code === "INDEXING" ||
+        mapped.code === "SOURCE_INVENTORY_SCOPE_UNAVAILABLE"
         ? formatMappedErrorText(safeMapped, {
             indexingTarget: target,
             indexingOutcome: target.startsWith("site:")

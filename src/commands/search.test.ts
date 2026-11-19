@@ -406,7 +406,7 @@ describe("searchAction", () => {
     expect(output).toEndWith("Retry this search with --wait 30000.");
     expect(output).not.toContain("idx-search");
     expect(output).not.toContain("wait_timeout_ms");
-    expect(output).toContain("estimated total: 7-19s, time spent indexing: 3s");
+    expect(output).toContain("estimated total: 7-19s, elapsed: 3s");
     expect(output).toContain("Indexed alternatives: versions/refs 5.2.1");
     expect(output).toContain("The requested branch is queued.");
     errorSpy.mockRestore();
@@ -701,10 +701,11 @@ describe("searchAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output).toContain("indexing when observed: code");
+    expect(output).toContain("indexing at last check: code");
     expect(output).toContain("- npm:express@5.1.0");
     expect(output).not.toContain("Sources:");
-    expect(output).toContain("Search again later.");
+    expect(output).toContain("Repeat the search for targets still preparing");
+    expect(output).toContain("--wait 30000");
     consoleSpy.mockRestore();
   });
 
@@ -1298,7 +1299,8 @@ describe("searchAction", () => {
       "[1] npm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware",
     );
     expect(output).not.toContain("Search ref-deferred");
-    expect(output).toContain("For updated results, search again.");
+    expect(output).toContain("Repeat the search for targets still preparing");
+    expect(output).toContain("--wait 30000");
     expect(output).not.toContain("githits search-status");
     expect(output).not.toContain("re-run with the searchRef");
     expect(output).not.toContain("still indexing");
@@ -1335,7 +1337,8 @@ describe("searchAction", () => {
       "[1] npm:express@4.18.2 lib/router/index.js:42-57 [repo code] - router middleware",
     );
     expect(output).not.toContain("Search ref-future");
-    expect(output).toContain("For updated results, search again.");
+    expect(output).toContain("Repeat the search for targets still preparing");
+    expect(output).toContain("--wait 30000");
     expect(output).not.toContain("githits search-status");
     expect(output).not.toContain("re-run with the searchRef");
     expect(output).not.toContain("still indexing");
@@ -1788,7 +1791,7 @@ describe("searchAction", () => {
       expect(output).toContain(
         "[1] \u001b[1m\u001b[36mnpm:express@4.18.2\u001b[0m \u001b[1m\u001b[36mlib/router/index.js:42-57\u001b[0m \u001b[2m[repo code]\u001b[0m - router \u001b[1m\u001b[33mmiddleware\u001b[0m",
       );
-      expect(output).toContain("Snippet unavailable");
+      expect(output).toContain("Source not shown.");
       expect(output).toContain(
         "[1] \u001b[1m\u001b[36mnpm:express@4.18.2\u001b[0m \u001b[1m\u001b[36mlib/router/index.js:42-57\u001b[0m \u001b[2m[repo code]\u001b[0m - router \u001b[1m\u001b[33mmiddleware\u001b[0m",
       );
@@ -2374,7 +2377,7 @@ describe("searchStatusAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output.split("\n")[0]).toBe("No result snapshot available.");
+    expect(output.split("\n")[0]).toBe("No results available.");
     expect(output).not.toContain("Search search-ref-timeout |");
     expect(output).toContain("Search again later.");
     expect(output).not.toContain("longer wait");
@@ -2499,7 +2502,7 @@ describe("searchStatusAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output.split("\n")[0]).toBe("No result snapshot available.");
+    expect(output.split("\n")[0]).toBe("No results available.");
     expect(output).not.toContain("Search ref-deferred-empty |");
     expect(output).toContain("Search again later.");
     expect(output).not.toContain("No results found.");
@@ -2528,7 +2531,7 @@ describe("searchStatusAction", () => {
     );
 
     const output = String(consoleSpy.mock.calls[0]?.[0]);
-    expect(output.split("\n")[0]).toBe("No result snapshot available.");
+    expect(output.split("\n")[0]).toBe("No results available.");
     expect(output).not.toContain("Search still in progress.");
     consoleSpy.mockRestore();
   });
@@ -2756,7 +2759,7 @@ describe("searchStatusAction", () => {
       await searchStatusAction("search-ref-123", {}, createDeps());
 
       const output = String(consoleSpy.mock.calls[0]?.[0]);
-      expect(output).toContain("Snippet unavailable");
+      expect(output).toContain("Source not shown.");
       expect(output).toContain(
         "[1] \u001b[1m\u001b[36mnpm:express@4.18.2\u001b[0m \u001b[1m\u001b[36mlib/router/index.js:42-57\u001b[0m \u001b[2m[repo code]\u001b[0m - router \u001b[1m\u001b[33mmiddleware\u001b[0m",
       );

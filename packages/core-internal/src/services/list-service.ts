@@ -69,6 +69,7 @@ export interface ListParams {
   after?: string;
   waitTimeoutMs?: number;
   includeDetailedFields: boolean;
+  /** Select source provenance and empty-package guidance for annotated text. */
   includeTargetProvenance?: boolean;
   /** Select exact read actions for compact site text; detailed fields always include them. */
   includeReadActions?: boolean;
@@ -173,6 +174,8 @@ export interface ListSitePreparation {
 }
 
 export interface ListResult {
+  /** Backend-authored empty-package guidance; omitted for unannotated selections. */
+  hint?: string | null;
   indexingEstimates?: DiscoveryIndexingEstimate[];
   inventoryKind: ListInventoryKind;
   requestedTarget: string;
@@ -361,6 +364,7 @@ const sitePreparationSchema = z
   .nullable();
 
 const listResultSchema = z.object({
+  hint: nullableString.optional(),
   indexingEstimates: indexingEstimatesSchema,
   inventoryKind: z.enum(["SOURCE", "SITE"]),
   requestedTarget: z.string(),
@@ -423,6 +427,7 @@ query List(
     waitTimeoutMs: $waitTimeoutMs
   ) {
     inventoryKind
+    hint @include(if: $includeTargetProvenance)
     ${INDEXING_ESTIMATES_SELECTION}
     requestedTarget
     canonicalTarget
@@ -614,6 +619,15 @@ export class ListServiceImpl implements ListService {
     const resultParsed = listResultSchema.safeParse(parsed.data.data?.list);
     if (!resultParsed.success) throw new MalformedListResponseError();
     const result: ListResult = resultParsed.data;
+    if (
+      (params.includeDetailedFields ||
+        params.includeTargetProvenance === true) &&
+      result.hint === undefined
+    ) {
+      throw new MalformedListResponseError(
+        "Malformed response from the list service: selected hint is missing.",
+      );
+    }
     if (
       (params.includeDetailedFields || params.includeReadActions === true) &&
       result.entries.some((entry) => entry.read === undefined)

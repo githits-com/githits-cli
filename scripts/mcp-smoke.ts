@@ -299,6 +299,21 @@ async function runRegistrationSmoke(target: CliLaunchTarget): Promise<void> {
       await assertSkillUpdateProbe(isolated.root);
       await assertStableMcpSession(client, "stable registration");
       await assertStableAuthProbe(client, "registration");
+      const cappedGrepResult = (await client.callTool({
+        name: "grep",
+        arguments: {
+          targets: [{ target: "npm:express" }],
+          pattern: "router",
+          context_lines_before: 20,
+          context_lines_after: 20,
+          format: "json",
+        },
+      })) as McpSmokeToolResult;
+      assert(
+        assertCleanErrorEnvelope(cappedGrepResult, "capped grep registration")
+          .code === "AUTH_REQUIRED",
+        "excessive grep context must reach authentication instead of MCP schema rejection",
+      );
       const tools = await client.listTools();
       const infoSchema = tools.tools.find(
         (tool) => tool.name === "pkg_info",

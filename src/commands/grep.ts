@@ -3,6 +3,7 @@ import {
   buildGrepContextClampingNotice,
   buildGrepParams,
   formatGrepText,
+  formatMappedErrorText,
   type GrepRequestTargetInput,
   InvalidGrepRequestError,
   InvalidPackageSpecError,
@@ -14,6 +15,7 @@ import {
   resolveGrepContext,
   sanitizeTerminalText,
   shouldUseColors,
+  withIndexingRetryAction,
 } from "@githits/mcp/internal";
 import type { Command } from "commander";
 import { createContainer } from "../container.js";
@@ -85,10 +87,7 @@ export async function grepAction(
       includeDetailedFields: options.json === true,
     });
     if (!options.json) {
-      const notice = buildGrepContextClampingNotice(
-        context.contextClamping,
-        "cli",
-      );
+      const notice = buildGrepContextClampingNotice(context.contextClamping);
       if (notice) console.error(notice);
     }
     const spinner =
@@ -109,18 +108,7 @@ export async function grepAction(
         `${formatGrepText(result, { useColors: shouldUseColors(), width: process.stdout.columns || 80, syntax: "cli", requestedTargets: params.targets.map((target) => target.target) })}\n`,
       );
   } catch (error) {
-    const mapped = mapGrepError(error);
-    if (mapped.code === "INDEXING" && mapped.retryable) {
-      mapped.details = {
-        ...mapped.details,
-        hint: [
-          mapped.details?.hint,
-          "Retry with --wait <ms> to wait for target preparation (up to 300000 ms).",
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      };
-    }
+    const mapped = withIndexingRetryAction(mapGrepError(error), "grep", "cli");
     if (error instanceof InvalidGrepRequestError) {
       const label = CLI_FIELDS[error.field];
       if (label) mapped.message = mapped.message.replace(error.field, label);
@@ -128,19 +116,27 @@ export async function grepAction(
     recordCliErrorClassification("grep", error, mapped);
     if (options.json)
       console.error(JSON.stringify(buildCliMappedErrorPayload(mapped)));
-    else
+    else {
+      const safeMapped = {
+        ...mapped,
+        message: sanitizeTerminalText(mapped.message),
+        details: {
+          ...mapped.details,
+          ...(mapped.details?.hint
+            ? { hint: sanitizeTerminalText(mapped.details.hint) }
+            : {}),
+        },
+      };
       console.error(
-        formatMappedErrorForTerminal({
-          ...mapped,
-          message: sanitizeTerminalText(mapped.message),
-          details: {
-            ...mapped.details,
-            ...(mapped.details?.hint
-              ? { hint: sanitizeTerminalText(mapped.details.hint) }
-              : {}),
-          },
-        }),
+        mapped.code === "INDEXING"
+          ? formatMappedErrorText(safeMapped, {
+              width: process.stderr.columns,
+              indexingOutcome: "No matches available yet.",
+              indexingTarget: targets.length === 1 ? targets[0] : undefined,
+            })
+          : formatMappedErrorForTerminal(safeMapped),
       );
+    }
     process.exit(1);
   }
 }

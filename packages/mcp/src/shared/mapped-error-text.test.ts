@@ -22,6 +22,50 @@ const pending: MappedError = {
   },
 };
 describe("readable mapped error content", () => {
+  it("shows single-target preparation once while preserving JSON diagnostics and path facts", () => {
+    const mapped: MappedError = {
+      code: "INDEXING",
+      message: "Internal preparation detail",
+      retryable: true,
+      details: {
+        targetIssues: [
+          {
+            target: "npm:express",
+            reason: "repository_indexing",
+            file_path: "lib/express.js",
+          },
+        ],
+        indexingEstimate: { lowerSeconds: 33, upperSeconds: 85 },
+        hint: "npm:express: repository is being indexed; path lib/express.js",
+      },
+    };
+    const before = structuredClone(mapped);
+    const output = formatMappedErrorText(
+      withIndexingRetryAction(mapped, "grep", "mcp"),
+      {
+        indexingOutcome: "No matches available yet.",
+      },
+    );
+    expect(output).toContain("npm:express (indexing, estimated total: 33-85s)");
+    expect(output.match(/npm:express/g)).toHaveLength(1);
+    expect(output).toContain("Path: lib/express.js");
+    expect(output).not.toContain("repository is being indexed");
+    expect(mapped).toEqual(before);
+  });
+  it("labels an unknown preparation kind by input position without claiming repository indexing", () => {
+    const output = formatMappedErrorText({
+      code: "INDEXING",
+      message: "Pending",
+      retryable: true,
+      details: {
+        targetIssues: [{ input_index: 1, reason: "future_reason" }],
+        hint: "Target 2: target is being prepared",
+      },
+    });
+    expect(output).toContain("Target 2 (preparing, no estimate available)");
+    expect(output).not.toContain("future_reason");
+    expect(output).not.toContain("indexing,");
+  });
   it("uses readable default and explicit text, keeping JSON opt-in and host actions", () => {
     const mapped: MappedError = {
       code: "AUTH_REQUIRED",
@@ -60,7 +104,7 @@ describe("readable mapped error content", () => {
       indexingOutcome: "This content is not available yet.",
     });
     expect(output).toContain(
-      "npm:express@1.0.3 (indexing, estimated total: 33-85s, time spent indexing: 90s)",
+      "npm:express@1.0.3 (indexing, estimated total: 33-85s, elapsed: 90s)",
     );
     expect(output).toEndWith("Retry this read with wait_timeout_ms=60000.");
     expect(output).not.toContain("opaque-progress");
@@ -93,7 +137,7 @@ describe("readable mapped error content", () => {
       { maxWaitMs: 120000, hasAfter: true },
     );
     expect(empty.details?.action).toBe(
-      "Retry this list with wait_timeout_ms=30000. Leave out the after argument.",
+      "Retry this list with wait_timeout_ms=30000. Omit after.",
     );
     expect(empty.details?.indexingEstimates).toBeUndefined();
     expect(formatMappedErrorText(empty)).toContain("no estimate available");

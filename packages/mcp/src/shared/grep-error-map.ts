@@ -6,11 +6,15 @@ import {
   GrepGraphQLError,
   GrepNetworkError,
   MalformedGrepResponseError,
+  parseIndexingDurationEstimate,
   parsePkgseerErrorDetails,
   parseVersionRefRecovery,
 } from "@githits/core-internal";
 import { buildUpdateRequiredError } from "./code-navigation-error-map.js";
-import { grepPreparationReason } from "./grep-preparation-text.js";
+import {
+  grepIssueTargetLabel,
+  grepPreparationReason,
+} from "./grep-preparation-text.js";
 import { InvalidGrepRequestError } from "./grep-request.js";
 import type {
   MappedError,
@@ -100,6 +104,8 @@ export function mapGrepError(error: unknown): MappedError {
       graphqlCode,
       ...parsePkgseerErrorDetails(ext),
     };
+    const indexingEstimate = parseIndexingDurationEstimate(ext);
+    if (indexingEstimate) details.indexingEstimate = indexingEstimate;
     if (Array.isArray(ext.target_issues)) {
       details.targetIssues = ext.target_issues
         .slice(0, 20)
@@ -110,12 +116,7 @@ export function mapGrepError(error: unknown): MappedError {
           ),
         );
       const hints = details.targetIssues.flatMap((issue, index) => {
-        const target =
-          typeof issue.target === "string"
-            ? issue.target
-            : typeof issue.input_index === "number"
-              ? `Input ${issue.input_index}`
-              : undefined;
+        const target = grepIssueTargetLabel(issue);
         const translatedReason =
           typeof issue.reason === "string"
             ? grepPreparationReason(issue.reason)

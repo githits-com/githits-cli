@@ -11,7 +11,7 @@ import {
   renderSourceSection,
   resolutionSourceFacts,
 } from "./source-provenance-text.js";
-import { wrapTerminalProse } from "./terminal-text.js";
+import { sanitizeTerminalText, wrapTerminalProse } from "./terminal-text.js";
 
 export interface FormatListTextOptions {
   useColors?: boolean;
@@ -48,9 +48,12 @@ export function formatListText(
   }
   const lines = isSource
     ? [
-        ...(paths.length
+        ...(paths.length || (!pending && result.hint)
           ? []
           : [pending ? "No files available yet." : "No files."]),
+        ...(!paths.length && !pending && result.hint
+          ? result.hint.split("\n").map(sanitizeTerminalText)
+          : []),
         ...renderSourceSection(sourceRows, { width: options.width }),
         ...(paths.length
           ? [
@@ -111,9 +114,7 @@ export function formatListText(
   }
   if (result.nextCursor) {
     const continuation = [
-      result.indexingEstimates?.length
-        ? "More results available now: repeat this list, adding:"
-        : "More results: repeat this list, adding:",
+      "More results:",
       options.syntax === "mcp"
         ? `  after=${JSON.stringify(result.nextCursor)}`
         : `  --after ${shellQuoteExact(result.nextCursor)}`,
@@ -129,6 +130,7 @@ export function formatListText(
       formatPreparationRetry({
         operation: "list",
         syntax: options.syntax ?? "cli",
+        refresh: paths.length > 0 || Boolean(result.nextCursor),
         waitMs: indexingWaitMs(result.indexingEstimates),
         hasAfter: options.hasAfter,
       }),

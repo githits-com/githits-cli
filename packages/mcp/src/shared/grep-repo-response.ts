@@ -632,7 +632,6 @@ function formatTerminalNotes(
 
   const contextNotice = buildGrepContextClampingNotice(
     envelope.contextClamping,
-    "cli",
   );
   if (contextNotice) lines.push(dim(contextNotice, useColors));
 

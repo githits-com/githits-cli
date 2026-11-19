@@ -145,7 +145,7 @@ function formatPresentationOutcome(
       return "No results available yet.";
     return presentation.availability.hasSnapshot
       ? "No results found."
-      : "No result snapshot available.";
+      : "No results available.";
   }
   const counts = new Map<string, number>();
   for (const result of results) {
@@ -258,7 +258,7 @@ function appendPresentationContext(
   lines.push(
     ...renderPreparationSection(presentation.indexingEstimates, {
       indexedAlternatives,
-      repositoryState: historical ? "indexing when observed" : "indexing",
+      repositoryState: historical ? "indexing at last check" : "indexing",
       resolutions: presentation.provenance.flatMap((record) =>
         record.resolution ? [record.resolution] : [],
       ),
@@ -277,7 +277,7 @@ function appendPresentationContext(
           formatRequestedIndexingExplanation(
             record.resolution,
             presentation.indexingEstimates,
-            historical ? "indexing when observed" : "indexing",
+            historical ? "indexing at last check" : "indexing",
           ),
         ].filter((fact): fact is string => Boolean(fact));
       }),
@@ -312,7 +312,7 @@ function appendPresentationContext(
     ) {
       lines.push(
         ...wrapTerminalProse(
-          `Requested: ${formatProvenanceRow(group.identity.fresh, [historical ? "indexing when observed" : "indexing"])}`,
+          `Requested: ${formatProvenanceRow(group.identity.fresh, [historical ? "indexing at last check" : "indexing"])}`,
           options.width,
           "  ",
         ),
@@ -405,7 +405,7 @@ function appendPresentationTargetGroup(
     : formatSourceStateSegment(group, "waiting");
   if (indexing)
     details.push(
-      `${historical ? "indexing when observed" : "indexing"}: ${indexing}`,
+      `${historical ? "indexing at last check" : "indexing"}: ${indexing}`,
     );
 
   const unavailable = formatUnavailableSegment(group);
@@ -883,9 +883,8 @@ function appendPresentationAction(
     .flatMap((group) => group.trustLimits)
     .find((limit) => limit.kind === "repository_snapshot" && limit.priorHead);
   if (hit?.readTarget) {
-    if (useResults) read.push(...prose("Use these results now; example read:"));
     read.push(operand(renderReadTarget(hit.readTarget, options.actionSyntax)));
-  } else if (useResults) followUp.push(...prose("Use these results now."));
+  } else if (useResults) followUp.push(...prose("Use the results above."));
   if (useResults && priorHead?.kind === "repository_snapshot") {
     (read.length ? read : followUp).push(
       ...prose(
@@ -896,7 +895,7 @@ function appendPresentationAction(
   if (presentation.hasMore) {
     if (typeof result.nextOffset === "number") {
       more.push(
-        ...prose("Repeat the original search, adding:"),
+        ...prose("Continue with:"),
         operand(
           options.actionSyntax === "cli"
             ? `--offset ${result.nextOffset}`
@@ -915,8 +914,8 @@ function appendPresentationAction(
       followUp.push(
         ...prose(
           priorHead
-            ? "If you need current HEAD, wait (hits and order may change):"
-            : "If you need updated results, wait (hits and order may change):",
+            ? "For the latest repository version (order may change):"
+            : "For newer results (order may change):",
         ),
       );
     followUp.push(
@@ -927,13 +926,22 @@ function appendPresentationAction(
       ),
     );
   } else if (action.kind === "new_search") {
-    followUp.push(
-      ...prose(
-        useResults
-          ? "For updated results, search again."
-          : "Search again later.",
-      ),
-    );
+    if (action.waitTimeoutMs === undefined)
+      followUp.push(
+        ...prose(
+          useResults
+            ? "For updated results, search again."
+            : "Search again later.",
+        ),
+      );
+    if (action.waitTimeoutMs !== undefined)
+      followUp.push(
+        ...prose(
+          options.actionSyntax === "cli"
+            ? `Repeat the search for targets still preparing, with --wait ${action.waitTimeoutMs}.`
+            : `Repeat the search for targets still preparing, with wait_timeout_ms=${action.waitTimeoutMs}.`,
+        ),
+      );
   } else if (action.kind === "query_rewrite") {
     followUp.push(
       ...prose(
@@ -1056,7 +1064,7 @@ function appendStructuralEvidence(
   const evidence = hit.repositoryEvidence;
   const source = evidence?.matchedSource;
   if (!source) {
-    if (!evidence) lines.push("  Snippet unavailable");
+    if (!evidence) lines.push("  Source not shown.");
     return;
   }
   const context = evidence?.semanticContext;

@@ -8,7 +8,10 @@ import {
   DEFAULT_WAIT_TIMEOUT_MS,
   MAX_DISCOVERY_WAIT_TIMEOUT_MS,
 } from "../shared/code-navigation-defaults.js";
-import { mapListError } from "../shared/list-error-map.js";
+import {
+  mapListError,
+  withListScopeRecovery,
+} from "../shared/list-error-map.js";
 import { buildListParams } from "../shared/list-request.js";
 import { projectListResult } from "../shared/list-response.js";
 import { formatListText } from "../shared/list-text.js";
@@ -160,9 +163,13 @@ export function createListTool(
         return textResult(JSON.stringify(payload));
       } catch (error) {
         throwIfCallerCancellation(error, context?.signal);
-        const mapped = mapListError(error, {
-          hasAfter: builtParams?.after !== undefined,
-        });
+        const mapped = withListScopeRecovery(
+          mapListError(error, {
+            hasAfter: builtParams?.after !== undefined,
+          }),
+          "mcp",
+          builtParams,
+        );
         return mcpMappedErrorResult(
           withIndexingRetryAction(mapped, "list", "mcp", {
             maxWaitMs: MAX_DISCOVERY_WAIT_TIMEOUT_MS,

@@ -78,7 +78,7 @@ describe("unified read contract", () => {
       } else {
         expect(text).toContain("This content is not available yet.");
         expect(text.replace(/\s+/g, " ")).toContain(
-          "npm:example@1.0.2 (indexing, estimated total: 33-85s, time spent indexing: 90s)",
+          "npm:example@1.0.2 (indexing, estimated total: 33-85s, elapsed: 90s)",
         );
         expect(text).toEndWith("Retry this read with wait_timeout_ms=60000.");
         expect(text).not.toContain("private-progress");
