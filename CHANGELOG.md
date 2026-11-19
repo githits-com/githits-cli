@@ -7,9 +7,6 @@ are historical records and change only to correct blatant factual errors.
 
 ## [githits 0.41.0] - 2026-11-19
 
-Requires backend support for lifecycle findings, combined vulnerability reports,
-and package inventory hints.
-
 ### Added
 
 - **Native lifecycle inspection** - Show lifecycle warnings for the selected release and package in the default overview. Use `--verbose` for the full publisher explanation and source evidence.
@@ -44,9 +41,7 @@ and package inventory hints.
 
 ## [@githits/mcp 0.41.0] - 2026-11-19
 
-Requires backend support for lifecycle findings, combined vulnerability reports,
-and package inventory hints. Hosted clients receive these changes after
-`remote-mcp` adopts and deploys this version.
+Hosted MCP users get these changes when the hosted service updates to 0.41.0.
 
 ### Added
 
