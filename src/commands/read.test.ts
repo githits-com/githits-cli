@@ -597,7 +597,7 @@ describe("top-level read", () => {
         readAction("npm:express", "docs/missing.md", {}, services),
       ).rejects.toThrow("exit");
       expect(String(error.mock.calls[0]?.[0])).toContain(
-        "Use `githits list <target>` to list available paths.",
+        "Use `githits list <target> 'docs/'`, then `githits read` a returned file path.",
       );
     } finally {
       error.mockRestore();

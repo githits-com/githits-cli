@@ -649,7 +649,7 @@ describe("unified list CLI", () => {
         `${[
           "Sources:",
           "  - npm:express@5.2.1",
-          "Read files: read --literal-path -- 'npm:express@5.2.1' $path",
+          "Read files: githits read --literal-path -- 'npm:express@5.2.1' \"$path\"",
           "src/index.ts",
           "",
           "More results:",
@@ -752,7 +752,7 @@ describe("unified list CLI", () => {
         [
           "Sources:",
           `  - ${target} (hosted documentation)`,
-          `Read pages: read -- '${target}' $path`,
+          `Read pages: githits read -- '${target}' "$path"`,
           "overview",
           "en/guide/",
           "",

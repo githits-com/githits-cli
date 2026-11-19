@@ -211,8 +211,8 @@ Sources:
 51: ...
 
 Read:
-  Files: githits read --literal-path --lines $start-$end -- $target $path
-  Pages: githits read --lines $start-$end -- $url
+  Files: githits read --literal-path --lines $start-$end -- "$target" "$path"
+  Pages: githits read --lines $start-$end -- "$url"
 ```
 
 Read templates appear after all matches and before pagination/retry guidance,

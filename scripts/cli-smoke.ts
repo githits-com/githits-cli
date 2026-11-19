@@ -500,7 +500,7 @@ function listTextFirstFile(text: string, context: string): string {
     `${context}: missing Sources row`,
   );
   const actionIndex = lines.findIndex((line) =>
-    line.startsWith("Read files: read --literal-path -- "),
+    line.startsWith("Read files: githits read --literal-path -- "),
   );
   assert(actionIndex > 1, `${context}: missing native read recipe`);
   const path = lines[actionIndex + 1];
@@ -2505,7 +2505,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
       grepText.includes("lib/express.js") &&
       /^\s*\d+: .*router/m.test(grepText) &&
       grepText.includes(
-        "Files: githits read --literal-path --lines $start-$end -- $target $path",
+        'Files: githits read --literal-path --lines $start-$end -- "$target" "$path"',
       ) &&
       !grepText.includes("# source [") &&
       !grepText.includes("Read recipes") &&
@@ -2521,7 +2521,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
   );
   assert(
     packageListText.startsWith("Sources:\n  - ") &&
-      packageListText.includes("Read files: read --literal-path -- "),
+      packageListText.includes("Read files: githits read --literal-path -- "),
     "list package terminal missing source header or paths",
   );
 

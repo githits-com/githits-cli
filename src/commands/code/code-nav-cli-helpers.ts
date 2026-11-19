@@ -129,21 +129,23 @@ export function formatFileErrorWithFilesHint(
   if (mapped.code === "UPDATE_REQUIRED") {
     return formatMappedErrorForTerminal(mapped);
   }
-  if (mapped.code === "FILE_NOT_FOUND") {
+  const missingFile =
+    mapped.code === "FILE_NOT_FOUND" ||
+    (mapped.code === "NOT_FOUND" &&
+      looksLikeMissingFileMessage(mapped.message));
+  const exactPathAuthority = isExactPathAuthorityError(mapped);
+  if ((missingFile || exactPathAuthority) && mapped.details?.action) {
+    return formatMappedErrorText(mapped, { width: process.stderr.columns });
+  }
+  if (missingFile) {
     return `${formatMappedErrorForTerminal(mapped)}\n  Use \`githits list <target>\` to list available paths.`;
   }
-  if (isExactPathAuthorityError(mapped)) {
+  if (exactPathAuthority) {
     const guidance =
       mapped.code === "FILE_PATH_EXCLUDED"
         ? "This path is excluded from the indexed source; use `githits list <target>` to list indexed paths."
         : "The source inventory cannot verify this path; use `githits list <target>` to list indexed paths it can currently verify.";
     return `${formatMappedErrorForTerminal(mapped)}\n  ${guidance}`;
-  }
-  if (
-    mapped.code === "NOT_FOUND" &&
-    looksLikeMissingFileMessage(mapped.message)
-  ) {
-    return `${formatMappedErrorForTerminal(mapped)}\n  Use \`githits list <target>\` to list available paths.`;
   }
   if (looksLikeMissingNavpackMessage(mapped.message)) {
     return [

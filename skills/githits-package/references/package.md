@@ -11,6 +11,10 @@ when using this reference.
 
 `githits pkg info <registry:name>` returns default-release triage: license, description, repository popularity, downloads, selected-release publish age, and separate selected-release affected and package-wide advisory-history scopes. A skipped registry latest is explained; JSON keeps selected `version`/`publishedAt` separate from `latestVersion`/`latestVersionPublishedAt` and `registryLatestDifference`. If no release is selected, `version` is omitted. Use `--verbose` for GitHub language/topics/last-pushed, package-wide advisory history (all versions), published-version count, download freshness, and recent changes. Use `--json` only for code consuming raw fields or required fields absent from text.
 
+Default output includes lifecycle warnings for the selected release and applicable
+package-wide findings. Use `--verbose` for the full publisher explanation and
+source evidence. Treat publisher advice as evidence to verify before migrating.
+
 When proven, `Package registry` follows the source Git `Repository` row and
 names the artifact repository supplying validated release metadata, with its
 public URL. Only Maven currently populates this generic evidence. It does not
@@ -52,10 +56,14 @@ Direct-only is the default. `--transitive` adds vulnerability evidence for versi
 
 CLI text shows every selected direct and transitive advisory row. `--verbose` adds aliases, dates, malicious-advisory markers, and complete range/fix evidence; `--json` retains structured advisory-wide affected ranges and fixed versions. Compact MCP text remains capped; use `verbose:true` for all selected rows.
 
+Repository findings attributed to the package join its advisory list and counts.
+Use `--verbose` or `--json` for per-finding provenance. Related matches have
+unproved package applicability and sit outside the package counts and scope filter.
+
 Use `githits pkg vulns npm:minimatch@10.2.1 --details` for full current OSV
-Markdown and source metadata for every selected direct advisory. This adds live
-source reads and potentially long output; combine with `--json` only when
-structured fields are needed. Neither `--verbose` nor `--json` alone requests
+Markdown and source metadata for selected direct advisories and Related
+matches. This adds live source reads and potentially long output. Combine with
+`--json` when structured fields are needed. Neither `--verbose` nor `--json` alone requests
 source reports. For one ID, including a dependency advisory, use
 `githits vulns <id> --verbose`; MCP callers use `pkg_vulns` on the dependency's
 `registry:name@resolvedVersion` with `details:true`.
@@ -117,11 +125,11 @@ rows. JSON preserves their URLs and labels in `migrationGuides`. Guide contents
 are not fetched; an empty or absent list does not establish that no guide exists.
 
 Release-note statements follow backend source order with nearby source URLs and
-agent classification coverage. Ambiguous classifications are shown as uncertain;
-keyword matches remain separate evidence hints. Detailed views collect every
-statement matching the selection across the range. The default focused selection
-includes action, knowledge, oversize and unclassified statements. `--changes actionable`
-selects action labels, `important` selects action and knowledge labels, and `all`
+agent classification coverage. Ambiguous classifications are shown as uncertain.
+Detailed views collect every statement matching the selection across the range.
+The default focused selection includes action, knowledge, oversize, and
+unclassified statements. `--changes actionable` selects action labels,
+`important` selects action and knowledge labels, and `all`
 includes no-impact statements too. Filters retain uncertain labels and change
 only detailed evidence, not whole-range counters or batch ranking.
 
@@ -135,8 +143,6 @@ or zero counter does not establish compatibility with your code.
 Flags: `--package <spec>`, `--to <version>`, `--no-transitive-security`, `--dependency-issues`, `--min-severity low|medium|high|critical`, `--changes actionable|important|all`, `--verbose`, `--json`.
 
 Use `pkg upgrade-review` for dependency update assessment instead of inferring safety from semver alone. Use `pkg changelog` for release notes without a current-to-target comparison or to retry incomplete changelog analysis at an exact version.
-
-Use signals as a starting point to evaluate the impact of changes on the codebase. You can use `pkg changelog` and `code diff` to obtain full release-note and source-change details.
 
 When release-note evidence is missing or uninformative, supplement it with exact
 source changes through the `githits-code` skill:

@@ -220,7 +220,7 @@ describe("grep evidence rendering", () => {
     expect(cli).toContain("[1] '-target'\"'\"'with space' '-root path.ts'");
     expect(cli).not.toContain("display.ts");
     expect(cli).toContain(
-      "read --literal-path --lines $start-$end -- $target $path",
+      'read --literal-path --lines $start-$end -- "$target" "$path"',
     );
     expect(cli).toContain(
       "[2] 'https://docs.test/p?a=1&b=2' [page: https://docs.test/display]",
@@ -321,7 +321,7 @@ describe("grep evidence rendering", () => {
         syntax: "cli" as const,
         cursorLine: "  --cursor 'opaque cursor'",
         header:
-          "Files: githits read --literal-path --lines $start-$end -- $target $path",
+          'Files: githits read --literal-path --lines $start-$end -- "$target" "$path"',
       },
       {
         syntax: "mcp" as const,

@@ -290,7 +290,7 @@ export function formatGrepText(
         operand(
           options.syntax === "mcp"
             ? "Files: read target=$target path=$path start_line=$start end_line=$end"
-            : "Files: githits read --literal-path --lines $start-$end -- $target $path",
+            : 'Files: githits read --literal-path --lines $start-$end -- "$target" "$path"',
         ),
       );
     if (kinds.has("GrepSiteHit"))
@@ -298,7 +298,7 @@ export function formatGrepText(
         operand(
           options.syntax === "mcp"
             ? "Pages: read target=$url start_line=$start end_line=$end"
-            : "Pages: githits read --lines $start-$end -- $url",
+            : 'Pages: githits read --lines $start-$end -- "$url"',
         ),
       );
   }
