@@ -837,14 +837,19 @@ export function formatPackageVulnerabilitiesTerminal(
         .filter(Boolean)
         .join("\n")
     : undefined;
-  const reasons = payload.summary.assessmentReasons ?? [];
+  const reasons = (payload.summary.assessmentReasons ?? []).filter(
+    (reason) =>
+      payload.summary.assessmentStatus !== "UNSUPPORTED" ||
+      reason !== "UNSUPPORTED_NATIVE_CORPUS",
+  );
   const assessmentNotice = [
     ...(report.paginationComplete === false
       ? [
           "Results changed during pagination; shown findings are incomplete. Run the report again for a complete list.",
         ]
       : []),
-    ...(payload.summary.assessmentComplete === false
+    ...(payload.summary.assessmentComplete === false &&
+    (reasons.length > 0 || payload.summary.assessmentStatus !== "UNSUPPORTED")
       ? [
           reasons.length
             ? `${reasons.map(formatVulnerabilityAssessmentReason).join("; ")}.`

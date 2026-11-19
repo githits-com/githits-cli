@@ -508,7 +508,11 @@ export function formatPackageSummaryTerminal(
     sections.push(fields.join("\n"));
   }
   if (lean.vulnerabilities?.assessmentComplete === false) {
-    const reasons = lean.vulnerabilities.assessmentReasons ?? [];
+    const reasons = (lean.vulnerabilities.assessmentReasons ?? []).filter(
+      (reason) =>
+        lean.vulnerabilities?.assessmentStatus !== "UNSUPPORTED" ||
+        reason !== "UNSUPPORTED_NATIVE_CORPUS",
+    );
     if (reasons.length)
       sections.push(
         wrapText(
@@ -516,7 +520,10 @@ export function formatPackageSummaryTerminal(
           width,
         ),
       );
-    else if (!lean.vulnerabilities.unknownVulnerabilityCount)
+    else if (
+      !lean.vulnerabilities.unknownVulnerabilityCount &&
+      lean.vulnerabilities.assessmentStatus !== "UNSUPPORTED"
+    )
       sections.push(
         wrapText("Some advisory results could not be determined.", width),
       );

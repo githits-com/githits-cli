@@ -2675,3 +2675,48 @@ describe("global advisory reasons stay actionable", () => {
     expect(text).not.toContain("Run the report again");
   });
 });
+
+it.each([
+  { assessmentReasons: [] },
+  { assessmentReasons: ["UNSUPPORTED_NATIVE_CORPUS"] },
+  {
+    assessmentReasons: [
+      "UNSUPPORTED_NATIVE_CORPUS",
+      "RELATED_APPLICABILITY_UNPROVED",
+    ],
+  },
+  { assessmentReasons: ["UNSUPPORTED_NATIVE_CORPUS", "FUTURE_REASON"] },
+])(
+  "does not repeat the unsupported report fact while retaining distinct reasons %j",
+  ({
+    assessmentReasons: inputReasons,
+  }: {
+    assessmentReasons: readonly string[];
+  }) => {
+    const assessmentReasons = [...inputReasons];
+    const report = zeroVulnsFixture();
+    Object.assign(report.security!, {
+      assessmentStatus: "UNSUPPORTED",
+      assessmentComplete: false,
+      assessmentReasons,
+    });
+    const before = buildPackageVulnerabilitiesSuccessPayload(report);
+    const text = formatPackageVulnerabilitiesTerminal(report).replace(
+      /\s+/g,
+      " ",
+    );
+    expect(
+      text.match(
+        /(?:no vulnerability data for this registry|Vulnerability data is unavailable for this registry)/g,
+      ),
+    ).toHaveLength(1);
+    expect(text).not.toContain("Some advisory results could not be determined");
+    expect(text.includes("Related findings are not established")).toBe(
+      assessmentReasons.includes("RELATED_APPLICABILITY_UNPROVED"),
+    );
+    expect(text.includes("FUTURE_REASON")).toBe(
+      assessmentReasons.includes("FUTURE_REASON"),
+    );
+    expect(buildPackageVulnerabilitiesSuccessPayload(report)).toEqual(before);
+  },
+);

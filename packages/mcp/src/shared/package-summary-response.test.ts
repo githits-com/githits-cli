@@ -1016,3 +1016,45 @@ describe("effective overview assessment facts", () => {
     }
   });
 });
+
+it.each([
+  { assessmentReasons: [] },
+  { assessmentReasons: ["UNSUPPORTED_NATIVE_CORPUS"] },
+  {
+    assessmentReasons: [
+      "UNSUPPORTED_NATIVE_CORPUS",
+      "RELATED_APPLICABILITY_UNPROVED",
+    ],
+  },
+  { assessmentReasons: ["UNSUPPORTED_NATIVE_CORPUS", "FUTURE_REASON"] },
+])(
+  "does not repeat the unsupported overview fact while retaining distinct reasons %j",
+  ({
+    assessmentReasons: inputReasons,
+  }: {
+    assessmentReasons: readonly string[];
+  }) => {
+    const assessmentReasons = [...inputReasons];
+    const fixture = happyFixture();
+    fixture.security = {
+      vulnerabilityCount: 0,
+      hasCurrentVulnerabilities: false,
+      assessmentStatus: "UNSUPPORTED",
+      assessmentComplete: false,
+      assessmentReasons,
+    };
+    const before = buildPackageSummarySuccessPayload(fixture);
+    const text = formatPackageSummaryTerminal(fixture).replace(/\s+/g, " ");
+    expect(
+      text.match(/data (?:is )?unavailable for this registry/g),
+    ).toHaveLength(1);
+    expect(text).not.toContain("Some advisory results could not be determined");
+    expect(text.includes("Related findings are not established")).toBe(
+      assessmentReasons.includes("RELATED_APPLICABILITY_UNPROVED"),
+    );
+    expect(text.includes("FUTURE_REASON")).toBe(
+      assessmentReasons.includes("FUTURE_REASON"),
+    );
+    expect(buildPackageSummarySuccessPayload(fixture)).toEqual(before);
+  },
+);
