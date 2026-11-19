@@ -101,7 +101,6 @@ export function createPackageSummaryTool(
             formatPackageSummaryTerminal(summary, {
               verbose: args.verbose,
               useColors: false,
-              surface: "mcp",
             }).trimEnd(),
           );
         }

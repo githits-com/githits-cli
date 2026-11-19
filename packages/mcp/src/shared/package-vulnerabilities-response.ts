@@ -838,44 +838,17 @@ export function formatPackageVulnerabilitiesTerminal(
         .join("\n")
     : undefined;
   const reasons = payload.summary.assessmentReasons ?? [];
-  const remainingReasons = reasons.filter(
-    (reason) =>
-      ![
-        "SOURCE_PREPARING",
-        "SOURCE_NOT_ASSESSED",
-        "SOURCE_INCOMPLETE",
-        "SOURCE_UNAVAILABLE",
-        "RELATED_APPLICABILITY_UNPROVED",
-      ].includes(reason),
-  );
   const assessmentNotice = [
     ...(report.paginationComplete === false
       ? [
           "Results changed during pagination; shown findings are incomplete. Run the report again for a complete list.",
         ]
       : []),
-    ...(reasons.includes("SOURCE_PREPARING")
+    ...(payload.summary.assessmentComplete === false
       ? [
-          "Additional vulnerability checks are running; their results are not included yet.",
-        ]
-      : reasons.includes("SOURCE_NOT_ASSESSED")
-        ? ["Additional vulnerability checks have not run for this release."]
-        : reasons.includes("SOURCE_INCOMPLETE") ||
-            reasons.includes("SOURCE_UNAVAILABLE")
-          ? [
-              "Some vulnerability checks could not finish. Review the advisory assessments and source evidence before relying on the affected count.",
-            ]
-          : []),
-    ...(reasons.includes("RELATED_APPLICABILITY_UNPROVED") &&
-    (payload.filter?.advisoryScope !== "all" || !verbose)
-      ? [
-          `Review related advisory evidence for package applicability: use ${surface === "cli" ? "--scope all --verbose" : 'advisory_scope="all", verbose=true'}.`,
-        ]
-      : []),
-    ...(payload.summary.assessmentComplete === false &&
-    (reasons.length === 0 || remainingReasons.length > 0)
-      ? [
-          `${remainingReasons.length ? remainingReasons.map(formatVulnerabilityAssessmentReason).join("; ") : "Some advisory results could not be determined"}. ${remainingReasons.includes("INVALID_VERSION") ? "Verify the selected package version before rerunning this report." : remainingReasons.includes("LOOKUP_FAILED") ? "Run the report again before relying on the affected count." : "Review the reported assessment reasons before relying on the affected count."}`,
+          reasons.length
+            ? `${reasons.map(formatVulnerabilityAssessmentReason).join("; ")}.`
+            : "Some advisory results could not be determined.",
         ]
       : []),
   ]
@@ -1405,17 +1378,17 @@ function formatAdvisoryLines(
     advisory.relationship !== "RELATED"
   ) {
     const reasons = (advisory.assessmentReasons ?? [])
-      .filter((reason) => reason !== "RELATED_APPLICABILITY_UNPROVED")
       .map(formatVulnerabilityAssessmentReason)
       .map(sanitizeProse)
       .join("; ");
     lines.push(
       ...wrapTerminalProse(
-        `    ${advisory.assessmentReasons?.includes("RELATED_APPLICABILITY_UNPROVED") ? `Review the related evidence to establish package applicability.${reasons ? ` Other assessment reasons: ${reasons}.` : ""}` : reasons ? `Review advisory assessment: ${reasons}.` : "Additional evidence for this advisory needs review."}`,
+        `    ${reasons || "Some advisory results could not be determined"}.`,
         normaliseTerminalWidth(terminalWidth),
       ),
     );
   }
+
   // Compact detail rows — indented 4 spaces so they "hang" under the
   // advisory headline.
   const detailWidth = verbose ? 12 : 8;

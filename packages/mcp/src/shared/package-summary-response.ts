@@ -34,9 +34,9 @@ import { colorize, highlight } from "./colors.js";
 import { toIsoDate, toRelativeDate } from "./format-date.js";
 import { formatCompactNumber } from "./format-number.js";
 import { formatMappedErrorText } from "./mapped-error-text.js";
-import { shellQuoteExact } from "./shell-quote.js";
 import { sanitizeTerminalText } from "./terminal-text.js";
 import { terminalWidth } from "./terminal-width.js";
+import { formatVulnerabilityAssessmentReason } from "./vulnerability-assessment.js";
 
 // --------------------------------------------------------------------
 // Lean JSON envelope
@@ -460,8 +460,6 @@ export interface FormatTerminalOptions {
   useColors?: boolean;
   /** Column width for wrapping the description line. Defaults to 80. */
   terminalWidth?: number;
-  /** Native syntax for a release-pinned vulnerability follow-up. */
-  surface?: "cli" | "mcp";
   /**
    * Clock injection for relative-date rendering. Tests pin this; in
    * production `new Date()` is used.
@@ -509,12 +507,20 @@ export function formatPackageSummaryTerminal(
   if (fields.length > 0) {
     sections.push(fields.join("\n"));
   }
-  const nextStep = formatVulnerabilityNextStep(
-    lean,
-    options.surface ?? "cli",
-    width,
-  );
-  if (nextStep) sections.push(nextStep);
+  if (lean.vulnerabilities?.assessmentComplete === false) {
+    const reasons = lean.vulnerabilities.assessmentReasons ?? [];
+    if (reasons.length)
+      sections.push(
+        wrapText(
+          `${reasons.map(formatVulnerabilityAssessmentReason).join("; ")}.`,
+          width,
+        ),
+      );
+    else if (!lean.vulnerabilities.unknownVulnerabilityCount)
+      sections.push(
+        wrapText("Some advisory results could not be determined.", width),
+      );
+  }
 
   const lifecycle = options.verbose
     ? formatLifecycle(summary.lifecycle, width, summary.package.version)
@@ -937,7 +943,7 @@ function formatVulnerabilityStatus(
   const unknown = vulns?.unknownVulnerabilityCount ?? 0;
   if (unknown > 0)
     lines.push(
-      `${unknown} ${unknown === 1 ? "advisory needs" : "advisories need"} review; affectedness could not be determined.`,
+      `${unknown} ${unknown === 1 ? "advisory could" : "advisories could"} not be evaluated for this release.`,
     );
   if (history) {
     const noun = history.total === 1 ? "advisory" : "advisories";
@@ -948,64 +954,6 @@ function formatVulnerabilityStatus(
     );
   } else lines.push("Native history: unavailable");
   return lines.join("\n");
-}
-
-/** Overview owns the next useful action; backend processing reasons stay in JSON. */
-function formatVulnerabilityNextStep(
-  lean: LeanPackageSummary,
-  surface: "cli" | "mcp",
-  width: number,
-): string {
-  const vulns = lean.vulnerabilities;
-  if (!vulns || vulns.assessmentStatus === "UNSUPPORTED") return "";
-  const reasons = vulns.assessmentReasons ?? [];
-  const related = reasons.includes("RELATED_APPLICABILITY_UNPROVED");
-  const explanations: string[] = [];
-  if (related)
-    explanations.push(
-      "Review related advisory evidence to determine whether it applies to this package.",
-    );
-  if (reasons.includes("SOURCE_NOT_ASSESSED"))
-    explanations.push(
-      "Start the remaining vulnerability checks with the report below.",
-    );
-  else if (reasons.includes("SOURCE_PREPARING"))
-    explanations.push(
-      "Vulnerability checks are running. View the available findings in the report below.",
-    );
-  else if (
-    reasons.includes("SOURCE_INCOMPLETE") ||
-    reasons.includes("SOURCE_UNAVAILABLE")
-  )
-    explanations.push(
-      "Some vulnerability checks could not be completed. Inspect the report for the unresolved results.",
-    );
-  const unknown = (vulns.unknownVulnerabilityCount ?? 0) > 0;
-  if (reasons.includes("LOOKUP_FAILED"))
-    explanations.push(
-      "Advisory lookup failed. Check the report below before relying on the affected count.",
-    );
-  if (reasons.includes("INVALID_VERSION"))
-    explanations.push(
-      "The selected version could not be evaluated. Verify the version in the report below.",
-    );
-  if (unknown)
-    explanations.push("Inspect the unresolved advisories in the report below.");
-  if (explanations.length === 0 && vulns.assessmentComplete === false)
-    explanations.push(
-      "Some vulnerability results are unresolved. Inspect the report before relying on the affected count.",
-    );
-  if (explanations.length === 0) return "";
-  const target = `${lean.registry}:${lean.name}${lean.version ? `@${lean.version}` : ""}`;
-  // Related evidence can be attached to a non-affecting PACKAGE row. ALL plus
-  // verbose shows its aliases and proof, and avoids the MCP compact row cap.
-  const scope = related ? "all" : unknown ? "unknown" : undefined;
-  const action =
-    surface === "cli"
-      ? `githits pkg vulns${scope ? ` --scope ${scope}` : ""}${related ? " --verbose" : ""} -- ${shellQuoteExact(target)}`
-      : `pkg_vulns(${JSON.stringify({ target, ...(scope ? { advisory_scope: scope } : {}), ...(related ? { verbose: true } : {}) })})`;
-  // Prose wraps; the exact command/locator stays copyable even at narrow widths.
-  return `${wrapText(explanations.join(" "), width)}\n${action}`;
 }
 
 function buildVerboseSections(

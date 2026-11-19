@@ -45,7 +45,7 @@ function fixture(): VulnerabilityReport {
           osvId: "GHSA-package",
           relationship: "PACKAGE",
           assessmentStatus: "AFFECTED",
-          assessmentComplete: false,
+          assessmentComplete: true,
           affectsInspectedVersion: true,
           severityScore: 7.5,
           summary: "Canonical package severity and summary",
@@ -117,22 +117,21 @@ describe("ordinary package and Related output", () => {
     expect(json.related?.advisories[0]?.assessmentStatus).toBe("NOT_ASSESSED");
     expect(json.upgradePaths).toEqual(["2"]);
   });
-  it.each(["AFFECTED", "NON_AFFECTING"])(
+  it.each(["AFFECTED", "UNKNOWN"])(
     "explains incomplete coverage without weakening the %s verdict or repeating reasons",
     (status) => {
       const r = fixture();
       const row = r.security!.vulnerabilities![0]!;
       row.assessmentStatus = status;
       row.affectsInspectedVersion = status === "AFFECTED";
-      row.assessmentReasons = ["RELATED_APPLICABILITY_UNPROVED"];
+      row.assessmentReasons = ["INVALID_RANGE"];
+      row.assessmentComplete = false;
       r.related = { totalCount: 0, vulnerabilities: [] };
       for (const verbose of [false, true]) {
         const text = formatPackageVulnerabilitiesTerminal(r, { verbose });
+        expect(text).toContain("Advisory range could not be evaluated");
         expect(text).toContain(
-          "Review the related evidence to establish package applicability.",
-        );
-        expect(text).toContain(
-          status === "AFFECTED" ? "[affects this version]" : "[non-affecting]",
+          status === "AFFECTED" ? "[affects this version]" : "[unknown]",
         );
         expect(text).not.toContain("Assessment incomplete.");
         expect(text).not.toContain("    reason");
@@ -140,7 +139,7 @@ describe("ordinary package and Related output", () => {
       expect(
         buildPackageVulnerabilitiesSuccessPayload(r).advisories?.[0]
           ?.assessmentReasons,
-      ).toEqual(["RELATED_APPLICABILITY_UNPROVED"]);
+      ).toEqual(["INVALID_RANGE"]);
     },
   );
   it("groups readable provenance after advisory details while JSON keeps exact fields", () => {
@@ -160,7 +159,7 @@ describe("ordinary package and Related output", () => {
     for (const text of [
       "Evidence: repository commit | related | CVE-original | affected; incomplete",
       "Repository: https://github.com/example/mono @aaaaaaaaaaaa (release)",
-      "Reason: some repository checks unresolved",
+      "Reason: Some advisory results could not be determined",
       "Evaluated: 2026-11-10T12:00:00Z",
       "Checked: 2026-11-11T12:00:00Z",
       "Source check: stale.",
@@ -246,23 +245,26 @@ it.each(["affected", "unknown"] as const)(
 );
 
 it.each(["cli", "mcp"] as const)(
-  "ALL verbose follow-up exposes grouped native-negative plus Related-positive evidence in %s",
+  "keeps the backend resolved result beside contradictory raw provenance in %s",
   (surface) => {
     const report = fixture();
-    const mixed = structuredClone(report.security!.vulnerabilities![0]!);
-    mixed.osvId = "GHSA-mixed";
-    mixed.aliases = ["CVE-mixed"];
-    mixed.assessmentStatus = "NON_AFFECTING";
-    mixed.affectsInspectedVersion = false;
-    mixed.assessmentReasons = ["RELATED_APPLICABILITY_UNPROVED"];
-    const source = structuredClone(mixed.evidence![0]!);
-    source.sourceId = "CVE-mixed";
-    mixed.evidence = [
+    const row = report.security!.vulnerabilities![0]!;
+    row.osvId = "GHSA-fixed";
+    row.aliases = ["CVE-broader"];
+    row.assessmentStatus = "NON_AFFECTING";
+    row.affectsInspectedVersion = false;
+    row.assessmentComplete = true;
+    row.assessmentReasons = [];
+    const source = structuredClone(row.evidence![0]!);
+    source.sourceId = "CVE-broader";
+    source.contentDigest = "same";
+    source.assessedContentDigest = "same";
+    row.evidence = [
       {
         ...source,
         kind: "PACKAGE_VERSION",
         relationship: "PACKAGE",
-        sourceId: "GHSA-mixed",
+        sourceId: "GHSA-fixed",
         assessmentStatus: "NON_AFFECTING",
       },
       source,
@@ -270,64 +272,40 @@ it.each(["cli", "mcp"] as const)(
     report.related = { totalCount: 0, vulnerabilities: [] };
     Object.assign(report.security!, {
       affectedVulnerabilityCount: 0,
+      nonAffectingVulnerabilityCount: 1,
+      allVulnerabilityCount: 1,
       currentVersionAffected: false,
       assessmentStatus: "NON_AFFECTING",
-      nonAffectingVulnerabilityCount: 6,
-      allVulnerabilityCount: 6,
+      assessmentComplete: true,
+      assessmentReasons: [],
       upgradePaths: [],
-      vulnerabilities: [
-        ...Array.from({ length: 5 }, (_, i) => ({
-          ...mixed,
-          osvId: `GHSA-history-${i}`,
-          aliases: [],
-          evidence: [],
-          assessmentReasons: [],
-          assessmentComplete: true,
-        })),
-        mixed,
-      ],
     });
-    const compact = formatPackageVulnerabilitiesTerminal(report, {
-      surface,
-      filter: { advisoryScope: "all" },
-    });
-    if (surface === "mcp") expect(compact).not.toContain("GHSA-mixed");
-    expect(compact).not.toContain("aliases      CVE-mixed");
-    const text = formatPackageVulnerabilitiesTerminal(report, {
-      surface,
-      verbose: true,
-      filter: { advisoryScope: "all" },
-    });
-    const flat = text.replace(/\s+/g, " ");
-    expect(text).toContain("GHSA-mixed");
-    expect(text).toContain("CVE-mixed");
-    expect(flat).toContain(
-      "Evidence: package version | package | GHSA-mixed | non-affecting",
-    );
-    expect(flat).toContain(
-      "Evidence: repository commit | related | CVE-mixed | affected",
-    );
-    expect(text).not.toContain("Related vulnerabilities (");
-    expect(text).not.toMatch(/Coverage|Upgrade to/);
+    const before = structuredClone(row.evidence);
+    for (const verbose of [false, true]) {
+      const text = formatPackageVulnerabilitiesTerminal(report, {
+        surface,
+        verbose,
+        filter: { advisoryScope: "all" },
+      });
+      expect(text).toContain("No active vulnerabilities affect this version");
+      expect(text).toContain("GHSA-fixed");
+      expect(text).not.toMatch(
+        /Coverage|Review|package applicability|--scope all --verbose|Some advisory/,
+      );
+      if (verbose) {
+        const flat = text.replace(/\s+/g, " ");
+        expect(flat).toContain(
+          "Evidence: package version | package | GHSA-fixed | non-affecting",
+        );
+        expect(flat).toContain(
+          "Evidence: repository commit | related | CVE-broader | affected",
+        );
+      }
+    }
     const payload = buildPackageVulnerabilitiesSuccessPayload(report);
     expect(payload.summary.total).toBe(0);
-    expect(payload.related?.totalCount).toBe(0);
+    expect(payload.summary.assessmentComplete).toBe(true);
+    expect(payload.summary.assessmentReasons).toEqual([]);
+    expect(payload.advisories?.[0]?.evidence).toEqual(before);
   },
 );
-
-it("keeps package-assessment reasons beside the related evidence action", () => {
-  const report = fixture();
-  report.security!.vulnerabilities![0]!.assessmentReasons = [
-    "RELATED_APPLICABILITY_UNPROVED",
-    "INVALID_RANGE",
-  ];
-  const text = formatPackageVulnerabilitiesTerminal(report).replace(
-    /\s+/g,
-    " ",
-  );
-  expect(text).toContain(
-    "Review the related evidence to establish package applicability.",
-  );
-  expect(text).toContain("Advisory range could not be evaluated");
-  expect(text).not.toContain("Coverage");
-});

@@ -2602,19 +2602,13 @@ it("normalizes zero-column widths for dependency source follow-ups", () => {
 
 describe("actionable report assessment notices", () => {
   it.each([
-    ["SOURCE_PREPARING", "Additional vulnerability checks are running"],
+    ["SOURCE_PREPARING", "Some advisory assessments are still running"],
     [
       "SOURCE_NOT_ASSESSED",
-      "Additional vulnerability checks have not run for this release",
+      "Some advisory assessments are not available for this release",
     ],
-    [
-      "SOURCE_INCOMPLETE",
-      "Review the advisory assessments and source evidence",
-    ],
-    [
-      "SOURCE_UNAVAILABLE",
-      "Review the advisory assessments and source evidence",
-    ],
+    ["SOURCE_INCOMPLETE", "Some advisory results could not be determined"],
+    ["SOURCE_UNAVAILABLE", "Some advisory data is unavailable"],
   ])("explains %s without the generic coverage dump", (reason, expected) => {
     const report = zeroVulnsFixture();
     Object.assign(report.security!, {
@@ -2637,20 +2631,12 @@ describe("actionable report assessment notices", () => {
 
 describe("global advisory reasons stay actionable", () => {
   it.each([
-    ["LOOKUP_FAILED", "Advisory lookup failed", "Run the report again"],
-    [
-      "INVALID_VERSION",
-      "Version could not be evaluated",
-      "Verify the selected package version",
-    ],
-    [
-      "FUTURE_REASON\u001b[31m",
-      "FUTURE_REASON",
-      "Review the reported assessment reasons",
-    ],
+    ["LOOKUP_FAILED", "Advisory lookup failed"],
+    ["INVALID_VERSION", "Version could not be evaluated"],
+    ["FUTURE_REASON\u001b[31m", "FUTURE_REASON"],
   ])(
     "keeps %s visible when there are no advisory rows",
-    (reason, explanation, action) => {
+    (reason, explanation) => {
       const report = zeroVulnsFixture();
       Object.assign(report.security!, {
         assessmentComplete: false,
@@ -2661,7 +2647,9 @@ describe("global advisory reasons stay actionable", () => {
       for (const surface of ["cli", "mcp"] as const) {
         const text = formatPackageVulnerabilitiesTerminal(report, { surface });
         expect(text.replace(/\s+/g, " ")).toContain(explanation);
-        expect(text.replace(/\s+/g, " ")).toContain(action);
+        expect(text).not.toMatch(
+          /Run the report again|Review the|Verify the|--scope all --verbose/,
+        );
         expect(text).not.toContain("Coverage");
         expect(text).not.toContain(ESC);
       }
@@ -2682,8 +2670,8 @@ describe("global advisory reasons stay actionable", () => {
       /\s+/g,
       " ",
     );
-    expect(text).toContain("Additional vulnerability checks are running");
+    expect(text).toContain("Some advisory assessments are still running");
     expect(text).toContain("Advisory lookup failed");
-    expect(text).toContain("Run the report again");
+    expect(text).not.toContain("Run the report again");
   });
 });

@@ -884,7 +884,7 @@ describe("combined overview uncertainty", () => {
         count ? "1 affected" : "0 known to affect this release",
       );
       expect(text.replace(/\s+/g, " ")).toContain(
-        "Review related advisory evidence to determine whether it applies to this package.",
+        "Related findings are not established as affecting this package",
       );
       expect(text).not.toMatch(/none affected|inconsistent/);
     },
@@ -933,20 +933,24 @@ describe("published native recent history alias", () => {
   });
 });
 
-describe("actionable overview vulnerability results", () => {
+describe("effective overview assessment facts", () => {
   it.each([
-    ["SOURCE_NOT_ASSESSED", "Start the remaining vulnerability checks"],
+    [
+      "SOURCE_NOT_ASSESSED",
+      "Some advisory assessments are not available for this release",
+    ],
     ["LOOKUP_FAILED", "Advisory lookup failed"],
-    ["INVALID_VERSION", "The selected version could not be evaluated"],
-    ["SOURCE_PREPARING", "Vulnerability checks are running"],
-    ["SOURCE_INCOMPLETE", "Some vulnerability checks could not be completed"],
-    ["SOURCE_UNAVAILABLE", "Some vulnerability checks could not be completed"],
+    ["INVALID_VERSION", "Version could not be evaluated"],
+    ["SOURCE_PREPARING", "Some advisory assessments are still running"],
+    ["SOURCE_INCOMPLETE", "Some advisory results could not be determined"],
+    ["SOURCE_UNAVAILABLE", "Some advisory data is unavailable"],
     [
       "RELATED_APPLICABILITY_UNPROVED",
-      "Review related advisory evidence to determine whether it applies to this package",
+      "Related findings are not established as affecting this package",
     ],
+    ["FUTURE_REASON\u001b[31m", "FUTURE_REASON"],
   ])(
-    "gives a pinned action for %s without generic coverage warnings",
+    "preserves genuine %s uncertainty without a manual-analysis command",
     (reason, explanation) => {
       const fixture = happyFixture();
       fixture.security = {
@@ -959,33 +963,21 @@ describe("actionable overview vulnerability results", () => {
         unknownVulnerabilityCount: 0,
       };
       const before = buildPackageSummarySuccessPayload(fixture);
-      for (const surface of ["cli", "mcp"] as const) {
-        const text = formatPackageSummaryTerminal(fixture, {
-          surface,
-          terminalWidth: 38,
-        });
-        expect(text.replace(/\s+/g, " ")).toContain(explanation);
-        expect(text.replace(/\s+/g, " ")).toContain(
-          "Latest: 0 known to affect this release",
-        );
-        expect(text).not.toMatch(
-          /Coverage:|coverage incomplete|checks not assessed|none affected|retry|wait/i,
-        );
-        const related = reason === "RELATED_APPLICABILITY_UNPROVED";
-        const action =
-          surface === "cli"
-            ? `githits pkg vulns${related ? " --scope all --verbose" : ""} -- 'npm:express@4.18.2'`
-            : `pkg_vulns(${JSON.stringify({ target: "npm:express@4.18.2", ...(related ? { advisory_scope: "all", verbose: true } : {}) })})`;
-        expect(text.split("\n")).toContain(action);
-        if (reason === "RELATED_APPLICABILITY_UNPROVED")
-          expect(text).not.toContain("Start the remaining");
-      }
+      const text = formatPackageSummaryTerminal(fixture, { terminalWidth: 38 });
+      expect(text.replace(/\s+/g, " ")).toContain(explanation);
+      expect(text.replace(/\s+/g, " ")).toContain(
+        "Latest: 0 known to affect this release",
+      );
+      expect(text).not.toMatch(
+        /Coverage:|coverage incomplete|checks not assessed|none affected|pkg_vulns|githits pkg vulns|Review|report below/,
+      );
+      expect(text).not.toContain("\u001b");
       expect(buildPackageSummarySuccessPayload(fixture)).toEqual(before);
       expect(before.vulnerabilities?.assessmentReasons).toEqual([reason]);
       expect(before.vulnerabilities?.assessmentComplete).toBe(false);
     },
   );
-  it("identifies actual package unknowns and routes to their scope", () => {
+  it("keeps confirmed findings and actual package unknowns beside genuine Related uncertainty", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 1,
@@ -993,37 +985,19 @@ describe("actionable overview vulnerability results", () => {
       assessmentStatus: "AFFECTED",
       assessmentComplete: false,
       unknownVulnerabilityCount: 2,
+      assessmentReasons: ["RELATED_APPLICABILITY_UNPROVED"],
     };
-    const cli = formatPackageSummaryTerminal(fixture, { surface: "cli" });
-    const mcp = formatPackageSummaryTerminal(fixture, { surface: "mcp" });
-    for (const text of [cli, mcp]) {
-      expect(text).toContain("Latest: 1 affected");
-      expect(text.replace(/\s+/g, " ")).toContain(
-        "2 advisories need review; affectedness could not be determined.",
-      );
-      expect(text).not.toContain("Coverage");
-    }
-    expect(cli).toContain(
-      "githits pkg vulns --scope unknown -- 'npm:express@4.18.2'",
+    const text = formatPackageSummaryTerminal(fixture).replace(/\s+/g, " ");
+    expect(text).toContain("Latest: 1 affected");
+    expect(text).toContain(
+      "2 advisories could not be evaluated for this release.",
     );
-    expect(mcp).toContain(
-      'pkg_vulns({"target":"npm:express@4.18.2","advisory_scope":"unknown"})',
+    expect(text).toContain(
+      "Related findings are not established as affecting this package",
     );
-    fixture.security!.assessmentReasons = ["RELATED_APPLICABILITY_UNPROVED"];
-    const combined = formatPackageSummaryTerminal(fixture, { surface: "cli" });
-    const combinedMcp = formatPackageSummaryTerminal(fixture, {
-      surface: "mcp",
-    });
-    expect(combined.replace(/\s+/g, " ")).toContain("2 advisories need review");
-    expect(combined).toContain(
-      "githits pkg vulns --scope all --verbose -- 'npm:express@4.18.2'",
-    );
-    expect(combinedMcp).toContain(
-      'pkg_vulns({"target":"npm:express@4.18.2","advisory_scope":"all","verbose":true})',
-    );
-    expect(combined).not.toContain("--scope unknown");
+    expect(text).not.toMatch(/Coverage|pkg_vulns|githits pkg vulns|Review/);
   });
-  it("keeps a completed zero result free of pending-work or review instructions", () => {
+  it("renders a resolved zero as the result without caveats or manual remedies", () => {
     const fixture = happyFixture();
     Object.assign(fixture.security!, {
       vulnerabilityCount: 0,
@@ -1033,10 +1007,12 @@ describe("actionable overview vulnerability results", () => {
       assessmentReasons: [],
       unknownVulnerabilityCount: 0,
     });
-    const text = formatPackageSummaryTerminal(fixture);
-    expect(text).toContain("Latest: none affected");
-    expect(text).not.toMatch(
-      /Coverage|report below|pkg vulns|pkg_vulns|running|Start/,
-    );
+    for (const verbose of [false, true]) {
+      const text = formatPackageSummaryTerminal(fixture, { verbose });
+      expect(text).toContain("Latest: none affected");
+      expect(text).not.toMatch(
+        /Coverage|report below|pkg vulns|pkg_vulns|running|Start|Review|could not/,
+      );
+    }
   });
 });
