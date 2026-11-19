@@ -225,6 +225,8 @@ function mapScopeUnavailableError(
   ) => MappedError,
 ): MappedError {
   const extraDetails: MappedErrorDetails = {};
+  const message =
+    "GitHits could not determine which repository files belong to this package.";
   const repoUrl = nonemptyValue(error.repoUrl);
   const commitSha = nonemptyValue(error.commitSha);
   if (repoUrl !== undefined) extraDetails.repoUrl = repoUrl;
@@ -234,7 +236,7 @@ function mapScopeUnavailableError(
     return build(
       "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
       false,
-      error.message,
+      message,
       extraDetails,
     );
   }
@@ -242,7 +244,7 @@ function mapScopeUnavailableError(
   return build(
     "SOURCE_INVENTORY_SCOPE_UNAVAILABLE",
     false,
-    `${error.message} Try listing the whole repository instead; add the package folder prefix to paths if needed.`,
+    `${message} Try listing the repository instead; add the package folder prefix to paths if needed.`,
     extraDetails,
   );
 }

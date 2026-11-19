@@ -76,6 +76,14 @@ describe("createListTool", () => {
         {},
       );
       expect(result.isError).toBe(true);
+      const message =
+        format === "json"
+          ? errorPayload(result).error
+          : result.content[0]!.text.replace(/\s+/g, " ");
+      expect(message).toContain(
+        "GitHits could not determine which repository files belong to this package.",
+      );
+      expect(message).not.toContain("scope is unavailable");
       const action = `list ${JSON.stringify({ target: "github:danielgatis/rembg@860b39d0", paths: ["rembg/sessions/"], recursive: true, file_types: ["source"], languages: ["python"], intents: ["PRODUCTION"], limit: 50, wait_timeout_ms: 0, ...(format === "json" ? { format: "json" } : {}) })}`;
       if (format === "json")
         expect(errorPayload(result).details.action).toBe(action);

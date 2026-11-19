@@ -72,6 +72,13 @@ describe("unified list CLI", () => {
           ),
         ).rejects.toThrow("exit");
         const output = String(error.mock.calls[0]?.[0]);
+        const message = json
+          ? JSON.parse(output).error
+          : output.replace(/\s+/g, " ");
+        expect(message).toContain(
+          "GitHits could not determine which repository files belong to this package.",
+        );
+        expect(message).not.toContain("scope is unavailable");
         const action = `githits list --recursive --file-type 'source' --language 'python' --intent 'PRODUCTION' --limit 50 --wait 0 ${json ? "--json " : ""}-- 'github:danielgatis/rembg@860b39d0' 'rembg/sessions/'`;
         if (json) expect(JSON.parse(output).details.action).toBe(action);
         else expect(output).toContain(action);
