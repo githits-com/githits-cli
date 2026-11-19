@@ -779,7 +779,13 @@ export function formatPackageVulnerabilitiesTerminal(
   const surface = options.surface ?? "cli";
 
   const width = normaliseTerminalWidth(options.terminalWidth);
-  const directId = payload.advisories?.find((advisory) => advisory.id)?.id;
+  const hasRelatedRows = Boolean(payload.related?.advisories.length);
+  const fullReportScope = hasRelatedRows
+    ? "selected package and Related advisories"
+    : "selected package advisories";
+  const directId =
+    payload.advisories?.find((advisory) => advisory.id)?.id ??
+    payload.related?.advisories.find((advisory) => advisory.id)?.id;
   const dependencyId = payload.transitive
     ? flattenTransitiveRows(payload.transitive).find((row) => row.occurrence.id)
         ?.occurrence.id
@@ -787,15 +793,16 @@ export function formatPackageVulnerabilitiesTerminal(
   const sourceBlock =
     payload.sourceDetails !== undefined
       ? formatPackageSourceDetails(sourceReportDisplay(report, payload), width)
-      : payload.advisories?.length
+      : report.related?.sourceDetails === undefined &&
+          (payload.advisories?.length || hasRelatedRows)
         ? wrapTerminalProse(
             surface === "mcp"
-              ? "Full advisory report: use details=true for all selected direct advisories (can be long)."
+              ? `Full advisory report: use details=true for ${fullReportScope}.`
               : [
                   directId
                     ? `Full advisory report: ${advisoryReportCommand(directId)}`
                     : undefined,
-                  "Full reports for all selected direct advisories: add --details (can be long).",
+                  `Full reports: add --details for ${fullReportScope}.`,
                 ]
                   .filter(Boolean)
                   .join("\n"),

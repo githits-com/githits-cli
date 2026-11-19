@@ -100,6 +100,9 @@ If a missing or ambiguous site returns suggested site targets, retry one of thos
 
 Useful flags: repeatable `--file-type`, `--language`, `--intent`, `--limit` (1-500), `--after`, `--wait` (milliseconds, 0-300000; default 30000), `--silent`, `--json`. Text lists paths with direct read guidance; `--silent` emits paths only. JSON retains read/browse actions, lifecycle metadata, and `nextCursor`. Continue by replaying the same selection with the returned opaque cursor. Prefer exact emitted read actions to reconstructed locators.
 
+When package scope is unavailable, use the offered pinned repository-root
+retry if broader scope is appropriate. Its paths are relative to that root.
+
 `--file-type` selects classifications such as `source` or `doc`, never language names; use `--language javascript` for JavaScript; select file extensions with a quoted path glob such as `'lib/**/*.js'`. File-type and language names are case-insensitive, so `--language JavaScript` and `--language javascript` select the same source language.
 
 Site list paths resolve within the required `site:<host[/scope]>` target. One leading `/` is accepted and stays within that scope; `/` alone selects its root. Omitted or empty list paths also select the root. In text output, a site path without a trailing `/` is a page even when its source URL ended in `/`; directory paths retain their trailing `/`. Literal paths and quoted globs operate only under the supplied target.
@@ -124,7 +127,7 @@ Useful filters: `--path`, repeatable `--glob`, repeatable `--ext`, repeatable `-
 
 ## Code Read
 
-`githits read <target> <path>` reads one exact target-relative file. Use `--lines 10-80`, `--start`, or `--end` for focused windows. You can also append a range to the path: `src/index.js:10-80`. `githits code read` remains a compatibility alias.
+`githits read <target> <path>` reads one exact target-relative file. Use `--lines 10-80`, `--start`, or `--end` for focused windows. You can also append a range to the path, as in `src/index.js:10-80`. For filenames with a numeric colon suffix, use `--literal-path` and pass line bounds separately. `githits code read` remains a compatibility alias.
 
 `githits read '<target>#<symbol>'` or `githits read <target> --selector <name>` reads a known indexed code symbol; add an exact `<path>` to narrow resolution to one file. Use `--selector` for HTTPS repository symbols; a URL fragment without a selector or path selects docs. The backend decides whether a compact repository fragment identifies a code symbol or a documentation heading. Ambiguous, missing, or unsupported snapshots return recovery guidance. For repository addressing, prefer a compact repository target; `githits read --repo-url <url> [--git-ref <ref>] <path>` remains a compatibility path.
 

@@ -210,11 +210,11 @@ describe("grep text formatting", () => {
       );
       const fileRecipe =
         syntax === "cli"
-          ? "Files: githits read --literal-path --lines $start-$end -- $target $path"
+          ? 'Files: githits read --literal-path --lines $start-$end -- "$target" "$path"'
           : "Files: read target=$target path=$path start_line=$start end_line=$end";
       const pageRecipe =
         syntax === "cli"
-          ? "Pages: githits read --lines $start-$end -- $url"
+          ? 'Pages: githits read --lines $start-$end -- "$url"'
           : "Pages: read target=$url start_line=$start end_line=$end";
       const fileRecipeIndex = lines.indexOf(`  ${fileRecipe}`);
       const pageRecipeIndex = lines.indexOf(`  ${pageRecipe}`);

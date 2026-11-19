@@ -5,6 +5,76 @@ changes use independent files under [`changes/`](changes/README.md) and are
 consolidated here only during release preparation. Dated, versioned sections
 are historical records and change only to correct blatant factual errors.
 
+## [githits 0.41.0] - 2026-11-19
+
+Requires backend support for lifecycle findings, combined vulnerability reports,
+and package inventory hints.
+
+### Added
+
+- **Native lifecycle inspection** - Show lifecycle warnings for the selected release and package in the default overview. Use `--verbose` for the full publisher explanation and source evidence.
+- **Combined package vulnerability findings** - Count repository findings attributed to the package alongside its other advisories. Unproved matches appear under Related, outside package counts. Use `--verbose` or JSON for per-finding provenance and `--details` for full OSV reports.
+
+### Changed
+
+- **Typed package read guidance** - Help explains exact published versions and numeric prefixes. For example, `npm:express@5` selects the newest eligible stable 5.x.y release. Use `from..to` for release comparisons.
+
+### Removed
+
+- **Upgrade review keyword heuristics** - Upgrade reviews use classified changelog statements. Clients reading JSON should migrate from `signals`, `keywordEntries`, `totalKeywordEntries`, `breakingSignals`, `migrationSignals`, and `withBreakingSignals` to statement evidence.
+
+### Fixed
+
+- **Copyable CLI navigation** - List prints the full `githits read` command. List and grep quote path operands, and missing-file errors show the directory to list.
+- **Incomplete changelog analysis** - Changelog and upgrade review keep available unclassified notes, distinguish unfinished GitHits analysis from missing publisher notes, and show the exact release to retry.
+- **Empty package inventory guidance** - Empty package inventories show the backend explanation and any pinned repository-root retry.
+- **Package inventory recovery** - When package scope is unavailable, the pinned repository retry preserves selection controls and uses repository-relative paths.
+- **Grep context recovery** - The CLI reports the ten-line context cap in a shorter notice.
+- **Preparation wait advice** - Grep errors, reads with a pending refresh, and ended searches with pending sources give bounded wait guidance and show estimates when available.
+- **Partial grep source refusals** - Partial grep results retain published-release source refusals and show up to three nearby refs. JSON preserves all recovery details.
+- **Preserve literal read paths** - Reads preserve surrounding filename whitespace. Use `--literal-path` for filenames ending in a numeric colon suffix.
+- **Queued search sources** - Queued sources show as preparation while work is active and no longer trigger failure warnings on completed searches.
+- **Readable recovery guidance** - Missing files and pending sources give shorter next steps. Search distinguishes continuing work, fetching another page, and checking for newer results.
+- **Repository provider throttling** - Errors preserve the provider scope and precise retry delay when available. Partial package overviews keep available data and name the metadata that could not be fetched.
+- **Compact search sources** - Search and search-status show matched source provenance once, with snapshot and website crawl details.
+
+### Security
+
+- **Patched Node toolchain** - CI and repository development use Node 24.22.3. Update your own CLI or stdio MCP runtime separately to get the [November 2026 security fixes](https://nodejs.org/en/blog/vulnerability/november-2026-security-releases).
+
+## [@githits/mcp 0.41.0] - 2026-11-19
+
+Requires backend support for lifecycle findings, combined vulnerability reports,
+and package inventory hints. Hosted clients receive these changes after
+`remote-mcp` adopts and deploys this version.
+
+### Added
+
+- **Native lifecycle inspection** - Show lifecycle warnings for the selected release and package in the default overview. Use `verbose: true` for the full publisher explanation and source evidence.
+- **Combined package vulnerability findings** - Count repository findings attributed to the package alongside its other advisories. Unproved matches appear under Related, outside package counts. Use `verbose: true` or JSON for per-finding provenance and `details: true` for full OSV reports.
+
+### Changed
+
+- **Typed package read guidance** - Help explains exact published versions and numeric prefixes. For example, `npm:express@5` selects the newest eligible stable 5.x.y release. Use `from..to` for release comparisons.
+
+### Removed
+
+- **Upgrade review keyword heuristics** - Upgrade reviews use classified changelog statements. Clients reading JSON should migrate from `signals`, `keywordEntries`, `totalKeywordEntries`, `breakingSignals`, `migrationSignals`, and `withBreakingSignals` to statement evidence.
+
+### Fixed
+
+- **Incomplete changelog analysis** - Changelog and upgrade review keep available unclassified notes, distinguish unfinished GitHits analysis from missing publisher notes, and show the exact release to retry.
+- **Empty package inventory guidance** - Empty package inventories show the backend explanation and any pinned repository-root retry.
+- **Package inventory recovery** - When package scope is unavailable, the pinned repository retry preserves selection controls and uses repository-relative paths.
+- **Grep context recovery** - Grep accepts larger context requests and reports the cap of ten lines per side in text and JSON.
+- **Preparation wait advice** - Grep errors, reads with a pending refresh, and ended searches with pending sources give bounded wait guidance and show estimates when available.
+- **Partial grep source refusals** - Partial grep results retain published-release source refusals and show up to three nearby refs. JSON preserves all recovery details.
+- **Preserve literal read paths** - Reads preserve surrounding filename whitespace. Pass the exact filename in `path` and line bounds in their own arguments.
+- **Queued search sources** - Queued sources show as preparation while work is active and no longer trigger failure warnings on completed searches.
+- **Readable recovery guidance** - Missing files and pending sources give shorter next steps. Search distinguishes continuing work, fetching another page, and checking for newer results.
+- **Repository provider throttling** - Errors preserve the provider scope and precise retry delay when available. Partial package overviews keep available data and name the metadata that could not be fetched.
+- **Compact search sources** - Search and search-status show matched source provenance once, with snapshot and website crawl details.
+
 ## [githits 0.40.3] - 2026-11-09
 
 ### Changed

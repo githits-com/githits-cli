@@ -105,6 +105,27 @@ describe("ordinary package and Related output", () => {
       );
     },
   );
+  it("offers full reports when only Related rows are returned", () => {
+    const report = fixture();
+    report.security!.vulnerabilities = [];
+    report.security!.affectedVulnerabilityCount = 0;
+    report.security!.allVulnerabilityCount = 0;
+    report.security!.currentVersionAffected = false;
+    const cli = formatPackageVulnerabilitiesTerminal(report, {
+      surface: "cli",
+    });
+    const mcp = formatPackageVulnerabilitiesTerminal(report, {
+      surface: "mcp",
+    });
+    expect(cli).toContain("githits vulns --verbose -- 'CVE-related'");
+    expect(cli).toContain("add --details");
+    expect(mcp).toContain("use details=true");
+    for (const text of [cli, mcp]) {
+      expect(text.replace(/\s+/g, " ")).toContain(
+        "for selected package and Related advisories.",
+      );
+    }
+  });
   it("keeps backend canonical identity/severity and evidence relationships lossless without client alias union", () => {
     const r = fixture();
     r.related!.vulnerabilities[0]!.aliases = ["GHSA-package"];

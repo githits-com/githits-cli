@@ -145,7 +145,7 @@ function formatSourceReadAction(
 ): string {
   return syntax === "mcp"
     ? `read target=${JSON.stringify(target)} path=$path`
-    : `read --literal-path -- ${shellQuoteExact(target)} $path`;
+    : `githits read --literal-path -- ${shellQuoteExact(target)} "$path"`;
 }
 
 function formatSiteReadGuidance(
@@ -154,7 +154,7 @@ function formatSiteReadGuidance(
 ): string {
   return syntax === "mcp"
     ? `Read pages: read target=${JSON.stringify(target)} path=$path`
-    : `Read pages: read -- ${shellQuoteExact(target)} $path`;
+    : `Read pages: githits read -- ${shellQuoteExact(target)} "$path"`;
 }
 
 function formatPath(
