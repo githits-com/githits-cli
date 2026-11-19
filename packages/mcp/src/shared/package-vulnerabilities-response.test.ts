@@ -2599,3 +2599,124 @@ it("normalizes zero-column widths for dependency source follow-ups", () => {
     );
   }
 });
+
+describe("actionable report assessment notices", () => {
+  it.each([
+    ["SOURCE_PREPARING", "Some advisory assessments are still running"],
+    [
+      "SOURCE_NOT_ASSESSED",
+      "Some advisory assessments are not available for this release",
+    ],
+    ["SOURCE_INCOMPLETE", "Some advisory results could not be determined"],
+    ["SOURCE_UNAVAILABLE", "Some advisory data is unavailable"],
+  ])("explains %s without the generic coverage dump", (reason, expected) => {
+    const report = zeroVulnsFixture();
+    Object.assign(report.security!, {
+      assessmentComplete: false,
+      assessmentReasons: [reason],
+      assessmentStatus: "NON_AFFECTING",
+      unknownVulnerabilityCount: 0,
+    });
+    const before = buildPackageVulnerabilitiesSuccessPayload(report);
+    const text = formatPackageVulnerabilitiesTerminal(report);
+    expect(text.replace(/\s+/g, " ")).toContain(expected);
+    expect(text).not.toMatch(
+      /Coverage:|coverage is incomplete|checks preparing|checks not assessed/,
+    );
+    expect(text).toContain("No confirmed vulnerabilities affect this version.");
+    expect(buildPackageVulnerabilitiesSuccessPayload(report)).toEqual(before);
+    expect(before.summary.assessmentReasons).toEqual([reason]);
+  });
+});
+
+describe("global advisory reasons stay actionable", () => {
+  it.each([
+    ["LOOKUP_FAILED", "Advisory lookup failed"],
+    ["INVALID_VERSION", "Version could not be evaluated"],
+    ["FUTURE_REASON\u001b[31m", "FUTURE_REASON"],
+  ])(
+    "keeps %s visible when there are no advisory rows",
+    (reason, explanation) => {
+      const report = zeroVulnsFixture();
+      Object.assign(report.security!, {
+        assessmentComplete: false,
+        assessmentStatus: "UNKNOWN",
+        assessmentReasons: [reason],
+        unknownVulnerabilityCount: 0,
+      });
+      for (const surface of ["cli", "mcp"] as const) {
+        const text = formatPackageVulnerabilitiesTerminal(report, { surface });
+        expect(text.replace(/\s+/g, " ")).toContain(explanation);
+        expect(text).not.toMatch(
+          /Run the report again|Review the|Verify the|--scope all --verbose/,
+        );
+        expect(text).not.toContain("Coverage");
+        expect(text).not.toContain(ESC);
+      }
+      expect(
+        buildPackageVulnerabilitiesSuccessPayload(report).summary
+          .assessmentReasons,
+      ).toEqual([reason]);
+    },
+  );
+  it("does not let a running-check notice hide an independent advisory lookup failure", () => {
+    const report = zeroVulnsFixture();
+    Object.assign(report.security!, {
+      assessmentComplete: false,
+      assessmentStatus: "UNKNOWN",
+      assessmentReasons: ["SOURCE_PREPARING", "LOOKUP_FAILED"],
+    });
+    const text = formatPackageVulnerabilitiesTerminal(report).replace(
+      /\s+/g,
+      " ",
+    );
+    expect(text).toContain("Some advisory assessments are still running");
+    expect(text).toContain("Advisory lookup failed");
+    expect(text).not.toContain("Run the report again");
+  });
+});
+
+it.each([
+  { assessmentReasons: [] },
+  { assessmentReasons: ["UNSUPPORTED_NATIVE_CORPUS"] },
+  {
+    assessmentReasons: [
+      "UNSUPPORTED_NATIVE_CORPUS",
+      "RELATED_APPLICABILITY_UNPROVED",
+    ],
+  },
+  { assessmentReasons: ["UNSUPPORTED_NATIVE_CORPUS", "FUTURE_REASON"] },
+])(
+  "does not repeat the unsupported report fact while retaining distinct reasons %j",
+  ({
+    assessmentReasons: inputReasons,
+  }: {
+    assessmentReasons: readonly string[];
+  }) => {
+    const assessmentReasons = [...inputReasons];
+    const report = zeroVulnsFixture();
+    Object.assign(report.security!, {
+      assessmentStatus: "UNSUPPORTED",
+      assessmentComplete: false,
+      assessmentReasons,
+    });
+    const before = buildPackageVulnerabilitiesSuccessPayload(report);
+    const text = formatPackageVulnerabilitiesTerminal(report).replace(
+      /\s+/g,
+      " ",
+    );
+    expect(
+      text.match(
+        /(?:no vulnerability data for this registry|Vulnerability data is unavailable for this registry)/g,
+      ),
+    ).toHaveLength(1);
+    expect(text).not.toContain("Some advisory results could not be determined");
+    expect(text.includes("Related findings are not established")).toBe(
+      assessmentReasons.includes("RELATED_APPLICABILITY_UNPROVED"),
+    );
+    expect(text.includes("FUTURE_REASON")).toBe(
+      assessmentReasons.includes("FUTURE_REASON"),
+    );
+    expect(buildPackageVulnerabilitiesSuccessPayload(report)).toEqual(before);
+  },
+);

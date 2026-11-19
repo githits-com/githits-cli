@@ -71,7 +71,8 @@ export async function pkgInfoAction(
 
     if (
       summary.package.githubRepositoryError ||
-      summary.package.registryRepositoryError
+      summary.package.registryRepositoryError ||
+      summary.securityError
     )
       process.exitCode = 1;
 

@@ -104,7 +104,7 @@ describe("pkgInfoAction", () => {
     expect(payload.version).toBe("4.18.2");
     expect(payload.versionCount).toBe(214);
     expect(payload.downloads.refreshedAt).toBe("2024-06-15");
-    expect(payload.advisoryHistory).toEqual({ total: 5 });
+    expect(payload.advisoryHistory).toMatchObject({ total: 5 });
     expect("install" in payload).toBe(false);
     expect("usage" in payload).toBe(false);
     const calls = packageSummary.mock.calls as unknown as Array<
@@ -170,7 +170,9 @@ describe("pkgInfoAction", () => {
     );
     const output = writes.join("");
     expect(output).toContain("Latest: none affected");
-    expect(output).toContain("History: 5 known advisories across all versions");
+    expect(output).toContain(
+      "Native history: 5 known advisories across all versions",
+    );
     expect(output).not.toContain("Inspect history");
     expect(output).not.toContain("advisory_scope");
     writeSpy.mockRestore();
@@ -420,7 +422,7 @@ describe("pkgInfoAction", () => {
   });
 });
 
-for (const mode of ["github", "provenance", "both"] as const) {
+for (const mode of ["github", "provenance", "both", "security"] as const) {
   it.each([false, true])(
     `prints useful ${mode} partial summary with exit1 for json=%s`,
     async (json) => {
@@ -433,19 +435,27 @@ for (const mode of ["github", "provenance", "both"] as const) {
         retryAfterMs: 1501,
         retryAfterSeconds: 1.501,
       };
-      if (mode !== "provenance") {
+      if (mode === "github" || mode === "both") {
         delete summary.package.githubRepository;
         summary.package.githubRepositoryError = {
           ...facts,
           message: "GitHub metadata temporarily unavailable (RATE_LIMITED).",
         };
       }
-      if (mode !== "github") {
+      if (mode === "provenance" || mode === "both") {
         delete summary.package.registryRepository;
         summary.package.registryRepositoryError = {
           ...facts,
           message:
             "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED).",
+        };
+      }
+      if (mode === "security") {
+        delete summary.security!.vulnerabilityCount;
+        summary.securityError = {
+          ...facts,
+          message:
+            "Selected-release vulnerability assessment temporarily unavailable (RATE_LIMITED).",
         };
       }
       const packageSummary = mock(async () => summary);
@@ -479,14 +489,23 @@ for (const mode of ["github", "provenance", "both"] as const) {
         expect(packageSummary).toHaveBeenCalledTimes(1);
         expect(error).not.toHaveBeenCalled();
         const text = stdout.join("");
+        if (mode === "security") {
+          const payload = json ? JSON.parse(text) : undefined;
+          if (payload) {
+            expect(payload.vulnerabilities).toBeUndefined();
+            expect(payload.securityError).toEqual(summary.securityError);
+            expect(payload.advisoryHistory.total).toBe(5);
+          } else expect(text).toContain("Latest: unavailable");
+        }
+
         if (json) {
           expect(JSON.parse(text)).toMatchObject({
             name: "express",
             version: "4.18.2",
-            ...(mode !== "provenance"
+            ...(mode === "github" || mode === "both"
               ? { githubError: summary.package.githubRepositoryError }
               : {}),
-            ...(mode !== "github"
+            ...(mode === "provenance" || mode === "both"
               ? { provenanceError: summary.package.registryRepositoryError }
               : {}),
           });

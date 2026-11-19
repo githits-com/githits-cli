@@ -300,12 +300,19 @@ function bodyFor(testCase: (typeof cases)[number]): Record<string, unknown> {
           deprecationReason: "LEGACY_DUPLICATE_DO_NOT_RENDER",
         },
         security: {
-          vulnerabilityCount: 0,
           allVulnerabilityCount: 2,
-          hasCurrentVulnerabilities: false,
         },
       },
       provenance: {
+        package: { registry: testCase.registry, name: testCase.name },
+        security: {
+          selectedVersionAffected: false,
+          assessmentStatus: "NON_AFFECTING",
+          assessmentComplete: true,
+          assessmentReasons: [],
+          affectedVulnerabilityCount: 0,
+          unknownVulnerabilityCount: 0,
+        },
         selectedVersion: {
           resolvedVersion: testCase.version,
           registryRepository: {
@@ -1064,6 +1071,10 @@ for (const combined of [false, true]) {
           const result = JSON.parse(cli);
           expect(result).not.toHaveProperty("lifecycle");
           expect(result).not.toHaveProperty("registryRepository");
+          expect(result).not.toHaveProperty("vulnerabilities");
+          expect(result.securityError.message).toBe(
+            "Selected-release vulnerability assessment temporarily unavailable (RATE_LIMITED).",
+          );
           expect(result.provenanceError).toMatchObject({
             code: "RATE_LIMITED",
             message:
@@ -1075,8 +1086,8 @@ for (const combined of [false, true]) {
           const text = cli.replace(/\s+/g, " ");
           expect(text).toContain(
             combined
-              ? "GitHub metadata, registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED). Try again in 13 seconds."
-              : "Registry provenance and lifecycle warnings temporarily unavailable (RATE_LIMITED). Try again in 13 seconds.",
+              ? "GitHub metadata, registry provenance and lifecycle warnings, selected-release vulnerability assessment temporarily unavailable (RATE_LIMITED). Try again in 13 seconds."
+              : "Registry provenance and lifecycle warnings, selected-release vulnerability assessment temporarily unavailable (RATE_LIMITED). Try again in 13 seconds.",
           );
           expect(text).not.toContain("Deprecated: No longer supported");
         }

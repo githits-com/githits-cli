@@ -11,7 +11,9 @@ surface-native exceptions.
 Human/agent default rendering may differ from JSON envelopes: MCP tools
 default to compact `text` where available, while CLI has human
 terminal output and `--json`. Structured parity is enforced through CLI
-`--json` and MCP `format: "json"`.
+`--json` and MCP `format: "json"`. Package overview text shares the same effective
+assessment and uncertainty facts; it does not require a surface-specific manual
+analysis command to obtain the verdict.
 
 Smoke coverage runs through `scripts/mcp-smoke.ts` and `scripts/cli-smoke.ts`.
 The default `bun run smoke:mcp` and `bun run smoke:cli` commands launch source
@@ -703,7 +705,7 @@ When a new tool lands with both MCP and CLI surfaces:
   authentication, malformed and non-nullable-field failures remain whole-tool
   errors; a verbose `latestChangelogs` throttle is not a partial summary.
 - **Evidence-only vulnerability field.** Both compact text surfaces use the same
-  `Latest:` (or `Selected:` when a difference exists) and `History:` labels and do
+  `Latest:` (or `Selected:` when a difference exists) and `Native history:` labels and do
   not append an inline action. CLI help
   routes full-history inspection to
   `githits pkg vulns <registry>:<name> --scope all`; the MCP descriptor routes it

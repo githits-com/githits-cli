@@ -121,7 +121,10 @@ describe("registry repository provenance", () => {
           /registryRepository\s*\{\s*id\s+name\s+url\s*\}/,
         );
         expect(selection).not.toMatch(
-          /security|githubRepository|changelog|license/,
+          /githubRepository|changelog|license|sourceDetails|contentDigest/,
+        );
+        expect(selection).toContain(
+          "affectedVulnerabilityCount unknownVulnerabilityCount",
         );
         expect(query).toContain(
           "recentVulnerabilities @include(if: $includeVerboseFields)",

@@ -844,20 +844,25 @@ export function formatPackageVulnerabilitiesTerminal(
         .filter(Boolean)
         .join("\n")
     : undefined;
-  const reasons = payload.summary.assessmentReasons ?? [];
-  const coverageBlock = [
+  const reasons = (payload.summary.assessmentReasons ?? []).filter(
+    (reason) =>
+      payload.summary.assessmentStatus !== "UNSUPPORTED" ||
+      reason !== "UNSUPPORTED_NATIVE_CORPUS",
+  );
+  const assessmentNotice = [
     ...(report.paginationComplete === false
       ? [
           "Results changed during pagination; shown findings are incomplete. Run the report again for a complete list.",
         ]
       : []),
-    ...(reasons.length
+    ...(payload.summary.assessmentComplete === false &&
+    (reasons.length > 0 || payload.summary.assessmentStatus !== "UNSUPPORTED")
       ? [
-          `Coverage: ${reasons.map(formatVulnerabilityAssessmentReason).join("; ")}.`,
+          reasons.length
+            ? `${reasons.map(formatVulnerabilityAssessmentReason).join("; ")}.`
+            : "Some advisory results could not be determined.",
         ]
-      : payload.summary.assessmentComplete === false
-        ? ["Assessment coverage is incomplete."]
-        : []),
+      : []),
   ]
     .flatMap((line) => wrapTerminalProse(line, width))
     .join("\n");
@@ -903,7 +908,7 @@ export function formatPackageVulnerabilitiesTerminal(
       );
     }
     if (relatedBlock) lines.push("", relatedBlock);
-    if (coverageBlock) lines.push("", coverageBlock);
+    if (assessmentNotice) lines.push("", assessmentNotice);
     if (transitiveBlock) lines.push("", transitiveBlock);
     if (sourceBlock) lines.push("", sourceBlock);
     if (dependencySourceHint) lines.push("", dependencySourceHint);
@@ -949,7 +954,7 @@ export function formatPackageVulnerabilitiesTerminal(
   const upgradeFooter = formatUpgradeFooter(payload.upgradePaths);
   if (upgradeFooter) blocks.push(upgradeFooter);
   if (relatedBlock) blocks.push(relatedBlock);
-  if (coverageBlock) blocks.push(coverageBlock);
+  if (assessmentNotice) blocks.push(assessmentNotice);
   if (transitiveBlock) blocks.push(transitiveBlock);
   if (sourceBlock) blocks.push(sourceBlock);
   if (dependencySourceHint) blocks.push(dependencySourceHint);
@@ -1390,11 +1395,12 @@ function formatAdvisoryLines(
       .join("; ");
     lines.push(
       ...wrapTerminalProse(
-        `    Coverage incomplete${reasons ? `: ${reasons}` : ""}.`,
+        `    ${reasons || "Some advisory results could not be determined"}.`,
         normaliseTerminalWidth(terminalWidth),
       ),
     );
   }
+
   // Compact detail rows — indented 4 spaces so they "hang" under the
   // advisory headline.
   const detailWidth = verbose ? 12 : 8;

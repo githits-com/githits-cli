@@ -435,13 +435,72 @@ contributors are not copied onto generic progress targets, and
 
 ### `pkg_info` response shape
 
-**Default MCP text + JSON opt-in.** `pkg_info` defaults to compact triage text for agent turns: identity/license, description, repository popularity (stars/forks/issues and `[ARCHIVED]` when available), publish age, downloads, and explicit vulnerability status. Its vulnerability line labels the independent scopes as `Latest: ...` and `History: ...` in the ordinary case, using `Selected: ...` when a registry-latest difference exists: `vulnerabilities.total` remains the numeric count affecting the selected release, while `advisoryHistory.total` is the package-wide non-withdrawn, deduplicated advisory count across all versions. The history block is emitted whenever security data exists, including zero, and remains available when the nullable selected-release count is unavailable; an absent security block is not invented as zero. The field contains evidence only, with no inline action. CLI help routes full-history inspection to `githits pkg vulns <registry>:<name> --scope all`; the MCP routing guide selects `pkg_vulns`, whose `advisory_scope` field defines `"all"` history inspection. Color-enabled CLI output uses non-bold cyan for repository/homepage URL substrings without coloring attached statistics; no-color CLI and MCP output retain the same content and hierarchy.
+**Default MCP text + JSON opt-in.** `pkg_info` defaults to compact triage text:
+identity/license, description, repository popularity, publish age, downloads and
+selected-release security. `Latest` (or `Selected` when registry latest differs)
+uses combined package-attributed native and repository findings for the displayed
+release. Counts, affectedness and uncertainty come from the backend; Related
+evidence never increases package counts. A partial zero is labelled as zero
+known to affect the release, rather than a completed negative; actual unresolved
+package-advisory counts remain visible. Native package-wide history is separately
+labelled `Native history`; it is not a bound on combined findings.
 
-`verbose: true` adds GitHub language/topics/last-pushed, published-version count, download refresh date (when a download count is present), package-wide advisory rows under `Advisory history (all versions)`, and recent changes. `format: "json"` returns a lean payload designed for programmatic consumers and requests the detailed fields. The additive fields include `latestVersion`, `latestVersionPublishedAt`, `registryLatestDifference: {version, reason}`, top-level `versionCount`, `downloads.refreshedAt`, and `advisoryHistory.total`; `downloads` is retained when it has only `refreshedAt`. Null scalars are omitted, and empty blocks/arrays are omitted. `vulnerabilities` is emitted whenever the backend reports a numeric selected-release count, including `total: 0`; the stable `affectsLatest` key describes the selected release, while `recent` advisory rows remain package-wide. Recent advisory severity values include a CVSS-banded `severityLabel` (`critical` ≥9, `high` ≥7, `medium` ≥4, else `low`) for agent convenience. Compact/default requests select `allVulnerabilityCount` unconditionally; `versionCount` and `downloadsRefreshedAt` are selected only when `includeVerboseFields` is true.
+Backend effective assessment is authoritative. A usable exact package-version
+assessment determines that vulnerability's package result; qualified Git evidence
+fills missing package facts. Broader or lower-fit same-CVE evidence remains
+provenance and does not add an uncertainty warning to a resolved result. The
+client never recomputes that choice from the raw evidence or merges route counts.
 
-**Package registry.** When acquisition evidence exists, default and verbose text add `Package registry` immediately after `Repository` when present, with the repository name and public URL. CLI `--json` and MCP JSON add `registryRepository: {id,name,url}`; dependency/vulnerability JSON preserve the same descriptor. This is the logical artifact repository that supplied validated release metadata, distinct from `registry` (ecosystem) and `repository` (source Git). It does not enumerate every host, certify binaries or describe current availability. Only Maven currently populates this generic field. Null evidence is omitted; no registry default is inferred.
+Resolved findings are displayed directly, without a source-processing caveat or
+manual ALL/verbose command. Actual unresolved package counts remain visible, and
+genuine preparation, unavailable-data and unproved Related applicability reasons
+are expressed as facts. These are unavailable results, not instructions for the
+caller to reconcile advisories. Raw reasons and per-original provenance remain
+lossless in JSON; verbose direct reports expose the evidence without making it a
+second deciding result. The shared assessment helper owns reason wording. No
+additional overview request, provenance field or source-body fetch is added.
+
+JSON `vulnerabilities.total` is the matched selected release's confirmed affected
+count; the compatibility key `affectsLatest` maps directly to
+`selectedVersionAffected`, not to the registry pointer. Optional
+`assessmentStatus`, `assessmentComplete`, `assessmentReasons` and
+`unknownVulnerabilityCount` preserve the backend verdict and coverage. Missing or
+mismatched combined security omits the entire `vulnerabilities` container; absence
+is not zero or false. Available native history remains independently under
+`advisoryHistory.total` and, in verbose/JSON projections, `advisoryHistory.recent`.
+The published `vulnerabilities.recent` path is deprecated but retained as an alias
+with identical native historical rows and existing breadth/omission semantics
+whenever both selected security and history are available. If selected security
+is unavailable, its container and old alias are absent while canonical history
+survives. No removal of the published alias is part of this change. Text renders
+historical rows once under `Native advisory history (all versions)`.
+
+`verbose: true` adds GitHub language/topics/last-pushed, version count, download
+refresh date, historical advisory rows and recent changes. JSON requests those
+same detailed selections while compact text omits history rows and changelogs.
+Other metadata/lifecycle behavior, unpinned inputs and default release selection
+remain unchanged. Null scalars and empty historical arrays are omitted; backend
+assessment reasons retain their array, including an empty array. An unavailable
+historical parent does not invent zero history or hide valid selected findings.
+CLI help routes full-history inspection to `githits pkg vulns <registry>:<name>
+--scope all`; MCP uses `pkg_vulns` and `advisory_scope="all"`. Use the overview's
+returned release when inspecting that selected release's full report.
 
 The overview query selects `package.version`, `publishedAt` and `registryLatestDifference {version reason}` for every mode, and registry-pointer version/date only for verbose/JSON. It also selects `packageInfo.selectedVersion { resolvedVersion registryRepository { id name url } }`. The service attaches the descriptor on exact equality with the displayed overview version. A provenance-only lookup failure omits the descriptor while preserving usable overview output; primary/pathless errors keep their existing classification, and authentication/access/client-update errors remain fatal. History and unpinned tool arguments remain unchanged. The `packageInfo.selectedVersion.registryRepository` schema must reach production before these clients are released or adopted by hosted MCP; an older schema rejects the new selections. Dev qualification does not establish production availability.
+The same document selects `provenance.package {registry name}` and the six
+consumed `packageInfo.security` scalars. Core attaches combined security only for
+matching canonical registry/name and resolved release, normalizing enum registry
+casing through the shared registry helper. Deprecated `packageSummary` supplies
+metadata and native history only; its current-count/boolean fields are not
+selected. There is one request and no advisory-page, evidence, digest or OSV body
+fetch. Error paths invalidate only their own security or selected-version subtree;
+a parent provenance error or a non-null leaf error that nulls the whole root
+invalidates all its facets and reports their unavailability. Security throttling has its own
+`securityError`, while provenance/lifecycle and GitHub errors retain existing
+metadata fields. Authentication, access and client-update errors stay fatal.
+The combined security schema and effective package-assessment policy must be
+delivered to the target environment before release or hosted adoption. Dev
+qualification alone does not establish production availability.
 
 Focused live validation after building: `bun run scripts/registry-repository-smoke.ts`. This dev-only script clears token/service overrides and runs `dist/cli.js` under Node for both CLI and actual SDK stdio MCP, checking Google, Central and null info output plus pinned shared dependency/vulnerability identities. It never invokes `auth token` or prints credentials.
 

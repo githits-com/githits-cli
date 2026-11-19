@@ -1851,7 +1851,7 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     "pkg info terminal missing latest vulnerability scope",
   );
   assert(
-    pkgInfoText.includes("History:"),
+    pkgInfoText.includes("Native history:"),
     "pkg info terminal missing package-wide vulnerability history scope",
   );
   assert(
@@ -1908,6 +1908,22 @@ async function runLiveSmoke(env: Record<string, string>): Promise<void> {
     typeof pkgInfoJson.advisoryHistory.total === "number",
     "pkg info json missing advisory history count",
   );
+  if (pkgInfoJson.vulnerabilities !== undefined) {
+    assertRecord(
+      pkgInfoJson.vulnerabilities,
+      "overview selected vulnerabilities",
+    );
+    assert(
+      typeof pkgInfoJson.vulnerabilities.assessmentComplete === "boolean",
+      "overview missing combined completeness",
+    );
+    assert(
+      JSON.stringify(pkgInfoJson.vulnerabilities.recent) ===
+        JSON.stringify(pkgInfoJson.advisoryHistory.recent),
+      "deprecated history alias differs from canonical history",
+    );
+  }
+
   assert(
     !("install" in pkgInfoJson) && !("usage" in pkgInfoJson),
     "pkg info json should not include quickstart fields",

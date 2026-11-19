@@ -5,6 +5,7 @@ import { colors } from "./colors.js";
 import {
   buildPackageSummarySuccessPayload,
   formatPackageSummaryTerminal,
+  type LeanVulnerability,
   severityLabel,
 } from "./package-summary-response.js";
 import { terminalWidth } from "./terminal-width.js";
@@ -68,7 +69,7 @@ describe("buildPackageSummarySuccessPayload — happy path", () => {
     expect("usage" in payload).toBe(false);
     expect(payload.vulnerabilities?.total).toBe(5);
     expect(payload.vulnerabilities?.affectsLatest).toBe(true);
-    expect(payload.advisoryHistory).toEqual({ total: 5 });
+    expect(payload.advisoryHistory).toMatchObject({ total: 5 });
     expect(payload.vulnerabilities?.recent?.[0]?.severityLabel).toBe("high");
     expect(payload.recentChanges?.length).toBe(3);
   });
@@ -299,7 +300,7 @@ describe("formatPackageSummaryTerminal", () => {
       "Repository       https://github.com/expressjs/express (63k stars, 14k forks, 123 issues)",
     );
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 5 affected History: 5 known advisories across all versions",
+      "Latest: 5 affected Native history: 5 known advisories across all versions",
     );
     expect(output).not.toContain("Versions");
     expect(output).not.toContain("refreshed 2024-06-15");
@@ -319,7 +320,7 @@ describe("formatPackageSummaryTerminal", () => {
     expect(output).toContain(
       "  Topics       framework, http, middleware, nodejs, web",
     );
-    expect(output).toContain("Advisory history (all versions)");
+    expect(output).toContain("Native advisory history (all versions)");
     expect(output).toContain("GHSA-xxxx-xxxx-xxxx");
     expect(output).toContain("Recent changes");
     expect(output).toContain("Versions");
@@ -338,11 +339,11 @@ describe("formatPackageSummaryTerminal", () => {
     expect(lines.length).toBe(2);
     expect(lines[1]?.startsWith(continuationPrefix)).toBe(true);
     expect(lines[1]?.slice(continuationPrefix.length)).toBe(
-      "History: 5 known advisories across all versions",
+      "Native history: 5 known advisories across all versions",
     );
     expect(lines.every((line) => displayWidth(line) <= 80)).toBe(true);
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 5 affected History: 5 known advisories across all versions",
+      "Latest: 5 affected Native history: 5 known advisories across all versions",
     );
   });
 
@@ -402,7 +403,7 @@ describe("formatPackageSummaryTerminal", () => {
       now: FIXED_NOW,
     });
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 1 affected History: 1 known advisory across all versions",
+      "Latest: 1 affected Native history: 1 known advisory across all versions",
     );
   });
 
@@ -419,7 +420,7 @@ describe("formatPackageSummaryTerminal", () => {
       now: FIXED_NOW,
     });
     expect(vulnerabilityText(output)).toBe(
-      "Latest: none affected History: none known across all versions",
+      "Latest: none affected Native history: none known across all versions",
     );
   });
 
@@ -433,14 +434,14 @@ describe("formatPackageSummaryTerminal", () => {
     };
     const payload = buildPackageSummarySuccessPayload(fixture);
     expect(payload.vulnerabilities).toBeUndefined();
-    expect(payload.advisoryHistory).toEqual({ total: 5 });
+    expect(payload.advisoryHistory).toMatchObject({ total: 5 });
 
     const output = formatPackageSummaryTerminal(fixture, {
       useColors: false,
       now: FIXED_NOW,
     });
     expect(vulnerabilityText(output)).toBe(
-      "Latest: unavailable History: 5 known advisories across all versions",
+      "Latest: unavailable Native history: 5 known advisories across all versions",
     );
   });
 
@@ -459,11 +460,11 @@ describe("formatPackageSummaryTerminal", () => {
       now: FIXED_NOW,
     });
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 2 affected History: 2 known advisories across all versions",
+      "Latest: 2 affected Native history: 2 known advisories across all versions",
     );
   });
 
-  it("wraps contradictory history evidence at standard width without a hint", () => {
+  it("keeps independent native history when combined findings exceed it", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 5,
@@ -478,7 +479,7 @@ describe("formatPackageSummaryTerminal", () => {
     });
     const lines = getVulnerabilityLines(output);
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 5 affected History: 3 known advisories across all versions (inconsistent backend evidence)",
+      "Latest: 5 affected Native history: 3 known advisories across all versions",
     );
     expect(lines.every((line) => displayWidth(line) <= 80)).toBe(true);
     expect(
@@ -487,7 +488,7 @@ describe("formatPackageSummaryTerminal", () => {
     expect(output).not.toContain("Inspect history");
   });
 
-  it("labels zero history as inconsistent when latest has a positive count", () => {
+  it("accepts repository findings when native history is zero", () => {
     const fixture = happyFixture();
     fixture.security = {
       vulnerabilityCount: 1,
@@ -500,7 +501,7 @@ describe("formatPackageSummaryTerminal", () => {
       now: FIXED_NOW,
     });
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 1 affected History: none known across all versions (inconsistent backend evidence)",
+      "Latest: 1 affected Native history: none known across all versions",
     );
   });
 
@@ -517,7 +518,7 @@ describe("formatPackageSummaryTerminal", () => {
       lines.slice(1).every((line) => line.startsWith(" ".repeat(17))),
     ).toBe(true);
     expect(vulnerabilityText(output)).toBe(
-      "Latest: 5 affected History: 5 known advisories across all versions",
+      "Latest: 5 affected Native history: 5 known advisories across all versions",
     );
   });
 
@@ -535,7 +536,7 @@ describe("formatPackageSummaryTerminal", () => {
       now: FIXED_NOW,
     });
     expect(vulnerabilityText(output)).toBe(
-      "Latest: none affected History: 5 known advisories across all versions",
+      "Latest: none affected Native history: 5 known advisories across all versions",
     );
     expect(output).not.toContain("Inspect history");
   });
@@ -841,3 +842,219 @@ for (const verbose of [false, true]) {
     },
   );
 }
+
+describe("combined overview uncertainty", () => {
+  it.each([
+    "UNKNOWN",
+    "UNSUPPORTED",
+    "NOT_ASSESSED",
+    "FUTURE\u001b[31m_STATUS",
+  ])("does not turn %s into a negative assessment", (assessmentStatus) => {
+    const fixture = happyFixture();
+    fixture.security = {
+      vulnerabilityCount: 0,
+      hasCurrentVulnerabilities: false,
+      assessmentStatus,
+      assessmentComplete: false,
+      unknownVulnerabilityCount: assessmentStatus === "UNKNOWN" ? 1 : 0,
+    };
+    const payload = buildPackageSummarySuccessPayload(fixture);
+    expect(payload.vulnerabilities?.assessmentStatus).toBe(assessmentStatus);
+    expect(payload.advisoryHistory).toBeUndefined();
+    const text = formatPackageSummaryTerminal(fixture);
+    expect(text).not.toContain("none affected");
+    expect(text).not.toContain("\u001b");
+    expect(text).toContain("Native history: unavailable");
+  });
+  it.each([0, 1])(
+    "preserves %s confirmed positives with incomplete coverage",
+    (count) => {
+      const fixture = happyFixture();
+      fixture.security = {
+        vulnerabilityCount: count,
+        hasCurrentVulnerabilities: count > 0,
+        allVulnerabilityCount: 0,
+        assessmentStatus: count ? "AFFECTED" : "NON_AFFECTING",
+        assessmentComplete: false,
+        assessmentReasons: ["RELATED_APPLICABILITY_UNPROVED"],
+        unknownVulnerabilityCount: 0,
+      };
+      const text = formatPackageSummaryTerminal(fixture);
+      expect(text).toContain(
+        count ? "1 affected" : "0 known to affect this release",
+      );
+      expect(text.replace(/\s+/g, " ")).toContain(
+        "Related findings are not established as affecting this package",
+      );
+      expect(text).not.toMatch(/none affected|inconsistent/);
+    },
+  );
+  it("does not default missing affectedness to false", () => {
+    const fixture = happyFixture();
+    fixture.security = { vulnerabilityCount: 1 };
+    expect(buildPackageSummarySuccessPayload(fixture).vulnerabilities).toEqual({
+      total: 1,
+    });
+  });
+  it("keeps native history when selected security is unavailable and renders it once", () => {
+    const fixture = happyFixture();
+    delete fixture.security!.vulnerabilityCount;
+    const payload = buildPackageSummarySuccessPayload(fixture);
+    expect(payload.vulnerabilities).toBeUndefined();
+    expect(payload.advisoryHistory?.recent).toHaveLength(2);
+    const text = formatPackageSummaryTerminal(fixture, { verbose: true });
+    expect(text).toContain("Latest: unavailable");
+    expect(text.split("GHSA-xxxx-xxxx-xxxx")).toHaveLength(2);
+  });
+});
+
+describe("published native recent history alias", () => {
+  it("preserves published native recent history alias", () => {
+    const payload = buildPackageSummarySuccessPayload(happyFixture());
+    const expectedRecent: LeanVulnerability[] = [
+      {
+        id: "GHSA-xxxx-xxxx-xxxx",
+        summary: "Open redirect vulnerability in default error handler",
+        severity: 7.5,
+        severityLabel: "high",
+        publishedAt: "2024-06-01",
+      },
+      {
+        id: "GHSA-yyyy-yyyy-yyyy",
+        summary: "Prototype pollution via query parser",
+        severity: 5.3,
+        severityLabel: "medium",
+        publishedAt: "2024-03-12",
+      },
+    ];
+
+    expect(payload.vulnerabilities?.recent).toEqual(expectedRecent);
+    expect(payload.advisoryHistory?.recent).toEqual(expectedRecent);
+  });
+});
+
+describe("effective overview assessment facts", () => {
+  it.each([
+    [
+      "SOURCE_NOT_ASSESSED",
+      "Some advisory assessments are not available for this release",
+    ],
+    ["LOOKUP_FAILED", "Advisory lookup failed"],
+    ["INVALID_VERSION", "Version could not be evaluated"],
+    ["SOURCE_PREPARING", "Some advisory assessments are still running"],
+    ["SOURCE_INCOMPLETE", "Some advisory results could not be determined"],
+    ["SOURCE_UNAVAILABLE", "Some advisory data is unavailable"],
+    [
+      "RELATED_APPLICABILITY_UNPROVED",
+      "Related findings are not established as affecting this package",
+    ],
+    ["FUTURE_REASON\u001b[31m", "FUTURE_REASON"],
+  ])(
+    "preserves genuine %s uncertainty without a manual-analysis command",
+    (reason, explanation) => {
+      const fixture = happyFixture();
+      fixture.security = {
+        vulnerabilityCount: 0,
+        hasCurrentVulnerabilities: false,
+        allVulnerabilityCount: 6,
+        assessmentStatus: "NON_AFFECTING",
+        assessmentComplete: false,
+        assessmentReasons: [reason],
+        unknownVulnerabilityCount: 0,
+      };
+      const before = buildPackageSummarySuccessPayload(fixture);
+      const text = formatPackageSummaryTerminal(fixture, { terminalWidth: 38 });
+      expect(text.replace(/\s+/g, " ")).toContain(explanation);
+      expect(text.replace(/\s+/g, " ")).toContain(
+        "Latest: 0 known to affect this release",
+      );
+      expect(text).not.toMatch(
+        /Coverage:|coverage incomplete|checks not assessed|none affected|pkg_vulns|githits pkg vulns|Review|report below/,
+      );
+      expect(text).not.toContain("\u001b");
+      expect(buildPackageSummarySuccessPayload(fixture)).toEqual(before);
+      expect(before.vulnerabilities?.assessmentReasons).toEqual([reason]);
+      expect(before.vulnerabilities?.assessmentComplete).toBe(false);
+    },
+  );
+  it("keeps confirmed findings and actual package unknowns beside genuine Related uncertainty", () => {
+    const fixture = happyFixture();
+    fixture.security = {
+      vulnerabilityCount: 1,
+      hasCurrentVulnerabilities: true,
+      assessmentStatus: "AFFECTED",
+      assessmentComplete: false,
+      unknownVulnerabilityCount: 2,
+      assessmentReasons: ["RELATED_APPLICABILITY_UNPROVED"],
+    };
+    const text = formatPackageSummaryTerminal(fixture).replace(/\s+/g, " ");
+    expect(text).toContain("Latest: 1 affected");
+    expect(text).toContain(
+      "2 advisories could not be evaluated for this release.",
+    );
+    expect(text).toContain(
+      "Related findings are not established as affecting this package",
+    );
+    expect(text).not.toMatch(/Coverage|pkg_vulns|githits pkg vulns|Review/);
+  });
+  it("renders a resolved zero as the result without caveats or manual remedies", () => {
+    const fixture = happyFixture();
+    Object.assign(fixture.security!, {
+      vulnerabilityCount: 0,
+      hasCurrentVulnerabilities: false,
+      assessmentStatus: "NON_AFFECTING",
+      assessmentComplete: true,
+      assessmentReasons: [],
+      unknownVulnerabilityCount: 0,
+    });
+    for (const verbose of [false, true]) {
+      const text = formatPackageSummaryTerminal(fixture, { verbose });
+      expect(text).toContain("Latest: none affected");
+      expect(text).not.toMatch(
+        /Coverage|report below|pkg vulns|pkg_vulns|running|Start|Review|could not/,
+      );
+    }
+  });
+});
+
+it.each([
+  { assessmentReasons: [] },
+  { assessmentReasons: ["UNSUPPORTED_NATIVE_CORPUS"] },
+  {
+    assessmentReasons: [
+      "UNSUPPORTED_NATIVE_CORPUS",
+      "RELATED_APPLICABILITY_UNPROVED",
+    ],
+  },
+  { assessmentReasons: ["UNSUPPORTED_NATIVE_CORPUS", "FUTURE_REASON"] },
+])(
+  "does not repeat the unsupported overview fact while retaining distinct reasons %j",
+  ({
+    assessmentReasons: inputReasons,
+  }: {
+    assessmentReasons: readonly string[];
+  }) => {
+    const assessmentReasons = [...inputReasons];
+    const fixture = happyFixture();
+    fixture.security = {
+      vulnerabilityCount: 0,
+      hasCurrentVulnerabilities: false,
+      assessmentStatus: "UNSUPPORTED",
+      assessmentComplete: false,
+      assessmentReasons,
+    };
+    const before = buildPackageSummarySuccessPayload(fixture);
+    const text = formatPackageSummaryTerminal(fixture).replace(/\s+/g, " ");
+    expect(
+      text.match(/data (?:is )?unavailable for this registry/g),
+    ).toHaveLength(1);
+    expect(text).not.toContain("Some advisory results could not be determined");
+    expect(text.includes("Related findings are not established")).toBe(
+      assessmentReasons.includes("RELATED_APPLICABILITY_UNPROVED"),
+    );
+    expect(text.includes("FUTURE_REASON")).toBe(
+      assessmentReasons.includes("FUTURE_REASON"),
+    );
+    expect(buildPackageSummarySuccessPayload(fixture)).toEqual(before);
+  },
+);
