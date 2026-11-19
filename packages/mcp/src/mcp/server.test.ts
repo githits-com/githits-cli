@@ -231,7 +231,8 @@ const DESCRIPTION_ROUTING: Record<
     body: [
       "facts only",
       "not package-level risk or an accept decision",
-      "classified release-note statements",
+      "changelog statements in source order with nearby URLs and coverage",
+      "keep any returned unclassified statements",
       "triage rows",
       "at most 30",
       "start assessments here",

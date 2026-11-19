@@ -94,7 +94,7 @@ const schema: ZodRawShape = {
     .string()
     .optional()
     .describe(
-      "Filter detailed statement quotes only: actionable (MUST_ACT), important (MUST_ACT + SHOULD_KNOW), or all parsed units, including no-impact and unassessed. Omit or pass blank to use focused (MUST_ACT + SHOULD_KNOW + too-long-to-classify (oversize) statements). Whole-range counters and batch ranking do not change.",
+      "Filter detailed statement quotes only: actionable (MUST_ACT), important (MUST_ACT + SHOULD_KNOW), or all parsed units, including no-impact and unclassified. Omit or pass blank to use focused (MUST_ACT + SHOULD_KNOW + too-long-to-classify and unclassified statements). Whole-range counters and batch ranking do not change.",
     ),
   verbose: z
     .boolean()
@@ -111,7 +111,7 @@ const schema: ZodRawShape = {
 };
 
 const DESCRIPTION =
-  "Review a package upgrade: vulnerabilities, releases, peers, dependency changes. Compares current and target versions, including target deprecation and optional transitive evidence diffs. Reports facts only: classified release-note statements in source order with nearby URLs and coverage, not package-level risk or an accept decision. Use this instead of inferring acceptability from semver, including patch bumps; start assessments here and add pkg_changelog or code_diff only for missing details. Preserve generated-from-commits labels and pending/unavailable status; generated statements are not publisher notes. Batches default to triage rows; verbose expands per-package evidence. Single mode: registry/package_name/current_version/target_version; batch: packages[] (at most " +
+  "Review a package upgrade: vulnerabilities, releases, peers, dependency changes. Compares current and target versions, including target deprecation and optional transitive evidence diffs. Reports facts only: changelog statements in source order with nearby URLs and coverage, not package-level risk or an accept decision. Use this instead of inferring acceptability from semver, including patch bumps; start assessments here and add pkg_changelog or code_diff only for missing details. If GitHits hasn't finished checking the notes or commits, keep any returned unclassified statements and retry pkg_changelog with the exact target. Keep commit-based analysis and its availability distinct from publisher notes. Batches default to triage rows; verbose expands per-package evidence. Single mode: registry/package_name/current_version/target_version; batch: packages[] (at most " +
   PACKAGE_UPGRADE_REVIEW_MAX_PACKAGES +
   ")." +
   `\n\n${PKG_UPGRADE_REVIEW_GUARDRAIL}`;

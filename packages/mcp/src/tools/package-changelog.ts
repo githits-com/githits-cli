@@ -89,7 +89,7 @@ const schema: ZodRawShape = {
 };
 
 export const DESCRIPTION_BASE: string =
-  "Find release notes and changelog history for a package. Default latest mode returns up to ten entries; source ordering may interleave maintained release lines. Pin registry:name@version for one release or @from..to for releases after from through to; omit limit except for latest or @..to. Selected releases without notes return hasChangelog:false; empty selections return no entries. Default text shows parsed statements with available classifications, including unassessed ones, in source order; changes filters them and all matching pages are retrieved. verbatim:true shows original notes and omit_bodies:true only the timeline; both skip classification and ignore changes. Preserve generated-from-commits labels and pending/unavailable status; generated statements are not publisher notes. Notes alone do not establish compatibility.";
+  "Find release notes and changelog history for a package. Default latest mode returns up to ten entries; source ordering may interleave maintained release lines. Pin registry:name@version for one release or @from..to for releases after from through to; omit limit except for latest or @..to. Exact releases with no upstream notes available to the request return hasChangelog:false; empty selections return no entries. Default text shows parsed statements with available classifications, including unclassified ones, in source order; changes filters them and all matching pages are retrieved. verbatim:true shows original notes and omit_bodies:true only the timeline; both skip classification and ignore changes. If GitHits hasn't finished checking the notes or commits, keep any returned unclassified statements and retry pkg_changelog with the exact target. Keep commit-based analysis and its availability distinct from publisher notes. Notes alone do not establish compatibility.";
 
 export const DESCRIPTION: string = `${DESCRIPTION_BASE}\n\n${PKG_CHANGELOG_GUARDRAIL}`;
 
@@ -141,6 +141,7 @@ export function createPackageChangelogTool(
           return textResult(
             formatPackageChangelogTerminal(payload, {
               useColors: false,
+              surface: "mcp",
               bodyPreviewLines,
               fullStatementHint: 'pass format="json" for full text',
               fullBodyHint: "pass verbatim=true for full original notes",

@@ -430,7 +430,7 @@ describe("package upgrade review response", () => {
     );
     expect(text).toContain("+1 more not returned by backend page");
     expect(text).toContain("Target: deprecated: bad release");
-    expect(text).toContain("Changes");
+    expect(text).toContain("Changelog statements");
     expect(text).toContain("Dependencies");
     expect(text).toContain("Direct: 1 added | 0 removed | 0 changed");
     expect(text).toContain("Dependency issues");
@@ -471,8 +471,10 @@ describe("package upgrade review response", () => {
       expect(index).toBeGreaterThan(previousClause);
       previousClause = index;
     }
-    expect(text.indexOf("Security")).toBeLessThan(text.indexOf("Changes"));
-    expect(text.indexOf("Changes")).toBeLessThan(
+    expect(text.indexOf("Security")).toBeLessThan(
+      text.indexOf("Changelog statements"),
+    );
+    expect(text.indexOf("Changelog statements")).toBeLessThan(
       text.indexOf("Unknown evidence"),
     );
   });
@@ -778,45 +780,21 @@ function unit(
 }
 
 describe("complete upgrade statement presentation", () => {
-  it.each(["generated", "pending", "not_generated"] as const)(
-    "shows generation evidence for empty upgrade release: %s",
-    (status) => {
-      const review = statementReview([]);
-      const coverage = review.changelog.statements!.coverage[0]!;
-      coverage.status = "without_notes";
-      coverage.generation = {
-        status,
-        ...(status === "generated" ? {} : { reason: "budget" }),
-      };
-      review.changelog.riskCoverage.versionsWithoutNotes = 1;
-      const text = formatPackageUpgradeReviewTerminal(
-        formatterResponse([review]),
-      ).replace(/\s+/g, " ");
-      expect(text).toContain(
-        status === "generated"
-          ? "No actionable statements (generated from commits)."
-          : status === "pending"
-            ? "Generation pending"
-            : "Generation unavailable",
-      );
-      expect(text).toContain("not evidence of no risk");
-      if (status === "generated")
-        expect(text).not.toContain("Server empty notice");
-      else {
-        expect(text).toContain("(budget)");
-        expect(text).toContain("No release notes available.");
-        expect(text).not.toContain("No statements match this filter");
-        coverage.status = "unparseable";
-        review.changelog.riskCoverage.versionsWithoutNotes = 0;
-        review.changelog.riskCoverage.versionsUnparseable = 1;
-        const unparseable = formatPackageUpgradeReviewTerminal(
-          formatterResponse([review]),
-        );
-        expect(unparseable).toContain("Notes contain no parsed statements.");
-        expect(unparseable).not.toContain("No statements match this filter");
-      }
-    },
-  );
+  it("shows generated-empty upgrade releases without implying no risk", () => {
+    const review = statementReview([]);
+    const coverage = review.changelog.statements!.coverage[0]!;
+    coverage.status = "without_notes";
+    coverage.generation = { status: "generated" };
+    review.changelog.riskCoverage.versionsWithoutNotes = 1;
+    const text = formatPackageUpgradeReviewTerminal(
+      formatterResponse([review]),
+    ).replace(/\s+/g, " ");
+    expect(text).toContain(
+      "No actionable statements (generated from commits).",
+    );
+    expect(text).toContain("not evidence of no risk");
+    expect(text).not.toContain("Server empty notice");
+  });
   it("keeps generated upgrade text compact, including when a filter hides statements", () => {
     const item = {
       ...unit(),
@@ -902,7 +880,7 @@ describe("complete upgrade statement presentation", () => {
     expect(text).toContain("* [!] Evidence 2");
     expect(text).toContain("* [should know] Evidence 3");
     expect(text).toContain("* Evidence 4");
-    expect(text).toContain("* [not assessed] Evidence 5");
+    expect(text).toContain("* [unclassified] Evidence 5");
     expect(text).toContain("* [too long to classify - read it] Evidence 6");
     expect(text.match(/\(uncertain\)/g)).toHaveLength(1);
   });
@@ -972,7 +950,6 @@ describe("complete upgrade statement presentation", () => {
       );
       expect(text).toContain(`Selection: ${selection}`);
       expect(text).toContain("4 not assessed");
-      expect(text).toContain("Rerun");
       expect(text.includes("Filter excludes")).toBe(selection !== "all");
       expect(text).not.toMatch(/\bsafe\b/i);
     },
@@ -985,12 +962,14 @@ describe("complete upgrade statement presentation", () => {
     const text = formatPackageUpgradeReviewTerminal(
       formatterResponse([review]),
     );
-    expect(text).toContain("No release notes available");
+    expect(text).toContain(
+      "Upstream release notes aren't available to this request",
+    );
     expect(text).toContain("not evidence of no risk");
     cov.status = "unparseable";
     expect(
       formatPackageUpgradeReviewTerminal(formatterResponse([review])),
-    ).toContain("Notes contain no parsed statements");
+    ).toContain("Upstream notes contain no parsed statements");
   });
   it("sanitizes release text, metadata, context and URLs while JSON remains faithful", () => {
     const item = unit();

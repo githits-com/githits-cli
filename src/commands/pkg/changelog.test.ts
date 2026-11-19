@@ -66,7 +66,7 @@ describe("pkgChangelogAction", () => {
 
     const combined = writes.join("");
     expect(combined).toContain("npm:express");
-    expect(combined).toContain("Changes (classified by agent)");
+    expect(combined).toContain("Changelog statements");
     expect(combined).toContain("2 releases");
     expect(combined).toContain("5.2.1");
     // The default retains statement wording without raw note duplication.

@@ -163,6 +163,180 @@ async function mcpText(
 }
 
 describe("package_upgrade_review parity", () => {
+  it("keeps unclassified notes and distinct source and analysis gaps across detailed and compact views", async () => {
+    const target = "hex:plug@1.20.4";
+    const upstreamNote = "Publisher's release note";
+    const coverage = [
+      {
+        version: "1.20.4",
+        status: "NOT_ASSESSED" as const,
+        statementsTotal: 2,
+        statementsAssessed: 1,
+        statementsNotAssessed: 1,
+        statementsNoImpact: 1,
+        statementsUnclassified: 0,
+      },
+      {
+        version: "1.20.3",
+        status: "WITHOUT_NOTES" as const,
+        statementsTotal: 0,
+        statementsAssessed: 0,
+        statementsNotAssessed: 0,
+        statementsNoImpact: 0,
+        statementsUnclassified: 0,
+        generation: { status: "PENDING" as const, reason: "generating" },
+      },
+    ];
+    const args = {
+      registry: "hex",
+      package_name: "plug",
+      current_version: "1.20.2",
+      target_version: "1.20.4",
+    };
+    const spec = "hex:plug@1.20.2..1.20.4";
+    const packageUpgradeReview = mock(
+      async (params: PackageUpgradeReviewParams) => {
+        const response = structuredClone(defaultPackageUpgradeReviewResponse);
+        const review = response.reviews[0]!;
+        Object.assign(review, params.packages[0]);
+        Object.assign(review.changelog.riskCoverage, {
+          versionsNotAssessed: 1,
+          versionsWithoutNotes: 1,
+          unitsNoImpact: 1,
+        });
+        if (params.changelogView === "triage") {
+          delete review.changelog.statements;
+          response.reviews.push({
+            ...structuredClone(defaultPackageUpgradeReviewResponse.reviews[0]!),
+            ...params.packages[1]!,
+          });
+        } else {
+          const items = params.statementTiers
+            ? []
+            : [null, { tier: "NO_IMPACT" as const, ambiguous: false }].map(
+                (classification, position) => ({
+                  version: "1.20.4",
+                  position,
+                  sourceIndex: 0,
+                  text: position === 0 ? upstreamNote : "Known no-impact note",
+                  textTruncated: false,
+                  source: "CHANGELOG_FILE",
+                  url: "https://example.com/CHANGELOG.md",
+                  classification,
+                }),
+              );
+          review.changelog.statements = {
+            items,
+            coverage,
+            totalCount: 2,
+            matchingCount: items.length,
+          };
+        }
+        return response;
+      },
+    );
+    const service = createMockPackageIntelligenceService({
+      packageUpgradeReview,
+    });
+    const deps = cliDeps({ packageIntelligenceService: service });
+    for (const changes of [undefined, "all", "actionable", "important"]) {
+      const cli = await cliJson(spec, { changes }, deps);
+      expect(cli).toEqual((await mcpJson({ ...args, changes }, service)).json);
+      expect(cli).toHaveProperty(
+        "reviews.0.changelog.analysis.0.kind",
+        "classification_incomplete",
+      );
+      expect(cli).toHaveProperty(
+        "reviews.0.changelog.analysis.0.retry.cli",
+        `githits pkg changelog ${target}`,
+      );
+      expect(cli).toHaveProperty(
+        "reviews.0.changelog.analysis.1.kind",
+        "commit_analysis_incomplete",
+      );
+      expect(cli).toHaveProperty(
+        "reviews.0.changelog.analysis.1.retry.mcp.arguments.target",
+        "hex:plug@1.20.3",
+      );
+      expect(cli).toHaveProperty(
+        "reviews.0.changelog.statements.coverage.1.status",
+        "without_notes",
+      );
+      const matching = changes === "all" ? 2 : changes === undefined ? 1 : 0;
+      expect(cli).toHaveProperty(
+        "reviews.0.changelog.statements.matchingCount",
+        matching,
+      );
+      if (matching > 0) {
+        expect(cli).toHaveProperty(
+          "reviews.0.changelog.statements.items.0.classification",
+          null,
+        );
+        expect(cli).toHaveProperty(
+          "reviews.0.changelog.statements.items.0.classificationStatus",
+          "unclassified",
+        );
+      }
+      const cliRendered = (await cliText(spec, { changes }, deps)).replace(
+        /\s+/g,
+        " ",
+      );
+      const mcpRendered = (
+        await mcpText({ ...args, changes }, service)
+      ).replace(/\s+/g, " ");
+      for (const text of [cliRendered, mcpRendered]) {
+        expect(text.includes(`[unclassified] ${upstreamNote}`)).toBe(
+          matching > 0,
+        );
+        expect(text.includes("Known no-impact note")).toBe(changes === "all");
+        expect(text).toContain(
+          "1.20.3 Upstream release notes aren't available to this request and GitHits commit analysis is running. Please retry later with",
+        );
+        expect(text).not.toMatch(/release notes.*\bpending\b/i);
+      }
+      expect(cliRendered).toContain(
+        `Please retry later with githits pkg changelog ${target}`,
+      );
+      expect(mcpRendered).toContain(
+        `Please retry later with pkg_changelog {"target":"${target}"}`,
+      );
+    }
+    const compactCli = await cliText(
+      undefined,
+      { package: [spec, "npm:express@4.18.0..5.0.0"] },
+      deps,
+    );
+    const compactMcp = await mcpText(
+      {
+        packages: [
+          args,
+          {
+            registry: "npm",
+            package_name: "express",
+            current_version: "4.18.0",
+            target_version: "5.0.0",
+          },
+        ],
+      },
+      service,
+    );
+    for (const raw of [compactCli, compactMcp]) {
+      const text = raw.replace(/\s+/g, " ");
+      expect(text).toContain(
+        "GitHits hasn't checked all the release notes yet.",
+      );
+      expect(text).not.toContain("commit-based changelog analysis");
+      expect(text).toContain("1 without notes");
+      expect(text).not.toContain(upstreamNote);
+    }
+    expect(compactCli.replace(/\s+/g, " ")).toContain(
+      `githits pkg changelog ${target}`,
+    );
+    expect(compactMcp.replace(/\s+/g, " ")).toContain(
+      'pkg_changelog {"target":"hex:plug@1.20.4"}',
+    );
+  });
+
   for (const migrationGuides of [
     [
       { url: "https://example.com/migrate", label: "Version 5 changes" },

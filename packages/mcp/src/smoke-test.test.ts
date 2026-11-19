@@ -1697,7 +1697,7 @@ function smokeResponse(
           "Security\n" +
           "  Direct: 0 affected -> 0 affected | 0 fixed | 0 added | 0 still present\n" +
           "  Transitive: not checked\n\n" +
-          "Changes (classified by agent)\n" +
+          "Changelog statements\n" +
           "  Repository releases | 1 entry | 1 with release notes\n" +
           "  Classification coverage: 1 classified | 0 not assessed | 0 without notes | 0 statements labeled no impact\n" +
           "  Statements: 0 returned | 1 labeled no impact\n" +

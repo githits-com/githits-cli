@@ -148,20 +148,8 @@ describe("buildPackageUpgradeReviewRequest", () => {
   });
 
   it.each([
-    [
-      "omitted",
-      undefined,
-      "focused",
-      undefined,
-      ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"],
-    ],
-    [
-      "blank",
-      "  ",
-      "focused",
-      undefined,
-      ["MUST_ACT", "SHOULD_KNOW", "UNCLASSIFIED"],
-    ],
+    ["omitted", undefined, "focused", undefined, undefined],
+    ["blank", "  ", "focused", undefined, undefined],
     [
       "mixed-case actionable",
       "  AcTiOnAbLe  ",
