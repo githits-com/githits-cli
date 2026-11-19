@@ -705,7 +705,7 @@ When a new tool lands with both MCP and CLI surfaces:
   authentication, malformed and non-nullable-field failures remain whole-tool
   errors; a verbose `latestChangelogs` throttle is not a partial summary.
 - **Evidence-only vulnerability field.** Both compact text surfaces use the same
-  `Latest:` (or `Selected:` when a difference exists) and `History:` labels and do
+  `Latest:` (or `Selected:` when a difference exists) and `Native history:` labels and do
   not append an inline action. CLI help
   routes full-history inspection to
   `githits pkg vulns <registry>:<name> --scope all`; the MCP descriptor routes it
