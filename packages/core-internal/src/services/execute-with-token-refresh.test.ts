@@ -207,6 +207,28 @@ describe("executeWithTokenRefresh", () => {
     expect(executeWithToken).not.toHaveBeenCalled();
   });
 
+  it("handles a token provider that aborts and throws synchronously", async () => {
+    const controller = new AbortController();
+    const reason = new Error("cancelled during token lookup");
+    const provider = createMockTokenProvider({
+      getToken: mock((): never => {
+        controller.abort(reason);
+        throw new Error("token store unavailable");
+      }),
+    });
+
+    await expect(
+      executeWithTokenRefresh({
+        ...provider,
+        executeWithToken: async () => "unexpected",
+        shouldRefresh: () => true,
+        signal: controller.signal,
+      }),
+    ).rejects.toBe(reason);
+    // Let the test runner observe a leaked rejection from the abort promise.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  });
+
   it("surfaces the caller reason when refresh rejects after an abort", async () => {
     const controller = new AbortController();
     const reason = new Error("cancelled during refresh");
