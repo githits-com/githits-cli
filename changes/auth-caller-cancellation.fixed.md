@@ -3,4 +3,4 @@
 "@githits/mcp": patch
 ---
 
-- **Prompt request cancellation during authentication** - CLI and MCP callers stop waiting for token lookup or refresh when canceled, while shared refresh work remains available to other requests.
+- **Prompt request cancellation during authentication** - Canceled MCP requests stop waiting for token lookup or refresh while shared refresh work continues. CLI Research checks its deadline before starting or retrying the backend call after authentication.
