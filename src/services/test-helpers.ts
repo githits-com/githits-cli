@@ -283,6 +283,7 @@ export function createMockFileSystemService(
     }),
     isDirectory: mock(() => Promise.resolve(false)),
     isFile: mock(() => Promise.resolve(false)),
+    isSymbolicLink: mock(() => Promise.resolve(false)),
     atomicWriteFile: mock(
       (_path: string, _contents: string, _maximumMode?: number) =>
         Promise.resolve(),
@@ -1282,6 +1283,7 @@ export function createMockExecService(
   impl: Partial<ExecService> = {},
 ): ExecService {
   return {
+    execInteractive: mock(async () => ({ exitCode: 1, signal: null })),
     exec: mock((_command: string, _args: string[], _options?: unknown) =>
       Promise.resolve({ exitCode: 1, stdout: "", stderr: "" } as ExecResult),
     ),

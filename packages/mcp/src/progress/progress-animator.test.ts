@@ -1,8 +1,6 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, jest } from "bun:test";
 import { beginAnimatedProgress } from "./progress-animator.js";
 import type { McpProgressHook, McpProgressUpdate } from "./relay-receiver.js";
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function recorder() {
   const sent: { progress: number; message: string }[] = [];
@@ -41,6 +39,9 @@ const strictlyIncreasing = (values: number[]) =>
   values.every((value, i) => i === 0 || value > (values[i - 1] ?? -1));
 
 describe("beginAnimatedProgress", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
   it("animates the initial message locally before any live update", async () => {
     const { sent, emit } = recorder();
     const operation = await beginAnimatedProgress(
@@ -51,7 +52,7 @@ describe("beginAnimatedProgress", () => {
         intervalMs: 5,
       },
     );
-    await sleep(30);
+    jest.advanceTimersByTime(30);
     operation?.end();
     expect(operation?.headers).toEqual({});
     expect(sent.length).toBeGreaterThan(2);
@@ -73,19 +74,19 @@ describe("beginAnimatedProgress", () => {
         intervalMs: 5,
       },
     );
-    await sleep(15);
+    jest.advanceTimersByTime(15);
     hook.push?.({
       progress: 1,
       message: "Searching for sources.",
       stage: "searching",
     });
-    await sleep(15);
+    jest.advanceTimersByTime(15);
     hook.push?.({
       progress: 3,
       message: "Writing the example.",
       stage: "generating",
     });
-    await sleep(15);
+    jest.advanceTimersByTime(15);
     operation?.end();
     expect(operation?.headers["X-GitHits-Progress-Id"]).toBe("op");
     expect(strictlyIncreasing(sent.map((s) => s.progress))).toBe(true);
@@ -108,7 +109,7 @@ describe("beginAnimatedProgress", () => {
     operation?.end();
     const count = sent.length;
     hook.push?.({ progress: 2, message: "Late" });
-    await sleep(25);
+    jest.advanceTimersByTime(25);
     expect(sent).toHaveLength(count);
   });
 

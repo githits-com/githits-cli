@@ -118,7 +118,7 @@ rules are in `docs/implementation/config.md`.
 - Do not edit generated plugin assets directly. Change their canonical inputs, run `bun run plugins:generate`, inspect the diff, and run `bun run plugins:check`.
 - `packages/mcp/src/mcp/instructions.ts` owns the stable `buildMcpQuickStart()` guide. When it or the terminal guide section in `skills/githits-mcp/SKILL.md` changes, update both in the same PR; `src/skills-packaging.test.ts` exact-parity coverage is the contract. `buildLocalMcpQuickStart()` runtime appendices are excluded from the public skill copy. Behavior-dependent guide changes follow the public Agent Skill lifecycle.
 - `server.json` owns the canonical plugin keyword list used by generated manifests; keep `package.json` aligned with it.
-- All plugin and extension packages use hosted remote MCP. Direct `githits init` configuration retains local stdio except for Cursor, which is remote-only. Claude and Gemini direct setup remove legacy plugin or extension state before installing the user-scoped stdio server.
+- All plugin and extension packages use hosted remote MCP. Interactive `githits init` defaults to hosted MCP and the MCP skill; the local-first profile retains stdio where supported and hosted MCP for Cursor. Explicit `--remote`/`--local` selects migration; no-selector unattended setup preserves an existing canonical transport and uses local-first for fresh targets. Claude Desktop always links to the GitHits Claude directory; init preserves legacy local config and uninstall can remove it. Claude Code and Gemini direct setup retain legacy plugin/extension cleanup before adding the requested user-scoped transport.
 
 ## TypeScript Essentials
 

@@ -154,3 +154,35 @@ describe("direct guidance lifecycle", () => {
     },
   );
 });
+
+it("preserves an instruction symlink through install and empty-target uninstall", async () => {
+  const { symlink, lstat } = await import("node:fs/promises");
+  const temp = await mkdtemp(join(tmpdir(), "githits-linked-instructions-"));
+  const fs = new FileSystemServiceImpl();
+  const target = join(temp, "dotfile.md");
+  const link = join(temp, "AGENTS.md");
+  const setup: ManagedBlockSetup = {
+    method: "managed-block",
+    targetPath: link,
+    marker: "<!-- githits -->",
+    blockContent: "Use GitHits first.",
+  };
+  try {
+    for (const initial of ["User instructions\n", ""]) {
+      await fs.writeFile(target, initial);
+      if (!(await fs.exists(link))) await symlink(target, link, "file");
+      expect((await executeManagedBlockSetup(setup, fs)).status).toBe(
+        "success",
+      );
+      expect((await lstat(link)).isSymbolicLink()).toBe(true);
+      expect(await fs.readFile(target)).toContain("Use GitHits first.");
+      expect((await executeManagedBlockUninstall(setup, fs)).status).toBe(
+        "removed",
+      );
+      expect((await lstat(link)).isSymbolicLink()).toBe(true);
+      expect((await fs.readFile(target)).trim()).toBe(initial.trim());
+    }
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});

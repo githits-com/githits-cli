@@ -1,11 +1,14 @@
 import checkbox from "@inquirer/checkbox";
 import confirm from "@inquirer/confirm";
 import select from "@inquirer/select";
+import stringWidth from "fast-string-width";
 
 /** Choice for checkbox prompt */
 export interface CheckboxChoice<T> {
   /** Display name */
   name: string;
+  /** Concise label shown after selection */
+  short?: string;
   /** Value returned when selected */
   value: T;
   /** Whether pre-selected */
@@ -20,6 +23,8 @@ export interface CheckboxChoice<T> {
 export interface SelectChoice<T> {
   /** Display name */
   name: string;
+  /** Concise label shown after selection */
+  short?: string;
   /** Value returned when selected */
   value: T;
   /** Optional description shown below the choice */
@@ -54,6 +59,70 @@ export interface PromptService {
   ): Promise<ConfirmChoice>;
 }
 
+/** Wrap plain prompt text at word boundaries, preserving authored line breaks. */
+export function wrapPromptText(text: string, width: number): string {
+  return text
+    .split("\n")
+    .map((paragraph) => {
+      const indent = paragraph.match(/^ */)?.[0] ?? "";
+      const words = paragraph.trim().split(/\s+/);
+      const lines: string[] = [];
+      let line = indent;
+      for (const word of words) {
+        const candidate = line.trim() ? `${line} ${word}` : `${indent}${word}`;
+        if (line.trim() && stringWidth(candidate) > width) {
+          lines.push(line);
+          line = `${indent}${word}`;
+        } else line = candidate;
+      }
+      return [...lines, line].join("\n");
+    })
+    .join("\n");
+}
+
+/** Reserve Inquirer's prefix columns when preparing selectable labels. */
+function wrapChoices<
+  T extends {
+    name: string;
+    short?: string;
+    description?: string;
+    disabled?: boolean | string;
+  },
+>(choices: T[], prefixWidth: number): T[] {
+  const columns = process.stdout.columns || 80;
+  return choices.map((choice) => ({
+    ...choice,
+    name: wrapPromptText(choice.name, columns - prefixWidth).replaceAll(
+      "\n",
+      `\n${" ".repeat(prefixWidth)}`,
+    ),
+    short: choice.short ?? choice.name,
+    ...(typeof choice.disabled === "string"
+      ? {
+          // Inquirer adds the space between the label and disabled reason.
+          disabled: wrapPromptText(
+            `${choice.name} ${choice.disabled}`,
+            columns - prefixWidth,
+          )
+            .slice(wrapPromptText(choice.name, columns - prefixWidth).length)
+            .replace(/^ /, "")
+            .replaceAll("\n", `\n${" ".repeat(prefixWidth)}`),
+        }
+      : {}),
+    ...(choice.description === undefined
+      ? {}
+      : {
+          description: wrapPromptText(choice.description, columns - 1),
+        }),
+  }));
+}
+
+/** Keep completed answers readable without depending on the question's length. */
+export function formatPromptAnswer(text: string): string {
+  if (!text) return "";
+  return `\n  ${wrapPromptText(text, (process.stdout.columns || 80) - 2).replaceAll("\n", "\n  ")}`;
+}
+
 /**
  * Production implementation using Inquirer prompt packages.
  */
@@ -63,18 +132,31 @@ export class PromptServiceImpl implements PromptService {
     choices: SelectChoice<T>[],
     defaultValue?: T,
   ): Promise<T> {
-    return select({ message, choices, default: defaultValue });
+    return select({
+      message: wrapPromptText(message, (process.stdout.columns || 80) - 2),
+      choices: wrapChoices(choices, 2),
+      default: defaultValue,
+      theme: { style: { answer: formatPromptAnswer } },
+    });
   }
 
   async checkbox<T>(
     message: string,
     choices: CheckboxChoice<T>[],
   ): Promise<T[]> {
-    return checkbox({ message, choices });
+    return checkbox({
+      message: wrapPromptText(message, (process.stdout.columns || 80) - 2),
+      choices: wrapChoices(choices, 3),
+      theme: { style: { answer: formatPromptAnswer } },
+    });
   }
 
   async confirm(message: string, defaultValue?: boolean): Promise<boolean> {
-    return confirm({ message, default: defaultValue });
+    return confirm({
+      message: wrapPromptText(message, (process.stdout.columns || 80) - 8),
+      default: defaultValue,
+      theme: { style: { answer: formatPromptAnswer } },
+    });
   }
 
   async confirm3(
@@ -84,6 +166,7 @@ export class PromptServiceImpl implements PromptService {
     return select({
       message,
       default: defaultValue,
+      theme: { style: { answer: formatPromptAnswer } },
       choices: [
         { value: "yes" as ConfirmChoice, name: "Yes" },
         { value: "no" as ConfirmChoice, name: "No" },
