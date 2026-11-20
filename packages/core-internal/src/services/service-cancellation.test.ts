@@ -317,4 +317,52 @@ describe("network service caller cancellation", () => {
       expect(fetchFn).toHaveBeenCalledTimes(1);
     });
   });
+
+  it("cancels an active grep authentication retry without a third request", async () => {
+    const controller = new AbortController();
+    const reason = new Error("retry cancelled");
+    let requests = 0;
+    let retryStarted!: () => void;
+    const retry = new Promise<void>((resolve) => {
+      retryStarted = resolve;
+    });
+    const fetchFn = mock(
+      (_input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        requests += 1;
+        if (requests === 1) {
+          return Promise.resolve(new Response("{}", { status: 401 }));
+        }
+        retryStarted();
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(init.signal?.reason),
+            { once: true },
+          );
+        });
+      },
+    );
+    const service = new GrepServiceImpl(
+      ENDPOINT,
+      createMockTokenProvider(),
+      asFetch(fetchFn),
+    );
+    const request = service.grep(
+      {
+        targets: [{ target: "npm:express" }],
+        pattern: "router",
+        patternType: "LITERAL",
+        caseSensitive: true,
+        contextLinesBefore: 0,
+        contextLinesAfter: 0,
+        includeDetailedFields: false,
+      },
+      { signal: controller.signal },
+    );
+
+    await retry;
+    controller.abort(reason);
+    await expect(request).rejects.toBe(reason);
+    expect(requests).toBe(2);
+  });
 });

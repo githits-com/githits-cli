@@ -823,6 +823,54 @@ describe("AgenticAskServiceImpl", () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
+  it("settles caller cancellation during pending token lookup without fetching", async () => {
+    let releaseLookup!: (token: string) => void;
+    const lookup = new Promise<string>((resolve) => {
+      releaseLookup = resolve;
+    });
+    const controller = new AbortController();
+    const reason = new Error("research cancelled during lookup");
+    const fetchFn = mock(async () => jsonResponse()) as unknown as typeof fetch;
+    const service = createService(fetchFn, {
+      tokenProvider: createMockTokenProvider({ getToken: mock(() => lookup) }),
+      timeoutMs: 60_000,
+    });
+    const request = service.ask(
+      { target: "npm:example", question: "How?" },
+      { signal: controller.signal },
+    );
+
+    controller.abort(reason);
+    const early = await Promise.race([
+      request.catch((error: unknown) => error),
+      new Promise<symbol>((resolve) =>
+        setImmediate(() => resolve(Symbol("still pending"))),
+      ),
+    ]);
+    releaseLookup("token");
+    expect(early).toBe(reason);
+    await expect(request).rejects.toBe(reason);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("does not start research after its deadline expires during token lookup", async () => {
+    let releaseLookup!: (token: string) => void;
+    const lookup = new Promise<string>((resolve) => {
+      releaseLookup = resolve;
+    });
+    const fetchFn = mock(async () => jsonResponse()) as unknown as typeof fetch;
+    const service = createService(fetchFn, {
+      tokenProvider: createMockTokenProvider({ getToken: mock(() => lookup) }),
+      timeoutMs: 1,
+    });
+    const request = service.ask({ target: "npm:example", question: "How?" });
+
+    await expect(request).rejects.toBeInstanceOf(AgenticAskRequestTimeoutError);
+    releaseLookup("token");
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
   it("rejects an oversized declared body before reading it", async () => {
     let pulls = 0;
     let cancelled = false;

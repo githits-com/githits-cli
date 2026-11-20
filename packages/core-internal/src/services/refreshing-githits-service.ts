@@ -57,6 +57,7 @@ export class RefreshingGitHitsService implements GitHitsService {
         return this.tokenProvider.forceRefresh();
       },
       shouldRefresh: isTokenRefreshableError,
+      signal: options?.signal,
       executeWithToken: async (token) => {
         options?.signal?.throwIfAborted();
         const service = this.serviceFactory
