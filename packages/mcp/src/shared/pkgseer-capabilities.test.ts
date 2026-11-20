@@ -18,7 +18,7 @@ describe("pkgseer capability matrices", () => {
     );
   });
 
-  it("supports only the deployed vulnerability registry set", () => {
+  it("supports only the deployed direct vulnerability registry set", () => {
     expect(SUPPORTED_VULN_REGISTRY_ARGS).toEqual([
       "npm",
       "pypi",
@@ -26,6 +26,7 @@ describe("pkgseer capability matrices", () => {
       "crates",
       "nuget",
       "maven",
+      "vcpkg",
       "packagist",
       "rubygems",
       "go",
@@ -33,10 +34,10 @@ describe("pkgseer capability matrices", () => {
       "pub",
     ]);
     expect(SUPPORTED_VULN_REGISTRIES_LIST).toBe(
-      "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, pub",
+      "npm, pypi, hex, crates, nuget, maven, vcpkg, packagist, rubygems, go, swift, pub",
     );
     expect(SUPPORTED_VULN_REGISTRIES_HUMAN).toBe(
-      "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, and pub",
+      "npm, pypi, hex, crates, nuget, maven, vcpkg, packagist, rubygems, go, swift, and pub",
     );
     expect([...SUPPORTED_VULN_REGISTRIES]).toEqual([
       "NPM",
@@ -45,6 +46,7 @@ describe("pkgseer capability matrices", () => {
       "CRATES",
       "NUGET",
       "MAVEN",
+      "VCPKG",
       "PACKAGIST",
       "RUBYGEMS",
       "GO",
@@ -55,7 +57,6 @@ describe("pkgseer capability matrices", () => {
     for (const registry of SUPPORTED_VULN_REGISTRIES) {
       expect(supportsVulnerabilitiesRegistry(registry)).toBe(true);
     }
-    expect(supportsVulnerabilitiesRegistry("VCPKG")).toBe(false);
     expect(supportsVulnerabilitiesRegistry("ZIG")).toBe(false);
   });
 

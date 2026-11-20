@@ -139,10 +139,12 @@ upgrades. Source failures retain assessments and exit nonzero.
 For one advisory report, including dependency advisories: githits vulns <id> --verbose.
 
 Package spec: <registry>:<name>[@<version>]. Supported registries:
-npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, pub. vcpkg and zig are not supported.
+npm, pypi, hex, crates, nuget, maven, vcpkg, packagist, rubygems, go, swift, pub.
+vcpkg advisory coverage is partial. Zig is unsupported.
 Omit @<version> to check the latest release.
 Version: exact published version, or numeric prefix (5, 1.43) selecting the newest eligible stable match; no ranges.
 Example: githits pkg vulns npm:lodash@4.17.20 --severity high
+vcpkg port revision: githits pkg vulns 'vcpkg:openssl@3.6.1#2'
 
 --severity and --include-withdrawn are passed through to the backend; active
 filters are echoed in text and JSON. Use --scope non_affecting for advisories
@@ -150,6 +152,7 @@ that do not affect this version, --scope unknown for unevaluated advisories with
 reasons, or --scope all for all package advisory assessments.
 
 Use --transitive for vulnerabilities in versions resolved by the dependency graph.
+Transitive vulnerability analysis is unavailable for vcpkg.
 This adds graph-analysis cost and is separate from package-wide advisory history.
 --severity and --scope apply to direct and transitive rows. --include-withdrawn
 affects direct rows only; transitive withdrawn advisories remain excluded.`;

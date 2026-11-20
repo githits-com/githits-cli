@@ -36,7 +36,7 @@ const schema: ZodRawShape = {
   target: z
     .string()
     .describe(
-      "Package registry:name[@version], e.g. npm:lodash@4.17.20 (exact) or npm:lodash@4 (numeric prefix); omit for latest.",
+      "Package registry:name[@version], e.g. npm:lodash@4.17.20 (exact), npm:lodash@4 (numeric prefix), or vcpkg:openssl@3.6.1#2 (port revision); omit for latest.",
     ),
   min_severity: z
     .string()
@@ -52,7 +52,7 @@ const schema: ZodRawShape = {
     .boolean()
     .optional()
     .describe(
-      "Opt in to dependency vulnerability evidence for the resolved graph. Adds graph-analysis cost; min_severity and advisory_scope apply to direct and transitive rows, while include_withdrawn affects direct rows only. Transitive withdrawn advisories remain excluded.",
+      "Opt in to dependency vulnerability evidence for the resolved graph. Unavailable for vcpkg. Adds graph-analysis cost; min_severity and advisory_scope apply to direct and transitive rows, while include_withdrawn affects direct rows only. Transitive withdrawn advisories remain excluded.",
     ),
   advisory_scope: z
     .string()
@@ -85,7 +85,7 @@ export const DESCRIPTION_BASE: string =
   "Advisories can be published or revised after training; a cutoff disclaimer is not current evidence. " +
   "Covers pinned releases, latest-version risk, and package security history. " +
   'For package-wide history, use an unpinned target and `advisory_scope:"all"`: `{"target":"npm:next","advisory_scope":"all"}`. ' +
-  "Supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, and Pub; vcpkg and Zig unsupported. " +
+  "Supports npm, PyPI, Hex, Crates, NuGet, Maven, vcpkg, Packagist, RubyGems, Go, Swift, and Pub. vcpkg advisory coverage is partial. Zig is unsupported. " +
   "Returns identifiers/aliases (CVEs when available), severity, affected ranges and fixes; malicious advisories are separate. " +
   "Use details:true for full advisory text and source metadata from OSV on selected direct advisories. " +
   "Default text is capped; `verbose:true` shows all selected rows. " +
