@@ -58,11 +58,10 @@ describe("createPackageVulnerabilitiesTool — metadata", () => {
       createMockPackageIntelligenceService(),
     );
     expect(tool.name).toBe("pkg_vulns");
-    expect(tool.description).toContain("NuGet, Maven, Packagist");
+    expect(tool.description).toContain("NuGet, Maven, vcpkg, Packagist");
     expect(tool.description).toContain(
-      "Supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, and Pub; vcpkg and Zig unsupported.",
+      "vcpkg advisory coverage is partial. Zig is unsupported.",
     );
-    expect(tool.description).toContain("vcpkg and Zig");
     expect(tool.description).toContain(
       "Check package vulnerabilities and full advisory reports; never rely on memory.",
     );
@@ -681,12 +680,12 @@ describe("createPackageVulnerabilitiesTool — compact target validation", () =>
 });
 
 describe("createPackageVulnerabilitiesTool — validation errors via shared parsing and builder", () => {
-  it("returns INVALID_ARGUMENT envelope for unsupported registry (vcpkg)", async () => {
+  it("returns INVALID_ARGUMENT envelope for unsupported registry (zig)", async () => {
     const tool = createPackageVulnerabilitiesTool(
       createMockPackageIntelligenceService(),
     );
     const result = await tool.handler(
-      { target: "vcpkg:foo", format: "json" },
+      { target: "zig:foo", format: "json" },
       {},
     );
     expect(result.isError).toBe(true);
@@ -698,7 +697,7 @@ describe("createPackageVulnerabilitiesTool — validation errors via shared pars
     expect(payload.code).toBe("INVALID_ARGUMENT");
     expect(payload.retryable).toBe(false);
     expect(payload.error).toBe(
-      "pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, and pub. Got: vcpkg.",
+      "pkg vulns only supports npm, pypi, hex, crates, nuget, maven, vcpkg, packagist, rubygems, go, swift, and pub. Got: zig.",
     );
   });
 
