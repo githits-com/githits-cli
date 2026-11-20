@@ -190,6 +190,37 @@ describe("RefreshingGitHitsService", () => {
       expect(factory).toHaveBeenCalledTimes(1);
     });
 
+    it("settles before a pending token lookup and never starts REST search", async () => {
+      let releaseLookup!: (token: string) => void;
+      const lookup = new Promise<string>((resolve) => {
+        releaseLookup = resolve;
+      });
+      const controller = new AbortController();
+      const reason = new Error("search cancelled during lookup");
+      const factory = mock(() => createMockGitHitsService());
+      const service = new RefreshingGitHitsService(
+        API_URL,
+        createMockTokenProvider({ getToken: mock(() => lookup) }),
+        factory,
+      );
+      const request = service.search(
+        { query: "test" },
+        { signal: controller.signal },
+      );
+
+      controller.abort(reason);
+      const early = await Promise.race([
+        request.catch((error: unknown) => error),
+        new Promise<symbol>((resolve) =>
+          setImmediate(() => resolve(Symbol("still pending"))),
+        ),
+      ]);
+      releaseLookup("token");
+      expect(early).toBe(reason);
+      await expect(request).rejects.toBe(reason);
+      expect(factory).not.toHaveBeenCalled();
+    });
+
     it("re-throws AuthenticationError when forceRefresh returns undefined", async () => {
       const failingService = createMockGitHitsService({
         search: mock(() =>

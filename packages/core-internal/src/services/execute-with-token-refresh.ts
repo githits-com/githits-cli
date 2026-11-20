@@ -9,8 +9,8 @@ export interface ExecuteWithTokenRefreshOptions<T> {
   executeWithToken: (token: string) => Promise<T>;
   shouldRefresh: (error: unknown) => boolean;
   /**
-   * Optional caller cancellation. Once aborted, the helper rejects with the
-   * signal's reason at the next step and never refreshes or retries.
+   * Optional caller cancellation. Token-provider work may be shared with other
+   * callers, so an abort stops this caller's wait without aborting the provider.
    */
   signal?: AbortSignal;
 }
@@ -23,7 +23,6 @@ export async function executeWithTokenRefresh<T>(
   options: ExecuteWithTokenRefreshOptions<T>,
 ): Promise<T> {
   const { signal } = options;
-  signal?.throwIfAborted();
   const token = await callerFirst(signal, () => options.getToken());
   signal?.throwIfAborted();
   if (!token) {
@@ -56,17 +55,32 @@ export async function executeWithTokenRefresh<T>(
 }
 
 /**
- * Run a token-provider step so that a caller abort wins over the provider's
- * own failure: once the caller has cancelled, its reason is what surfaces.
+ * Stop waiting for token-provider work when this caller aborts. Promise.race
+ * observes a later provider rejection even after the caller has left, while
+ * the provider remains free to finish shared refresh work for other callers.
  */
 async function callerFirst<T>(
   signal: AbortSignal | undefined,
   step: () => Promise<T>,
 ): Promise<T> {
+  signal?.throwIfAborted();
+  if (!signal) return step();
+
+  let rejectOnAbort!: (reason: unknown) => void;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectOnAbort = reject;
+  });
+  // A provider may throw synchronously after aborting the signal. Observe the
+  // abort promise even if execution never reaches Promise.race.
+  void aborted.catch(() => undefined);
+  const onAbort = () => rejectOnAbort(signal.reason);
+  signal.addEventListener("abort", onAbort, { once: true });
   try {
-    return await step();
+    return await Promise.race([step(), aborted]);
   } catch (error) {
-    signal?.throwIfAborted();
+    signal.throwIfAborted();
     throw error;
+  } finally {
+    signal.removeEventListener("abort", onAbort);
   }
 }

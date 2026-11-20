@@ -1270,10 +1270,12 @@ in-flight HTTP request instead of letting it run to completion.
   `throwIfCallerCancellation` rethrows it from the handler instead of
   returning an error `ToolResult`. An internal deadline keeps each service's
   existing timeout error mapping.
-- `executeWithTokenRefresh` checks the signal before reading a token, after a
-  failed attempt, and after a refresh, so a cancelled call never refreshes
-  credentials or retries. If a token lookup or refresh fails after the caller
-  aborted, the caller's reason surfaces instead of the provider error.
+- `executeWithTokenRefresh` stops waiting for a token lookup or refresh when
+  the request is cancelled and rejects with the caller's abort reason. The
+  cancelled request skips any remaining authentication steps and backend
+  retries. The token provider can finish an already-started lookup or refresh
+  and share the result with other callers. Research also applies its service
+  deadline while waiting for authentication.
 
 ## Browser-callable surface
 
