@@ -48,18 +48,11 @@ export class RefreshingGitHitsService implements GitHitsService {
     options?: GitHitsServiceRequestOptions,
   ): Promise<T> {
     return executeWithTokenRefresh({
-      getToken: () => {
-        options?.signal?.throwIfAborted();
-        return this.tokenProvider.getToken();
-      },
-      forceRefresh: () => {
-        options?.signal?.throwIfAborted();
-        return this.tokenProvider.forceRefresh();
-      },
+      getToken: () => this.tokenProvider.getToken(),
+      forceRefresh: () => this.tokenProvider.forceRefresh(),
       shouldRefresh: isTokenRefreshableError,
       signal: options?.signal,
       executeWithToken: async (token) => {
-        options?.signal?.throwIfAborted();
         const service = this.serviceFactory
           ? this.serviceFactory(this.apiUrl, token)
           : new GitHitsServiceImpl(

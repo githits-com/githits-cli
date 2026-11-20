@@ -23,7 +23,6 @@ export async function executeWithTokenRefresh<T>(
   options: ExecuteWithTokenRefreshOptions<T>,
 ): Promise<T> {
   const { signal } = options;
-  signal?.throwIfAborted();
   const token = await callerFirst(signal, () => options.getToken());
   signal?.throwIfAborted();
   if (!token) {
@@ -77,7 +76,6 @@ async function callerFirst<T>(
   const onAbort = () => rejectOnAbort(signal.reason);
   signal.addEventListener("abort", onAbort, { once: true });
   try {
-    signal.throwIfAborted();
     return await Promise.race([step(), aborted]);
   } catch (error) {
     signal.throwIfAborted();
