@@ -241,6 +241,38 @@ describe("RelayReceiver lifecycle audit", () => {
     expect(setupCalls).toHaveLength(2);
   });
 
+  it("reuses the working socket after a replacement fails", async () => {
+    const { clock, receiver, sockets, responses, setupCalls } = start();
+
+    await receiver.begin(() => {});
+    await flush();
+
+    sockets[0]?.open();
+    await flush();
+
+    responses.push(access(clock, 900));
+
+    // Trigger renewal and fail the replacement socket.
+    await clock.advance(10);
+    expect(sockets).toHaveLength(2);
+
+    sockets[1]?.error();
+    await flush();
+
+    expect(sockets[0]?.closed).toBe(false);
+
+    const callsBefore = setupCalls.length;
+
+    // Another operation should reuse the existing working socket.
+    const operation = await receiver.begin(() => {});
+    expect(operation).toBeDefined();
+
+    await flush();
+
+    expect(setupCalls).toHaveLength(callsBefore);
+    expect(sockets[0]?.closed).toBe(false);
+  });
+
   it("retries a failed renewal while an operation remains active", async () => {
     const { clock, receiver, sockets, responses, setupCalls } = start();
     await receiver.begin(() => {});
