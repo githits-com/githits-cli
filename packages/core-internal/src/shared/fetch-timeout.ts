@@ -84,7 +84,7 @@ export async function fetchWithTimeout<T>(
     if (callerSignal?.aborted && cause === callerSignal.reason) {
       throw cause;
     }
-    if (timeoutSignal.aborted && !callerSignal?.aborted) {
+    if (timeoutSignal.aborted && signal.reason === timeoutSignal.reason) {
       throw new FetchTimeoutError(timeoutMs, { cause });
     }
     throw cause;
