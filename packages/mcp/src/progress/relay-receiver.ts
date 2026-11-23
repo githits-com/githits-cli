@@ -215,6 +215,8 @@ export class RelayReceiver implements McpProgressHook {
           ? error.backoffMs
           : NETWORK_BACKOFF_MS;
       this.unavailableUntil = this.now() + backoffMs;
+      // Setup's backoff supersedes any retry scheduled by the old socket.
+      this.clearTimer("reconnectTimer");
       if (this.routes.size > 0) this.scheduleReconnect(backoffMs);
       return;
     }
@@ -400,13 +402,8 @@ export class RelayReceiver implements McpProgressHook {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = undefined;
       if (this.closed || this.routes.size === 0) return;
-      // Reconnects ignore the begin() backoff: in-flight calls still want events.
-      void (this.connecting ?? Promise.resolve()).then(() => {
-        if (this.closed || this.routes.size === 0) return;
-        return this.ensureFresh().then(() => {
-          if (!this.socket && this.routes.size > 0) this.scheduleReconnect();
-        });
-      });
+      // Share any renewal already in flight. A failed attempt schedules its retry.
+      void this.ensureFresh();
     }, delay);
     unrefTimer(this.reconnectTimer);
   }

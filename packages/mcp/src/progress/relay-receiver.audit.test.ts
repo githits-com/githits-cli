@@ -58,6 +58,8 @@ class ControlledClock {
   }
 
   async advance(ms: number): Promise<void> {
+    // Flush the current turn before firing timers, as the event loop does.
+    await flush();
     const target = this.now + ms;
     while (true) {
       const next = [...this.timers.entries()]
@@ -82,7 +84,7 @@ interface AuditHarness {
   receiver: RelayReceiver;
   sockets: ControlledSocket[];
   setupCalls: number[];
-  responses: Response[];
+  responses: (Response | Promise<Response>)[];
 }
 
 function access(clock: ControlledClock, seconds: number): Response {
@@ -98,7 +100,7 @@ function harness(): AuditHarness {
   clock.install();
   const sockets: ControlledSocket[] = [];
   const setupCalls: number[] = [];
-  const responses: Response[] = [access(clock, 30)];
+  const responses: AuditHarness["responses"] = [access(clock, 30)];
   let id = 0;
   const receiver = new RelayReceiver({
     apiUrl: "https://api.githits.test",
@@ -272,6 +274,56 @@ describe("RelayReceiver lifecycle audit", () => {
     expect(setupCalls).toHaveLength(callsBefore);
     expect(sockets[0]?.closed).toBe(false);
   });
+
+  it("reuses an in-flight renewal when the old socket drops", async () => {
+    const { clock, receiver, sockets, responses, setupCalls } = start();
+    await receiver.begin(() => {});
+    await flush();
+    sockets[0]?.open();
+    await flush();
+
+    responses.push(access(clock, 900));
+    await clock.advance(10);
+    expect(sockets).toHaveLength(2);
+
+    sockets[0]?.drop();
+    await clock.advance(5);
+    expect(setupCalls).toHaveLength(2);
+
+    sockets[1]?.open();
+    await flush();
+    expect(setupCalls).toHaveLength(2);
+  });
+
+  it.each([0, 5])(
+    "honors Retry-After when the old socket has been dropped for %d ms",
+    async (elapsedMs) => {
+      const { clock, receiver, sockets, responses, setupCalls } = start();
+      await receiver.begin(() => {});
+      await flush();
+      sockets[0]?.open();
+      await flush();
+
+      const renewal = Promise.withResolvers<Response>();
+      responses.push(renewal.promise);
+      await clock.advance(10);
+      expect(setupCalls).toHaveLength(2);
+
+      sockets[0]?.drop();
+      await clock.advance(elapsedMs);
+      expect(setupCalls).toHaveLength(2);
+
+      responses.push(access(clock, 900));
+      renewal.resolve(
+        new Response(null, { status: 429, headers: { "Retry-After": "7" } }),
+      );
+      await clock.advance(6_999);
+      expect(setupCalls).toHaveLength(2);
+
+      await clock.advance(1);
+      expect(setupCalls).toHaveLength(3);
+    },
+  );
 
   it("retries a failed renewal while an operation remains active", async () => {
     const { clock, receiver, sockets, responses, setupCalls } = start();
