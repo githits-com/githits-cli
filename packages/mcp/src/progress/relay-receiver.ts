@@ -120,8 +120,9 @@ export class RelayReceiver implements McpProgressHook {
   private readonly now: () => number;
   private readonly createId: () => string;
   private readonly routes = new Map<string, Route>();
-  private relay: RelayAccess | undefined;
-  private socket: RelaySocket | undefined;
+  private activeConnection:
+    | { socket: RelaySocket; expiresAt: number }
+    | undefined;
   private openingSocket: RelaySocket | undefined;
   private finishOpening: (() => void) | undefined;
   private connecting: Promise<void> | undefined;
@@ -196,13 +197,10 @@ export class RelayReceiver implements McpProgressHook {
   }
 
   private ensureConnected(): Promise<void> {
-    if (this.socket && this.relay && this.now() < this.relay.expiresAt) {
+    if (this.activeConnection && this.now() < this.activeConnection.expiresAt) {
       return Promise.resolve();
     }
-    this.connecting ??= this.connect().finally(() => {
-      this.connecting = undefined;
-    });
-    return this.connecting;
+    return this.ensureFresh();
   }
 
   private async connect(): Promise<void> {
@@ -222,17 +220,16 @@ export class RelayReceiver implements McpProgressHook {
       return;
     }
     if (this.closed) return;
-    this.relay = relay;
-    const opened = await this.openSocket(relay.url);
+    const opened = await this.openSocket(relay);
     if (opened && !this.closed) this.scheduleRenewal(relay);
   }
 
   /** Resolves true when the socket opens and becomes the active socket. */
-  private openSocket(url: string): Promise<boolean> {
+  private openSocket(relay: RelayAccess): Promise<boolean> {
     return new Promise((resolve) => {
       let socket: RelaySocket;
       try {
-        socket = this.createSocket(url);
+        socket = this.createSocket(relay.url);
       } catch {
         this.socketFailed();
         resolve(false);
@@ -259,9 +256,9 @@ export class RelayReceiver implements McpProgressHook {
         this.reconnectAttempts = 0;
         // Swap only after the new socket opens so renewal never leaves a gap
         // and a failed replacement never orphans the working socket.
-        const previous = this.socket;
-        this.socket = socket;
-        if (previous) this.detach(previous);
+        const previous = this.activeConnection;
+        this.activeConnection = { socket, expiresAt: relay.expiresAt };
+        if (previous) this.detach(previous.socket);
         resolve(true);
       };
       const failed = () => {
@@ -270,13 +267,13 @@ export class RelayReceiver implements McpProgressHook {
           this.openingSocket = undefined;
           this.finishOpening = undefined;
           this.detach(socket);
-          if (!this.socket) this.socketFailed();
+          if (!this.activeConnection) this.socketFailed();
           else if (this.routes.size > 0) this.scheduleReconnect();
           resolve(false);
           return;
         }
-        if (this.socket !== socket) return;
-        this.socket = undefined;
+        if (this.activeConnection?.socket !== socket) return;
+        this.activeConnection = undefined;
         this.detach(socket);
         if (!this.closed && this.routes.size > 0) this.scheduleReconnect();
       };
@@ -421,9 +418,9 @@ export class RelayReceiver implements McpProgressHook {
     if (openingSocket) this.detach(openingSocket);
     this.finishOpening?.();
     this.finishOpening = undefined;
-    const socket = this.socket;
-    this.socket = undefined;
-    if (socket) this.detach(socket);
+    const connection = this.activeConnection;
+    this.activeConnection = undefined;
+    if (connection) this.detach(connection.socket);
   }
 
   private detach(socket: RelaySocket): void {

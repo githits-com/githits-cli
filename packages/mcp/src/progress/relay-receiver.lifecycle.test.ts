@@ -295,6 +295,28 @@ describe("RelayReceiver lifecycle", () => {
     expect(setupCalls).toHaveLength(2);
   });
 
+  it("checks the active socket's own expiry after a failed renewal", async () => {
+    const { clock, receiver, sockets, responses, setupCalls } = start();
+    responses[0] = access(clock, 1);
+    await receiver.begin(() => {});
+    await flush();
+    sockets[0]?.open();
+    await flush();
+
+    responses.push(access(clock, 900));
+    await clock.advance(999);
+    expect(sockets).toHaveLength(2);
+    sockets[1]?.error();
+    await clock.advance(1);
+    expect(setupCalls).toHaveLength(2);
+
+    // The old access has now expired and the reconnect delay has not elapsed.
+    responses.push(access(clock, 900));
+    await receiver.begin(() => {});
+    await flush();
+    expect(setupCalls).toHaveLength(3);
+  });
+
   it.each([0, 5])(
     "honors Retry-After when the old socket has been dropped for %d ms",
     async (elapsedMs) => {
