@@ -33,17 +33,17 @@ Package reads accept exact published versions or numeric prefixes: `npm:express@
 
 ## Exploration and reading code
 
-Use the requested version/ref immediately. Retrieve missing facts affecting implementation or answers, not an API inventory. Verify required imports, call shapes and lifecycle unless already established. Trace helpers when changing/diagnosing them or resolving behavior. Keep versions and execution paths distinct; follow actual imports/calls, not shared names. Attribute behavior to the source's function; disclose material gaps and uninspected paths.
+Use the requested version/ref immediately. During implementation, use familiar APIs and available validation; retrieve source for specific uncertainties or failures. Keep versions and execution paths distinct; follow actual imports/calls, not shared names. Attribute behavior to the source's function; disclose material gaps and uninspected paths.
 
 Read known symbols directly with `--selector` for small declarations. For large classes, locate required members with scoped search/grep and read their declarations. Use a known declaration path; never infer qualifications from callers or receivers. If resolution fails, use a returned range or literal-grep the identifier; changing bounds cannot resolve ambiguity. A missing indexed symbol does not prove missing code.
 
-Reuse read definitions. If imports or package declarations are missing, read only the missing header. Explicit imports establish full names; call sites alone do not establish implementation. Follow declarations for unresolved behavior or identity.
+Reuse read definitions. If imports or package declarations are missing, read only the missing header. Explicit imports establish full names; call sites alone do not establish implementation.
 
 ## Retrieval workflow
 
 1. Identify missing facts and all known read/search/grep/list requests.
 2. Batch independent requests through the host's parallel tool mechanism. Sequence only requests needing a preceding result's location or evidence.
-3. Inspect every result, reuse sufficient content, then batch new gaps. Stop when relevant contracts, comparison alternatives and deciding conditions are established.
+3. Inspect every result, reuse sufficient content, then batch new gaps. Stop when enough is known to complete the task.
 
 Read ranges preserving deciding conditions. Combine nearby code; avoid tiny repeated windows or unnecessary whole files. Search concepts; `grep -F` known text. Regex patterns use `grep`, never `search`. Omit target/version terms already supplied. Revise failed queries from results. Space-separate qualifiers (`kind:function path:lib/`), without commas.
 

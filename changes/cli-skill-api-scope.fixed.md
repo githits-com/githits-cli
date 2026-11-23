@@ -3,4 +3,4 @@
 "@githits/mcp": none
 ---
 
-- **Focused parallel source retrieval** - Resolve missing facts at the requested version, batch independent lookups, scope grep with supported flags, and read only relevant reference sections while preserving deeper investigation where needed.
+- **Focused parallel source retrieval** - Use familiar APIs and available validation, retrieve source for specific uncertainties or failures at the requested version, batch independent lookups, scope grep with supported flags, and read only relevant reference sections.
