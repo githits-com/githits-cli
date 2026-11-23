@@ -79,7 +79,7 @@ async function flush(): Promise<void> {
   for (let i = 0; i < 12; i++) await Promise.resolve();
 }
 
-interface AuditHarness {
+interface LifecycleHarness {
   clock: ControlledClock;
   receiver: RelayReceiver;
   sockets: ControlledSocket[];
@@ -95,12 +95,12 @@ function access(clock: ControlledClock, seconds: number): Response {
   });
 }
 
-function harness(): AuditHarness {
+function harness(): LifecycleHarness {
   const clock = new ControlledClock();
   clock.install();
   const sockets: ControlledSocket[] = [];
   const setupCalls: number[] = [];
-  const responses: AuditHarness["responses"] = [access(clock, 30)];
+  const responses: LifecycleHarness["responses"] = [access(clock, 30)];
   let id = 0;
   const receiver = new RelayReceiver({
     apiUrl: "https://api.githits.test",
@@ -124,19 +124,19 @@ function harness(): AuditHarness {
   return { clock, receiver, sockets, setupCalls, responses };
 }
 
-let active: AuditHarness | undefined;
+let active: LifecycleHarness | undefined;
 afterEach(() => {
   active?.receiver.close();
   active?.clock.restore();
   active = undefined;
 });
 
-function start(): AuditHarness {
+function start(): LifecycleHarness {
   active = harness();
   return active;
 }
 
-describe("RelayReceiver lifecycle audit", () => {
+describe("RelayReceiver lifecycle", () => {
   it("times out a stalled WebSocket handshake and retries", async () => {
     const { clock, receiver, sockets, responses, setupCalls } = start();
 

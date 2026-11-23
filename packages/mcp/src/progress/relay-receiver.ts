@@ -227,7 +227,7 @@ export class RelayReceiver implements McpProgressHook {
     if (opened && !this.closed) this.scheduleRenewal(relay);
   }
 
-  /** Resolves once the socket opens or fails; an open socket replaces the old one. */
+  /** Resolves true when the socket opens and becomes the active socket. */
   private openSocket(url: string): Promise<boolean> {
     return new Promise((resolve) => {
       let socket: RelaySocket;
@@ -252,13 +252,6 @@ export class RelayReceiver implements McpProgressHook {
       socket.onmessage = (event) => this.deliver(event.data);
       socket.onopen = () => {
         clearTimeout(openTimer);
-        if (this.closed) {
-          this.openingSocket = undefined;
-          this.finishOpening = undefined;
-          this.detach(socket);
-          resolve(false);
-          return;
-        }
         this.openingSocket = undefined;
         this.finishOpening = undefined;
         opened = true;
@@ -274,7 +267,7 @@ export class RelayReceiver implements McpProgressHook {
       const failed = () => {
         clearTimeout(openTimer);
         if (!opened) {
-          if (this.openingSocket === socket) this.openingSocket = undefined;
+          this.openingSocket = undefined;
           this.finishOpening = undefined;
           this.detach(socket);
           if (!this.socket) this.socketFailed();
