@@ -255,12 +255,18 @@ describe("network service caller cancellation", () => {
       const runWithInternalTimeout = async (
         options?: ServiceRequestOptions,
       ): Promise<unknown> => {
-        const setTimeoutOriginal = globalThis.setTimeout;
-        const timeout = spyOn(globalThis, "setTimeout").mockImplementation(((
-          callback: () => void,
-        ) => setTimeoutOriginal(callback, 1)) as typeof setTimeout);
+        const deadline = new AbortController();
+        const timeout = spyOn(AbortSignal, "timeout").mockImplementation(
+          () => deadline.signal,
+        );
         try {
-          const fetchFn = mock(pendingHeadersFetch(() => {}));
+          const fetchFn = mock(
+            pendingHeadersFetch(() =>
+              deadline.abort(
+                new DOMException("deadline reached", "TimeoutError"),
+              ),
+            ),
+          );
           return await captureError(
             call(asFetch(fetchFn), createMockTokenProvider(), options),
           );

@@ -45,33 +45,31 @@ export async function fetchWithTimeout<T>(
   const callerSignal = init.signal;
   callerSignal?.throwIfAborted();
 
-  const deadline = new AbortController();
+  // Keep the transport deadline active for bodies consumed after headers return.
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
   const signal = callerSignal
-    ? AbortSignal.any([callerSignal, deadline.signal])
-    : deadline.signal;
+    ? AbortSignal.any([callerSignal, timeoutSignal])
+    : timeoutSignal;
   const fetchFn = options.fetchFn ?? globalThis.fetch;
 
-  // Keep the process alive until the deadline even when fetch has no active handles.
-  const timeoutId = setTimeout(() => {
-    deadline.abort(
-      new DOMException(
-        "The operation was aborted due to timeout",
-        "TimeoutError",
-      ),
-    );
-  }, timeoutMs);
-
   let onAbort!: () => void;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const cancellation = new Promise<never>((_, reject) => {
     onAbort = () => {
       const cause = signal.reason;
       reject(
-        deadline.signal.aborted && cause === deadline.signal.reason
+        timeoutSignal.aborted && cause === timeoutSignal.reason
           ? new FetchTimeoutError(timeoutMs, { cause })
           : cause,
       );
     };
     signal.addEventListener("abort", onAbort, { once: true });
+    // AbortSignal.timeout is unreferenced on Node. Keep the wrapper alive
+    // until it settles, even when the transport has no active handles.
+    timeoutId = setTimeout(
+      () => reject(new FetchTimeoutError(timeoutMs)),
+      timeoutMs,
+    );
   });
 
   try {

@@ -1262,9 +1262,10 @@ in-flight HTTP request or response body and signals the transport to abort.
   it only when a signal exists, so signal-free callers keep their
   single-argument call shape. CLI commands do not pass a signal and behave as
   before.
-- Services combine the signal with their own request deadline. The deadline keeps
-  the process alive until the request settles and covers both
-  response headers and body reads, and every request of multi-request
+- Services combine the signal with their own request deadline. A referenced timer
+  keeps the process alive while the service awaits the request. The transport's
+  deadline also covers body reads after headers return. The same deadline policy
+  applies to each request in multi-request
   operations such as paginated advisories, transitive audits, and changelog or
   upgrade statement pages.
 - A caller abort rejects with the signal's reason, and

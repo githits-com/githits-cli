@@ -120,14 +120,11 @@ for (const operation of ["search", "searchStatus"] as const) {
     ])(
       "gives a %s ms readiness wait %s ms of HTTP budget",
       async (waitTimeoutMs, expectedTimeoutMs) => {
-        const timeout = spyOn(globalThis, "setTimeout");
+        const timeout = spyOn(AbortSignal, "timeout");
         try {
           const { fetchFn, run } = setup(progress);
           await run(waitTimeoutMs);
-          expect(timeout).toHaveBeenCalledWith(
-            expect.any(Function),
-            expectedTimeoutMs,
-          );
+          expect(timeout).toHaveBeenCalledWith(expectedTimeoutMs);
           const [, init] = (
             fetchFn.mock.calls as unknown as Array<[unknown, RequestInit]>
           )[0]!;
@@ -180,11 +177,11 @@ for (const operation of ["search", "searchStatus"] as const) {
           ],
         }),
       );
-      const timeout = spyOn(globalThis, "setTimeout");
+      const timeout = spyOn(AbortSignal, "timeout");
       try {
         await run(120_000, controller.signal);
         expect(fetchFn).toHaveBeenCalledTimes(2);
-        expect(timeout.mock.calls.map((call) => call[1])).toEqual([
+        expect(timeout.mock.calls.map((call) => call[0])).toEqual([
           150_000, 150_000,
         ]);
         controller.abort();

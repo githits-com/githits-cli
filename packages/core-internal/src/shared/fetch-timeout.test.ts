@@ -22,6 +22,36 @@ describe("fetchWithTimeout", () => {
     ).rejects.toBeInstanceOf(FetchTimeoutError);
   });
 
+  it("applies the transport deadline to a body read after headers return", async () => {
+    const fetchFn = mock(
+      async (_input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        const signal = init?.signal;
+        if (!signal) throw new Error("expected a request signal");
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            signal.addEventListener(
+              "abort",
+              () => controller.error(signal.reason),
+              { once: true },
+            );
+          },
+        });
+        return new Response(body);
+      },
+    );
+
+    const response = await fetchWithTimeout(
+      "https://example.test",
+      {},
+      { fetchFn: asFetchFn(fetchFn), timeoutMs: 5 },
+    );
+    const result = await Promise.race([
+      response.text().catch((error: unknown) => error),
+      Bun.sleep(50),
+    ]);
+    expect(result).toHaveProperty("name", "TimeoutError");
+  });
+
   it("preserves caller cancellation during body consumption", async () => {
     const controller = new AbortController();
     const reason = new Error("caller stopped reading");
@@ -202,6 +232,10 @@ describe("fetchWithTimeout", () => {
 
   it("preserves the deadline when the caller aborts and fetch rejects in the same turn", async () => {
     const controller = new AbortController();
+    const deadline = new AbortController();
+    const timeout = spyOn(AbortSignal, "timeout").mockReturnValue(
+      deadline.signal,
+    );
     const fetchFn = mock(
       (_input: Parameters<typeof fetch>[0], init?: RequestInit) =>
         new Promise<Response>((_, reject) => {
@@ -212,14 +246,20 @@ describe("fetchWithTimeout", () => {
         }),
     );
 
-    await expect(
-      fetchWithTimeout(
+    try {
+      const pending = fetchWithTimeout(
         "https://example.com",
         { signal: controller.signal },
-        { fetchFn: asFetchFn(fetchFn), timeoutMs: 5 },
-      ),
-    ).rejects.toBeInstanceOf(FetchTimeoutError);
-    expect(controller.signal.aborted).toBe(true);
+        { fetchFn: asFetchFn(fetchFn), timeoutMs: 10_000 },
+      );
+      await Promise.resolve();
+      deadline.abort(new DOMException("deadline reached", "TimeoutError"));
+
+      await expect(pending).rejects.toBeInstanceOf(FetchTimeoutError);
+      expect(controller.signal.aborted).toBe(true);
+    } finally {
+      timeout.mockRestore();
+    }
   });
 
   it("removes cancellation listeners after the request settles", async () => {
