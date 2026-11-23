@@ -29,7 +29,7 @@ GitHits cannot access private repositories, your local workspace, or uncommitted
 | Source changes | `githits code diff <target> <from>..<to>` |
 | Unclear project identity | `githits resolve "<name>"` |
 
-Choose the direct command. Package targets require a registry, e.g. `npm:express@5.2.1`. Use canonical targets without resolution; check CLI version only for compatibility problems. For unclear identity, use known registry/context and follow returned confidence and ambiguity rules. Never choose by popularity alone or treat CLEAR as vulnerability-free.
+Choose the direct command. GitHub repositories use `github:owner/repo@ref` (branch, tag, or commit); bare `owner/repo` is not a repository target. Package targets require a registry, e.g. `npm:express@5.2.1`. Use canonical targets without resolution; check CLI version only for compatibility problems. For unclear identity, use known registry/context and follow returned confidence and ambiguity rules. Never choose by popularity alone or treat CLEAR as vulnerability-free.
 
 Package reads accept exact published versions or numeric prefixes: `npm:express@5` selects newest eligible stable 5.x.y; `crates:tokio@1.43` selects 1.43.x. Use component matching in every ecosystem; do not pass ranges (`^`, `~`, comparisons, unions, intervals). Use `from..to` for release comparisons.
 
@@ -41,6 +41,8 @@ For usage/setup, an authoritative example or declaration may suffice. For implem
 
 Read known symbols directly with `--selector` before searching/grepping. Include only a known declaration path; never infer qualifications from a caller or inherited receiver. Follow needed helpers/re-exports. Reuse definitions already read; a call site alone does not establish implementation.
 
+Symbol reads can omit file headers. If only imports or package declarations are missing, read the missing header range in the returned file instead of repeating its body. Follow a referenced declaration when its implementation or identity remains unresolved; an explicit qualifying import can already establish its full name.
+
 If resolution fails, use a returned declaration range or literal-grep the identifier. Do not change bounds to resolve ambiguity; a missing indexed symbol does not prove missing code.
 
 ## Retrieval and recovery
@@ -51,7 +53,7 @@ Use sufficient content directly; read omitted deciding conditions or bodies. Com
 
 Reuse returned targets, paths, selectors, and ranges. Discover docs with `search --source docs`; use returned heading IDs, not titles. If a heading is missing, read its page without selector/fragment; if the page is missing, discover an indexed page. Preserve version/ref and served provenance; never guess tags or treat current docs as historical evidence.
 
-Use default text. Use `--json` only when code consumes the raw response or text omits a required field. Apply filters and limits rather than routinely piping results through `head`. Paginate only for needed content. Follow active returned `search-status` actions; do not repeat search to poll.
+Use default text for content. When citations need source paths, provenance, or numbered code lines, choose `read --verbose` on the first read. Use `--json` only when code consumes the raw response or text omits a required field. Reuse returned content and metadata instead of rereading solely to change format. Apply filters and limits rather than routinely piping results through `head`. Paginate only for needed content. Follow active returned `search-status` actions; do not repeat search to poll.
 
 Ask Research for missing information; reuse `--thread <id>` and state scope changes. Use and cite a sufficient answer directly; open sources only for a specific missing detail, contradiction, or explicit source-inspection request. Research takes packages/repositories, not docs sites. Retry candidates only with an established project match. Research rate limits cover all questions/targets: wait the returned delay or daily reset. Otherwise retrieve only a specific remaining gap. Cite example projects; their code does not establish another version's contract.
 
