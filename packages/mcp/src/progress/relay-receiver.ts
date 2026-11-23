@@ -215,7 +215,8 @@ export class RelayReceiver implements McpProgressHook {
           ? error.backoffMs
           : NETWORK_BACKOFF_MS;
       this.unavailableUntil = this.now() + backoffMs;
-      // Setup's backoff supersedes any retry scheduled by the old socket.
+      // Setup's backoff supersedes timers scheduled by the old socket.
+      this.clearTimer("renewTimer");
       this.clearTimer("reconnectTimer");
       if (this.routes.size > 0) this.scheduleReconnect(backoffMs);
       return;

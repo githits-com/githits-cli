@@ -339,86 +339,26 @@ describe("RelayReceiver lifecycle audit", () => {
     expect(setupCalls).toHaveLength(3);
   });
 
-  it("does not retry when setup fails after shutdown", async () => {
-    const { clock, receiver, responses, setupCalls } = start();
+  it.each(["fails", "succeeds"] as const)(
+    "does not open a socket or retry when setup %s after shutdown",
+    async (outcome) => {
+      const { clock, receiver, sockets, responses, setupCalls } = start();
+      const setup = Promise.withResolvers<Response>();
+      responses.splice(0, 1, setup.promise);
 
-    let rejectSetup!: (reason: Error) => void;
-    const pendingSetup = new Promise<Response>((_resolve, reject) => {
-      rejectSetup = reject;
-    });
-
-    const originalResponse = responses.shift();
-    expect(originalResponse).toBeDefined();
-
-    // This test needs a fetch promise that remains pending until shutdown.
-    // The existing harness uses a response queue, so create a dedicated receiver.
-    const sockets: ControlledSocket[] = [];
-    const pendingReceiver = new RelayReceiver({
-      apiUrl: "https://api.githits.test",
-      auth: { kind: "caller", getToken: async () => "token" },
-      fetchFn: (async () => pendingSetup) as unknown as typeof fetch,
-      createSocket: () => {
-        const socket = new ControlledSocket();
-        sockets.push(socket);
-        return socket;
-      },
-      now: () => clock.now,
-      createId: () => RELAY_ID,
-      reconnectBaseMs: 5,
-    });
-
-    await pendingReceiver.begin(() => {});
-    await flush();
-
-    pendingReceiver.close();
-    rejectSetup(new Error("network failure"));
-    await flush();
-
-    await clock.advance(30_000);
-    expect(sockets).toHaveLength(0);
-
-    receiver.close();
-    expect(setupCalls).toHaveLength(0);
-  });
-
-  it("does not open a socket when setup succeeds after shutdown", async () => {
-    const { clock } = start();
-    let resolveSetup!: (response: Response) => void;
-
-    const pendingSetup = new Promise<Response>((resolve) => {
-      resolveSetup = resolve;
-    });
-
-    const sockets: ControlledSocket[] = [];
-    const receiver = new RelayReceiver({
-      apiUrl: "https://api.githits.test",
-      auth: { kind: "caller", getToken: async () => "token" },
-      fetchFn: (async () => pendingSetup) as unknown as typeof fetch,
-      createSocket: () => {
-        const socket = new ControlledSocket();
-        sockets.push(socket);
-        return socket;
-      },
-      now: () => clock.now,
-      createId: () => RELAY_ID,
-      reconnectBaseMs: 5,
-    });
-
-    try {
       await receiver.begin(() => {});
       await flush();
+      expect(setupCalls).toHaveLength(1);
 
       receiver.close();
-      resolveSetup(access(clock, 900));
-      await flush();
+      if (outcome === "fails") setup.reject(new Error("network failure"));
+      else setup.resolve(access(clock, 900));
 
+      await clock.advance(5 * 60_000);
+      expect(setupCalls).toHaveLength(1);
       expect(sockets).toHaveLength(0);
-      await clock.advance(30_000);
-      expect(sockets).toHaveLength(0);
-    } finally {
-      receiver.close();
-    }
-  });
+    },
+  );
 
   it("respects Retry-After before retrying an active operation", async () => {
     const { clock, receiver, responses, setupCalls } = start();
@@ -442,6 +382,28 @@ describe("RelayReceiver lifecycle audit", () => {
 
     await clock.advance(1);
     expect(setupCalls).toHaveLength(2);
+  });
+
+  it("honors Retry-After when the old socket's renewal is still scheduled", async () => {
+    const { clock, receiver, sockets, responses, setupCalls } = start();
+    await receiver.begin(() => {});
+    await flush();
+    sockets[0]?.open();
+    await flush();
+
+    responses.push(
+      new Response(null, { status: 429, headers: { "Retry-After": "7" } }),
+    );
+    sockets[0]?.drop();
+    await clock.advance(5);
+    expect(setupCalls).toHaveLength(2);
+
+    responses.push(access(clock, 900));
+    await clock.advance(6_999);
+    expect(setupCalls).toHaveLength(2);
+
+    await clock.advance(1);
+    expect(setupCalls).toHaveLength(3);
   });
 
   it("retries initial setup after backoff while an operation remains active", async () => {
