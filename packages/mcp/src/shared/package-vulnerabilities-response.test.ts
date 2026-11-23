@@ -2189,7 +2189,7 @@ describe("status-only report wording", () => {
   it.each([
     [
       "UNSUPPORTED",
-      "no vulnerability data for this registry; no findings is not evidence of safety",
+      "vulnerability data unavailable for this package assessment; no findings is not evidence of safety",
     ],
     ["UNKNOWN", "assessment incomplete"],
     ["NOT_ASSESSED", "no concrete version assessed"],
@@ -2707,7 +2707,7 @@ it.each([
     );
     expect(
       text.match(
-        /(?:no vulnerability data for this registry|Vulnerability data is unavailable for this registry)/g,
+        /(?:vulnerability data unavailable for this package assessment|Advisory corpus coverage is incomplete for this registry)/g,
       ),
     ).toHaveLength(1);
     expect(text).not.toContain("Some advisory results could not be determined");

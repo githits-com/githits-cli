@@ -236,6 +236,24 @@ describe("vulns response", () => {
     }
   });
 
+  it("recognizes a mapped vcpkg port while preserving publisher range evidence", () => {
+    const item = result();
+    const group = item.lookup!.affectedPackages!.entries[0]!;
+    group.package = { registry: "VCPKG", ecosystem: "vcpkg", name: "openssl" };
+    const row = group.advisories[0]!;
+    row.affectedVersionDisplay = null;
+    row.affectedVersionRanges = ["< 3.6.1#2", "osv-invalid:publisher-range"];
+    row.fixedInVersions = ["3.6.1#3"];
+
+    const pkg = report(item, true).packages![0]!;
+    expect(pkg.target).toBe("vcpkg:openssl");
+    expect(pkg.assessment).toBeUndefined();
+    expect(pkg.evidence[0]).toMatchObject({
+      affectedRanges: ["< 3.6.1#2", "osv-invalid:publisher-range"],
+      sourceFixVersions: ["3.6.1#3"],
+    });
+  });
+
   it("groups equal range/fix evidence without merging differing evidence or trust markers", () => {
     const item = result();
     const group = item.lookup!.affectedPackages!.entries[0]!;

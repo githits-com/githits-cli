@@ -272,7 +272,7 @@ metadata example. This keeps skills.sh guidance aligned with the released artifa
 
 Use `bun run audit:pkg-ecosystems` to run a live CLI audit across representative packages from every package registry supported by package metadata tools. The script checks `pkg_info`, `pkg_changelog`, `pkg_vulns`, and `pkg_deps` with JSON output so ecosystem regressions are visible without hand-running dozens of commands.
 
-The fixture matrix lives in `scripts/pkg-ecosystem-audit.ts` and covers npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, Swift, and Pub. Each registry has three representative packages. `pkg_vulns` failures for vcpkg and Zig are expected and are reported as `expected-unsupported`; all 13 registries are expected to work for `pkg_deps`. Any other failure exits non-zero, including backend data anomalies that should be fixed and rechecked later.
+The fixture matrix lives in `scripts/pkg-ecosystem-audit.ts` and covers npm, PyPI, Hex, Crates, NuGet, Maven, Zig, vcpkg, Packagist, RubyGems, Go, Swift, and Pub. Each registry has three representative packages. The audit expects `pkg_vulns` to reject Zig as `expected-unsupported` and return a report for vcpkg. All 13 registries are expected to work for `pkg_deps`. Any other failure exits non-zero, including backend data anomalies that should be fixed and rechecked later.
 
 Useful invocations:
 
@@ -552,7 +552,7 @@ graph), and each transitive occurrence always retains the required
 `[]`). `modifiedAt` is included only when it differs from `publishedAt`, and
 `isMalicious` is included only when `true`.
 
-**Registry coverage.** npm, PyPI, Hex, Crates, NuGet, Maven, Packagist, RubyGems, Go, Swift, and Pub have vulnerability data. vcpkg and Zig are rejected client-side with a tool-specific message (`pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, and pub. Got: ${registry}.`) — the tool-specific vulnerability predicate lives in `packages/mcp/src/shared/pkgseer-capabilities.ts`.
+**Registry coverage.** The direct report supports npm, PyPI, Hex, Crates, NuGet, Maven, vcpkg, Packagist, RubyGems, Go, Swift, and Pub. Zig is rejected client-side by the predicate in `packages/mcp/src/shared/pkgseer-capabilities.ts`. vcpkg accepts a port revision such as `vcpkg:openssl@3.6.1#2`, a bare version, or an unpinned target. The backend resolves the version and supplies the partial coverage status. `include_transitive: true` is unavailable for vcpkg because the dependency graph uses base releases.
 
 `pkg_vulns` shares its envelope builder and text formatter with the CLI `githits pkg vulns` command via `packages/mcp/src/shared/package-vulnerabilities-request.ts` and `packages/mcp/src/shared/package-vulnerabilities-response.ts`. MCP defaults to compact text and uses `format: "json"` for structured output. The shared text formatter is surface-aware so MCP hints never mention CLI flags. The parity test (`src/tools/package-vulnerabilities-parity.test.ts`) passes `format: "json"`, asserts `toEqual` across the service-sourced success/filter/typed-error fixtures, and uses `toMatchObject` for builder-sourced `INVALID_ARGUMENT` fixtures such as unsupported registries and tag-style `v`-prefixed versions.
 
@@ -1254,16 +1254,18 @@ backend request: `get_example`, `search`, `search_status`, `research`, `list`,
 `pkg_deps`, `pkg_changelog`, and `pkg_upgrade_review`. The server adapter
 copies the MCP request's abort signal into `ToolExecutionContext.signal`; the
 MCP SDK aborts it when the client sends a cancellation notification or the
-connection closes. A cancelled or disconnected call therefore aborts its
-in-flight HTTP request instead of letting it run to completion.
+connection closes. A cancelled or disconnected call stops waiting for the
+in-flight HTTP request or response body and signals the transport to abort.
 
 - Service methods accept an optional trailing `ServiceRequestOptions`
   (`{ signal?: AbortSignal }`, exported from `@githits/mcp/client`). Tools pass
   it only when a signal exists, so signal-free callers keep their
   single-argument call shape. CLI commands do not pass a signal and behave as
   before.
-- Services combine the signal with their own request deadline. It covers both
-  response headers and body reads, and every request of multi-request
+- Services combine the signal with their own request deadline. A referenced timer
+  keeps the process alive while the service awaits the request. The transport's
+  deadline also covers body reads after headers return. The same deadline policy
+  applies to each request in multi-request
   operations such as paginated advisories, transitive audits, and changelog or
   upgrade statement pages.
 - A caller abort rejects with the signal's reason, and

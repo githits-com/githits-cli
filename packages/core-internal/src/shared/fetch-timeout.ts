@@ -42,33 +42,50 @@ export async function fetchWithTimeout<T>(
   consumeResponse?: (response: Response) => Promise<T>,
 ): Promise<Response | T> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
+  const callerSignal = init.signal;
+  callerSignal?.throwIfAborted();
+
+  // Keep the transport deadline active for bodies consumed after headers return.
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
-  const signal = init.signal
-    ? AbortSignal.any([init.signal, timeoutSignal])
+  const signal = callerSignal
+    ? AbortSignal.any([callerSignal, timeoutSignal])
     : timeoutSignal;
   const fetchFn = options.fetchFn ?? globalThis.fetch;
+
+  let onAbort!: () => void;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new FetchTimeoutError(timeoutMs));
-    }, timeoutMs);
+  const cancellation = new Promise<never>((_, reject) => {
+    onAbort = () => {
+      const cause = signal.reason;
+      reject(
+        timeoutSignal.aborted && cause === timeoutSignal.reason
+          ? new FetchTimeoutError(timeoutMs, { cause })
+          : cause,
+      );
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    // AbortSignal.timeout is unreferenced on Node. Keep the wrapper alive
+    // until it settles, even when the transport has no active handles.
+    timeoutId = setTimeout(
+      () => reject(new FetchTimeoutError(timeoutMs)),
+      timeoutMs,
+    );
   });
 
   try {
-    return await Promise.race([
-      fetchFn(input, { ...init, signal }).then<Response | T>((response) =>
+    const operation = Promise.resolve()
+      .then(() => {
+        signal.throwIfAborted();
+        return fetchFn(input, { ...init, signal });
+      })
+      .then<Response | T>((response) =>
         consumeResponse ? consumeResponse(response) : response,
-      ),
-      timeout,
-    ]);
-  } catch (cause) {
-    if (cause instanceof FetchTimeoutError) throw cause;
-    if (timeoutSignal.aborted && !init.signal?.aborted) {
-      throw new FetchTimeoutError(timeoutMs, { cause });
-    }
-    throw cause;
+      );
+
+    return await Promise.race([operation, cancellation]);
   } finally {
-    if (timeoutId) clearTimeout(timeoutId);
+    clearTimeout(timeoutId);
+    signal.removeEventListener("abort", onAbort);
   }
 }
 

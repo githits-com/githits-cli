@@ -69,8 +69,10 @@ describe("pkg vulns help", () => {
     expect(singleLineDescription).toContain("numeric prefix");
     expect(singleLineDescription).toContain("no ranges");
     expect(singleLineDescription).toContain(
-      "npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, pub. vcpkg and zig are not supported.",
+      "npm, pypi, hex, crates, nuget, maven, vcpkg, packagist, rubygems, go, swift, pub.",
     );
+    expect(description).toContain("'vcpkg:openssl@3.6.1#2'");
+    expect(description).toContain("vcpkg advisory coverage is partial");
     expect(singleLineDescription).toContain(
       "CLI text shows every selected direct and transitive advisory row",
     );
@@ -625,20 +627,20 @@ describe("pkgVulnsAction", () => {
     writeSpy.mockRestore();
   });
 
-  it("rejects unsupported registry (vcpkg) client-side with bare message", async () => {
+  it("rejects unsupported registry (zig) client-side with bare message", async () => {
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     const exitSpy = spyOn(process, "exit").mockImplementation(() => {
       throw new Error("process.exit");
     });
 
     try {
-      await pkgVulnsAction("vcpkg:foo", {}, createDeps());
+      await pkgVulnsAction("zig:foo", {}, createDeps());
     } catch {
       // expected exit
     }
 
     expect(errorSpy.mock.calls[0]?.[0]).toBe(
-      "pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, and pub. Got: vcpkg.",
+      "pkg vulns only supports npm, pypi, hex, crates, nuget, maven, vcpkg, packagist, rubygems, go, swift, and pub. Got: zig.",
     );
     errorSpy.mockRestore();
     exitSpy.mockRestore();

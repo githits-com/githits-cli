@@ -191,8 +191,10 @@ GitHits works with package and repository targets such as:
 - GitHub repos: `https://github.com/expressjs/express`, `github:expressjs/express@main`
 
 Package inspection supports npm, PyPI, Hex, Crates, NuGet, Maven, Packagist,
-RubyGems, Go, Swift, Pub, vcpkg, and Zig. Advisory data is unavailable for vcpkg and
-Zig; dependency graph support varies by registry. `cargo:` is an input alias for
+RubyGems, Go, Swift, Pub, vcpkg, and Zig. vcpkg has partial coverage for direct
+advisories, including exact port revisions such as `vcpkg:openssl@3.6.1#2`.
+Advisory data is unavailable for Zig. Dependency graph support varies by
+registry. `cargo:` is an input alias for
 `crates:` (public crates.io); canonical registry identities remain `crates`.
 
 Typed package reads accept exact published versions or numeric component prefixes
