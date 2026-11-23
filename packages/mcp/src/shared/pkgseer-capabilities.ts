@@ -22,7 +22,7 @@ export const SUPPORTED_DEPS_REGISTRY_ARGS: readonly PkgseerRegistryArg[] =
 export const SUPPORTED_DEPS_REGISTRIES_LIST: string =
   SUPPORTED_DEPS_REGISTRY_ARGS.join(", ");
 
-/** Registries with vulnerability data; vcpkg and Zig are not included. */
+/** Registries supported by the direct package vulnerability report. */
 export const SUPPORTED_VULN_REGISTRY_ARGS = [
   "npm",
   "pypi",
@@ -30,6 +30,7 @@ export const SUPPORTED_VULN_REGISTRY_ARGS = [
   "crates",
   "nuget",
   "maven",
+  "vcpkg",
   "packagist",
   "rubygems",
   "go",

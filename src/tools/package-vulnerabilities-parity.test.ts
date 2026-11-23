@@ -89,11 +89,11 @@ async function mcpJson(
     include_transitive?: boolean;
     details?: boolean;
   },
-  packageVulnerabilitiesMock?: () => Promise<VulnerabilityReport>,
+  packageVulnerabilitiesMock?: PackageIntelligenceService["packageVulnerabilities"],
 ): Promise<{ json: unknown; isError: boolean | undefined }> {
   const service = createMockPackageIntelligenceService(
     packageVulnerabilitiesMock
-      ? { packageVulnerabilities: packageVulnerabilitiesMock as never }
+      ? { packageVulnerabilities: packageVulnerabilitiesMock }
       : {},
   );
   const tool = createParityMcpTool("pkg_vulns", {
@@ -301,6 +301,124 @@ describe("package_vulnerabilities parity", () => {
       if (affected) expect(JSON.stringify(json)).toContain("PUB-TEST-0001");
     },
   );
+
+  it("preserves an exact vcpkg revision, filters and partial coverage across CLI and MCP", async () => {
+    const target = "vcpkg:openssl@3.6.1#2";
+    const report: VulnerabilityReport = {
+      package: { registry: "VCPKG", name: "openssl", version: "3.6.1#2" },
+      security: {
+        assessmentStatus: "AFFECTED",
+        assessmentComplete: false,
+        assessmentReasons: ["UNSUPPORTED_NATIVE_CORPUS"],
+        affectedVulnerabilityCount: 1,
+        nonAffectingVulnerabilityCount: 0,
+        allVulnerabilityCount: 1,
+        currentVersionAffected: true,
+        vulnerabilities: [
+          {
+            osvId: "GHSA-example-port",
+            aliases: ["CVE-example"],
+            affectsInspectedVersion: true,
+            fixedInVersions: ["3.6.1#3"],
+          },
+        ],
+      },
+    };
+    const packageVulnerabilities = mock(
+      (
+        _params: Parameters<
+          PackageIntelligenceService["packageVulnerabilities"]
+        >[0],
+      ) => Promise.resolve(report),
+    );
+    const service = createMockPackageIntelligenceService({
+      packageVulnerabilities,
+    });
+    const cli = await cliJson(
+      target,
+      { severity: "high", scope: "all", includeWithdrawn: true },
+      cliDeps({ packageIntelligenceService: service }),
+    );
+    const { json, isError } = await mcpJson(
+      {
+        target,
+        min_severity: "high",
+        advisory_scope: "all",
+        include_withdrawn: true,
+      },
+      packageVulnerabilities,
+    );
+    expect(isError).toBeUndefined();
+    expect(cli).toEqual(json);
+    expect(json).toMatchObject({
+      registry: "vcpkg",
+      name: "openssl",
+      version: "3.6.1#2",
+      summary: {
+        total: 1,
+        assessmentStatus: "AFFECTED",
+        assessmentComplete: false,
+        assessmentReasons: ["UNSUPPORTED_NATIVE_CORPUS"],
+      },
+      filter: {
+        minSeverity: "high",
+        advisoryScope: "all",
+        includeWithdrawn: true,
+      },
+      advisories: [{ id: "GHSA-example-port", fixedIn: ["3.6.1#3"] }],
+    });
+    expect(packageVulnerabilities.mock.calls).toHaveLength(2);
+    for (const [params] of packageVulnerabilities.mock.calls)
+      expect(params).toMatchObject({
+        registry: "VCPKG",
+        packageName: "openssl",
+        version: "3.6.1#2",
+        minSeverity: 7,
+        advisoryScope: "ALL",
+        includeWithdrawn: true,
+      });
+
+    const tool = createParityMcpTool("pkg_vulns", {
+      packageIntelligenceService: service,
+    });
+    const result = await tool.handler({ target }, {});
+    const text = (result.content[0]?.text ?? "").replace(/\s+/g, " ");
+    expect(result.isError).toBeUndefined();
+    expect(text).toContain("GHSA-example-port");
+    expect(text).toContain("3.6.1#3");
+    expect(text).toContain(
+      "Advisory corpus coverage is incomplete for this registry",
+    );
+  });
+
+  it("rejects vcpkg transitive analysis across CLI and MCP before service calls", async () => {
+    const target = "vcpkg:openssl@3.6.1#2";
+    const packageVulnerabilities = mock(() =>
+      Promise.resolve(zeroVulnsReport()),
+    );
+    const cli = await cliJson(
+      target,
+      { transitive: true },
+      cliDeps({
+        packageIntelligenceService: createMockPackageIntelligenceService({
+          packageVulnerabilities,
+        }),
+      }),
+    );
+    const { json, isError } = await mcpJson(
+      { target, include_transitive: true },
+      packageVulnerabilities,
+    );
+    expect(isError).toBe(true);
+    expect(cli).toEqual(json);
+    expect(json).toMatchObject({
+      code: "INVALID_ARGUMENT",
+      error: expect.stringContaining(
+        "Transitive vulnerability analysis is unavailable for vcpkg.",
+      ),
+    });
+    expect(packageVulnerabilities).not.toHaveBeenCalled();
+  });
 
   it("PARITY-JSON-KEYS: happy path CLI === MCP", async () => {
     const packageVulnerabilities = mock(
@@ -841,14 +959,14 @@ describe("package_vulnerabilities parity", () => {
   });
 
   it("PARITY-ERROR-ENVELOPE: INVALID_ARGUMENT (unsupported registry) — shape match via toMatchObject", async () => {
-    // CLI: parsePackageSpec accepts vcpkg (it's a known registry),
+    // CLI: parsePackageSpec accepts zig (it's a known registry),
     // then buildPackageVulnerabilitiesParams rejects via the tool-
     // local predicate. MCP: schema is permissive; the same builder
     // runs in-handler and rejects. Same envelope shape, identical
     // error text because the message is a literal string in the
     // builder.
-    const cli = await cliJson("vcpkg:foo");
-    const { json, isError } = await mcpJson({ target: "vcpkg:foo" });
+    const cli = await cliJson("zig:foo");
+    const { json, isError } = await mcpJson({ target: "zig:foo" });
 
     expect(isError).toBe(true);
     expect(cli).toMatchObject({

@@ -784,7 +784,9 @@ transitive audit. Advisory-wide range/fix arrays are conditionally selected for
 non-affecting/all-scope verbose text or JSON and are validated and preserved at
 that boundary.
 
-**Package spec.** `<registry>:<name>[@<version>]`. Unlike `pkg info`, `pkg vulns` supports `@<version>` so callers can inspect older pinned releases. `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `packagist`, `rubygems`, `go`, `swift`, and `pub` support vulnerability data; vcpkg and Zig are rejected client-side with `pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, and pub. Got: ${registry}.` Swift accepts `v`-prefixed release tags because SwiftPM packages commonly publish them.
+**Package spec.** `<registry>:<name>[@<version>]`. Unlike `pkg info`, `pkg vulns` supports `@<version>` so callers can inspect older pinned releases. Supported registries include `npm`, `pypi`, `hex`, `crates`, `nuget`, `maven`, `vcpkg`, `packagist`, `rubygems`, `go`, `swift`, and `pub`. Zig is rejected client-side. Swift accepts `v`-prefixed release tags because SwiftPM packages commonly publish them.
+
+For vcpkg, quote exact port revisions such as `githits pkg vulns 'vcpkg:openssl@3.6.1#2'`. The version goes to the backend with its revision suffix. A bare version and an omitted version also work. vcpkg advisory coverage is partial and transitive vulnerability analysis is unavailable for vcpkg.
 
 **Filtering and scope.** `--severity low|medium|high|critical` maps to a CVSS float threshold (`low=0.1, medium=4, high=7, critical=9`) and is applied by the service. The returned `summary.total` always means advisories affecting the inspected version. Advisory rows default to `--scope affected`; use `--scope non_affecting` for non-affecting package advisories that do not affect the inspected version, or `--scope all` for affected + non-affecting + unknown rows. Active filters and non-default scope are echoed in text and under top-level JSON `filter`. `--include-withdrawn` includes retracted advisories; withdrawn advisories bucket below active ones in the terminal list.
 

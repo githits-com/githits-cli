@@ -286,21 +286,41 @@ describe("buildPackageVulnerabilitiesParams", () => {
   });
 
   it("rejects known-but-unsupported registries with tool-specific message", () => {
-    const unsupported = ["vcpkg", "zig"];
-    for (const registry of unsupported) {
-      try {
-        buildPackageVulnerabilitiesParams({
-          registry,
-          packageName: "x",
-        });
-        throw new Error(`expected throw for ${registry}`);
-      } catch (error) {
-        expect(error).toBeInstanceOf(UnsupportedVulnerabilitiesRegistryError);
-        expect((error as Error).message).toBe(
-          `pkg vulns only supports npm, pypi, hex, crates, nuget, maven, packagist, rubygems, go, swift, and pub. Got: ${registry}.`,
-        );
-      }
-    }
+    expect(() =>
+      buildPackageVulnerabilitiesParams({
+        registry: "zig",
+        packageName: "x",
+      }),
+    ).toThrow(UnsupportedVulnerabilitiesRegistryError);
+  });
+
+  it.each([undefined, "3.6.1", "3.6.1#2"])(
+    "preserves the vcpkg version selection %s",
+    (version) => {
+      const { params } = buildPackageVulnerabilitiesParams({
+        registry: "vcpkg",
+        packageName: "openssl",
+        version,
+        includeTransitive: false,
+      });
+      expect(params).toMatchObject({
+        registry: "VCPKG",
+        packageName: "openssl",
+        version,
+        includeTransitive: false,
+      });
+    },
+  );
+
+  it("rejects opt-in transitive analysis for vcpkg", () => {
+    expect(() =>
+      buildPackageVulnerabilitiesParams({
+        registry: "vcpkg",
+        packageName: "openssl",
+        version: "3.6.1#2",
+        includeTransitive: true,
+      }),
+    ).toThrow("Transitive vulnerability analysis is unavailable for vcpkg.");
   });
 
   it("accepts all supported registries", () => {
@@ -311,6 +331,7 @@ describe("buildPackageVulnerabilitiesParams", () => {
       "crates",
       "nuget",
       "maven",
+      "vcpkg",
       "packagist",
       "rubygems",
       "go",
@@ -336,6 +357,7 @@ describe("supportsVulnerabilitiesRegistry", () => {
     expect(supportsVulnerabilitiesRegistry("CRATES")).toBe(true);
     expect(supportsVulnerabilitiesRegistry("NUGET")).toBe(true);
     expect(supportsVulnerabilitiesRegistry("MAVEN")).toBe(true);
+    expect(supportsVulnerabilitiesRegistry("VCPKG")).toBe(true);
     expect(supportsVulnerabilitiesRegistry("PACKAGIST")).toBe(true);
     expect(supportsVulnerabilitiesRegistry("RUBYGEMS")).toBe(true);
     expect(supportsVulnerabilitiesRegistry("GO")).toBe(true);
@@ -344,7 +366,6 @@ describe("supportsVulnerabilitiesRegistry", () => {
 
   it("rejects the unsupported registries", () => {
     expect(supportsVulnerabilitiesRegistry("ZIG")).toBe(false);
-    expect(supportsVulnerabilitiesRegistry("VCPKG")).toBe(false);
   });
 });
 
