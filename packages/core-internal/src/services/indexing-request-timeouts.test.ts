@@ -72,12 +72,13 @@ describe("indexing request wait and HTTP budgets", () => {
           grepRepo: () =>
             code.grepRepo({ target, pattern: "fixture", ...wait }),
         };
-        const timeout = spyOn(AbortSignal, "timeout");
+        const timeout = spyOn(globalThis, "setTimeout");
         try {
           await expect(calls[surface]()).rejects.toThrow("Could not reach");
           const effectiveWait = waitTimeoutMs ?? 30_000;
           expect(variables?.waitTimeoutMs).toBe(effectiveWait);
           expect(timeout).toHaveBeenCalledWith(
+            expect.any(Function),
             Math.max(120_000, effectiveWait + 30_000),
           );
         } finally {

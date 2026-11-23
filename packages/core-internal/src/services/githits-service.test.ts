@@ -265,20 +265,20 @@ describe("GitHitsServiceImpl", () => {
     });
 
     it("uses the extended default request timeout", async () => {
-      const timeoutSpy = spyOn(AbortSignal, "timeout");
+      const timeoutSpy = spyOn(globalThis, "setTimeout");
       mockFetch(() => Promise.resolve(new Response("result")));
 
       try {
         await service.search({ query: "probe" });
 
-        expect(timeoutSpy).toHaveBeenCalledWith(240_000);
+        expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 240_000);
       } finally {
         timeoutSpy.mockRestore();
       }
     });
 
     it("supports a runtime-specific example request timeout", async () => {
-      const timeoutSpy = spyOn(AbortSignal, "timeout");
+      const timeoutSpy = spyOn(globalThis, "setTimeout");
       mockFetch(() => Promise.resolve(new Response("result")));
       const hostedService = new GitHitsServiceImpl(
         API_URL,
@@ -291,7 +291,7 @@ describe("GitHitsServiceImpl", () => {
       try {
         await hostedService.search({ query: "probe" });
 
-        expect(timeoutSpy).toHaveBeenCalledWith(225_000);
+        expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 225_000);
       } finally {
         timeoutSpy.mockRestore();
       }

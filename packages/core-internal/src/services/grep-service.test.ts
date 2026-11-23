@@ -278,18 +278,14 @@ describe("unified grep service", () => {
     });
   }
   it("allows the advertised preparation wait before the transport deadline", async () => {
-    const timeout = spyOn(AbortSignal, "timeout").mockImplementation(
-      (milliseconds: number) => {
-        expect(milliseconds).toBeGreaterThan(300_000);
-        return new AbortController().signal;
-      },
-    );
+    const timeout = spyOn(globalThis, "setTimeout");
     try {
       await service(async () => response({ data: { grep: result() } })).grep({
         ...params,
         waitTimeoutMs: 300_000,
       });
       expect(timeout).toHaveBeenCalledTimes(1);
+      expect(timeout.mock.calls[0]?.[1]).toBeGreaterThan(300_000);
     } finally {
       timeout.mockRestore();
     }

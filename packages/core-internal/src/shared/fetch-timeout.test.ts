@@ -74,6 +74,46 @@ describe("fetchWithTimeout", () => {
     ).rejects.toThrow(FetchTimeoutError);
   });
 
+  it("enforces and clears the deadline in Node when the request is the only pending work", async () => {
+    const source = await Bun.file(
+      new URL("./fetch-timeout.ts", import.meta.url),
+    ).text();
+    const helper = new Bun.Transpiler({ loader: "ts" }).transformSync(source);
+    const child = Bun.spawn(
+      [
+        "node",
+        "--input-type=module",
+        "--eval",
+        `${helper}
+          await fetchWithTimeout("https://example.test", {}, {
+            fetchFn: async () => new Response("ok"),
+            timeoutMs: 60_000,
+          });
+          try {
+            await fetchWithTimeout("https://example.test", {}, {
+              fetchFn: () => new Promise(() => {}),
+              timeoutMs: 10,
+            });
+          } catch (error) {
+            if (!(error instanceof FetchTimeoutError)) throw error;
+            console.log(error.name);
+          }`,
+      ],
+      { stdout: "pipe", stderr: "pipe", timeout: 3_000 },
+    );
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+
+    expect({ exitCode, stdout: stdout.trim(), stderr }).toEqual({
+      exitCode: 0,
+      stdout: "FetchTimeoutError",
+      stderr: "",
+    });
+  });
+
   it("preserves caller aborts", async () => {
     const controller = new AbortController();
     const cause = new Error("caller aborted");
@@ -160,98 +200,32 @@ describe("fetchWithTimeout", () => {
     await expect(pending).rejects.toBe(reason);
   });
 
-  it("preserves the timeout error if the caller aborts afterward", async () => {
+  it("preserves the deadline when the caller aborts and fetch rejects in the same turn", async () => {
     const controller = new AbortController();
-    const reason = new Error("late caller cancellation");
-    const deadline = new AbortController();
-    const originalTimeout = AbortSignal.timeout;
+    const fetchFn = mock(
+      (_input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            controller.abort(new Error("late caller cancellation"));
+            reject(new Error("transport failed"));
+          });
+        }),
+    );
 
-    AbortSignal.timeout = mock(() => deadline.signal);
-
-    try {
-      const pending = fetchWithTimeout(
+    await expect(
+      fetchWithTimeout(
         "https://example.com",
         { signal: controller.signal },
-        {
-          fetchFn: asFetchFn(mock(() => new Promise<Response>(() => {}))),
-          timeoutMs: 10_000,
-        },
-      );
-
-      deadline.abort(new DOMException("deadline", "TimeoutError"));
-      controller.abort(reason);
-
-      await expect(pending).rejects.toBeInstanceOf(FetchTimeoutError);
-    } finally {
-      AbortSignal.timeout = originalTimeout;
-    }
-  });
-
-  it("preserves caller cancellation before the deadline", async () => {
-    const controller = new AbortController();
-    const reason = new Error("caller cancelled first");
-    const deadline = new AbortController();
-    const originalTimeout = AbortSignal.timeout;
-
-    AbortSignal.timeout = mock(() => deadline.signal);
-
-    try {
-      const pending = fetchWithTimeout(
-        "https://example.com",
-        { signal: controller.signal },
-        {
-          fetchFn: asFetchFn(mock(() => new Promise<Response>(() => {}))),
-          timeoutMs: 10_000,
-        },
-      );
-
-      controller.abort(reason);
-      deadline.abort(new DOMException("deadline", "TimeoutError"));
-
-      await expect(pending).rejects.toBe(reason);
-    } finally {
-      AbortSignal.timeout = originalTimeout;
-    }
-  });
-
-  it("preserves timeout precedence when transport rejects after both aborts", async () => {
-    const caller = new AbortController();
-    const deadline = new AbortController();
-    const originalTimeout = AbortSignal.timeout;
-    const transportError = new Error("transport failed");
-
-    AbortSignal.timeout = mock(() => deadline.signal);
-
-    try {
-      let rejectFetch!: (reason: unknown) => void;
-      const fetchFn = mock(
-        () =>
-          new Promise<Response>((_, reject) => {
-            rejectFetch = reject;
-          }),
-      );
-
-      const pending = fetchWithTimeout(
-        "https://example.com",
-        { signal: caller.signal },
-        { fetchFn: asFetchFn(fetchFn), timeoutMs: 10_000 },
-      );
-
-      await Promise.resolve();
-      deadline.abort(new DOMException("deadline", "TimeoutError"));
-      caller.abort(new Error("late caller cancellation"));
-      rejectFetch(transportError);
-
-      await expect(pending).rejects.toBeInstanceOf(FetchTimeoutError);
-    } finally {
-      AbortSignal.timeout = originalTimeout;
-    }
+        { fetchFn: asFetchFn(fetchFn), timeoutMs: 5 },
+      ),
+    ).rejects.toBeInstanceOf(FetchTimeoutError);
+    expect(controller.signal.aborted).toBe(true);
   });
 
   it("removes cancellation listeners after the request settles", async () => {
     const controller = new AbortController();
-    const add = spyOn(controller.signal, "addEventListener");
-    const remove = spyOn(controller.signal, "removeEventListener");
+    const add = spyOn(AbortSignal.prototype, "addEventListener");
+    const remove = spyOn(AbortSignal.prototype, "removeEventListener");
 
     try {
       await fetchWithTimeout(

@@ -1254,15 +1254,16 @@ backend request: `get_example`, `search`, `search_status`, `research`, `list`,
 `pkg_deps`, `pkg_changelog`, and `pkg_upgrade_review`. The server adapter
 copies the MCP request's abort signal into `ToolExecutionContext.signal`; the
 MCP SDK aborts it when the client sends a cancellation notification or the
-connection closes. A cancelled or disconnected call therefore aborts its
-in-flight HTTP request instead of letting it run to completion.
+connection closes. A cancelled or disconnected call stops waiting for the
+in-flight HTTP request or response body and signals the transport to abort.
 
 - Service methods accept an optional trailing `ServiceRequestOptions`
   (`{ signal?: AbortSignal }`, exported from `@githits/mcp/client`). Tools pass
   it only when a signal exists, so signal-free callers keep their
   single-argument call shape. CLI commands do not pass a signal and behave as
   before.
-- Services combine the signal with their own request deadline. It covers both
+- Services combine the signal with their own request deadline. The deadline keeps
+  the process alive until the request settles and covers both
   response headers and body reads, and every request of multi-request
   operations such as paginated advisories, transitive audits, and changelog or
   upgrade statement pages.
