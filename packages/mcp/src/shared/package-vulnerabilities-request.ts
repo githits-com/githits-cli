@@ -10,7 +10,7 @@
  *   surface via `pkgseer-registry`; reject unknown registries with
  *   the generic `UnsupportedRegistryError` message.
  * - Gate against the vulnerability-query's narrower registry support
- *   (backend currently excludes vcpkg and zig). Known-
+ *   (Zig is excluded). Known-
  *   but-unsupported registries are rejected client-side with a
  *   tool-specific message so the backend never sees them. The
  *   predicate `supportsVulnerabilitiesRegistry` lives in
@@ -137,6 +137,12 @@ export function buildPackageVulnerabilitiesParams(
   if (!supportsVulnerabilitiesRegistry(registry)) {
     throw new UnsupportedVulnerabilitiesRegistryError(
       `pkg vulns only supports ${SUPPORTED_VULN_REGISTRIES_HUMAN}. Got: ${registryArg}.`,
+    );
+  }
+  // The dependency graph uses base releases, not the exact vcpkg port catalog.
+  if (registry === "VCPKG" && input.includeTransitive === true) {
+    throw new UnsupportedVulnerabilitiesRegistryError(
+      "Transitive vulnerability analysis is unavailable for vcpkg. Request a direct vulnerability report for the port.",
     );
   }
 
