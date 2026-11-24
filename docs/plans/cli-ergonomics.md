@@ -4,7 +4,8 @@
 
 - Overall: **IN PROGRESS**; Phase 1 merged in [#530](https://github.com/githits-com/githits-cli/pull/530);
   Phase 1a merged in [#533](https://github.com/githits-com/githits-cli/pull/533);
-  Phase 2 is complete pending merge; Phase 3 needs design.
+  Phase 2 merged in [#535](https://github.com/githits-com/githits-cli/pull/535);
+  Phase 3 needs design.
 - Owner: this CLI worktree; backend investigations have separate child worktrees.
 - User direction, 2026-11-03: improve CLI ergonomics from the supplied feedback;
   exclude all skill changes because OP is reviewing those separately. Dispatch
@@ -163,7 +164,7 @@ and `cli-commands.md`; execution and review evidence is on #533. No open gate.
 
 ### Phase 2 — scoped Research recovery
 
-Status: **COMPLETE; pending merge**. Outcome: an agent hitting the daily
+Status: **COMPLETE; merged #535**. Outcome: an agent hitting the daily
 Research limit gets a scoped search example with the fixed `your query`
 placeholder. Assumptions: existing daily scope and search grammar remain stable.
 Unknowns/product decisions: **none**. Dependencies: merged #533 and existing
@@ -258,7 +259,7 @@ default output or machine JSON. Unknowns: first command, line/character units,
 budget scope, large-line handling and replay semantics. Resolve from one grep
 page and one source/docs read with existing fixtures plus real served output;
 do not create a cross-tool truncation framework or add two competing knobs by
-default. Coordinate with `search-output-ux.md` rather than duplicating its work.
+default. Follow the [tool output guidelines](../../AGENTS.md#tool-output-ux).
 
 Acceptance: a reviewed first-command design distinguishes locally omitted output
 from backend partial coverage; preserves provenance/warnings/actions outside the
@@ -302,12 +303,6 @@ in this contract.
 
 ## Deferred feedback candidates
 
-- Unified MCP grep context tolerance: the same normal-agent failure remains on
-  MCP. `docs/implementation/agent-context-loading.md` records prior agents sending
-  context 12 and the legacy CLI/MCP cap correction; the unified MCP schema still
-  rejects above 10. A separate change should accept nonnegative safe integers,
-  report effective context consistently, preserve the backend ceiling and ship
-  with the MCP release/descriptor evaluation its changed acceptance requires.
 - Remaining quota/reset visibility: backend accounting contract required;
   do not infer allowance from local history or make doctor unexpectedly networked.
 - Async Research: backend operation lifecycle, cancellation and credit behavior

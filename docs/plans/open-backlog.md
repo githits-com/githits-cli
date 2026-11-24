@@ -97,6 +97,34 @@ package verdict. This needs backend/domain design and remains outside the
 completed statement migration. Private-code applicability still requires local
 usage inspection and before/after checks by the caller.
 
+## MCP upgrade-review package coordinates
+
+`pkg_upgrade_review` still accepts structured package and version fields for
+single and batch requests. Decide whether one compact package input using the
+CLI's existing `@current..target` syntax improves both MCP call shapes. A change
+needs a product decision on the input and migration, equivalent single and batch
+normalization, and actionable errors for invalid endpoints. The MCP schema owns
+the input contract. See the [current tool arguments](../implementation/tools.md#current-tools).
+
+## Unified MCP grep controls
+
+Revisit context and total versus per-file limits only with evidence from current
+unified `grep` calls. The MCP descriptor owns control selection and the backend
+owns traversal and coverage. Any simplification must preserve verified scoping,
+pagination, and result-diversity needs. See the
+[unified grep contract](../implementation/unified-grep.md).
+
+## Verify search name qualifier composition
+
+The production follow-up after [PR #397](https://github.com/githits-com/githits-cli/pull/397)
+found that symbol search for `name:createApplication` returned the Express
+symbol, while `name:createApplication AND kind:function` and
+`createApplication name:createApplication` returned no hits from the same
+indexed snapshot. Code search returned other names even with the name
+qualifier. Reproduce both cases on the current backend and verify which
+source-specific semantics are intended. The backend owns query compilation and
+reports unsupported features through `sourceStatus`. The CLI and MCP forward
+the same inline query, so parity alone cannot settle the producer contract.
 
 ## Cargo alias rollout and hosted adoption — 2026-10-19
 
