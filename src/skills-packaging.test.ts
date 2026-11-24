@@ -346,9 +346,11 @@ describe("agent skills packaging", () => {
       "vulnerabilities",
       "upgrade reviews",
     ]);
-    for (const content of [codeContent, packageContent]) {
+    const codeReference = await read(githitsCodeReferencePath);
+    expect(codeContent).toContain("references/code-and-docs.md");
+    for (const content of [codeReference, packageContent]) {
       expect(content).toContain("numeric prefixes");
-      expect(content).toContain("do not pass ranges");
+      expect(content.toLowerCase()).toContain("do not pass ranges");
     }
   });
 
@@ -375,12 +377,10 @@ describe("agent skills packaging", () => {
       ["githits-code", codeContent],
       ["githits-package", packageContent],
     ] as const;
-    const jsonPolicy =
-      "Use `--json` only when code consumes the raw response or text omits a required field";
-
-    expectContainsAllIgnoringWhitespace(codeContent, [
-      "Use default text",
-      jsonPolicy,
+    const codeReference = await read(githitsCodeReferencePath);
+    expect(codeContent).toContain("Use default text");
+    expectContainsAllIgnoringWhitespace(codeReference, [
+      "Use `--json` only for required range/source metadata or an exact search follow-up",
     ]);
     expectContainsAllIgnoringWhitespace(packageContent, [
       "Keep default text",
@@ -400,7 +400,7 @@ describe("agent skills packaging", () => {
       ]);
       expect(content, name).toContain("## External Content Posture");
 
-      expect(content, name).toContain("## Choose a command");
+      expect(content, name).toContain("| Command |");
     }
   });
 
@@ -410,13 +410,16 @@ describe("agent skills packaging", () => {
       join(root, "skills", "githits-code", "references", "code-and-docs.md"),
     );
     expectContainsAll(content, [
-      "Read known symbols directly",
-      "known declaration path",
-      "literal-grep the identifier",
-      "use returned heading IDs, not titles",
+      "Use known method names as selectors",
+      "include the declaration path when known",
+      "read a returned declaration range",
+      "Combine nearby needed code into one read",
       "references/code-and-docs.md",
     ]);
     expectContainsAll(reference, [
+      "Read known symbols directly with `--selector`",
+      "literal-grep the exact identifier",
+      "reuse returned heading IDs",
       "then replay its `followUp` with every supplied argument unchanged",
       "From `docs list`, pass `docsReadTarget`",
       "Hosted/crawled HTTP(S) targets address mutable current content",

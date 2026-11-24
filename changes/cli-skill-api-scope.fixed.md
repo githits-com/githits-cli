@@ -3,4 +3,4 @@
 "@githits/mcp": none
 ---
 
-- **Concise CLI source guidance** - Keep command syntax, focused reads and evidence boundaries in the code skill; move platform, authentication and advanced lookup details into conditional reference sections. Use familiar APIs and available validation, retrieve source for specific uncertainties or failures, and batch independent lookups without requiring an API inventory.
+- **Focused CLI source guidance** - Lead with targeted source lookups for specific uncertainties, use known method selectors and bounded reads, and batch independent calls. Keep command routing and evidence boundaries in the main skill, with platform, authentication and advanced lookup details in conditional reference sections.
