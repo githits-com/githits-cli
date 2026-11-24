@@ -348,6 +348,7 @@ describe("agent skills packaging", () => {
     ]);
     const codeReference = await read(githitsCodeReferencePath);
     expect(codeContent).toContain("references/code-and-docs.md");
+    expect(codeReference).toContain("Do not invent tags");
     for (const content of [codeReference, packageContent]) {
       expect(content).toContain("numeric prefixes");
       expect(content.toLowerCase()).toContain("do not pass ranges");
@@ -414,12 +415,14 @@ describe("agent skills packaging", () => {
       "include the declaration path when known",
       "read a returned declaration range",
       "Combine nearby needed code into one read",
+      "githits grep [-F] '<pattern>'",
       "references/code-and-docs.md",
     ]);
     expectContainsAll(reference, [
       "Read known symbols directly with `--selector`",
       "literal-grep the exact identifier",
       "reuse returned heading IDs",
+      "Current hosted docs do not establish historical behavior",
       "then replay its `followUp` with every supplied argument unchanged",
       "From `docs list`, pass `docsReadTarget`",
       "Hosted/crawled HTTP(S) targets address mutable current content",

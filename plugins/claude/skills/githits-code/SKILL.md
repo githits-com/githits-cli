@@ -17,7 +17,7 @@ Use familiar APIs; retrieve source for specific uncertainties or failures. Prefe
 | Symbol | `githits read <target> --selector <name>` |
 | File/range | `githits read <target> <path> [--lines N-M]` |
 | Search | `githits search "<terms>" --in <target> [--limit N]` |
-| Exact text / regex | `githits grep [-F] "<pattern>" <target> [--path <file>]` |
+| Exact text / regex | `githits grep [-F] '<pattern>' <target> [--path <file>]` |
 | Paths | `githits list <target> [paths...]` |
 | Research | `githits research [target] "<question>"` |
 | Cross-project examples | `githits example "<behavior and constraints>"` |

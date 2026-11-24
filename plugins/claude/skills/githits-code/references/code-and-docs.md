@@ -237,8 +237,8 @@ For `REAUTH_REQUIRED`, show the supplied URL and wait; do not loop or run login.
 
 ## Target and evidence details
 
-Package reads accept exact published versions or numeric prefixes: `npm:express@5` selects the newest eligible stable 5.x.y; `crates:tokio@1.43` selects 1.43.x. Prefixes match components in every ecosystem. Do not pass ranges (`^`, `~`, comparisons, unions, intervals); use `from..to` for release comparisons. Reuse canonical targets without resolution. Never choose ambiguous identity by popularity alone or treat CLEAR as vulnerability-free.
+Package reads accept exact published versions or numeric prefixes: `npm:express@5` selects the newest eligible stable 5.x.y; `crates:tokio@1.43` selects 1.43.x. Prefixes match components in every ecosystem. Do not pass ranges (`^`, `~`, comparisons, unions, intervals); use `from..to` for release comparisons. Do not invent tags. Reuse canonical targets without resolution. Never choose ambiguous identity by popularity alone or treat CLEAR as vulnerability-free.
 
 Reuse definitions and metadata. When only imports or package declarations are missing, read the missing header rather than the body again. Explicit imports establish full names; call sites alone do not establish implementation. Keep versions and execution paths distinct and attribute behavior to the source's function. Example projects do not establish another version's contract.
 
-For docs, reuse returned heading IDs. If a heading is missing, read its page without selector/fragment; if the page is missing, discover an indexed page. Apply filters and limits instead of routinely piping output through `head`; paginate only for needed content. Use space-separated search qualifiers such as `kind:function path:lib/`, without commas.
+Current hosted docs do not establish historical behavior. For docs, reuse returned heading IDs. If a heading is missing, read its page without selector/fragment; if the page is missing, discover an indexed page. Apply filters and limits instead of routinely piping output through `head`; paginate only for needed content. Use space-separated search qualifiers such as `kind:function path:lib/`, without commas.
