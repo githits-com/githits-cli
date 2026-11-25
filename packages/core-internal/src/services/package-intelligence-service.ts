@@ -223,6 +223,12 @@ export interface VulnerabilityDetail {
   relationship?: "PACKAGE" | "RELATED";
   assessmentComplete?: boolean;
   evidence?: VulnerabilityEvidence[];
+  /** Source-level proof for a Related vcpkg advisory. Commit SHAs require the provenance projection. */
+  verifiedSourceFix?: {
+    version: string;
+    candidateSourceSha?: string;
+    fixSha?: string;
+  };
   osvId?: string;
   summary?: string;
   severityScore?: number;

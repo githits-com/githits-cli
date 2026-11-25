@@ -103,6 +103,57 @@ describe("ordinary package and Related output", () => {
       expect(text).not.toMatch(/Coverage:|Assessment coverage is incomplete/);
     },
   );
+  it("shows verified vcpkg source guidance only for the Related row carrying proof", () => {
+    const report = fixture();
+    report.package = { registry: "VCPKG", name: "curl", version: "8.19.0#0" };
+    const proof = {
+      version: "8.20.0#0",
+      candidateSourceSha: "b".repeat(40),
+      fixSha: "c".repeat(40),
+    };
+    const related = report.related!;
+    const row = related.vulnerabilities[0]!;
+    related.vulnerabilities.push({ ...row, osvId: "CVE-without-proof" });
+    related.totalCount++;
+    report.security!.vulnerabilities![0]!.fixedInVersions = ["8.19.0#1"];
+    const baseline = buildPackageVulnerabilitiesSuccessPayload(report);
+    row.verifiedSourceFix = proof;
+
+    for (const surface of ["cli", "mcp"] as const) {
+      const compact = formatPackageVulnerabilitiesTerminal(report, { surface });
+      const guidance = "Upstream fix verified in vcpkg source: 8.20.0#0";
+      expect(compact).toContain(
+        "Related vulnerabilities (package applicability unproved)",
+      );
+      expect(compact).toMatch(/fixed in\s+8\.19\.0#1/);
+      const lines = compact.split("\n");
+      expect(lines.filter((line) => line.includes(guidance))).toHaveLength(1);
+      const rowIndex = lines.findIndex((line) => line.includes("CVE-related"));
+      expect(lines[rowIndex + 1]?.trim()).toBe(guidance);
+      expect(compact).toContain("CVE-without-proof");
+      expect(compact).not.toContain(proof.candidateSourceSha);
+      expect(compact).not.toContain(proof.fixSha);
+
+      const verbose = formatPackageVulnerabilitiesTerminal(report, {
+        surface,
+        verbose: true,
+      });
+      expect(verbose).toContain(guidance);
+      expect(verbose).toContain(`source commit ${proof.candidateSourceSha}`);
+      expect(verbose).toMatch(new RegExp(`fix commit\\s+${proof.fixSha}`));
+    }
+
+    expect(buildPackageVulnerabilitiesSuccessPayload(report)).toEqual({
+      ...baseline,
+      related: {
+        totalCount: 2,
+        advisories: [
+          { ...baseline.related!.advisories[0], verifiedSourceFix: proof },
+          baseline.related!.advisories[1]!,
+        ],
+      },
+    });
+  });
   it("offers full reports when only Related rows are returned", () => {
     const report = fixture();
     report.security!.vulnerabilities = [];

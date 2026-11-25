@@ -71,6 +71,7 @@ export interface LeanAdvisory {
   relationship?: "PACKAGE" | "RELATED";
   assessmentComplete?: boolean;
   evidence?: VulnerabilityEvidence[];
+  verifiedSourceFix?: VulnerabilityDetail["verifiedSourceFix"];
   id?: string;
   aliases?: string[];
   summary?: string;
@@ -596,6 +597,8 @@ function buildAdvisory(advisory: VulnerabilityDetail): LeanAdvisory {
   if (advisory.assessmentComplete !== undefined)
     lean.assessmentComplete = advisory.assessmentComplete;
   if (advisory.evidence) lean.evidence = advisory.evidence;
+  if (advisory.relationship === "RELATED" && advisory.verifiedSourceFix)
+    lean.verifiedSourceFix = advisory.verifiedSourceFix;
   if (advisory.osvId) lean.id = advisory.osvId;
   if (advisory.aliases && advisory.aliases.length > 0) {
     lean.aliases = advisory.aliases.slice();
@@ -1472,6 +1475,24 @@ function formatAdvisoryLines(
   }
   if (advisory.fixedIn && advisory.fixedIn.length > 0) {
     pushRow("fixed in", advisory.fixedIn.map(sanitizeIdentity).join(", "));
+  }
+  const sourceFix = advisory.verifiedSourceFix;
+  if (sourceFix) {
+    lines.push(
+      ...wrapTerminalProse(
+        `    Upstream fix verified in vcpkg source: ${sanitizeIdentity(sourceFix.version)}`,
+        normaliseTerminalWidth(terminalWidth),
+      ),
+    );
+    if (verbose) {
+      if (sourceFix.candidateSourceSha)
+        pushRow(
+          "source commit",
+          sanitizeIdentity(sourceFix.candidateSourceSha),
+        );
+      if (sourceFix.fixSha)
+        pushRow("fix commit", sanitizeIdentity(sourceFix.fixSha));
+    }
   }
 
   if (verbose) {
