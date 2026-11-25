@@ -523,11 +523,11 @@ CI passed Linux/Windows tests, build checks, MCP package validation and Bun/Node
 no same-target suggestion, one-line warnings, unusual values and DEL/C1 parity,
 zero hits, native failures/cursors and mixed/pending-only short-wait results.
 
-Source and built unauthenticated smoke modes passed. Full authenticated smoke
-stops before grep at an existing recovery fixture; see the
-[backlog entry](../plans/open-backlog.md#authenticated-smoke-recovery-fixture--2026-10-24).
-The affected grep qualification above passed independently; no failure assertion
-was weakened to bypass that broader-suite gap.
+Source and built unauthenticated smoke modes passed. At that revision, full
+authenticated smoke stopped before grep at a stale missing-version fixture.
+The grep qualification above passed independently.
+[PR #528](https://github.com/githits-com/githits-cli/pull/528) later replaced
+the fixture while preserving the recovery assertions.
 
 
 ## Package source correspondence

@@ -276,12 +276,11 @@ paths have no removal date or threshold in this documentation; usage statistics
 are evidence for a future product decision.
 
 The root `githits` 0.22.1 release carries CLI and local stdio MCP fragment
-reads; published `@githits/mcp` 0.22.0 already contains the MCP implementation.
-Hosted adoption is separate: update `remote-mcp` to construct
-`ReadServiceImpl` per request with the same token, headers, endpoint/config,
-fetch function, and diagnostics policy, then deploy that host. Until those
-steps occur, hosted traffic remains on its currently published package and
-legacy/current behavior. This repository does not deploy the hosted server.
+reads. Published `@githits/mcp` 0.22.0 introduced the MCP implementation.
+The hosted `remote-mcp` service constructs the published `ReadServiceImpl`
+per request with its token, headers, endpoint and configuration, fetch function,
+and diagnostics policy. Hosted changes reach users through that repository's
+dependency update and deployment.
 
 Code selectors use backend-owned symbol identity and strict resolution. The
 client does not pick a duplicate or infer a symbol from source text. Returned
