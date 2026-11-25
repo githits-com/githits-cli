@@ -1486,12 +1486,9 @@ function formatAdvisoryLines(
     );
     if (verbose) {
       if (sourceFix.candidateSourceSha)
-        pushRow(
-          "source commit",
-          sanitizeIdentity(sourceFix.candidateSourceSha),
-        );
+        pushRow("source SHA", sanitizeIdentity(sourceFix.candidateSourceSha));
       if (sourceFix.fixSha)
-        pushRow("fix commit", sanitizeIdentity(sourceFix.fixSha));
+        pushRow("fix SHA", sanitizeIdentity(sourceFix.fixSha));
     }
   }
 

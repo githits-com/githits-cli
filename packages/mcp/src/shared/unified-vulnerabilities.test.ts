@@ -139,8 +139,17 @@ describe("ordinary package and Related output", () => {
         verbose: true,
       });
       expect(verbose).toContain(guidance);
-      expect(verbose).toContain(`source commit ${proof.candidateSourceSha}`);
-      expect(verbose).toMatch(new RegExp(`fix commit\\s+${proof.fixSha}`));
+      expect(verbose).toMatch(
+        new RegExp(`source SHA\\s+${proof.candidateSourceSha}`),
+      );
+      expect(verbose).toMatch(new RegExp(`fix SHA\\s+${proof.fixSha}`));
+      const verboseLines = verbose.split("\n");
+      const source = verboseLines.find((line) => line.includes("source SHA"));
+      const fix = verboseLines.find((line) => line.includes("fix SHA"));
+      const nativeFix = verboseLines.find((line) => line.includes("fixed in"));
+      const valueColumn = nativeFix?.indexOf("8.19.0#1");
+      expect(source?.indexOf(proof.candidateSourceSha)).toBe(valueColumn);
+      expect(fix?.indexOf(proof.fixSha)).toBe(valueColumn);
     }
 
     expect(buildPackageVulnerabilitiesSuccessPayload(report)).toEqual({
