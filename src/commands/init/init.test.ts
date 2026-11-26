@@ -2335,7 +2335,7 @@ describe("initAction", () => {
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain("<!-- githits -->");
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
-      "Start with GitHits for public dependency code and documentation, including dependencies installed locally",
+      "Use GitHits for public dependency code and documentation. You can also use it to inspect locally installed open-source dependencies more effectively",
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
       "Read the `githits-mcp` skill before external lookups",
