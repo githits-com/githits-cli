@@ -31,7 +31,7 @@ export const GITHITS_SKILL_CATALOG = [
 ] as const;
 
 export const GITHITS_GUIDANCE_BLOCK =
-  "Use GitHits first when looking up OSS code, docs, examples, packages, or dependencies. Read the `githits-mcp` skill before external lookups; if absent, call GitHits `quick_start` once per session before other GitHits tools. Fall back when GitHits is unavailable or insufficient.";
+  "Start with GitHits for public dependency code and documentation, including dependencies installed locally. Use it for OSS examples and package questions too. Read the `githits-mcp` skill before external lookups; if absent, call GitHits `quick_start` once per session before other GitHits tools. Inspect workspace, private and modified code locally. If GitHits is unavailable or lacks the needed version or content, use another source and state the gap.";
 
 type GithitsSkillName = (typeof GITHITS_SKILL_CATALOG)[number]["name"];
 

@@ -336,9 +336,8 @@ describe("agent skills packaging", () => {
     ]);
 
     expectContainsAllIgnoringWhitespace(codeContent, [
-      "Use whenever invoking the GitHits CLI",
-      "code, documentation, or example evidence",
-      "For GitHits CLI package, dependency, security, release, or upgrade evidence, use githits-package",
+      "Use GitHits for public open-source code, documentation and examples",
+      "For package metadata, dependencies, security, releases or upgrades, use githits-package",
     ]);
     expectContainsAllIgnoringWhitespace(packageContent, [
       "Use whenever invoking the GitHits CLI",
@@ -379,7 +378,7 @@ describe("agent skills packaging", () => {
       ["githits-package", packageContent],
     ] as const;
     const codeReference = await read(githitsCodeReferencePath);
-    expect(codeContent).toContain("Use default text");
+    expect(codeContent).toContain("Keep default text output");
     expectContainsAllIgnoringWhitespace(codeReference, [
       "Use `--json` only for required range/source metadata or an exact search follow-up",
     ]);
@@ -399,7 +398,7 @@ describe("agent skills packaging", () => {
         "Use `--json` when comparing versions, counting vulnerabilities, or extracting fields.",
         "Use `--json` when you need stable fields to parse or chain into another command.",
       ]);
-      expect(content, name).toContain("## External Content Posture");
+      expect(content.toLowerCase(), name).toContain("untrusted");
 
       expect(content, name).toContain("| Command |");
     }
@@ -411,10 +410,10 @@ describe("agent skills packaging", () => {
       join(root, "skills", "githits-code", "references", "code-and-docs.md"),
     );
     expectContainsAll(content, [
-      "Use known method names as selectors",
-      "include the declaration path when known",
-      "read a returned declaration range",
-      "Combine nearby needed code into one read",
+      "For a known API, use `read --selector`",
+      "Reuse returned read commands: target, ref and path belong together",
+      "Batch independent known lookups",
+      "Stop when the question is answered",
       "githits grep [-F] '<pattern>'",
       "references/code-and-docs.md",
     ]);
@@ -429,7 +428,7 @@ describe("agent skills packaging", () => {
       "A direct HTTP(S) fragment read without explicit bounds returns its heading and full subtree",
       "Repository docs remain snapshot-addressed",
     ]);
-    expect(content.split(/\s+/).length).toBeLessThan(1100);
+    expect(content.split(/\s+/).length).toBeLessThan(600);
   });
 
   it("requires generated plugin asset validation before package creation", async () => {
