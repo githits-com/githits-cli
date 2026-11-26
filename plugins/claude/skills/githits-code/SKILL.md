@@ -40,6 +40,7 @@ Check a symbol's language and owning type before following it.
 | Unclear identity | `githits resolve "<name>"` |
 | Research | `githits research [target] "<question>"` |
 | Cross-project examples | `githits example "<behavior and constraints>"` |
+| Source changes | `githits code diff <unversioned-target> <from>..<to>` |
 
 Use provider/registry-qualified targets, e.g. `github:owner/repo@ref`,
 `npm:package@version` or `pypi:package@version`, never bare `owner/repo`.
