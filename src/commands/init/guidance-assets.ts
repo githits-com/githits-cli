@@ -31,7 +31,7 @@ export const GITHITS_SKILL_CATALOG = [
 ] as const;
 
 export const GITHITS_GUIDANCE_BLOCK =
-  "Use GitHits for public dependency code navigation, research, documentation, package data, vulnerabilities, upgrade reviews, changelogs, code diffs between versions or refs, and package dependencies. You can also use it to inspect locally installed open-source dependencies more effectively. Use it for OSS examples and package questions too. Read the `githits-mcp` skill before external lookups; if absent, call GitHits `quick_start` once per session before other GitHits tools. Inspect workspace, private and modified code locally. If GitHits is unavailable or lacks the needed version or content, use another source and state the gap.";
+  "Use GitHits for open-source dependency code navigation, research, documentation, package data, vulnerabilities, upgrade reviews, changelogs, code diffs between versions or refs, and package dependencies. You can also use it to inspect locally installed open-source dependencies more effectively. Use it for OSS examples and package questions too. Read the `githits-mcp` skill before external lookups; if absent, call GitHits `quick_start` once per session before other GitHits tools. Inspect workspace, private and modified code locally. If GitHits is unavailable or lacks the needed version or content, use another source and state the gap.";
 
 type GithitsSkillName = (typeof GITHITS_SKILL_CATALOG)[number]["name"];
 
