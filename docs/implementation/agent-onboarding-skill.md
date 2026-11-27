@@ -112,7 +112,13 @@ User-level setup should be offered first and marked recommended for onboarding b
 
 Agents should use structured choice UI for both setup scope and tool selection whenever available. The scope choices are `My user account (Recommended)` and `This project only`. Honor existing tool selections; offer individual actionable tools and configure-all only when the user wants broad setup. Agents should not ask users to type comma-separated tool IDs unless no structured choice mechanism is available.
 
-Guided setup writes all four skills to the selected agent's verified root. The
+With guidance selected, local MCP setup writes all four skills and their
+reference files; remote MCP setup writes only `githits-mcp` plus verified
+instruction blocks. Interactive direct CLI setup writes only `githits-code`
+and `githits-package`, including references, and retains existing MCP settings.
+The MCP routes ask for guidance through a descriptive selector; direct CLI skills
+are integral to that route. Public onboarding skill updates follow the release
+branch lifecycle recorded in the backlog. The
 shared `.agents/skills` root is used at `~/.agents/skills/` for user scope and
 `.agents/skills/` for project scope by Cursor, Windsurf, VS Code/Copilot, Cline,
 Codex CLI, Pi, Gemini CLI, OpenCode, Zed, Junie, Qwen Code, and Kilo Code.

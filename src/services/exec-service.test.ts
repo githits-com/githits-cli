@@ -9,6 +9,16 @@ import {
 } from "./exec-service.js";
 
 describe("ExecServiceImpl", () => {
+  it("passes child-only environment overrides without changing the parent", async () => {
+    const previous = process.env.GITHITS_EXEC_TEST_VALUE;
+    const result = await new ExecServiceImpl().exec(
+      "node",
+      ["-e", "process.stdout.write(process.env.GITHITS_EXEC_TEST_VALUE)"],
+      { env: { GITHITS_EXEC_TEST_VALUE: "fixture-child-value" } },
+    );
+    expect(result.stdout).toBe("fixture-child-value");
+    expect(process.env.GITHITS_EXEC_TEST_VALUE === previous).toBe(true);
+  });
   it("executes a command and returns stdout", async () => {
     const service = new ExecServiceImpl();
     const result = await service.exec("node", ["--version"]);
@@ -118,3 +128,132 @@ describe("ExecServiceImpl", () => {
     });
   });
 });
+
+/** Run the service in a disposable parent so inherited stdio and SIGINT are real. */
+function interactiveHarness(
+  childCode: string,
+  missing = false,
+): Bun.Subprocess<"pipe", "pipe", "pipe"> {
+  const moduleUrl = new URL("./exec-service.ts", import.meta.url).href;
+  const source = `
+    import { ExecServiceImpl } from ${JSON.stringify(moduleUrl)};
+    const count = process.listenerCount('SIGINT');
+    try {
+      const result = await new ExecServiceImpl().execInteractive(
+        ${JSON.stringify(missing ? "githits-nonexistent-native-host" : "node")},
+        ${JSON.stringify(missing ? [] : ["-e", childCode])}
+      );
+      process.stderr.write('INTERACTIVE_RESULT:'+JSON.stringify({result, restored:process.listenerCount('SIGINT')===count}));
+    } catch {
+      process.stderr.write('INTERACTIVE_RESULT:'+JSON.stringify({failed:true,restored:process.listenerCount('SIGINT')===count}));
+    }
+  `;
+  return Bun.spawn([process.execPath, "--eval", source], {
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+}
+
+describe("interactive execution", () => {
+  it("inherits stdin/stdout without capturing native output in the return value", async () => {
+    const parent = interactiveHarness(
+      "process.stderr.write('native fixture diagnostic\\n'); process.stdin.once('data', data => { process.stdout.write('native:'+data); process.exit(0); })",
+    );
+    parent.stdin.write("fixture-input");
+    parent.stdin.end();
+    expect(await new Response(parent.stdout).text()).toBe(
+      "native:fixture-input",
+    );
+    const outcome = JSON.parse(
+      (await new Response(parent.stderr).text())
+        .split("INTERACTIVE_RESULT:")
+        .at(-1)!,
+    );
+    expect(outcome).toEqual({
+      result: { exitCode: 0, signal: null },
+      restored: true,
+    });
+    expect(await parent.exited).toBe(0);
+  });
+  for (const exit of ["signal", "raw-exit"])
+    it.skipIf(process.platform === "win32")(
+      `awaits child ${exit} and restores parent signal handling`,
+      async () => {
+        const parent = interactiveHarness(
+          `process.stdout.write('READY\\n'); process.stdin.once('data', () => { ${exit === "signal" ? "process.kill(process.pid,'SIGINT')" : "process.exit(1)"}; });`,
+        );
+        const reader = parent.stdout.getReader();
+        expect(new TextDecoder().decode((await reader.read()).value)).toBe(
+          "READY\n",
+        );
+        parent.kill("SIGINT"); // Parent must survive while the native child owns stdin.
+        parent.stdin.write("cancel");
+        parent.stdin.end();
+        const outcome = JSON.parse(
+          (await new Response(parent.stderr).text())
+            .split("INTERACTIVE_RESULT:")
+            .at(-1)!,
+        );
+        expect(outcome.restored).toBe(true);
+        expect(outcome.result).toEqual(
+          exit === "signal"
+            ? { exitCode: null, signal: "SIGINT" }
+            : { exitCode: 1, signal: null },
+        );
+        expect(await parent.exited).toBe(0);
+        reader.releaseLock();
+      },
+    );
+  it("restores the signal listener after spawn errors", async () => {
+    const parent = interactiveHarness("", true);
+    const result = JSON.parse(
+      (await new Response(parent.stderr).text())
+        .split("INTERACTIVE_RESULT:")
+        .at(-1)!,
+    );
+    expect(result.restored).toBe(true);
+    // Windows resolves shims through cmd.exe; an absent command exits there.
+    if (process.platform === "win32")
+      expect(result.result.exitCode).not.toBe(0);
+    else expect(result.failed).toBe(true);
+    expect(await parent.exited).toBe(0);
+  });
+});
+
+it.skipIf(process.platform === "win32")(
+  "restores shared terminal flags after a raw-mode child is killed",
+  async () => {
+    const moduleUrl = new URL("./exec-service.ts", import.meta.url).href;
+    const source = `
+    import { ExecServiceImpl } from ${JSON.stringify(moduleUrl)};
+    import { spawnSync } from 'node:child_process';
+    await new ExecServiceImpl().execInteractive('node', ['-e', "process.stdin.setRawMode(true); process.kill(process.pid,'SIGKILL')"]);
+    const flags = spawnSync('stty',['-a'],{stdio:['inherit','pipe','pipe']}).stdout.toString();
+    process.stdout.write('RAW_RESTORED:'+JSON.stringify({ canonical: /(?:^|[;\\s])icanon(?:[;\\s]|$)/.test(flags), echo: /(?:^|[;\\s])echo(?:[;\\s]|$)/.test(flags) })+'\\n');
+  `;
+    const shellQuote = (value: string): string =>
+      `'${value.replaceAll("'", "'\\''")}'`;
+    const args =
+      process.platform === "darwin"
+        ? ["-q", "/dev/null", "node", "--input-type=module", "--eval", source]
+        : [
+            "-q",
+            "-c",
+            ["node", "--input-type=module", "--eval", source]
+              .map(shellQuote)
+              .join(" "),
+            "/dev/null",
+          ];
+    const parent = Bun.spawn(["script", ...args], {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const output = await new Response(parent.stdout).text();
+    expect(await parent.exited).toBe(0);
+    const result = output.match(/RAW_RESTORED:(\{[^\r\n]+\})/)?.[1];
+    expect(result).toBeDefined();
+    expect(JSON.parse(result!)).toEqual({ canonical: true, echo: true });
+  },
+);

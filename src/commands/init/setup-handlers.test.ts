@@ -26,6 +26,7 @@ import type {
   SetupCheckStatus,
 } from "./setup-handlers.js";
 import {
+  classifyConfigSetupContent,
   detectConfigFormat,
   dispatchSetupCheck,
   executeCliSetup,
@@ -3935,5 +3936,216 @@ describe("executeCompositeUninstall", () => {
     );
     expect(result.status).toBe("failed");
     expect(result.message).toContain("boom");
+  });
+});
+
+describe("native remote config classification", () => {
+  const remote = { type: "http", url: "https://mcp.githits.com" };
+  const local = {
+    command: "npx",
+    args: ["-y", "githits@latest", "mcp", "start"],
+  };
+  const config: ConfigFileSetup = {
+    method: "config-file",
+    configPath: "/fixture/mcp.json",
+    serversKey: "mcpServers",
+    serverName: "githits",
+    serverConfig: remote,
+  };
+  const cases: Array<{
+    name: string;
+    entry: unknown;
+    expected: SetupCheckStatus;
+    local?: boolean;
+  }> = [
+    {
+      name: "Q serialized remote defaults and non-transport extras",
+      entry: {
+        ...remote,
+        command: "",
+        args: [],
+        headers: {},
+        oauthScopes: [],
+        timeout: 60000,
+        disabled: false,
+      },
+      expected: "configured",
+    },
+    {
+      name: "Q serialized local defaults",
+      entry: {
+        ...local,
+        type: "stdio",
+        url: "",
+        httpUrl: "",
+        serverUrl: "",
+        headers: {},
+        oauthScopes: [],
+      },
+      expected: "configured",
+      local: true,
+    },
+    {
+      name: "remote nonempty local command conflicts",
+      entry: { ...remote, ...local },
+      expected: "non_canonical",
+    },
+    {
+      name: "remote conflicting URL indicators",
+      entry: { ...remote, serverUrl: "https://other.example" },
+      expected: "non_canonical",
+    },
+    {
+      name: "wrong remote URL",
+      entry: { ...remote, url: "https://other.example" },
+      expected: "non_canonical",
+    },
+    {
+      name: "local HTTP indicator",
+      entry: { ...local, httpUrl: remote.url },
+      expected: "non_canonical",
+      local: true,
+    },
+    {
+      name: "disabled remote",
+      entry: { ...remote, disabled: true },
+      expected: "disabled",
+    },
+    {
+      name: "malformed remote URL",
+      entry: { ...remote, url: 42 },
+      expected: "probe_failed",
+    },
+    {
+      name: "malformed enabled flag",
+      entry: { ...remote, enabled: "false" },
+      expected: "probe_failed",
+    },
+  ];
+  for (const item of cases)
+    it(item.name, () => {
+      const result = classifyConfigSetupContent(
+        { ...config, serverConfig: item.local ? local : remote },
+        JSON.stringify({ mcpServers: { githits: item.entry } }),
+      );
+      expect(result).toBe(item.expected);
+    });
+  it("keeps host-owned remote extras byte-for-byte on idempotent merge", () => {
+    const content = JSON.stringify(
+      {
+        mcpServers: {
+          githits: {
+            ...remote,
+            command: "",
+            args: [],
+            headers: {},
+            autoApprove: [],
+          },
+        },
+      },
+      null,
+      4,
+    );
+    expect(
+      mergeServerConfig(content, "mcpServers", "githits", remote).status,
+    ).toBe("already_configured");
+  });
+});
+
+it("classifies native Zed nested commands and rejects mixed remote/local entries", () => {
+  const value = {
+    source: "custom",
+    command: { path: "npx", args: ["-y", "githits@latest", "mcp", "start"] },
+  };
+  const config: ConfigFileSetup = {
+    method: "config-file",
+    configPath: "/fixture",
+    serversKey: "context_servers",
+    serverName: "GitHits",
+    serverConfig: value,
+  };
+  const content = JSON.stringify({
+    context_servers: { GitHits: { ...value, enabled: true } },
+  });
+  expect(classifyConfigSetupContent(config, content)).toBe("configured");
+  expect(
+    classifyConfigSetupContent(
+      { ...config, serverConfig: { url: "https://mcp.githits.com" } },
+      JSON.stringify({
+        context_servers: {
+          GitHits: { ...value, url: "https://mcp.githits.com" },
+        },
+      }),
+    ),
+  ).toBe("non_canonical");
+});
+
+describe("config symlink preservation", () => {
+  for (const format of ["json", "toml"] as const) {
+    it(`writes and removes ${format} entries through the existing file link`, async () => {
+      const { mkdtemp, mkdir, writeFile, readFile, symlink, lstat, rm } =
+        await import("node:fs/promises");
+      const { tmpdir } = await import("node:os");
+      const { join } = await import("node:path");
+      const { FileSystemServiceImpl } = await import(
+        "../../services/filesystem-service.js"
+      );
+      const root = await mkdtemp(join(tmpdir(), "githits-config-link-"));
+      const target = join(root, "dotfiles", `config.${format}`);
+      const link = join(root, `config.${format}`);
+      const initial =
+        format === "toml"
+          ? '# User comment\nmodel = "gpt-6-luna"\n'
+          : '{"userSetting":true}';
+      try {
+        await mkdir(join(root, "dotfiles"));
+        await writeFile(target, initial);
+        await symlink(target, link, "file");
+        const fs = new FileSystemServiceImpl();
+        const setup: ConfigFileSetup = {
+          method: "config-file",
+          configPath: link,
+          serversKey: format === "toml" ? "mcp_servers" : "mcpServers",
+          serverName: "githits",
+          serverConfig: { url: "https://mcp.githits.com" },
+          ...(format === "toml" ? { format: "toml" as const } : {}),
+        };
+        expect((await executeConfigFileSetup(setup, fs)).status).toBe(
+          "success",
+        );
+        expect((await lstat(link)).isSymbolicLink()).toBe(true);
+        expect(await readFile(target, "utf8")).toContain(
+          "https://mcp.githits.com",
+        );
+        expect((await executeConfigFileUninstall(setup, fs)).status).toBe(
+          "removed",
+        );
+        expect((await lstat(link)).isSymbolicLink()).toBe(true);
+        const remaining = await readFile(target, "utf8");
+        expect(remaining).not.toContain("githits");
+        expect(remaining).toContain(
+          format === "toml" ? "# User comment" : "userSetting",
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+  }
+  it("does not write when canonical path resolution is denied", async () => {
+    const fs = createMockFileSystemService({
+      readFile: mock(async () => "{}"),
+      realpath: mock(async () => {
+        throw Object.assign(new Error("Permission denied"), { code: "EACCES" });
+      }),
+    });
+    const setup: ConfigFileSetup = {
+      method: "config-file",
+      configPath: "/config.json",
+      serversKey: "mcpServers",
+      serverName: "githits",
+      serverConfig: { url: "https://mcp.githits.com" },
+    };
+    expect((await executeConfigFileSetup(setup, fs)).status).toBe("failed");
+    expect(fs.atomicWriteFile).not.toHaveBeenCalled();
   });
 });
