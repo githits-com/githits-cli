@@ -336,9 +336,8 @@ describe("agent skills packaging", () => {
     ]);
 
     expectContainsAllIgnoringWhitespace(codeContent, [
-      "Use whenever invoking the GitHits CLI",
-      "code, documentation, or example evidence",
-      "For GitHits CLI package, dependency, security, release, or upgrade evidence, use githits-package",
+      "Use GitHits for public open-source code, documentation and examples",
+      "For package metadata, dependencies, security, releases or upgrades, use githits-package",
     ]);
     expectContainsAllIgnoringWhitespace(packageContent, [
       "Use whenever invoking the GitHits CLI",
@@ -346,9 +345,12 @@ describe("agent skills packaging", () => {
       "vulnerabilities",
       "upgrade reviews",
     ]);
-    for (const content of [codeContent, packageContent]) {
+    const codeReference = await read(githitsCodeReferencePath);
+    expect(codeContent).toContain("references/code-and-docs.md");
+    expect(codeReference).toContain("Do not invent tags");
+    for (const content of [codeReference, packageContent]) {
       expect(content).toContain("numeric prefixes");
-      expect(content).toContain("do not pass ranges");
+      expect(content.toLowerCase()).toContain("do not pass ranges");
     }
   });
 
@@ -375,12 +377,10 @@ describe("agent skills packaging", () => {
       ["githits-code", codeContent],
       ["githits-package", packageContent],
     ] as const;
-    const jsonPolicy =
-      "Use `--json` only when code consumes the raw response or text omits a required field";
-
-    expectContainsAllIgnoringWhitespace(codeContent, [
-      "Use default text",
-      jsonPolicy,
+    const codeReference = await read(githitsCodeReferencePath);
+    expect(codeContent).toContain("Keep default text output");
+    expectContainsAllIgnoringWhitespace(codeReference, [
+      "Use `--json` only for required range/source metadata or an exact search follow-up",
     ]);
     expectContainsAllIgnoringWhitespace(packageContent, [
       "Keep default text",
@@ -398,9 +398,9 @@ describe("agent skills packaging", () => {
         "Use `--json` when comparing versions, counting vulnerabilities, or extracting fields.",
         "Use `--json` when you need stable fields to parse or chain into another command.",
       ]);
-      expect(content, name).toContain("## External Content Posture");
+      expect(content.toLowerCase(), name).toContain("untrusted");
 
-      expect(content, name).toContain("## Choose a command");
+      expect(content, name).toContain("| Command |");
     }
   });
 
@@ -410,20 +410,25 @@ describe("agent skills packaging", () => {
       join(root, "skills", "githits-code", "references", "code-and-docs.md"),
     );
     expectContainsAll(content, [
-      "Read known symbols directly",
-      "known declaration path",
-      "literal-grep the identifier",
-      "use returned heading IDs, not titles",
+      "For a known API, use `read --selector`",
+      "Reuse returned read commands: target, ref and path belong together",
+      "Batch independent known lookups",
+      "Stop when the question is answered",
+      "githits grep [-F] '<pattern>'",
       "references/code-and-docs.md",
     ]);
     expectContainsAll(reference, [
+      "Read known symbols directly with `--selector`",
+      "literal-grep the exact identifier",
+      "reuse returned heading IDs",
+      "Current hosted docs do not establish historical behavior",
       "then replay its `followUp` with every supplied argument unchanged",
       "From `docs list`, pass `docsReadTarget`",
       "Hosted/crawled HTTP(S) targets address mutable current content",
       "A direct HTTP(S) fragment read without explicit bounds returns its heading and full subtree",
       "Repository docs remain snapshot-addressed",
     ]);
-    expect(content.split(/\s+/).length).toBeLessThan(1100);
+    expect(content.split(/\s+/).length).toBeLessThan(600);
   });
 
   it("requires generated plugin asset validation before package creation", async () => {

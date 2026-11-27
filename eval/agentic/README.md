@@ -49,6 +49,24 @@ judge answer quality.
   and run local mode.
 - To evaluate skill instruction changes, use `--surface skills --server local`.
 
+The `Agent Evals` workflow also supports a manual `cli-comparison` mode. Supply
+full `baseline_sha` and `candidate_sha` commit IDs. It runs the same stable
+workload set through the CLI skills surface on Ubuntu and macOS using Bash,
+Codex 0.172.0, and `gpt-6-luna` with low reasoning. Each OS runs the old arm
+then the new arm with separate authenticated homes, four concurrent workloads,
+and a 300-second per-workload timeout. Both arms use one measurement checkout.
+The workflow records runtime versions, input and skill hashes, and retains both
+arms as artifacts, including incomplete answers and failed runs. It uses the
+repository's existing API-key credentials; it does not upload workstation auth.
+
+This mode preserves the existing skills installation behavior: all packaged
+skills are available, including the MCP guide, but no MCP server is configured.
+Inspect actual CLI use, skill selection, fallback behavior and answer content;
+a successful process exit is not proof of a correct or complete answer. Treat
+OS results separately and retain all attempts. The CLI comparison is not
+exported into the MCP scenario matrix in Braintrust, and its results must not
+be treated as comparable MCP baseline measurements.
+
 Smoke tests are the right fit for CI gating. Agentic evals are the right fit for
 qualitative review before/after instruction, tool-description, and agent-facing
 UX changes.

@@ -4,6 +4,18 @@ on:
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Evaluation surface
+        type: choice
+        options: [mcp, cli-comparison]
+        default: mcp
+      baseline_sha:
+        description: Full baseline commit SHA for CLI comparison
+        type: string
+      candidate_sha:
+        description: Full candidate commit SHA for CLI comparison
+        type: string
   push:
     branches: [main]
   pull_request:
@@ -17,9 +29,133 @@ env:
   CHECKOUT_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
 jobs:
+  cli-comparison:
+    name: CLI skills / ${{ matrix.os }}
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'cli-comparison'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    defaults:
+      run:
+        shell: bash
+    env:
+      BASELINE_SHA: ${{ inputs.baseline_sha }}
+      CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      SHELL: /bin/bash
+    steps:
+      - name: Validate immutable revisions
+        run: |
+          set -euo pipefail
+          [[ "$BASELINE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          mkdir -p "$RUNNER_TEMP/cli-skill-comparison"
+          printf 'PAIR_OUT=%s/cli-skill-comparison\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+
+      - name: Checkout measurement harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: measurement
+          persist-credentials: false
+
+      - name: Checkout baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.baseline_sha }}
+          path: old
+          persist-credentials: false
+
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          path: new
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.4.4"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: "measurement/.node-version"
+
+      - name: Install pinned runtime and dependencies
+        run: |
+          set -euo pipefail
+          npm install --global @openai/codex@0.172.0
+          for tree in measurement old new; do
+            (cd "$tree" && bun install --frozen-lockfile)
+          done
+          {
+            uname -a
+            bash --version
+            node --version
+            bun --version
+            codex --version
+            git -C measurement rev-parse HEAD
+            git -C old rev-parse HEAD
+            git -C new rev-parse HEAD
+          } > "$PAIR_OUT/runtime.txt"
+
+      - name: Initialize separate authenticated homes
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          for arm in old new; do
+            export CODEX_HOME="$RUNNER_TEMP/cli-comparison-auth-$arm"
+            mkdir -p "$CODEX_HOME"
+            printf '%s' "$OPENAI_API_KEY" | codex login --with-api-key
+          done
+
+      - name: Run matched CLI skill arms
+        env:
+          GITHITS_API_TOKEN: ${{ secrets.GITHITS_API_TOKEN }}
+        working-directory: measurement
+        run: |
+          set -euo pipefail
+          for arm in old new; do
+            export CODEX_HOME="$RUNNER_TEMP/cli-comparison-auth-$arm"
+            export ARM="$arm"
+            bun -e '
+              const fs = require("node:fs");
+              const path = require("node:path");
+              const crypto = require("node:crypto");
+              const arm = process.env.ARM;
+              const target = path.join(process.env.GITHUB_WORKSPACE, arm);
+              const out = path.join(process.env.PAIR_OUT, arm);
+              const workloads = JSON.parse(fs.readFileSync("eval/agentic/suites.json", "utf8")).workloads.filter(w => w.suites.includes("stable-full"));
+              const digest = file => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+              const inputs = Object.fromEntries(workloads.map(w => [w.path, digest(w.path)]));
+              const skills = Object.fromEntries(["SKILL.md", "references/code-and-docs.md"].map(p => [p, digest(path.join(target, "skills/githits-code", p))]));
+              fs.writeFileSync(path.join(process.env.PAIR_OUT, arm + "-inputs.json"), JSON.stringify({arm, order:["old", "new"], inputs, skills}, null, 2));
+              const args = ["bun", "run", "agent:e2e", "--agent", "codex", "--surface", "skills", "--server", "local", "--model", "gpt-6-luna", "--reasoning-effort", "low", "--concurrency", "4", "--timeout", "300", "--target-root", target, "--out", out, ...workloads.flatMap(w => ["--workload", w.path])];
+              const child = Bun.spawnSync(args, {stdout:"inherit", stderr:"inherit"});
+              if (!fs.existsSync(path.join(out, "report.json"))) process.exit(child.exitCode || 1);
+              fs.writeFileSync(path.join(process.env.PAIR_OUT, arm + "-exit.json"), JSON.stringify({exitCode:child.exitCode}));
+            '
+          done
+          bun run agent:e2e:report --compare "$PAIR_OUT/old" "$PAIR_OUT/new" > "$PAIR_OUT/comparison.txt"
+
+      - name: Upload both arms including failures
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cli-skill-comparison-${{ matrix.os }}
+          path: ${{ runner.temp }}/cli-skill-comparison
+          if-no-files-found: warn
+          retention-days: 14
+
   scenario:
     name: ${{ matrix.label }} agent eval
     if: >-
+      inputs.mode != 'cli-comparison' &&
       (github.event_name != 'workflow_dispatch' || github.ref_name == 'main') &&
       (github.event_name != 'pull_request' ||
       ((github.event.label.name == 'agent-eval' || github.event.label.name == 'agent-eval-openrouter') &&
@@ -128,6 +264,7 @@ jobs:
     name: Agent eval summary
     if: >-
       always() &&
+      inputs.mode != 'cli-comparison' &&
       (github.event_name != 'workflow_dispatch' || github.ref_name == 'main') &&
       (github.event_name != 'pull_request' ||
       ((github.event.label.name == 'agent-eval' || github.event.label.name == 'agent-eval-openrouter') &&

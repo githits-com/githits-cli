@@ -2335,7 +2335,7 @@ describe("initAction", () => {
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain("<!-- githits -->");
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
-      "Use GitHits first when looking up OSS code, docs, examples, packages, or dependencies",
+      "Use GitHits for open-source dependency code navigation, research, documentation, package data, vulnerabilities, upgrade reviews, changelogs, code diffs between versions or refs, and package dependencies. You can also use it to inspect locally installed open-source dependencies more effectively",
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
       "Read the `githits-mcp` skill before external lookups",
@@ -2344,7 +2344,7 @@ describe("initAction", () => {
       "if absent, call GitHits `quick_start` once per session before other GitHits tools",
     );
     expect(writes["/home/test/.codex/AGENTS.md"]).toContain(
-      "Fall back when GitHits is unavailable or insufficient",
+      "If GitHits is unavailable or lacks the needed version or content, use another source and state the gap",
     );
 
     const logCalls = getLogOutput();

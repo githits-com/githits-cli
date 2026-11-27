@@ -226,3 +226,19 @@ Resolve unclear names; use canonical targets directly. Narrow with known `--regi
 Ask a focused question about missing information. Sources are included. Use direct reads/package commands when sufficient. Supply a package/repository target or omit it for identification; docs sites are unsupported.
 
 Reuse `--thread` and state scope changes. Cite returned sources; open them for missing details, contradictions, or required source inspection. Respect retry delays and daily resets. After failure, use a direct lookup for a specific gap.
+
+## Invocation and authentication
+
+Run `githits`. If unavailable, explain that `npx -y githits@latest` downloads and executes the CLI, and use it only when authorized. Check the CLI version only for a compatibility problem. Never expose credentials. Login needs sign-in authorization; `--no-browser` requires a user able to complete the URL flow. Do not start OAuth in CI or evaluations; report missing credentials.
+
+With a PowerShell `.cmd` shim, invoke it explicitly: `githits.cmd --% grep "foo|bar" npm:express`. After `--%`, use double quotes and one command per line. The `.ps1` shim needs no workaround.
+
+For `REAUTH_REQUIRED`, show the supplied URL and wait; do not loop or run login. For `TERMS_ACCEPTANCE_REQUIRED`, obtain explicit acceptance authorization and retry once after acceptance.
+
+## Target and evidence details
+
+Package reads accept exact published versions or numeric prefixes: `npm:express@5` selects the newest eligible stable 5.x.y; `crates:tokio@1.43` selects 1.43.x. Prefixes match components in every ecosystem. Do not pass ranges (`^`, `~`, comparisons, unions, intervals); use `from..to` for release comparisons. Do not invent tags. Reuse canonical targets without resolution. Never choose ambiguous identity by popularity alone or treat CLEAR as vulnerability-free.
+
+Reuse definitions and metadata. When only imports or package declarations are missing, read the missing header rather than the body again. Explicit imports establish full names; call sites alone do not establish implementation. Keep versions and execution paths distinct and attribute behavior to the source's function. Example projects do not establish another version's contract.
+
+Current hosted docs do not establish historical behavior. For docs, reuse returned heading IDs. If a heading is missing, read its page without selector/fragment; if the page is missing, discover an indexed page. Apply filters and limits instead of routinely piping output through `head`; paginate only for needed content. Use space-separated search qualifiers such as `kind:function path:lib/`, without commas.

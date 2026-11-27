@@ -2259,6 +2259,54 @@ function githubExpression(name: string): string {
 }
 
 describe("Agent eval workflow Braintrust integration", () => {
+  it("keeps manual CLI comparisons separate from the MCP Braintrust matrix", () => {
+    const workflow = readAgentEvalWorkflow();
+    const cli = workflow.jobs["cli-comparison"];
+    expect(cli).toMatchObject({
+      if: "github.event_name == 'workflow_dispatch' && inputs.mode == 'cli-comparison'",
+      strategy: {
+        "fail-fast": false,
+        "max-parallel": 1,
+        matrix: { os: ["ubuntu-24.04", "macos-15"] },
+      },
+      defaults: { run: { shell: "bash" } },
+    });
+    expect(workflow.jobs.scenario?.if).toContain(
+      "inputs.mode != 'cli-comparison'",
+    );
+    expect(workflow.jobs.summary?.if).toContain(
+      "inputs.mode != 'cli-comparison'",
+    );
+    expect(cli?.steps.some((step) => step.id === "braintrust")).toBe(false);
+  });
+
+  it("limits CLI comparison credentials to execution and retains both arm artifacts", () => {
+    const cli = readAgentEvalWorkflow().jobs["cli-comparison"];
+    expect(cli?.env).not.toHaveProperty("OPENAI_API_KEY");
+    expect(cli?.env).not.toHaveProperty("GITHITS_API_TOKEN");
+    const validate = cli?.steps.find(
+      (step) => step.name === "Validate immutable revisions",
+    );
+    expect(validate?.run).toContain('[[ "$BASELINE_SHA" =~ ^[0-9a-f]{40}$ ]]');
+    expect(validate?.run).toContain('[[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]');
+    const run = cli?.steps.find(
+      (step) => step.name === "Run matched CLI skill arms",
+    );
+    expect(run?.run).toContain("for arm in old new");
+    expect(run?.run).toContain('"--surface", "skills"');
+    expect(run?.run).toContain('"--target-root", target');
+    expect(run?.run).toContain('"--model", "gpt-6-luna"');
+    expect(run?.run).toContain('"--reasoning-effort", "low"');
+    expect(run?.run).not.toContain("codex login");
+    const upload = cli?.steps.find(
+      (step) => step.name === "Upload both arms including failures",
+    );
+    expect(upload).toMatchObject({
+      if: "always()",
+      with: { path: "${{ runner.temp }}/cli-skill-comparison" },
+    });
+  });
+
   it("routes stable identity for main pushes and guards non-main manual dispatch", () => {
     const workflow = readAgentEvalWorkflow();
     const scenario = workflow.jobs.scenario;
@@ -2461,8 +2509,12 @@ describe("OpenRouter shared agent eval workflow", () => {
       branches: ["main"],
       types: ["labeled"],
     });
-    expect(Object.keys(workflow.jobs).sort()).toEqual(["scenario", "summary"]);
-    for (const job of Object.values(workflow.jobs)) {
+    expect(Object.keys(workflow.jobs).sort()).toEqual([
+      "cli-comparison",
+      "scenario",
+      "summary",
+    ]);
+    for (const job of [workflow.jobs.scenario!, workflow.jobs.summary!]) {
       expect(job.if).toContain(
         "(github.event.label.name == 'agent-eval' || github.event.label.name == 'agent-eval-openrouter') &&",
       );
