@@ -107,7 +107,7 @@
     "@inquirer/checkbox": "5.2.6",
     "@inquirer/confirm": "6.3.3",
     "@inquirer/core": "12.0.4",
-    "@inquirer/select": "5.2.6",
+    "@inquirer/select": "5.2.7",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@napi-rs/keyring": "^2.1.0",
     "commander": "14.0.3",
